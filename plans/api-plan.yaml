@@ -1,0 +1,20 @@
+planVersion: "0.2"
+app:
+  name: sample-expressjs
+  type: api
+profile: poc
+modules:
+  - id: http_api_serverless
+    enabled: true
+    inputs:
+      runtime: nodejs
+      entry_point: index.js
+      trigger: http
+  - id: observability_basic
+    enabled: true
+    inputs:
+      target: auto
+      retention_days: 30
+outputs:
+  - public_url
+  - logs

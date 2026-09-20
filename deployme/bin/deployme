@@ -1,0 +1,183 @@
+#!/usr/bin/env node
+import { loadPlanFromYaml, createDeployment, validatePlan, getDeployment } from "../lib/run.js";
+
+const jsonOut = process.argv.includes("--json");
+
+function usage() {
+  console.log(`
+deployme - deployment plan runner
+
+Usage:
+  deployme deploy --backend <terraform|cloudformation> --file <plan.yaml> [--api <url>] [--json]
+  deployme validate --file <plan.yaml> [--api <url>] [--json]
+  deployme status <deploymentId> [--api <url>] [--json]
+  deployme watch <deploymentId>
+
+Options:
+  -b, --backend   terraform | cloudformation (default: terraform)
+  -f, --file      path to plan YAML
+  --api           API base URL (default: http://localhost:3000)
+  -h, --help      show help
+
+Examples:
+  deployme validate -f deployme-test.yaml
+  deployme deploy -b terraform -f deployme-test.yaml
+  deployme deploy -b cloudformation -f deployme-test.yaml --api http://localhost:3000
+`);
+}
+
+function getArg(longFlag, shortFlag) {
+  const argv = process.argv;
+  const iLong = argv.indexOf(longFlag);
+  if (iLong !== -1) return argv[iLong + 1];
+  if (shortFlag) {
+    const iShort = argv.indexOf(shortFlag);
+    if (iShort !== -1) return argv[iShort + 1];
+  }
+  return undefined;
+}
+
+async function main() {
+  const [, , command] = process.argv;
+
+  if (!command || command === "-h" || command === "--help") {
+    usage();
+    process.exit(0);
+  }
+
+  const apiBaseUrl = getArg("--api") || "http://localhost:3000";
+  const jsonOut = process.argv.includes("--json");
+
+  //const plan = loadPlanFromYaml(file);
+
+  if (command === "validate") {
+    const file = getArg("--file", "-f");
+    if (!file) {
+      console.error("Missing required --file for validate");
+      process.exit(1);
+    }
+
+    const plan = loadPlanFromYaml(file);
+    const result = await validatePlan({ apiBaseUrl, plan });
+
+    if (jsonOut) console.log(JSON.stringify(result, null, 2));
+    else console.log(result)
+
+    return;
+  }
+
+  if (command === "deploy") {
+    const file = getArg("--file", "-f");
+    if (!file) {
+      console.error("Missing required --file for deploy");
+      process.exit(1);
+    }
+
+    const backend = getArg("--backend", "-b") || "terraform";
+    
+    const plan = loadPlanFromYaml(file);
+    const result = await createDeployment({ apiBaseUrl, backend, plan });
+
+    if (jsonOut) console.log(JSON.stringify(result, null, 2));
+    else printDeploymentSummary(result);
+
+    return;
+  }
+
+  if (command === "status") {
+    const deploymentId = process.argv[3];
+
+    if (!deploymentId) {
+      console.error("Missing deploymentId: deployme status <deploymentId>");
+      process.exit(1);
+    }
+
+    const result = await getDeployment({ apiBaseUrl, deploymentId });
+
+    if (jsonOut) console.log(JSON.stringify(result, null, 2));
+    else printDeploymentSummary(result);
+
+    return;
+  }
+
+  if (command === "watch") {
+
+    function sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    function formatDots(tick) {
+      const count = (tick % 3) + 1;   // 1..3
+      return ".".repeat(count);
+    }
+
+    const deploymentId = process.argv[3];
+    if (!deploymentId) {
+      console.error("Missing deploymentId: deployme watch <deploymentId>");
+      process.exit(1);
+    }
+
+    let tick = 0;
+
+    while (true) {
+      const dep = await getDeployment({ apiBaseUrl, deploymentId }); // from lib/run.js 【1-2d505c】
+      const dots = formatDots(tick++);
+      const statusLine = `Status: ${dep.status}${dots}`;
+
+      // Clear screen + print summary (nice), OR single-line update (minimal)
+      // Option A: keep your existing summary + add a live status line
+      console.clear();
+      printDeploymentSummary(dep);
+      console.log("");
+      process.stdout.write(statusLine);
+
+      if (dep.status === "succeeded" || dep.status === "failed") {
+        process.stdout.write("\n");
+        console.log("Deployment complete");
+        break;
+      }
+
+      await sleep(500); // refresh twice per second
+    }
+
+    return;
+
+  }
+
+  return;
+
+  console.error(`Unknown command: ${command}`);
+  usage();
+  process.exit(1);
+
+}
+
+
+function printDeploymentSummary(dep) {
+  console.log(`Deployment: ${dep.deploymentId}`);
+  console.log(`Status:     ${dep.status}`);
+  console.log(`Backend:    ${dep.backend}`);
+  console.log(`App:        ${dep.app?.name} (${dep.app?.type})`);
+
+  if (dep.outputs?.public_url) console.log(`URL:        ${dep.outputs.public_url}`);
+  if (dep.outputs?.logs) console.log(`Logs:       ${dep.outputs.logs}`);
+  if (dep.outputs?.metrics) console.log(`Metrics:    ${dep.outputs.metrics}`);
+  if (dep.startedAt)  console.log(`Started:    ${dep.startedAt}`);
+  if (dep.finishedAt) console.log(`Finished:   ${dep.finishedAt}`);
+
+  if (Array.isArray(dep.resolvedModules) && dep.resolvedModules.length) {
+    console.log(`Modules:`);
+    for (const m of dep.resolvedModules) {
+      console.log(`  - ${m.id} -> ${m.mappedTo}`);
+    }
+  }
+}
+
+async function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+main().catch(err => {
+  console.error(err.details ? JSON.stringify(err.details, null, 2) : (err.stack || String(err)));
+  process.exit(1);
+});
