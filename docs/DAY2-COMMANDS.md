@@ -69,8 +69,8 @@ aws s3 cp dist/sample-expressjs.zip "s3://${DEPLOYME_BUCKET}/sample-expressjs/v2
 aws cloudformation deploy --template-file templates/http_api_serverless.yaml --stack-name dep-sample-expressjs \
   --parameter-overrides AppName=sample-expressjs ArtifactBucket=${DEPLOYME_BUCKET} ArtifactKey=sample-expressjs/v2.zip \
       AdapterLayerVersion=${DEPLOYME_LWA_VERSION} RetentionDays=30 --capabilities CAPABILITY_NAMED_IAM
-# Result: <fill in: did the v2 greeting appear at the same URL? yes/no>
-# Update time: <fill in, if noted>
+# Result: did the v2 greeting appear at the same URL? yes
+# Update time: 0.27s user 0.08s system 0% cpu 36.553 total
 
 ### Static site (bucket must be emptied before the stack can be deleted)
 SITE_BUCKET=$(aws cloudformation describe-stacks --stack-name dep-static-website \
