@@ -27,3 +27,18 @@ material, read-only reference).
 
 Definition of done for the demo: from a clean copy of apps/sample-expressjs (later
 renamed), `deployme init` -> y -> URL in under 5 minutes; `deployme destroy` cleans up.
+
+Product and command (decided Sept 20)
+- The product is seaLeye.run. The developer-facing command is `sealeye`, a bin alias
+  for bin/deployme (the `deployme` alias stays until Day 6). Internal names (deployme
+  API, folders, repo, .env variables, deployme.yaml) stay as they are and never appear
+  in anything the developer sees.
+- CloudFormation stacks are named sealeye-<app>.
+- Fiction: seaLeye.run is the vendor; Greg is its SE; the developer and the platform
+  team are at the bank. Copy the developer sees says seaLeye.run or sealeye, never
+  deployme.
+- Every command prints prompts/banner.txt first (ASCII wordmark plus one line). The
+  report template prompts/report.md starts with the wordmark line. Colours come from
+  the chosen brand direction and live in one place: deployme/src/brand.js.
+- Brand spec: brand/BRAND.md. Colours only from deployme/src/brand.js.
+- Brand spec: brand/BRAND.md. Colours only from deployme/src/brand.js.

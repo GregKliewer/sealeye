@@ -1,0 +1,83 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My First Website</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* Make the image fill the entire screen */
+        body, html {
+            height: 100%;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+
+        .hero {
+            /* Background image */
+            background-image: url('images/Space-Background-Images-1024x682.jpg'); /* your image path */
+            background-size: cover; /* make it fill the whole page */
+            background-position: center;
+            background-repeat: no-repeat;
+            height: 100%;
+            display: flex;
+            align-items: center; /* vertical centering */
+            justify-content: center; /* horizontal centering */
+            text-align: center;
+            color: white;
+            position: relative;
+        }
+
+        /* Overlay to darken the image for better text readability */
+        .hero::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5); /* adjust opacity as needed */
+            z-index: 1;
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 2; /* ensure text is above overlay */
+            max-width: 800px;
+            padding: 20px;
+        }
+
+        h1 {
+            font-size: 3em;
+            margin-bottom: 20px;
+        }
+
+        p {
+            font-size: 1.2em;
+        }
+
+        a {
+            color: #FFD700;
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="hero">
+        <div class="hero-content">
+            <h1>Welcome to My Website!</h1>
+            <p>This is a simple static website hosted on GitHub Pages.</p>
+            <p><a href="about.html">About Page</a></p>
+        </div>
+    </div>
+
+</body>
+</html>
+

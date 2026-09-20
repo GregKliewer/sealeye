@@ -1,0 +1,103 @@
+<!-- about.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About Me</title>
+    <style>
+        /* Make the image fill the entire screen */
+        body, html {
+            height: 100%;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+
+        .hero {
+            /* Background image */
+            background-image: url('images/Space-Background-Images-1024x682.jpg'); /* same image as index.html */
+            background-size: cover; /* cover whole page */
+            background-position: center;
+            background-repeat: no-repeat;
+            height: 100%;
+            display: flex;
+            align-items: center; /* vertical centering */
+            justify-content: center; /* horizontal centering */
+            text-align: center;
+            color: white;
+            position: relative;
+        }
+
+        /* Overlay to darken the image for better text readability */
+        .hero::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.6); /* dark overlay */
+            z-index: 1;
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 2; /* make text appear above overlay */
+            max-width: 800px;
+            padding: 20px;
+        }
+
+        h1 {
+            font-size: 3em;
+            margin-bottom: 20px;
+        }
+
+        h2 {
+            font-size: 2em;
+            margin-top: 20px;
+        }
+
+        p {
+            font-size: 1.2em;
+            margin-bottom: 1em;
+            line-height: 1.6;
+        }
+
+        a.email-link {
+            color: #FFD700; /* highlight email in gold */
+            font-weight: bold;
+            text-decoration: underline;
+        }
+
+        a.email-link:hover {
+            color: #FFA500;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="hero">
+        <div class="hero-content">
+            <h1>About Me</h1>
+
+            <h2>Hello!</h2>
+            <p>
+                Welcome to my About Page. Here, you can learn more about me, my work, and my passions.
+            </p>
+
+            <h2>Background</h2>
+            <p>
+                I am a tech enthusiast who loves building projects and exploring new technologies. I enjoy solving problems and continuously learning to improve my skills.
+            </p>
+
+            <h2>Contact</h2>
+            <p>
+                Feel free to reach out to me at 
+                <a href="mailto:luffy69monkeyd@gmail.com" class="email-link">luffy69monkeyd@gmail.com</a>.
+            </p>
+        </div>
+    </div>
+
+</body>
+</html>
+
