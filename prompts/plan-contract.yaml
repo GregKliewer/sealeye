@@ -1,0 +1,134 @@
+planVersion: 0.2
+
+# -------------------------------
+# Application Metadata
+# -------------------------------
+app:
+  name: your-app-name
+  type: static-site | api
+  # High-level classification used by the platform to guide module selection
+
+# -------------------------------
+# Deployment Profile
+# -------------------------------
+profile: poc | team | prodish
+# Describes scale, reliability, and cost expectations
+# - poc: minimal cost, basic features
+# - team: moderate scale, shared usage
+# - prodish: higher reliability, stronger defaults
+
+# -------------------------------
+# Selected Platform Modules
+# -------------------------------
+modules:
+
+  # ---------------------------
+  # STATIC SITE EDGE
+  # ---------------------------
+  - id: static_site_edge
+    enabled: false   # set to true if deploying a static frontend
+    inputs:
+      site_root: .
+      entry_point: index.html
+      additional_pages: []
+      assets_path: images/
+    # Purpose:
+    # - Hosts static files (HTML, CSS, images)
+    # - Distributes globally via edge caching
+    # - Provides fast load times worldwide
+    #
+    # Typical usage:
+    # - Static websites
+    # - Frontend apps without backend logic
+
+  # ---------------------------
+  # HTTP API SERVERLESS
+  # ---------------------------
+  - id: http_api_serverless
+    enabled: false   # set to true for backend/API apps
+    inputs:
+      runtime: nodejs | python
+      entry_point: index.js
+      trigger: http
+    # Purpose:
+    # - Runs backend logic on-demand
+    # - Exposes application via HTTPS endpoint
+    # - Scales automatically with traffic
+    #
+    # Typical usage:
+    # - REST APIs
+    # - lightweight backend services
+    # - webhook handlers
+
+  # ---------------------------
+  # OBSERVABILITY (SHARED)
+  # ---------------------------
+  - id: observability_basic
+    enabled: true
+    inputs:
+      target: auto     # automatically attaches to core module
+      metrics: [requests, errors, latency]
+      retention_days: 30
+    # Purpose:
+    # - Captures logs (stdout, errors)
+    # - Tracks traffic and performance metrics
+    #
+    # Applies to:
+    # - ALL applications (static + API)
+    #
+    # Why it exists:
+    # - Gives developers visibility without needing platform tools
+
+  # ---------------------------
+  # CONFIGURATION (ENV VARS)
+  # ---------------------------
+  - id: config_basic
+    enabled: false
+    inputs:
+      variables: {}
+    # Purpose:
+    # - Injects environment variables into the application at runtime
+    # - Keeps secrets/config out of code
+    #
+    # Typical usage:
+    # - API keys
+    # - database URLs
+    # - feature flags
+    #
+    # Usually:
+    # - enabled for APIs
+    # - skipped for static sites
+
+  # ---------------------------
+  # PUBLIC DOMAIN (OPTIONAL)
+  # ---------------------------
+  - id: domain_public
+    enabled: false
+    inputs:
+      domain_name: null
+    # Purpose:
+    # - Associates a custom domain (e.g. mysite.com)
+    #
+    # Behavior:
+    # - If disabled → platform generates URL automatically
+    #
+    # Notes:
+    # - Optional for both static and API apps
+
+# -------------------------------
+# Expected Outputs
+# -------------------------------
+outputs:
+  - public_url
+  - logs
+  - metrics
+# What the developer will receive after deployment
+# (abstracts away backend/platform details)
+
+# -------------------------------
+# Execution Metadata (POC2+)
+# -------------------------------
+execution:
+  strategy: pipeline | direct
+  # pipeline → CI/CD execution (e.g., GitHub Actions)
+  # direct → immediate execution (CLI / API calls)
