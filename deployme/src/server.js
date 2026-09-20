@@ -2,10 +2,13 @@ import express from "express";
 import Ajv from "ajv";
 import addFormats from "ajv-formats";
 import crypto from "crypto";
+import fs from "node:fs";
+import path from "node:path";
 
 import { planV02Schema } from "./schema.js";
 import { backendMappings } from "./mappings.js";
 import { putDeployment, getDeployment } from "./store.js";
+import { startDeployment } from "./executor/index.js";
 
 const app = express();
 app.use(express.json({ limit: "1mb" }));
@@ -33,7 +36,7 @@ app.post("/plans/validate", (req, res) => {
 
 // POST /deployments
 app.post("/deployments", (req, res) => {
-  const { backend, plan } = req.body || {};
+  const { backend, plan, appPath } = req.body || {};
 
   if (!backend || !["cloudformation"].includes(backend)) {
     return res.status(400).json({
@@ -43,6 +46,27 @@ app.post("/deployments", (req, res) => {
   if (!plan) {
     return res.status(400).json({
       error: { code: "MISSING_PLAN", message: "plan is required" }
+    });
+  }
+  if (!appPath || typeof appPath !== "string") {
+    return res.status(400).json({
+      error: { code: "MISSING_APP_PATH", message: "appPath is required" }
+    });
+  }
+
+  // Absolute only: the API does not share the developer's working directory, so a
+  // relative path would silently resolve against the server's cwd.
+  if (!path.isAbsolute(appPath)) {
+    return res.status(400).json({
+      error: { code: "INVALID_APP_PATH", message: "appPath must be an absolute path" }
+    });
+  }
+
+  // Checked once, here, so a bad path fails now instead of halfway through packaging.
+  const resolvedAppPath = path.resolve(appPath);
+  if (!fs.existsSync(resolvedAppPath) || !fs.statSync(resolvedAppPath).isDirectory()) {
+    return res.status(400).json({
+      error: { code: "INVALID_APP_PATH", message: `appPath is not a directory: ${resolvedAppPath}` }
     });
   }
 
@@ -57,25 +81,17 @@ app.post("/deployments", (req, res) => {
     });
   }
 
-  // Resolve enabled modules and map to backend artifacts (stub for now)
+  // Enabled modules and the template each one maps to (null for the modules that
+  // contribute parameters rather than a template of their own).
   const mapping = backendMappings[backend];
   const resolvedModules = (plan.modules || [])
     .filter(m => m.enabled !== false)
     .map(m => ({
       id: m.id,
-      mappedTo: mapping[m.id] || `unknown/${m.id}`
+      mappedTo: mapping[m.id] || null
     }));
 
   const deploymentId = `dep_${crypto.randomBytes(6).toString("hex")}`;
-  const now = new Date().toISOString();
-
-  // Deterministic outputs for demo purposes
-  const outputs = {};
-  if ((plan.outputs || []).includes("public_url")) outputs.public_url = "https://your-app-name.platform.app";
-  if ((plan.outputs || []).includes("logs")) outputs.logs = "available";
-  if ((plan.outputs || []).includes("metrics")) outputs.metrics = "available";
-  if ((plan.outputs || []).includes("metrics_dashboard")) outputs.metrics_dashboard = "available";
-  if ((plan.outputs || []).includes("log_stream")) outputs.log_stream = "available";
 
   const record = putDeployment({
     deploymentId,
@@ -83,29 +99,24 @@ app.post("/deployments", (req, res) => {
     backend,
     planVersion: plan.planVersion,
     app: plan.app,
+    appPath: resolvedAppPath,
     resolvedModules,
-    outputs,
-    startedAt: now,
+    outputs: {},
+    failureReason: null,
+    startedAt: new Date().toISOString(),
     finishedAt: null
-});
+  });
 
-  setTimeout(() => {
-    const dep = getDeployment(deploymentId);
-    if (!dep) return;
-    dep.status = "running";
-    putDeployment(dep);
-  }, 10000);
+  // Runs to completion in the background against real CloudFormation; the record is
+  // mutated in place, so GET /deployments/:id always reads the live state.
+  startDeployment(record, plan, resolvedAppPath).catch(err => {
+    record.status = "failed";
+    record.failureReason = err.message;
+    record.finishedAt = new Date().toISOString();
+    putDeployment(record);
+  });
 
-  setTimeout(() => {
-    const dep = getDeployment(deploymentId);
-    if (!dep) return;
-    dep.status = "succeeded";
-    dep.finishedAt = new Date().toISOString();
-    putDeployment(dep);
-  }, 20000);
-
-  const response = { ...record };
-  return res.status(201).json(response)   ;
+  return res.status(201).json({ ...record });
 });
 
 // GET /deployments/{deploymentId}

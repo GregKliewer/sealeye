@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import path from "node:path";
 import { loadPlanFromYaml, createDeployment, validatePlan, getDeployment } from "../lib/run.js";
 
 const jsonOut = process.argv.includes("--json");
@@ -8,7 +9,7 @@ function usage() {
 deployme - deployment plan runner
 
 Usage:
-  deployme deploy --file <plan.yaml> [--backend cloudformation] [--api <url>] [--json]
+  deployme deploy --file <plan.yaml> [--app <path>] [--backend cloudformation] [--api <url>] [--json]
   deployme validate --file <plan.yaml> [--api <url>] [--json]
   deployme status <deploymentId> [--api <url>] [--json]
   deployme watch <deploymentId>
@@ -16,6 +17,7 @@ Usage:
 Options:
   -b, --backend   cloudformation (default: cloudformation)
   -f, --file      path to plan YAML
+      --app       path to the app folder to deploy (default: the current directory)
   --api           API base URL (default: http://localhost:3000)
   -h, --help      show help
 
@@ -74,12 +76,20 @@ async function main() {
     }
 
     const backend = getArg("--backend", "-b") || "cloudformation";
-    
-    const plan = loadPlanFromYaml(file);
-    const result = await createDeployment({ apiBaseUrl, backend, plan });
+    const appPath = path.resolve(getArg("--app") || process.cwd());
 
-    if (jsonOut) console.log(JSON.stringify(result, null, 2));
-    else printDeploymentSummary(result);
+    const plan = loadPlanFromYaml(file);
+    const result = await createDeployment({ apiBaseUrl, backend, plan, appPath });
+
+    if (jsonOut) {
+      console.log(JSON.stringify(result, null, 2));
+    } else {
+      console.log(`Deploying ${appPath}`);
+      printDeploymentSummary(result);
+      console.log("");
+      console.log(`Deployment id: ${result.deploymentId}`);
+      console.log(`Follow it with: deployme watch ${result.deploymentId}`);
+    }
 
     return;
   }
@@ -132,8 +142,15 @@ async function main() {
       process.stdout.write(statusLine);
 
       if (dep.status === "succeeded" || dep.status === "failed") {
-        process.stdout.write("\n");
-        console.log("Deployment complete");
+        process.stdout.write("\n\n");
+
+        if (dep.status === "succeeded") {
+          const url = publicUrl(dep);
+          console.log(url ? `Your app is live at ${url}` : "Deployment complete");
+        } else {
+          console.log(`Deployment failed: ${dep.failureReason || "no reason reported"}`);
+          process.exitCode = 1;
+        }
         break;
       }
 
@@ -151,24 +168,35 @@ async function main() {
 }
 
 
+// The one URL the developer asked for: the API's or the static site's.
+function publicUrl(dep) {
+  return dep.outputs?.ApiUrl || dep.outputs?.WebsiteUrl || null;
+}
+
 function printDeploymentSummary(dep) {
   console.log(`Deployment: ${dep.deploymentId}`);
   console.log(`Status:     ${dep.status}`);
   console.log(`Backend:    ${dep.backend}`);
   console.log(`App:        ${dep.app?.name} (${dep.app?.type})`);
+  if (dep.stackName)   console.log(`Stack:      ${dep.stackName}${dep.stackStatus ? ` (${dep.stackStatus})` : ""}`);
 
-  if (dep.outputs?.public_url) console.log(`URL:        ${dep.outputs.public_url}`);
-  if (dep.outputs?.logs) console.log(`Logs:       ${dep.outputs.logs}`);
-  if (dep.outputs?.metrics) console.log(`Metrics:    ${dep.outputs.metrics}`);
+  const url = publicUrl(dep);
+  if (url)                     console.log(`URL:        ${url}`);
+  if (dep.outputs?.LogGroup)   console.log(`Logs:       ${dep.outputs.LogGroup}`);
+  if (dep.outputs?.BucketName) console.log(`Bucket:     ${dep.outputs.BucketName}`);
   if (dep.startedAt)  console.log(`Started:    ${dep.startedAt}`);
   if (dep.finishedAt) console.log(`Finished:   ${dep.finishedAt}`);
+  if (dep.failureReason) console.log(`Failed:     ${dep.failureReason}`);
 
   if (Array.isArray(dep.resolvedModules) && dep.resolvedModules.length) {
     console.log(`Modules:`);
     for (const m of dep.resolvedModules) {
-      console.log(`  - ${m.id} -> ${m.mappedTo}`);
+      console.log(`  - ${m.id}${m.mappedTo ? ` -> ${m.mappedTo}` : ""}`);
     }
   }
+
+  // One plain-language line of what the platform is doing right now.
+  if (dep.step) console.log(`\n${dep.step}`);
 }
 
 async function sleep(ms) {

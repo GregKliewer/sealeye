@@ -13,11 +13,11 @@ export function loadPlanFromYaml(planPath) {
 /**
  * Create a deployment by calling deployme API.
  */
-export async function createDeployment({ apiBaseUrl, backend, plan }) {
+export async function createDeployment({ apiBaseUrl, backend, plan, appPath }) {
   const res = await fetch(`${apiBaseUrl}/deployments`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ backend, plan })
+    body: JSON.stringify({ backend, plan, appPath })
   });
 
   const body = await res.json().catch(() => ({}));
