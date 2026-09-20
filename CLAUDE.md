@@ -42,3 +42,25 @@ Product and command (decided Sept 20)
   the chosen brand direction and live in one place: deployme/src/brand.js.
 - Brand spec: brand/BRAND.md. Colours only from deployme/src/brand.js.
 - Brand spec: brand/BRAND.md. Colours only from deployme/src/brand.js.
+
+Executor rules (decided Day 3)
+- Shell out to the AWS CLI (child_process), parsing --output json. No AWS SDK dependency.
+  Deploy = spawn `aws cloudformation deploy` in the background; status = poll
+  `describe-stacks` every 5 s; outputs read fresh from describe-stacks after every deploy.
+- One template per deployment: http_api_serverless -> templates/http_api_serverless.yaml,
+  static_site_edge -> templates/static_site_edge.yaml. observability_basic.retention_days
+  -> RetentionDays. config_basic and domain_public are ignored until Day 6.
+- Stack name: sealeye-<app.name> (lowercase, [a-z0-9-] only). Artifact key:
+  <app.name>/<deploymentId>.zip so every deploy changes S3Key.
+- POST /deployments takes { plan, appPath }. The plan contract is unchanged.
+- Packaging: rsync app -> dist/stage/<deploymentId>/ (exclude node_modules .git .do
+  .github), npm install --omit=dev there, copy templates/run.sh, chmod +x, zip, s3 cp.
+  The developer's folder is read-only to the API.
+- Status map: CREATE_IN_PROGRESS/UPDATE_IN_PROGRESS -> running; CREATE_COMPLETE/
+  UPDATE_COMPLETE -> succeeded; anything with ROLLBACK or FAILED -> failed with the first
+  CREATE_FAILED reason from describe-stack-events; DELETE_IN_PROGRESS -> destroying;
+  stack gone -> destroyed. Never fake a transition.
+- The API returns outputs, failureReason and a rendered markdown report in the record.
+  The CLI writes DEPLOYMENT_REPORT.md into the app folder on succeeded. Nothing else
+  writes there.
+- Static destroy empties the bucket (aws s3 rm --recursive) before delete-stack.
