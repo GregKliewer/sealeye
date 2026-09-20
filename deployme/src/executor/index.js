@@ -4,6 +4,7 @@
 import { compose } from "./compose.js";
 import { stage } from "./package.js";
 import { deploy, describe, firstFailure } from "./cfn.js";
+import { renderReport } from "./report.js";
 import { putDeployment } from "../store.js";
 
 const POLL_MS = 5000;
@@ -107,12 +108,21 @@ export async function startDeployment(record, plan, appPath) {
     }
 
     if (mapped === "succeeded") {
-      return set("succeeded", {
+      set("succeeded", {
         outputs: described.outputs,
         failureReason: null,
         finishedAt: now(),
         step: null
       });
+
+      // A report that will not render is a reporting problem, not a failed deployment:
+      // the environment is up either way, and saying otherwise would be a lie.
+      try {
+        record.report = renderReport(record, plan);
+      } catch (err) {
+        record.reportError = err.message;
+      }
+      return putDeployment(record);
     }
 
     if (mapped === "failed") {

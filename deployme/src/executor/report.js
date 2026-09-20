@@ -1,0 +1,159 @@
+// src/executor/report.js
+// DEPLOYMENT_REPORT.md: what the developer got, in words they can act on.
+// The header comes from prompts/report.md; everything below is built from the
+// deployment record (real values, read back from CloudFormation) and the plan.
+import fs from "node:fs";
+import path from "node:path";
+
+import { repoRoot } from "./env.js";
+import { region } from "./cfn.js";
+
+const TEMPLATE_PATH = path.join(repoRoot, "prompts", "report.md");
+
+const get = (obj, dotted) => dotted.split(".").reduce((o, k) => (o == null ? o : o[k]), obj);
+
+/** Fill {{app.name}}-style placeholders in the header. Unknown keys become empty. */
+function fillHeader(template, context) {
+  return template.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, key) => {
+    const value = get(context, key);
+    return value === undefined || value === null ? "" : String(value);
+  });
+}
+
+function fence(command) {
+  return ["```", command, "```"].join("\n");
+}
+
+/** What the developer now has, named in their terms with the AWS name in brackets. */
+function whatWasCreated(record) {
+  const o = record.outputs || {};
+  const lines = ["## What was created", ""];
+
+  if (record.kind === "static") {
+    lines.push(
+      "- A public website, served straight from storage. Anyone with the link can open it.",
+      `- The storage holding your files (bucket \`${o.BucketName || "—"}\`).`,
+      "",
+      "This environment has no CDN in front of the site, so the address is `http://`, not `https://`."
+    );
+  } else {
+    const retention = record.parameters?.RetentionDays;
+    lines.push(
+      "- A public HTTPS address for your app. There is no server for you to run, patch or scale.",
+      `- Your app running unchanged on Node.js 20 (function \`${o.FunctionName || record.app?.name}\`). The platform starts it with \`node index.js\` and hands it real HTTP requests.`,
+      `- Somewhere to read what your app printed (log group \`${o.LogGroup || "—"}\`${retention ? `, kept for ${retention} days` : ""}).`
+    );
+  }
+
+  lines.push(
+    "",
+    `All of it is one CloudFormation stack, \`${record.stackName}\`, in ${region()}. Deleting that stack deletes everything above and nothing else.`
+  );
+  return lines.join("\n");
+}
+
+function yourUrl(record) {
+  const url = record.outputs?.ApiUrl || record.outputs?.WebsiteUrl;
+  return ["## Your URL", "", url ? url : "_No URL was returned by this deployment._"].join("\n");
+}
+
+function logs(record) {
+  const logGroup = record.outputs?.LogGroup;
+  const lines = ["## Logs", ""];
+
+  if (logGroup) {
+    lines.push(
+      "Everything your app prints goes here. Follow it live with:",
+      "",
+      fence(`aws logs tail ${logGroup} --follow`)
+    );
+  } else {
+    lines.push(
+      "A static site has no application logs — nothing of yours is running. Requests are served directly from storage."
+    );
+  }
+  return lines.join("\n");
+}
+
+function redeploy(record) {
+  const what = record.kind === "static" ? "your files" : "your code";
+  return [
+    "## Redeploy",
+    "",
+    `Change ${what}, then run \`sealeye deploy\` again in this folder. The URL stays the same — it belongs to the environment, not to any one deployment.`
+  ].join("\n");
+}
+
+function tearDown(record) {
+  return [
+    "## Tear down",
+    "",
+    "When you are finished with this environment:",
+    "",
+    fence(`sealeye destroy ${record.deploymentId}`),
+    "",
+    "That deletes the stack and everything in it."
+  ].join("\n");
+}
+
+function assumptions(record, plan) {
+  const lines = [
+    "## Assumptions carried from the plan",
+    "",
+    "These came from your answers, not from anything seaLeye.run guessed for you:",
+    ""
+  ];
+
+  if (plan?.profile) lines.push(`- Profile: \`${plan.profile}\``);
+
+  const modules = (plan?.modules || []).filter(m => m.enabled !== false);
+  if (modules.length) {
+    lines.push("- What you asked for:");
+    for (const m of modules) {
+      const inputs = Object.entries(m.inputs || {})
+        .map(([k, v]) => `${k}: ${v}`)
+        .join(", ");
+      lines.push(`  - \`${m.id}\`${inputs ? ` — ${inputs}` : ""}`);
+    }
+  }
+
+  if (plan?.outputs?.length) lines.push(`- Outputs you asked for: ${plan.outputs.join(", ")}`);
+
+  lines.push(`- Region: ${region()} — fixed for this environment.`);
+  if (record.appPath) {
+    lines.push(
+      `- Deployed from \`${record.appPath}\`${record.artifactKey ? ` (artifact \`${record.artifactKey}\`)` : ""}.`
+    );
+  }
+  lines.push(
+    record.kind === "static"
+      ? "- Your files were not modified. seaLeye.run uploaded a copy of them. This report is the only file it writes into your folder."
+      : "- Your app was not modified. The start script the platform needs was added to the uploaded copy, not to your source. This report is the only file seaLeye.run writes into your folder."
+  );
+
+  return lines.join("\n");
+}
+
+/**
+ * Render the full report for a succeeded deployment.
+ * @returns {string} markdown
+ */
+export function renderReport(record, plan) {
+  const header = fillHeader(fs.readFileSync(TEMPLATE_PATH, "utf8"), {
+    app: record.app,
+    profile: plan?.profile || "",
+    region: region(),
+    date: (record.finishedAt || new Date().toISOString()).slice(0, 10)
+  });
+
+  const sections = [
+    whatWasCreated(record),
+    yourUrl(record),
+    logs(record),
+    redeploy(record),
+    tearDown(record),
+    assumptions(record, plan)
+  ];
+
+  return `${header.replace(/\s+$/, "")}\n\n${sections.join("\n\n")}\n`;
+}

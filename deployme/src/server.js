@@ -7,7 +7,7 @@ import path from "node:path";
 
 import { planV02Schema } from "./schema.js";
 import { backendMappings } from "./mappings.js";
-import { putDeployment, getDeployment } from "./store.js";
+import { putDeployment, getDeployment, listDeployments, storeFile } from "./store.js";
 import { startDeployment } from "./executor/index.js";
 
 const app = express();
@@ -119,6 +119,25 @@ app.post("/deployments", (req, res) => {
   return res.status(201).json({ ...record });
 });
 
+// GET /deployments — summary of every known deployment, newest first. Additive; the
+// three existing endpoints are unchanged. The full record stays at /deployments/{id},
+// so the rendered report is not repeated for every row.
+app.get("/deployments", (_req, res) => {
+  const deployments = listDeployments().map(dep => ({
+    deploymentId: dep.deploymentId,
+    app: dep.app,
+    status: dep.status,
+    outputs: dep.outputs || {},
+    stackName: dep.stackName || null,
+    startedAt: dep.startedAt || null,
+    finishedAt: dep.finishedAt || null,
+    failureReason: dep.failureReason || null,
+    interrupted: dep.interrupted === true
+  }));
+
+  return res.status(200).json({ deployments });
+});
+
 // GET /deployments/{deploymentId}
 app.get("/deployments/:deploymentId", (req, res) => {
   const dep = getDeployment(req.params.deploymentId);
@@ -131,4 +150,7 @@ app.get("/deployments/:deploymentId", (req, res) => {
 });
 
 const port = process.env.PORT || 3000;
-app.listen(port, () => console.log(`deployme listening on http://localhost:${port}`));
+app.listen(port, () => {
+  console.log(`deployme listening on http://localhost:${port}`);
+  console.log(`deployment store: ${storeFile} (${listDeployments().length} records loaded)`);
+});

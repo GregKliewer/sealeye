@@ -23,7 +23,7 @@ export async function createDeployment({ apiBaseUrl, backend, plan, appPath }) {
   const body = await res.json().catch(() => ({}));
 
   if (!res.ok) {
-    const err = new Error(`deployme API error: ${res.status}`);
+    const err = new Error(`seaLeye.run API error: ${res.status}`);
     err.details = body;
     throw err;
   }
@@ -44,12 +44,29 @@ export async function validatePlan({ apiBaseUrl, plan }) {
   const body = await res.json().catch(() => ({}));
 
   if (!res.ok) {
-    const err = new Error(`deployme API error: ${res.status}`);
+    const err = new Error(`seaLeye.run API error: ${res.status}`);
     err.details = body;
     throw err;
   }
 
   return body;
+}
+
+/**
+ * List every deployment the platform knows about.
+ */
+export async function listDeployments({ apiBaseUrl }) {
+  const res = await fetch(`${apiBaseUrl}/deployments`, { method: "GET" });
+
+  const body = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    const err = new Error(`seaLeye.run API error: ${res.status}`);
+    err.details = body;
+    throw err;
+  }
+
+  return body.deployments || [];
 }
 
 export async function getDeployment({ apiBaseUrl, deploymentId }) {
@@ -60,7 +77,7 @@ export async function getDeployment({ apiBaseUrl, deploymentId }) {
   const body = await res.json().catch(() => ({}));
 
   if (!res.ok) {
-    const err = new Error(`deployme API error: ${res.status}`);
+    const err = new Error(`seaLeye.run API error: ${res.status}`);
     err.details = body;
     throw err;
   }

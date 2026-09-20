@@ -1,30 +1,74 @@
 #!/usr/bin/env node
+import fs from "node:fs";
 import path from "node:path";
-import { loadPlanFromYaml, createDeployment, validatePlan, getDeployment } from "../lib/run.js";
+import { fileURLToPath } from "node:url";
 
+import {
+  loadPlanFromYaml,
+  createDeployment,
+  validatePlan,
+  getDeployment,
+  listDeployments
+} from "../lib/run.js";
+import { banner, step, c, product } from "../src/brand.js";
+
+// --json is machine output: no banner, no colour, nothing but the object.
 const jsonOut = process.argv.includes("--json");
+
+// Everything the CLI reads is found relative to the CLI itself, never to the
+// developer's folder.
+const cliDir = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(cliDir, "..", "..");
+
+function version() {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(cliDir, "..", "package.json"), "utf8"));
+    return `v${pkg.version}`;
+  } catch {
+    return "";
+  }
+}
+
+// One plain-language line of what the platform is doing. Silent in --json mode, which
+// must stay parseable.
+function say(line) {
+  if (!jsonOut) console.log(step(line));
+}
+
+// Printed once at the top of every command.
+function printBanner() {
+  if (jsonOut) return;
+  try {
+    console.log(banner(fs.readFileSync(path.join(repoRoot, "prompts", "banner.txt"), "utf8"), version()));
+  } catch {
+    console.log(`${c.accent(product.name)}\n`);
+  }
+}
 
 function usage() {
   console.log(`
-deployme - deployment plan runner
+${product.command} - deploy your app to a real AWS environment
 
 Usage:
-  deployme deploy --file <plan.yaml> [--app <path>] [--backend cloudformation] [--api <url>] [--json]
-  deployme validate --file <plan.yaml> [--api <url>] [--json]
-  deployme status <deploymentId> [--api <url>] [--json]
-  deployme watch <deploymentId>
+  ${product.command} deploy --file <plan.yaml> [--app <path>] [--api <url>] [--json]
+  ${product.command} validate --file <plan.yaml> [--api <url>] [--json]
+  ${product.command} status <deploymentId> [--api <url>] [--json]
+  ${product.command} watch <deploymentId> [--api <url>]
+  ${product.command} list [--api <url>] [--json]
 
 Options:
+  -f, --file      path to your plan YAML
+      --app       folder to deploy (default: the current folder)
   -b, --backend   cloudformation (default: cloudformation)
-  -f, --file      path to plan YAML
-      --app       path to the app folder to deploy (default: the current directory)
-  --api           API base URL (default: http://localhost:3000)
+      --api       platform API base URL (default: http://localhost:3000)
+      --json      machine-readable output
   -h, --help      show help
 
 Examples:
-  deployme validate -f deployme-test.yaml
-  deployme deploy -f deployme-test.yaml
-  deployme deploy -f deployme-test.yaml --api http://localhost:3000
+  ${product.command} validate -f plan.yaml
+  ${product.command} deploy -f plan.yaml
+  ${product.command} watch dep_1a2b3c4d5e6f
+  ${product.command} list
 `);
 }
 
@@ -42,28 +86,37 @@ function getArg(longFlag, shortFlag) {
 async function main() {
   const [, , command] = process.argv;
 
+  printBanner();
+
   if (!command || command === "-h" || command === "--help") {
     usage();
     process.exit(0);
   }
 
   const apiBaseUrl = getArg("--api") || "http://localhost:3000";
-  const jsonOut = process.argv.includes("--json");
-
-  //const plan = loadPlanFromYaml(file);
 
   if (command === "validate") {
     const file = getArg("--file", "-f");
     if (!file) {
-      console.error("Missing required --file for validate");
+      console.error(c.fail(`Missing required --file: ${product.command} validate --file <plan.yaml>`));
       process.exit(1);
     }
 
+    say(`Reading your plan from ${file}`);
     const plan = loadPlanFromYaml(file);
+
+    say("Checking it against the seaLeye.run plan contract");
     const result = await validatePlan({ apiBaseUrl, plan });
 
-    if (jsonOut) console.log(JSON.stringify(result, null, 2));
-    else console.log(result)
+    if (jsonOut) {
+      console.log(JSON.stringify(result, null, 2));
+    } else if (result.valid) {
+      console.log(c.ok("Your plan is valid"));
+    } else {
+      console.log(c.fail("Your plan cannot be deployed as written:"));
+      for (const e of result.errors || []) console.log(`  ${e.message}`);
+      process.exitCode = 1;
+    }
 
     return;
   }
@@ -71,24 +124,27 @@ async function main() {
   if (command === "deploy") {
     const file = getArg("--file", "-f");
     if (!file) {
-      console.error("Missing required --file for deploy");
+      console.error(c.fail(`Missing required --file: ${product.command} deploy --file <plan.yaml>`));
       process.exit(1);
     }
 
     const backend = getArg("--backend", "-b") || "cloudformation";
     const appPath = path.resolve(getArg("--app") || process.cwd());
 
+    say(`Reading your plan from ${file}`);
     const plan = loadPlanFromYaml(file);
+
+    say(`Handing ${appPath} to seaLeye.run to build your environment`);
     const result = await createDeployment({ apiBaseUrl, backend, plan, appPath });
 
     if (jsonOut) {
       console.log(JSON.stringify(result, null, 2));
     } else {
-      console.log(`Deploying ${appPath}`);
+      console.log("");
       printDeploymentSummary(result);
       console.log("");
-      console.log(`Deployment id: ${result.deploymentId}`);
-      console.log(`Follow it with: deployme watch ${result.deploymentId}`);
+      console.log(`Deployment id: ${c.accent(result.deploymentId)}`);
+      say(`Follow it with: ${product.command} watch ${result.deploymentId}`);
     }
 
     return;
@@ -98,7 +154,7 @@ async function main() {
     const deploymentId = process.argv[3];
 
     if (!deploymentId) {
-      console.error("Missing deploymentId: deployme status <deploymentId>");
+      console.error(c.fail(`Missing deploymentId: ${product.command} status <deploymentId>`));
       process.exit(1);
     }
 
@@ -110,12 +166,24 @@ async function main() {
     return;
   }
 
-  if (command === "watch") {
+  if (command === "list") {
+    const deployments = await listDeployments({ apiBaseUrl });
 
-    function sleep(ms) {
-      return new Promise(resolve => setTimeout(resolve, ms));
+    if (jsonOut) {
+      console.log(JSON.stringify(deployments, null, 2));
+      return;
     }
 
+    if (!deployments.length) {
+      say("No deployments yet");
+      return;
+    }
+
+    printDeploymentTable(deployments);
+    return;
+  }
+
+  if (command === "watch") {
     function formatDots(tick) {
       const count = (tick % 3) + 1;   // 1..3
       return ".".repeat(count);
@@ -123,32 +191,32 @@ async function main() {
 
     const deploymentId = process.argv[3];
     if (!deploymentId) {
-      console.error("Missing deploymentId: deployme watch <deploymentId>");
+      console.error(c.fail(`Missing deploymentId: ${product.command} watch <deploymentId>`));
       process.exit(1);
     }
 
     let tick = 0;
 
     while (true) {
-      const dep = await getDeployment({ apiBaseUrl, deploymentId }); // from lib/run.js 【1-2d505c】
+      const dep = await getDeployment({ apiBaseUrl, deploymentId });
       const dots = formatDots(tick++);
-      const statusLine = `Status: ${dep.status}${dots}`;
 
-      // Clear screen + print summary (nice), OR single-line update (minimal)
-      // Option A: keep your existing summary + add a live status line
+      // Redraw: the banner stays at the top of the screen, the summary under it.
       console.clear();
+      printBanner();
       printDeploymentSummary(dep);
       console.log("");
-      process.stdout.write(statusLine);
+      process.stdout.write(c.dim(`Status: ${dep.status}${dots}`));
 
       if (dep.status === "succeeded" || dep.status === "failed") {
         process.stdout.write("\n\n");
 
         if (dep.status === "succeeded") {
           const url = publicUrl(dep);
-          console.log(url ? `Your app is live at ${url}` : "Deployment complete");
+          console.log(c.ok(url ? `Your app is live at ${url}` : "Your environment is ready"));
+          writeReport(dep);
         } else {
-          console.log(`Deployment failed: ${dep.failureReason || "no reason reported"}`);
+          console.log(c.fail(`Deployment failed: ${dep.failureReason || "no reason reported"}`));
           process.exitCode = 1;
         }
         break;
@@ -158,45 +226,91 @@ async function main() {
     }
 
     return;
-
   }
 
-  console.error(`Unknown command: ${command}`);
+  console.error(c.fail(`Unknown command: ${command}`));
   usage();
   process.exit(1);
-
 }
-
 
 // The one URL the developer asked for: the API's or the static site's.
 function publicUrl(dep) {
   return dep.outputs?.ApiUrl || dep.outputs?.WebsiteUrl || null;
 }
 
+// The report is the only thing the platform writes into the developer's folder.
+function writeReport(dep) {
+  if (!dep.report) {
+    say("No report was returned for this deployment");
+    return;
+  }
+
+  const reportPath = path.join(process.cwd(), "DEPLOYMENT_REPORT.md");
+  fs.writeFileSync(reportPath, dep.report);
+  say(`Wrote ${reportPath}`);
+}
+
+function statusColour(status, text = status) {
+  if (status === "succeeded") return c.accent(text);
+  if (status === "failed") return c.prompt(text);
+  return c.dim(text);
+}
+
+// Pad before colouring: escape codes have width on the page but not on the screen.
+const pad = (s, n) => s + " ".repeat(Math.max(0, n - s.length));
+
+function printDeploymentTable(deployments) {
+  const rows = deployments.map(dep => ({
+    dep,
+    id: dep.deploymentId,
+    app: dep.app?.name || "-",
+    // An interrupted record is the last status we knew, not a live one. Say so.
+    status: dep.interrupted ? `${dep.status} (interrupted)` : dep.status,
+    url: publicUrl(dep) || "-"
+  }));
+
+  const widthOf = key => Math.max(...rows.map(r => r[key].length));
+  const w = {
+    id: Math.max("ID".length, widthOf("id")),
+    app: Math.max("APP".length, widthOf("app")),
+    status: Math.max("STATUS".length, widthOf("status"))
+  };
+
+  console.log(c.dim(`${pad("ID", w.id)}  ${pad("APP", w.app)}  ${pad("STATUS", w.status)}  URL`));
+
+  for (const r of rows) {
+    const status = r.dep.interrupted
+      ? c.prompt(pad(r.status, w.status))
+      : statusColour(r.dep.status, pad(r.status, w.status));
+    const url = r.url === "-" ? c.dim(r.url) : c.accent(r.url);
+
+    console.log(`${pad(r.id, w.id)}  ${pad(r.app, w.app)}  ${status}  ${url}`);
+  }
+}
+
 function printDeploymentSummary(dep) {
-  console.log(`Deployment: ${dep.deploymentId}`);
-  console.log(`Status:     ${dep.status}`);
-  console.log(`Backend:    ${dep.backend}`);
-  console.log(`App:        ${dep.app?.name} (${dep.app?.type})`);
-  if (dep.stackName)   console.log(`Stack:      ${dep.stackName}${dep.stackStatus ? ` (${dep.stackStatus})` : ""}`);
+  const row = (label, value) => console.log(`${label.padEnd(12)}${value}`);
+
+  row("Deployment:", dep.deploymentId);
+  row("Status:", statusColour(dep.status));
+  row("App:", `${dep.app?.name} (${dep.app?.type})`);
+  if (dep.stackName) row("Stack:", c.dim(`${dep.stackName}${dep.stackStatus ? ` (${dep.stackStatus})` : ""}`));
 
   const url = publicUrl(dep);
-  if (url)                     console.log(`URL:        ${url}`);
-  if (dep.outputs?.LogGroup)   console.log(`Logs:       ${dep.outputs.LogGroup}`);
-  if (dep.outputs?.BucketName) console.log(`Bucket:     ${dep.outputs.BucketName}`);
-  if (dep.startedAt)  console.log(`Started:    ${dep.startedAt}`);
-  if (dep.finishedAt) console.log(`Finished:   ${dep.finishedAt}`);
-  if (dep.failureReason) console.log(`Failed:     ${dep.failureReason}`);
+  if (url) row("URL:", c.accent(url));
+  if (dep.outputs?.LogGroup) row("Logs:", c.accent(dep.outputs.LogGroup));
+  if (dep.outputs?.BucketName) row("Bucket:", c.accent(dep.outputs.BucketName));
+  if (dep.startedAt) row("Started:", c.dim(dep.startedAt));
+  if (dep.finishedAt) row("Finished:", c.dim(dep.finishedAt));
+  if (dep.failureReason) row("Failed:", c.prompt(dep.failureReason));
 
   if (Array.isArray(dep.resolvedModules) && dep.resolvedModules.length) {
-    console.log(`Modules:`);
-    for (const m of dep.resolvedModules) {
-      console.log(`  - ${m.id}${m.mappedTo ? ` -> ${m.mappedTo}` : ""}`);
-    }
+    console.log("You asked for:");
+    for (const m of dep.resolvedModules) console.log(`  ${c.accent(m.id)}`);
   }
 
   // One plain-language line of what the platform is doing right now.
-  if (dep.step) console.log(`\n${dep.step}`);
+  if (dep.step) console.log(`\n${step(dep.step)}`);
 }
 
 async function sleep(ms) {
@@ -204,6 +318,6 @@ async function sleep(ms) {
 }
 
 main().catch(err => {
-  console.error(err.details ? JSON.stringify(err.details, null, 2) : (err.stack || String(err)));
+  console.error(c.fail(err.details ? JSON.stringify(err.details, null, 2) : (err.stack || String(err))));
   process.exit(1);
 });
