@@ -14,7 +14,7 @@ All of it is one CloudFormation stack, `sealeye-sample-expressjs`, in ca-central
 
 ## Your URL
 
-https://fiy6vwvpld.execute-api.ca-central-1.amazonaws.com
+https://y792gm452k.execute-api.ca-central-1.amazonaws.com
 
 ## Logs
 
@@ -33,7 +33,7 @@ Change your code, then run `sealeye deploy` again in this folder. The URL stays 
 When you are finished with this environment:
 
 ```
-sealeye destroy dep_93cf294e5607
+sealeye destroy dep_05716e135e01
 ```
 
 That deletes the stack and everything in it.
@@ -48,5 +48,5 @@ These came from your answers, not from anything seaLeye.run guessed for you:
   - `observability_basic` — target: auto, retention_days: 30
 - Outputs you asked for: public_url, logs
 - Region: ca-central-1 — fixed for this environment.
-- Deployed from `/Users/gregkliewer/dev/deployme-demo/apps/sample-expressjs` (artifact `sample-expressjs/dep_93cf294e5607.zip`).
+- Deployed from `/Users/gregkliewer/dev/deployme-demo/apps/sample-expressjs` (artifact `sample-expressjs/dep_05716e135e01.zip`).
 - Your app was not modified. The start script the platform needs was added to the uploaded copy, not to your source. This report is the only file seaLeye.run writes into your folder.

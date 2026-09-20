@@ -8,7 +8,7 @@ import path from "node:path";
 import { planV02Schema } from "./schema.js";
 import { backendMappings } from "./mappings.js";
 import { putDeployment, getDeployment, listDeployments, storeFile } from "./store.js";
-import { startDeployment } from "./executor/index.js";
+import { startDeployment, startDestroy } from "./executor/index.js";
 
 const app = express();
 app.use(express.json({ limit: "1mb" }));
@@ -147,6 +147,31 @@ app.get("/deployments/:deploymentId", (req, res) => {
     });
   }
   return res.status(200).json(dep);
+});
+
+// DELETE /deployments/{deploymentId} — tears the environment down in the background.
+// Returns straight away; the record carries the real progress.
+app.delete("/deployments/:deploymentId", (req, res) => {
+  const dep = getDeployment(req.params.deploymentId);
+  if (!dep) {
+    return res.status(404).json({
+      error: { code: "NOT_FOUND", message: "deploymentId not found" }
+    });
+  }
+
+  // Already gone, or already on its way out: say so instead of starting a second
+  // tear-down of the same stack.
+  if (dep.status === "destroyed" || dep.status === "destroying") {
+    return res.status(200).json(dep);
+  }
+
+  startDestroy(dep).catch(err => {
+    dep.status = "failed";
+    dep.failureReason = err.message;
+    putDeployment(dep);
+  });
+
+  return res.status(202).json({ ...dep });
 });
 
 const port = process.env.PORT || 3000;

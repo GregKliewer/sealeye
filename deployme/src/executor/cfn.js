@@ -50,6 +50,22 @@ export function deploy({ templatePath, stackName, parameters }) {
 }
 
 /**
+ * `aws cloudformation delete-stack` — returns as soon as CloudFormation accepts the
+ * request; the caller polls describe() for the rest.
+ */
+export function deleteStack(stackName) {
+  return runAws(["cloudformation", "delete-stack", "--stack-name", stackName, "--region", region()]);
+}
+
+/**
+ * Empty a bucket. CloudFormation will not delete a bucket with anything in it, so
+ * this has to happen before delete-stack on the static path.
+ */
+export function emptyBucket(bucketName) {
+  return runAws(["s3", "rm", `s3://${bucketName}`, "--recursive", "--region", region()]);
+}
+
+/**
  * Current stack status and outputs, read fresh.
  * @returns {Promise<{status: string|null, outputs: object, statusReason: string|null}>}
  *          status is null when the stack does not exist.
@@ -81,12 +97,13 @@ export async function describe(stackName) {
 }
 
 /**
- * The first CREATE_FAILED / UPDATE_FAILED reason — the cause, not the cascade.
- * Events come back newest first, so they are reversed; "cancelled" entries are
- * siblings that were abandoned because of the real failure, so they are skipped.
+ * The first failure reason — the cause, not the cascade. Events come back newest
+ * first, so they are reversed; "cancelled" entries are siblings that were abandoned
+ * because of the real failure, so they are skipped. Pass `statuses` to look at a
+ * different failure, e.g. DELETE_FAILED on a tear-down.
  * @returns {Promise<string|null>}
  */
-export async function firstFailure(stackName) {
+export async function firstFailure(stackName, statuses = ["CREATE_FAILED", "UPDATE_FAILED"]) {
   const r = await runAws([
     "cloudformation", "describe-stack-events",
     "--stack-name", stackName,
@@ -96,9 +113,7 @@ export async function firstFailure(stackName) {
   if (!r.ok) return null;
 
   const failures = (JSON.parse(r.stdout).StackEvents || [])
-    .filter(e =>
-      (e.ResourceStatus === "CREATE_FAILED" || e.ResourceStatus === "UPDATE_FAILED") &&
-      e.ResourceStatusReason)
+    .filter(e => statuses.includes(e.ResourceStatus) && e.ResourceStatusReason)
     .reverse();
 
   if (!failures.length) return null;

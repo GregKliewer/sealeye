@@ -2,8 +2,8 @@
 // The deployment lifecycle: compose -> package -> deploy -> poll until CloudFormation
 // says it is done. Status is never invented; it mirrors the stack.
 import { compose } from "./compose.js";
-import { stage } from "./package.js";
-import { deploy, describe, firstFailure } from "./cfn.js";
+import { stage, cleanStage } from "./package.js";
+import { deploy, describe, firstFailure, deleteStack, emptyBucket } from "./cfn.js";
 import { renderReport } from "./report.js";
 import { putDeployment } from "../store.js";
 
@@ -148,5 +148,103 @@ export async function startDeployment(record, plan, appPath) {
 
     // Still moving (cleanup, or a delete someone started elsewhere). Keep polling.
     set(mapped === "destroying" ? "destroying" : "running");
+  }
+}
+
+/**
+ * Tear down everything this deployment created, then throw away the local build
+ * artifacts. Mutates `record` in place; never rejects.
+ */
+export async function startDestroy(record) {
+  const set = (status, patch = {}) => {
+    Object.assign(record, { status, ...patch });
+    return putDeployment(record);
+  };
+  const fail = reason => set("failed", { failureReason: reason, step: null });
+
+  // Local artifacts are ours, not the developer's: clean them up whatever the stack does.
+  const cleanLocal = () => {
+    try {
+      const removed = cleanStage(record.deploymentId);
+      if (removed.length) record.removedArtifacts = removed;
+    } catch (err) {
+      record.cleanupError = err.message;
+    }
+  };
+
+  const done = note => {
+    cleanLocal();
+    return set("destroyed", {
+      destroyedAt: now(),
+      failureReason: null,
+      step: null,
+      ...(note ? { note } : {})
+    });
+  };
+
+  try {
+    set("destroying", { step: "Checking what is still there" });
+
+    // A deployment that never got as far as a stack has nothing in AWS to remove.
+    if (!record.stackName) {
+      return done("No stack was ever created for this deployment.");
+    }
+
+    const before = await describe(record.stackName);
+    if (before.status === null) {
+      return done(`Stack ${record.stackName} was already gone — nothing left to delete.`);
+    }
+
+    // CloudFormation refuses to delete a bucket that still has objects in it.
+    if (record.kind === "static") {
+      const bucket = before.outputs?.BucketName || record.outputs?.BucketName;
+      if (bucket) {
+        set("destroying", { step: `Emptying the website storage (${bucket})` });
+        const emptied = await emptyBucket(bucket);
+        if (!emptied.ok) {
+          return fail(`could not empty s3://${bucket}: ${emptied.stderr.trim() || `exit ${emptied.code}`}`);
+        }
+      }
+    }
+
+    set("destroying", { step: `Deleting the stack ${record.stackName}` });
+    const requested = await deleteStack(record.stackName);
+    if (!requested.ok) {
+      return fail(requested.stderr.trim() || `delete-stack exited ${requested.code}`);
+    }
+
+    let pollErrors = 0;
+
+    while (true) {
+      await sleep(POLL_MS);
+
+      let described;
+      try {
+        described = await describe(record.stackName);
+      } catch (err) {
+        record.pollError = err.message;
+        putDeployment(record);
+        if (++pollErrors >= MAX_POLL_ERRORS) return fail(err.message);
+        continue;
+      }
+      pollErrors = 0;
+      record.pollError = null;
+      record.stackStatus = described.status;
+
+      // describe-stacks by name stops finding the stack the moment it is gone.
+      if (described.status === null) return done();
+
+      if (/FAILED/.test(described.status)) {
+        const reason =
+          (await firstFailure(record.stackName, ["DELETE_FAILED"])) ||
+          described.statusReason ||
+          `stack ${described.status}`;
+        return fail(reason);
+      }
+
+      set("destroying");
+    }
+  } catch (err) {
+    return fail(err.message);
   }
 }

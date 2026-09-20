@@ -69,6 +69,23 @@ export async function listDeployments({ apiBaseUrl }) {
   return body.deployments || [];
 }
 
+/**
+ * Ask the platform to tear a deployment down. Returns as soon as it has started.
+ */
+export async function destroyDeployment({ apiBaseUrl, deploymentId }) {
+  const res = await fetch(`${apiBaseUrl}/deployments/${deploymentId}`, { method: "DELETE" });
+
+  const body = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    const err = new Error(`seaLeye.run API error: ${res.status}`);
+    err.details = body;
+    throw err;
+  }
+
+  return body;
+}
+
 export async function getDeployment({ apiBaseUrl, deploymentId }) {
   const res = await fetch(`${apiBaseUrl}/deployments/${deploymentId}`, {
     method: "GET"

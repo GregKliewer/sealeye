@@ -8,7 +8,8 @@ import {
   createDeployment,
   validatePlan,
   getDeployment,
-  listDeployments
+  listDeployments,
+  destroyDeployment
 } from "../lib/run.js";
 import { banner, step, c, product } from "../src/brand.js";
 
@@ -54,12 +55,14 @@ Usage:
   ${product.command} validate --file <plan.yaml> [--api <url>] [--json]
   ${product.command} status <deploymentId> [--api <url>] [--json]
   ${product.command} watch <deploymentId> [--api <url>]
-  ${product.command} list [--api <url>] [--json]
+  ${product.command} destroy <deploymentId> [--api <url>]
+  ${product.command} list [--all] [--api <url>] [--json]
 
 Options:
   -f, --file      path to your plan YAML
       --app       folder to deploy (default: the current folder)
   -b, --backend   cloudformation (default: cloudformation)
+      --all       with list: include environments you have torn down
       --api       platform API base URL (default: http://localhost:3000)
       --json      machine-readable output
   -h, --help      show help
@@ -69,6 +72,7 @@ Examples:
   ${product.command} deploy -f plan.yaml
   ${product.command} watch dep_1a2b3c4d5e6f
   ${product.command} list
+  ${product.command} destroy dep_1a2b3c4d5e6f
 `);
 }
 
@@ -167,19 +171,72 @@ async function main() {
   }
 
   if (command === "list") {
-    const deployments = await listDeployments({ apiBaseUrl });
+    const all = process.argv.includes("--all");
+    const everything = await listDeployments({ apiBaseUrl });
+
+    // Torn-down environments are history, not something you can still open.
+    const shown = all ? everything : everything.filter(d => d.status !== "destroyed");
+    const hidden = everything.length - shown.length;
 
     if (jsonOut) {
-      console.log(JSON.stringify(deployments, null, 2));
+      console.log(JSON.stringify(shown, null, 2));
       return;
     }
 
-    if (!deployments.length) {
-      say("No deployments yet");
+    if (!shown.length) {
+      say(hidden ? `No live environments (${hidden} torn down — see --all)` : "No deployments yet");
       return;
     }
 
-    printDeploymentTable(deployments);
+    printDeploymentTable(shown);
+    if (hidden) say(`${hidden} torn down and hidden — see --all`);
+    return;
+  }
+
+  if (command === "destroy") {
+    const deploymentId = process.argv[3];
+    if (!deploymentId) {
+      console.error(c.fail(`Missing deploymentId: ${product.command} destroy <deploymentId>`));
+      process.exit(1);
+    }
+
+    say(`Asking seaLeye.run to tear down ${deploymentId}`);
+    const started = await destroyDeployment({ apiBaseUrl, deploymentId });
+
+    if (jsonOut) {
+      console.log(JSON.stringify(started, null, 2));
+      return;
+    }
+
+    let lastStep = null;
+
+    while (true) {
+      const dep = await getDeployment({ apiBaseUrl, deploymentId });
+
+      // Each new plain-language line once, as it happens.
+      if (dep.step && dep.step !== lastStep) {
+        say(dep.step);
+        lastStep = dep.step;
+      }
+
+      if (dep.status === "destroyed") {
+        console.log("");
+        console.log(c.ok(`Everything seaLeye.run created for ${dep.app?.name} is gone`));
+        if (dep.note) say(dep.note);
+        if (dep.removedArtifacts?.length) say(`Removed ${dep.removedArtifacts.length} local build file(s)`);
+        break;
+      }
+
+      if (dep.status === "failed") {
+        console.log("");
+        console.log(c.fail(`Tear-down failed: ${dep.failureReason || "no reason reported"}`));
+        process.exitCode = 1;
+        break;
+      }
+
+      await sleep(1000);
+    }
+
     return;
   }
 

@@ -103,3 +103,21 @@ export function stagePaths(deploymentId) {
     zipPath: path.join(repoRoot, "dist", `${deploymentId}.zip`)
   };
 }
+
+/**
+ * Throw away this deployment's staged copy and zip. Platform-side files only —
+ * nothing here is in the developer's folder.
+ * @returns {string[]} what was removed
+ */
+export function cleanStage(deploymentId) {
+  const { stageDir, zipPath } = stagePaths(deploymentId);
+  const removed = [];
+
+  for (const target of [stageDir, zipPath]) {
+    if (!fs.existsSync(target)) continue;
+    fs.rmSync(target, { recursive: true, force: true });
+    removed.push(target);
+  }
+
+  return removed;
+}
