@@ -1,0 +1,19 @@
+planVersion: "0.2"
+app:
+  name: static-website
+  type: static-site
+profile: poc
+modules:
+  - id: static_site_edge
+    enabled: true
+    inputs:
+      site_root: .
+      entry_point: index.html
+  - id: observability_basic
+    enabled: true
+    inputs:
+      target: auto
+      retention_days: 30
+outputs:
+  - public_url
+  - logs

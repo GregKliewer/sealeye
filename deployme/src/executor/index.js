@@ -3,7 +3,7 @@
 // says it is done. Status is never invented; it mirrors the stack.
 import { compose } from "./compose.js";
 import { stage, cleanStage } from "./package.js";
-import { deploy, describe, firstFailure, deleteStack, emptyBucket } from "./cfn.js";
+import { deploy, describe, firstFailure, deleteStack, emptyBucket, syncSite } from "./cfn.js";
 import { renderReport } from "./report.js";
 import { putDeployment } from "../store.js";
 
@@ -108,6 +108,25 @@ export async function startDeployment(record, plan, appPath) {
     }
 
     if (mapped === "succeeded") {
+      // The static stack is an empty bucket until the developer's files are in it.
+      // Nothing is succeeded until the site actually serves something, so the upload
+      // happens before the status changes, not after.
+      if (record.kind === "static") {
+        const bucket = described.outputs.BucketName;
+        if (!bucket) {
+          return fail("the stack came up without a BucketName output, so there is nowhere to put your files");
+        }
+
+        set("running", { step: `Uploading your files to ${bucket}` });
+        const synced = await syncSite(appPath, bucket);
+        if (!synced.ok) {
+          return fail(
+            `could not upload your files to s3://${bucket}: ${synced.stderr.trim() || `exit ${synced.code}`}`
+          );
+        }
+        record.syncedFrom = appPath;
+      }
+
       set("succeeded", {
         outputs: described.outputs,
         failureReason: null,
@@ -126,11 +145,29 @@ export async function startDeployment(record, plan, appPath) {
     }
 
     if (mapped === "failed") {
+      // Read the reason before touching the stack: describe-stack-events goes away
+      // with it.
       const reason =
         (await firstFailure(composed.stackName)) ||
         described.statusReason ||
         childResult?.stderr?.trim() ||
         `stack ${described.status}`;
+
+      // ROLLBACK_COMPLETE is a dead stack — a create that failed and undid itself.
+      // CloudFormation will not update it and will not create over it, so leaving it
+      // there means every later deploy fails for a reason that is no longer the real
+      // one. Remove it so the next attempt starts clean.
+      // UPDATE_ROLLBACK_COMPLETE is deliberately not touched: that stack is the
+      // developer's previous environment, still up and still serving.
+      if (described.status === "ROLLBACK_COMPLETE") {
+        set("failed", { step: `Removing the failed stack ${composed.stackName} so you can deploy again` });
+        const removed = await deleteStack(composed.stackName);
+        record.rolledBackStackRemoved = removed.ok;
+        if (!removed.ok) {
+          record.cleanupError = removed.stderr.trim() || `delete-stack exited ${removed.code}`;
+        }
+      }
+
       return fail(reason);
     }
 

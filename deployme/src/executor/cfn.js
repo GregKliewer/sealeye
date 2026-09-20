@@ -1,6 +1,6 @@
 // src/executor/cfn.js
-// Every CloudFormation call the executor makes, shelling out to the AWS CLI.
-// No SDK dependency; JSON in, JSON out.
+// Every CloudFormation call the executor makes, plus the handful of S3 calls that go
+// with them, shelling out to the AWS CLI. No SDK dependency; JSON in, JSON out.
 import { spawn } from "node:child_process";
 
 import { loadEnv } from "./env.js";
@@ -63,6 +63,20 @@ export function deleteStack(stackName) {
  */
 export function emptyBucket(bucketName) {
   return runAws(["s3", "rm", `s3://${bucketName}`, "--recursive", "--region", region()]);
+}
+
+/**
+ * Fill a bucket from a folder. `--delete` means a file the developer deleted stops
+ * being served on the next deploy, so the site matches the folder rather than
+ * accumulating. The folder is only ever read.
+ */
+export function syncSite(appPath, bucketName) {
+  return runAws([
+    "s3", "sync", appPath, `s3://${bucketName}`,
+    "--delete",
+    "--exclude", ".git/*",
+    "--region", region()
+  ]);
 }
 
 /**

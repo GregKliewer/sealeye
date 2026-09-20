@@ -32,9 +32,7 @@ function whatWasCreated(record) {
   if (record.kind === "static") {
     lines.push(
       "- A public website, served straight from storage. Anyone with the link can open it.",
-      `- The storage holding your files (bucket \`${o.BucketName || "—"}\`).`,
-      "",
-      "This environment has no CDN in front of the site, so the address is `http://`, not `https://`."
+      `- The storage holding your files (bucket \`${o.BucketName || "—"}\`).`
     );
   } else {
     const retention = record.parameters?.RetentionDays;
@@ -54,7 +52,18 @@ function whatWasCreated(record) {
 
 function yourUrl(record) {
   const url = record.outputs?.ApiUrl || record.outputs?.WebsiteUrl;
-  return ["## Your URL", "", url ? url : "_No URL was returned by this deployment._"].join("\n");
+  const lines = ["## Your URL", "", url ? url : "_No URL was returned by this deployment._"];
+
+  // Say it where the address is, not three sections away: the http:// is the first
+  // thing anyone notices.
+  if (url && record.kind === "static") {
+    lines.push(
+      "",
+      "That address is `http://`, not `https://`. This profile serves your files straight out of storage with no CDN in front of them, and a storage-hosted site is plain HTTP. The CDN is what adds `https://` and your own domain name — it is a deliberate omission here, not something that went wrong."
+    );
+  }
+
+  return lines.join("\n");
 }
 
 function logs(record) {

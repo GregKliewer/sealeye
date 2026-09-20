@@ -273,7 +273,10 @@ async function main() {
           console.log(c.ok(url ? `Your app is live at ${url}` : "Your environment is ready"));
           writeReport(dep);
         } else {
-          console.log(c.fail(`Deployment failed: ${dep.failureReason || "no reason reported"}`));
+          console.log(c.fail(failureSentence(dep)));
+          if (dep.rolledBackStackRemoved) {
+            say("The half-built stack has been removed, so you can fix the plan and deploy again");
+          }
           process.exitCode = 1;
         }
         break;
@@ -288,6 +291,15 @@ async function main() {
   console.error(c.fail(`Unknown command: ${command}`));
   usage();
   process.exit(1);
+}
+
+// Why the deployment failed, in one sentence. CloudFormation reasons arrive with
+// newlines and double spaces in them; left alone they read like a stack trace.
+function failureSentence(dep) {
+  const reason = (dep.failureReason || "").replace(/\s+/g, " ").trim().replace(/\.$/, "");
+  return reason
+    ? `Your environment was not created: ${reason}.`
+    : "Your environment was not created, and AWS did not say why.";
 }
 
 // The one URL the developer asked for: the API's or the static site's.
