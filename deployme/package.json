@@ -12,7 +12,8 @@
   },
    "scripts": {
       "dev": "nodemon src/server.js",
-      "start": "node src/server.js"
+      "start": "node src/server.js",
+      "cli": "node bin/deployme"
     },
   "dependencies": {
     "ajv": "^8.20.0",

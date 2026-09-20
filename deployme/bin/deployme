@@ -8,21 +8,21 @@ function usage() {
 deployme - deployment plan runner
 
 Usage:
-  deployme deploy --backend <terraform|cloudformation> --file <plan.yaml> [--api <url>] [--json]
+  deployme deploy --file <plan.yaml> [--backend cloudformation] [--api <url>] [--json]
   deployme validate --file <plan.yaml> [--api <url>] [--json]
   deployme status <deploymentId> [--api <url>] [--json]
   deployme watch <deploymentId>
 
 Options:
-  -b, --backend   terraform | cloudformation (default: terraform)
+  -b, --backend   cloudformation (default: cloudformation)
   -f, --file      path to plan YAML
   --api           API base URL (default: http://localhost:3000)
   -h, --help      show help
 
 Examples:
   deployme validate -f deployme-test.yaml
-  deployme deploy -b terraform -f deployme-test.yaml
-  deployme deploy -b cloudformation -f deployme-test.yaml --api http://localhost:3000
+  deployme deploy -f deployme-test.yaml
+  deployme deploy -f deployme-test.yaml --api http://localhost:3000
 `);
 }
 
@@ -73,7 +73,7 @@ async function main() {
       process.exit(1);
     }
 
-    const backend = getArg("--backend", "-b") || "terraform";
+    const backend = getArg("--backend", "-b") || "cloudformation";
     
     const plan = loadPlanFromYaml(file);
     const result = await createDeployment({ apiBaseUrl, backend, plan });
@@ -143,8 +143,6 @@ async function main() {
     return;
 
   }
-
-  return;
 
   console.error(`Unknown command: ${command}`);
   usage();

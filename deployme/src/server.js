@@ -35,9 +35,9 @@ app.post("/plans/validate", (req, res) => {
 app.post("/deployments", (req, res) => {
   const { backend, plan } = req.body || {};
 
-  if (!backend || !["cloudformation", "terraform"].includes(backend)) {
+  if (!backend || !["cloudformation"].includes(backend)) {
     return res.status(400).json({
-      error: { code: "INVALID_BACKEND", message: "backend must be cloudformation or terraform" }
+      error: { code: "INVALID_BACKEND", message: "backend must be cloudformation" }
     });
   }
   if (!plan) {
