@@ -11,6 +11,7 @@ import path from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
 
 import { validatePlan } from "../../lib/run.js";
+import { product } from "../brand.js";
 import { repoRoot, loadEnv, loadUserConfig } from "../executor/env.js";
 import { submitPlanTool, splitSubmission } from "./schema.js";
 import { listFilesTool, readFileTool, runTool, folderDigest } from "./tools.js";
@@ -23,6 +24,10 @@ const MAX_QUESTIONS = 4;       // the interview rule
 const MAX_VALIDATION_RETRIES = 2;
 const MAX_TURNS = 24;          // a stuck conversation stops instead of spending
 const MAX_TOKENS = 16000;
+// The SDK's default is ten minutes, which is not a demo. A turn that writes a whole
+// plan after a correction is the slowest one, so leave room for it: 120 s, retried
+// once, is still inside the five minute budget.
+const TIMEOUT_MS = 120_000;
 
 /**
  * Sampling parameters were removed on Sonnet 5 and the rest of the current
@@ -55,9 +60,17 @@ function textOf(content) {
     .trim();
 }
 
-/** A turn ending in "?" is a question for the developer. */
+/**
+ * A turn with a question mark in it is a question for the developer.
+ *
+ * Not "ends with ?": seen on Sept 21, the model asked "does your app read any other
+ * settings from the environment? (Not counting the port, that one is handled
+ * automatically.)" and a trailing-character test read that as the interview stopping.
+ * Mistaking a stop for a question costs one odd looking prompt; mistaking a question
+ * for a stop ends the interview in silence, which is worse.
+ */
 function isQuestion(text) {
-  return text.endsWith("?");
+  return text.includes("?");
 }
 
 /**
@@ -66,7 +79,88 @@ function isQuestion(text) {
  */
 function splitQuestion(text) {
   const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
-  return { question: lines.pop() || text, lead: lines };
+
+  // The question is the last line that has the question mark in it; anything above it
+  // is what the platform found, and anything below is part of the same ask.
+  const last = lines.reduce((found, line, index) => (line.includes("?") ? index : found), lines.length - 1);
+
+  return {
+    question: lines.slice(last).join(" ") || text,
+    lead: lines.slice(0, last)
+  };
+}
+
+/** An error the CLI can print as one sentence, with no stack and no JSON. */
+function userFacing(message, cause) {
+  const err = new Error(message);
+  err.userFacing = true;
+  if (cause) err.cause = cause;
+  return err;
+}
+
+/** A timeout, a dropped connection, a rate limit or a server fault is worth one retry. */
+function isRetryable(err) {
+  if (err instanceof Anthropic.APIConnectionError) return true;   // timeouts included
+  const status = err?.status;
+  return status === 408 || status === 429 || (typeof status === "number" && status >= 500);
+}
+
+/** Whatever the SDK threw, as one sentence the developer can act on. */
+function asUserFacing(err) {
+  // A timeout and a refused connection need different advice, so they get different
+  // sentences.
+  if (err instanceof Anthropic.APIConnectionTimeoutError) {
+    return userFacing(
+      `The model did not answer in time twice, so seaLeye.run stopped. Run ${product.command} init again.`,
+      err
+    );
+  }
+
+  if (err instanceof Anthropic.APIConnectionError) {
+    return userFacing(
+      `seaLeye.run could not reach the model that does the interview. Check your connection, then run ${product.command} init again.`,
+      err
+    );
+  }
+
+  if (err?.status === 401 || err?.status === 403) {
+    return userFacing("The ANTHROPIC_API_KEY seaLeye.run is using was refused.", err);
+  }
+
+  if (err?.status === 429) {
+    return userFacing(`That account is being rate limited. Wait a moment, then run ${product.command} init again.`, err);
+  }
+
+  // An APIError's own message is the whole JSON body, which is not a sentence. The
+  // body carries the human one, so use that when it is there.
+  const reason = String(err?.error?.error?.message || err?.message || "no reason given")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return userFacing(`seaLeye.run could not finish the interview: ${reason}`, err);
+}
+
+/**
+ * One model turn, retried once. Anything the retry does not fix comes back as a
+ * sentence rather than a stack: the developer cannot fix an SDK trace.
+ */
+async function createWithOneRetry(client, params, onStep) {
+  try {
+    return await client.messages.create(params);
+  } catch (err) {
+    if (!isRetryable(err)) throw asUserFacing(err);
+
+    onStep("That is taking longer than it should, trying once more");
+    if (process.env.DEPLOYME_DEBUG) {
+      console.error(`  [debug] retrying after ${err?.name || "error"}${err?.status ? ` ${err.status}` : ""}: ${err?.message || ""}`);
+    }
+
+    try {
+      return await client.messages.create(params);
+    } catch (retryErr) {
+      throw asUserFacing(retryErr);
+    }
+  }
 }
 
 /**
@@ -88,12 +182,14 @@ export async function runInterview({
 }) {
   const apiKey = resolveApiKey();
   if (!apiKey) {
-    throw new Error(
-      "ANTHROPIC_API_KEY is not set. Put it in your environment or in ~/.deployme/config and run sealeye init again."
+    throw userFacing(
+      `ANTHROPIC_API_KEY is not set, so put it in your environment or in ~/.deployme/config and run ${product.command} init again.`
     );
   }
 
-  const client = new Anthropic({ apiKey });
+  // The SDK's own retries are off: one retry, announced, beats three silent ones in
+  // front of an audience.
+  const client = new Anthropic({ apiKey, timeout: TIMEOUT_MS, maxRetries: 0 });
   const system = loadSystemPrompt();
   const tools = [listFilesTool, readFileTool, submitPlanTool];
 
@@ -104,14 +200,18 @@ export async function runInterview({
   let nudged = false;
 
   for (let turn = 0; turn < MAX_TURNS; turn++) {
-    const response = await client.messages.create({
-      model,
-      max_tokens: MAX_TOKENS,
-      system,
-      tools,
-      messages,
-      ...(supportsTemperature(model) ? { temperature: 0.2 } : {})
-    });
+    const response = await createWithOneRetry(
+      client,
+      {
+        model,
+        max_tokens: MAX_TOKENS,
+        system,
+        tools,
+        messages,
+        ...(supportsTemperature(model) ? { temperature: 0.2 } : {})
+      },
+      onStep
+    );
 
     messages.push({ role: "assistant", content: response.content });
 
@@ -150,12 +250,21 @@ export async function runInterview({
           continue;
         }
 
+        const { content, isError } = runTool(appPath, use.name, use.input || {});
+
+        // The line comes after the tool ran, so it says what happened rather than what
+        // was about to be attempted.
         if (use.name === "list_files" || use.name === "read_file") {
           const target = use.input?.path || ".";
-          onStep(use.name === "list_files" ? `Looking at ${target}` : `Reading ${target}`);
+          onStep(
+            isError
+              ? `Nothing to read at ${target}, moving on`
+              : use.name === "list_files"
+                ? `Looking at ${target}`
+                : `Reading ${target}`
+          );
         }
 
-        const { content, isError } = runTool(appPath, use.name, use.input || {});
         results.push({
           type: "tool_result",
           tool_use_id: use.id,

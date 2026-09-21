@@ -15,6 +15,7 @@ import {
 import { banner, step, ask, answer, c, product } from "../src/brand.js";
 import { runInterview, resolveApiKey } from "../src/interview/loop.js";
 import { writeInterviewFiles } from "../src/interview/render.js";
+import { plainValidationErrors } from "../src/interview/explain.js";
 
 // --json is machine output: no banner, no colour, nothing but the object.
 const jsonOut = process.argv.includes("--json");
@@ -107,14 +108,8 @@ async function main() {
   if (command === "init") {
     // init runs in the app folder, and that folder is the only one it ever touches.
     const appPath = process.cwd();
-
-    if (!resolveApiKey()) {
-      console.error(
-        c.fail("ANTHROPIC_API_KEY is not set, so seaLeye.run cannot interview you about your app.")
-      );
-      console.error(`  Set it in your environment, or put it in ${path.join("~", ".deployme", "config")}, then run ${product.command} init again.`);
-      process.exit(1);
-    }
+    const planPath = path.join(appPath, "DEPLOYMENT_PLAN.md");
+    const configPath = path.join(appPath, "deployme.yaml");
 
     // init is a conversation, so it needs somebody at a terminal to have it with.
     if (!process.stdin.isTTY) {
@@ -123,72 +118,151 @@ async function main() {
       process.exit(1);
     }
 
-    say("Reading your app");
-
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-    let result;
+
+    // Ctrl+C is a normal way to leave a conversation. Say where things stand, leave
+    // the folder as it was, and go.
+    let wrote = false;
+    let leaving = false;
+
+    const interrupt = () => {
+      if (leaving) return;
+      leaving = true;
+
+      console.log("");
+      say(
+        wrote
+          ? `Stopped. Your plan is still in ${planPath}, and nothing has been deployed.`
+          : "Stopped. Nothing has been written to your folder."
+      );
+
+      rl.close();
+      process.exit(130);   // the conventional code for "interrupted"
+    };
+
+    rl.on("SIGINT", interrupt);
+    process.on("SIGINT", interrupt);
+
+    let submission = null;
 
     try {
-      result = await runInterview({
-        appPath,
-        apiBaseUrl,
-        onStep: say,
-        // One question at a time, amber, with whatever the platform found above it.
-        ask: async (question, lead = []) => {
-          console.log("");
-          for (const line of lead) console.log(step(line));
+      // A plan from a previous run belongs to the developer, so it is not ours to
+      // overwrite without asking.
+      if (fs.existsSync(configPath)) {
+        const choice = await askChoice(rl, "A plan already exists. Reuse it (r), start over (s)?", ["r", "s"]);
 
-          const reply = (await rl.question(ask(question))).trim();
-          console.log(`  ${answer(reply || "(no answer)")}`);
-
-          return reply;
+        if (!choice) {
+          say("Nothing has changed, and nothing has been written to your folder.");
+          return;
         }
-      });
 
-      if (result.status === "invalid") {
-        console.log("");
-        console.log(c.fail("seaLeye.run could not write a plan that fits its own contract:"));
-        for (const e of result.errors || []) console.log(`  ${e.message}`);
-        say("Nothing has been written to your folder.");
-        process.exitCode = 1;
-        return;
+        if (choice === "r") {
+          say(`Reading the plan already in ${configPath}`);
+          const plan = loadPlanFromYaml(configPath);
+
+          say("Checking it against the seaLeye.run plan contract");
+          const check = await validatePlan({ apiBaseUrl, plan });
+
+          if (!check.valid) {
+            console.log("");
+            console.log(c.fail("The plan in your folder cannot be deployed as it stands:"));
+            for (const line of plainValidationErrors(check.errors)) console.log(`  ${line}`);
+            console.log("");
+            say(`Fix ${configPath}, or run ${product.command} init again and start over.`);
+            process.exitCode = 1;
+            return;
+          }
+
+          console.log("");
+          console.log(reuseSummary(plan, planPath));
+
+          // Reuse skips the interview: the plan is already written and already valid.
+          submission = { plan, reused: true };
+        }
       }
 
-      if (result.status !== "submitted") {
+      if (!submission) {
+        // Only the interview needs the model, so the key is only required here: a
+        // reused plan deploys without one.
+        if (!resolveApiKey()) {
+          console.error(
+            c.fail(
+              `ANTHROPIC_API_KEY is not set, so put it in your environment or in ${path.join("~", ".deployme", "config")} and run ${product.command} init again.`
+            )
+          );
+          process.exit(1);
+        }
+
+        say("Reading your app");
+
+        const result = await runInterview({
+          appPath,
+          apiBaseUrl,
+          onStep: say,
+          // One question at a time, amber, with whatever the platform found above it.
+          ask: async (question, lead = []) => {
+            console.log("");
+            for (const line of lead) console.log(step(line));
+            return askLine(rl, question);
+          }
+        });
+
+        if (result.status === "invalid") {
+          console.log("");
+          console.log(c.fail("seaLeye.run could not write a plan that fits its own contract:"));
+          for (const line of plainValidationErrors(result.errors)) console.log(`  ${line}`);
+          console.log("");
+          say("Nothing has been written to your folder.");
+          process.exitCode = 1;
+          return;
+        }
+
+        if (result.status !== "submitted") {
+          console.log("");
+          console.log(result.message);
+          say("Nothing has been written to your folder.");
+          return;
+        }
+
+        submission = result;
+
+        // The plan is valid. These two files are the only thing written before the
+        // developer says yes.
+        const written = writeInterviewFiles(appPath, submission);
+        wrote = true;
+
         console.log("");
-        console.log(result.message);
-        say("Nothing has been written to your folder.");
-        return;
+        console.log(submission.summary);
+        console.log("");
+        say(`Wrote ${written.planPath}`);
+        say(`Wrote ${written.configPath}`);
       }
 
-      // The plan is valid. These two files are the only thing written before the
-      // developer says yes.
-      const { planPath, configPath } = writeInterviewFiles(appPath, result);
-
       console.log("");
-      console.log(result.summary);
-      console.log("");
-      say(`Wrote ${planPath}`);
-      say(`Wrote ${configPath}`);
-      console.log("");
-
-      const reply = (await rl.question(ask("Deploy this? [y/N]"))).trim();
-      console.log(`  ${answer(reply || "N")}`);
+      const reply = await askLine(rl, "Deploy this? [y/N]");
 
       if (reply.toLowerCase() !== "y") {
         console.log("");
-        say(`Your plan is in ${planPath}, and the plan seaLeye.run would run is in ${configPath}`);
+        // Only name the files that are actually there: a reused plan may never have
+        // had a DEPLOYMENT_PLAN.md written beside it.
+        if (fs.existsSync(planPath)) say(`Your plan is in ${planPath}`);
+        say(`The plan seaLeye.run would run is in ${configPath}`);
         say(`When you are ready: ${product.command} deploy -f ${path.basename(configPath)}`);
-        process.exit(0);
+        return;
       }
+    } catch (err) {
+      // Ctrl+D leaves the same way Ctrl+C does.
+      if (err instanceof Interrupted) return interrupt();
+      throw err;
     } finally {
+      process.off("SIGINT", interrupt);
       rl.close();
     }
 
     const deployment = await runDeploy({
       apiBaseUrl,
       backend: "cloudformation",
-      plan: result.plan,
+      plan: submission.plan,
       appPath,
       follow: false
     });
@@ -217,7 +291,7 @@ async function main() {
       console.log(c.ok("Your plan is valid"));
     } else {
       console.log(c.fail("Your plan cannot be deployed as written:"));
-      for (const e of result.errors || []) console.log(`  ${e.message}`);
+      for (const line of plainValidationErrors(result.errors)) console.log(`  ${line}`);
       process.exitCode = 1;
     }
 
@@ -343,6 +417,69 @@ async function main() {
   console.error(c.fail(`Unknown command: ${command}`));
   usage();
   process.exit(1);
+}
+
+// Ctrl+D at a prompt, or a terminal that went away mid-question. readline reports it
+// as an AbortError, which is not a developer's problem and not worth a stack trace.
+class Interrupted extends Error {}
+
+// One question, amber, and one line back. Every question the developer sees goes
+// through here, so they all look the same.
+async function askLine(rl, question) {
+  let reply;
+
+  try {
+    reply = (await rl.question(ask(question))).trim();
+  } catch (err) {
+    if (err?.name === "AbortError" || err?.code === "ABORT_ERR") throw new Interrupted();
+    throw err;
+  }
+
+  echoAnswer(question, reply);
+  return reply;
+}
+
+// The terminal has already echoed what the developer typed, in its own colour.
+// Rewrite that line so the question and the answer read as one line in the brand
+// colours. With output piped there is no echo to rewrite, so just print the answer.
+function echoAnswer(question, reply) {
+  const shown = reply || "(no answer)";
+
+  if (!process.stdout.isTTY) {
+    console.log(answer(shown));
+    return;
+  }
+
+  const width = process.stdout.columns || 80;
+  const rows = Math.max(1, Math.ceil(`? ${question} ${reply}`.length / width));
+
+  process.stdout.write(`\x1b[${rows}A\x1b[0J`);   // up over what was typed, clear it
+  console.log(`${ask(question)}${answer(shown)}`);
+}
+
+// A question with a fixed set of answers. A stray Enter must not throw away a plan,
+// so anything else is asked again, and three unusable answers change nothing.
+async function askChoice(rl, question, choices) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const reply = (await askLine(rl, question)).toLowerCase();
+    if (choices.includes(reply)) return reply;
+    say(`Please answer ${choices.join(" or ")}.`);
+  }
+
+  return null;
+}
+
+// What the developer sees when they reuse the plan from a previous run.
+function reuseSummary(plan, planPath) {
+  const modules = (plan.modules || []).filter(m => m.enabled !== false).map(m => m.id);
+
+  return [
+    `Reusing the plan you already have for ${plan.app?.name} (${plan.app?.type}).`,
+    modules.length ? `It uses ${modules.join(", ")}.` : null,
+    fs.existsSync(planPath) ? `The plan in your own language is in ${planPath}.` : null
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 // Hand a plan and a folder to the platform. `deploy` and `init` both come through
@@ -497,6 +634,13 @@ async function sleep(ms) {
 }
 
 main().catch(err => {
+  // An unreachable platform, a missing key or a model that would not answer is one
+  // sentence the developer can act on, not a stack trace.
+  if (err?.userFacing) {
+    console.error(c.fail(err.message));
+    process.exit(1);
+  }
+
   console.error(c.fail(err.details ? JSON.stringify(err.details, null, 2) : (err.stack || String(err))));
   process.exit(1);
 });
