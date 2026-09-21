@@ -64,3 +64,25 @@ Executor rules (decided Day 3)
   The CLI writes DEPLOYMENT_REPORT.md into the app folder on succeeded. Nothing else
   writes there.
 - Static destroy empties the bucket (aws s3 rm --recursive) before delete-stack.
+
+Interview rules (decided Day 4)
+- `sealeye init` runs in the app folder. Model: the Sonnet id from the Day 1 curl test,
+  via @anthropic-ai/sdk, temperature 0.2. ANTHROPIC_API_KEY from env; a clear message
+  and exit 1 if missing.
+- Tools: list_files(path) and read_file(path), read-only, resolved inside the app folder
+  only (reject .., symlinks out, node_modules, .git); read_file capped at 20 KB;
+  list_files capped at 40 entries. submit_plan(plan, summary, assumptions) ends the
+  interview; its plan input schema is prompts/plan-contract.yaml (planVersion 0.2, five
+  modules, no new fields).
+- At most four questions, one per assistant turn, developer language, no AWS terms.
+  Look at the folder before asking anything the folder can answer.
+- Validation: the submitted plan goes to POST /plans/validate; errors return to the
+  model as the tool result; two retries, then stop with the errors shown.
+- Files: the CLI renders DEPLOYMENT_PLAN.md from prompts/plan-template.md using the
+  submission, and writes deployme.yaml (the plan as submitted). Both into the app
+  folder. Nothing else is written there before the developer says yes.
+- Confirmation boundary: print the summary and the files, then "Deploy this? [y/N]".
+  Only y proceeds. Then call the existing deploy + watch code paths; init has no
+  deployment logic of its own.
+- Every prompt line is amber ask(); every echoed answer phosphor answer(); every
+  platform action a dim step() line. No em dash in anything the developer sees.
