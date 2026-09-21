@@ -47,8 +47,46 @@ export const submitPlanTool = {
   input_schema: submitPlanInputSchema
 };
 
-/** Split a submit_plan tool input into the plan the API takes and the interview's own output. */
+/**
+ * Split a submit_plan tool input into the plan the API takes and the interview's own
+ * output.
+ *
+ * The summary is cleaned on the way through. Seen in testing on Sept 21: the model
+ * occasionally closes the summary string early and writes the rest of the tool input
+ * as markup inside it, which leaves the real summary followed by
+ * `</summary><parameter name="assumptions">[...]` and an empty assumptions array.
+ * Rather than show the developer a paragraph with markup in the middle of it, take the
+ * summary up to the leak and recover the assumptions from it if they are parseable.
+ */
 export function splitSubmission(input) {
   const { plan, summary = "", assumptions = [] } = input || {};
-  return { plan, summary, assumptions };
+  const cleaned = cleanSummary(summary);
+
+  return {
+    plan,
+    summary: cleaned.summary,
+    assumptions: assumptions.length ? assumptions : cleaned.assumptions
+  };
+}
+
+const LEAK = /<\/summary>|<parameter\s+name=/i;
+
+function cleanSummary(summary) {
+  const text = String(summary || "");
+  const leak = text.search(LEAK);
+  if (leak === -1) return { summary: text.trim(), assumptions: [] };
+
+  const recovered = /<parameter\s+name="assumptions">\s*(\[[\s\S]*?\])/i.exec(text);
+  let assumptions = [];
+
+  if (recovered) {
+    try {
+      const parsed = JSON.parse(recovered[1]);
+      if (Array.isArray(parsed)) assumptions = parsed.filter(a => typeof a === "string");
+    } catch {
+      // Not parseable: better no assumptions than markup presented as one.
+    }
+  }
+
+  return { summary: text.slice(0, leak).trim(), assumptions };
 }

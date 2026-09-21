@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
+import readline from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -11,7 +12,9 @@ import {
   listDeployments,
   destroyDeployment
 } from "../lib/run.js";
-import { banner, step, c, product } from "../src/brand.js";
+import { banner, step, ask, answer, c, product } from "../src/brand.js";
+import { runInterview, resolveApiKey } from "../src/interview/loop.js";
+import { writeInterviewFiles } from "../src/interview/render.js";
 
 // --json is machine output: no banner, no colour, nothing but the object.
 const jsonOut = process.argv.includes("--json");
@@ -51,6 +54,7 @@ function usage() {
 ${product.command} - deploy your app to a real AWS environment
 
 Usage:
+  ${product.command} init [--api <url>]
   ${product.command} deploy --file <plan.yaml> [--app <path>] [--api <url>] [--json]
   ${product.command} validate --file <plan.yaml> [--api <url>] [--json]
   ${product.command} status <deploymentId> [--api <url>] [--json]
@@ -68,6 +72,7 @@ Options:
   -h, --help      show help
 
 Examples:
+  ${product.command} init
   ${product.command} validate -f plan.yaml
   ${product.command} deploy -f plan.yaml
   ${product.command} watch dep_1a2b3c4d5e6f
@@ -98,6 +103,100 @@ async function main() {
   }
 
   const apiBaseUrl = getArg("--api") || "http://localhost:3000";
+
+  if (command === "init") {
+    // init runs in the app folder, and that folder is the only one it ever touches.
+    const appPath = process.cwd();
+
+    if (!resolveApiKey()) {
+      console.error(
+        c.fail("ANTHROPIC_API_KEY is not set, so seaLeye.run cannot interview you about your app.")
+      );
+      console.error(`  Set it in your environment, or put it in ${path.join("~", ".deployme", "config")}, then run ${product.command} init again.`);
+      process.exit(1);
+    }
+
+    // init is a conversation, so it needs somebody at a terminal to have it with.
+    if (!process.stdin.isTTY) {
+      console.error(c.fail(`${product.command} init asks you questions, so it needs a terminal.`));
+      console.error(`  Run it yourself in your app folder, or deploy an existing plan with ${product.command} deploy -f deployme.yaml.`);
+      process.exit(1);
+    }
+
+    say("Reading your app");
+
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    let result;
+
+    try {
+      result = await runInterview({
+        appPath,
+        apiBaseUrl,
+        onStep: say,
+        // One question at a time, amber, with whatever the platform found above it.
+        ask: async (question, lead = []) => {
+          console.log("");
+          for (const line of lead) console.log(step(line));
+
+          const reply = (await rl.question(ask(question))).trim();
+          console.log(`  ${answer(reply || "(no answer)")}`);
+
+          return reply;
+        }
+      });
+
+      if (result.status === "invalid") {
+        console.log("");
+        console.log(c.fail("seaLeye.run could not write a plan that fits its own contract:"));
+        for (const e of result.errors || []) console.log(`  ${e.message}`);
+        say("Nothing has been written to your folder.");
+        process.exitCode = 1;
+        return;
+      }
+
+      if (result.status !== "submitted") {
+        console.log("");
+        console.log(result.message);
+        say("Nothing has been written to your folder.");
+        return;
+      }
+
+      // The plan is valid. These two files are the only thing written before the
+      // developer says yes.
+      const { planPath, configPath } = writeInterviewFiles(appPath, result);
+
+      console.log("");
+      console.log(result.summary);
+      console.log("");
+      say(`Wrote ${planPath}`);
+      say(`Wrote ${configPath}`);
+      console.log("");
+
+      const reply = (await rl.question(ask("Deploy this? [y/N]"))).trim();
+      console.log(`  ${answer(reply || "N")}`);
+
+      if (reply.toLowerCase() !== "y") {
+        console.log("");
+        say(`Your plan is in ${planPath}, and the plan seaLeye.run would run is in ${configPath}`);
+        say(`When you are ready: ${product.command} deploy -f ${path.basename(configPath)}`);
+        process.exit(0);
+      }
+    } finally {
+      rl.close();
+    }
+
+    const deployment = await runDeploy({
+      apiBaseUrl,
+      backend: "cloudformation",
+      plan: result.plan,
+      appPath,
+      follow: false
+    });
+
+    await runWatch({ apiBaseUrl, deploymentId: deployment.deploymentId });
+
+    return;
+  }
 
   if (command === "validate") {
     const file = getArg("--file", "-f");
@@ -138,18 +237,7 @@ async function main() {
     say(`Reading your plan from ${file}`);
     const plan = loadPlanFromYaml(file);
 
-    say(`Handing ${appPath} to seaLeye.run to build your environment`);
-    const result = await createDeployment({ apiBaseUrl, backend, plan, appPath });
-
-    if (jsonOut) {
-      console.log(JSON.stringify(result, null, 2));
-    } else {
-      console.log("");
-      printDeploymentSummary(result);
-      console.log("");
-      console.log(`Deployment id: ${c.accent(result.deploymentId)}`);
-      say(`Follow it with: ${product.command} watch ${result.deploymentId}`);
-    }
+    await runDeploy({ apiBaseUrl, backend, plan, appPath });
 
     return;
   }
@@ -241,49 +329,13 @@ async function main() {
   }
 
   if (command === "watch") {
-    function formatDots(tick) {
-      const count = (tick % 3) + 1;   // 1..3
-      return ".".repeat(count);
-    }
-
     const deploymentId = process.argv[3];
     if (!deploymentId) {
       console.error(c.fail(`Missing deploymentId: ${product.command} watch <deploymentId>`));
       process.exit(1);
     }
 
-    let tick = 0;
-
-    while (true) {
-      const dep = await getDeployment({ apiBaseUrl, deploymentId });
-      const dots = formatDots(tick++);
-
-      // Redraw: the banner stays at the top of the screen, the summary under it.
-      console.clear();
-      printBanner();
-      printDeploymentSummary(dep);
-      console.log("");
-      process.stdout.write(c.dim(`Status: ${dep.status}${dots}`));
-
-      if (dep.status === "succeeded" || dep.status === "failed") {
-        process.stdout.write("\n\n");
-
-        if (dep.status === "succeeded") {
-          const url = publicUrl(dep);
-          console.log(c.ok(url ? `Your app is live at ${url}` : "Your environment is ready"));
-          writeReport(dep);
-        } else {
-          console.log(c.fail(failureSentence(dep)));
-          if (dep.rolledBackStackRemoved) {
-            say("The half-built stack has been removed, so you can fix the plan and deploy again");
-          }
-          process.exitCode = 1;
-        }
-        break;
-      }
-
-      await sleep(500); // refresh twice per second
-    }
+    await runWatch({ apiBaseUrl, deploymentId });
 
     return;
   }
@@ -291,6 +343,64 @@ async function main() {
   console.error(c.fail(`Unknown command: ${command}`));
   usage();
   process.exit(1);
+}
+
+// Hand a plan and a folder to the platform. `deploy` and `init` both come through
+// here: init has no deployment logic of its own.
+async function runDeploy({ apiBaseUrl, backend, plan, appPath, follow = true }) {
+  say(`Handing ${appPath} to seaLeye.run to build your environment`);
+  const result = await createDeployment({ apiBaseUrl, backend, plan, appPath });
+
+  if (jsonOut) {
+    console.log(JSON.stringify(result, null, 2));
+    return result;
+  }
+
+  console.log("");
+  printDeploymentSummary(result);
+  console.log("");
+  console.log(`Deployment id: ${c.accent(result.deploymentId)}`);
+  if (follow) say(`Follow it with: ${product.command} watch ${result.deploymentId}`);
+
+  return result;
+}
+
+// Follow a deployment to its real end state, redrawing twice a second.
+async function runWatch({ apiBaseUrl, deploymentId }) {
+  const formatDots = tick => ".".repeat((tick % 3) + 1);   // 1..3
+  let tick = 0;
+
+  while (true) {
+    const dep = await getDeployment({ apiBaseUrl, deploymentId });
+    const dots = formatDots(tick++);
+
+    // Redraw: the banner stays at the top of the screen, the summary under it.
+    console.clear();
+    printBanner();
+    printDeploymentSummary(dep);
+    console.log("");
+    process.stdout.write(c.dim(`Status: ${dep.status}${dots}`));
+
+    if (dep.status === "succeeded" || dep.status === "failed") {
+      process.stdout.write("\n\n");
+
+      if (dep.status === "succeeded") {
+        const url = publicUrl(dep);
+        console.log(c.ok(url ? `Your app is live at ${url}` : "Your environment is ready"));
+        writeReport(dep);
+      } else {
+        console.log(c.fail(failureSentence(dep)));
+        if (dep.rolledBackStackRemoved) {
+          say("The half-built stack has been removed, so you can fix the plan and deploy again");
+        }
+        process.exitCode = 1;
+      }
+
+      return dep;
+    }
+
+    await sleep(500); // refresh twice per second
+  }
 }
 
 // Why the deployment failed, in one sentence. CloudFormation reasons arrive with

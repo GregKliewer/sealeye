@@ -17,6 +17,8 @@ modules:
     when: >-
       The app has no server: files a browser opens directly, or the built output of a
       front end with nothing running behind it.
+    skip_line: >-
+      Your app serves requests, so it needs to run, not just be served.
     signals:
       - index.html at the root
       - no server file and no listen call
@@ -45,6 +47,8 @@ modules:
     when: >-
       Anything in the app listens for HTTP: an Express, Fastify or Koa server, a bare
       http.createServer, a REST API, a webhook receiver, a small service.
+    skip_line: >-
+      Your app has no server: the files are served to the browser as they are.
     signals:
       - a listen call
       - a start script that runs a server
@@ -73,6 +77,8 @@ modules:
       can see what your app is doing without setting anything up.
     when: >-
       Every app, static or HTTP. Never optional, so never ask about it.
+    skip_line: >-
+      Never skipped.
     inputs:
       target:
         default: auto
@@ -94,6 +100,8 @@ modules:
       Only if the app actually reads environment variables. Look for process.env, a
       .env.example, or settings listed in the README. If none, include the module with
       enabled false so the plan records that it was considered.
+    skip_line: >-
+      Your app does not read any settings from its environment.
     signals:
       - process.env in the source
       - a .env.example or .env.sample file
@@ -114,6 +122,8 @@ modules:
       Never in this version. Always enabled false, and never ask the developer about a
       domain: the platform generates a public HTTPS URL either way, so the answer
       cannot change the plan.
+    skip_line: >-
+      No custom domain, so seaLeye.run generates the URL for you. It can be added later.
     inputs:
       domain_name:
         default: null

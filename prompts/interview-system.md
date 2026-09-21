@@ -114,6 +114,10 @@ find any, ask the developer about them before you submit the plan. If you find n
 include the module with `enabled: false` so the plan records that you considered it and
 it was not needed.
 
+`PORT` does not count, and neither does `NODE_ENV`. The platform decides the port and
+tells the app what it is, so an app that reads `process.env.PORT` and nothing else does
+not need this module and the developer should not be asked about it.
+
 Inputs: `variables` (a name to value map, default `{}`). Never put a secret value in
 the plan. Record the names the app needs and note in your assumptions that the values
 are supplied at deploy time.

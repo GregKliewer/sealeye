@@ -1,6 +1,7 @@
 // src/executor/env.js
 // Repo-root path and the .env loader shared by the executor modules.
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -8,17 +9,14 @@ import { fileURLToPath } from "node:url";
 export const repoRoot = path.resolve(fileURLToPath(new URL("../../../", import.meta.url)));
 
 let loaded = false;
+let userConfigLoaded = false;
 
 /**
- * Load .env from the repo root if present. Lines may be `KEY=value` or the
+ * Apply a KEY=value file to process.env. Lines may be `KEY=value` or the
  * shell-sourceable `export KEY=value`. A variable already set in the real
  * environment always wins, so `DEPLOYME_BUCKET=x node ...` overrides the file.
- * Safe to call repeatedly; the file is read once.
  */
-export function loadEnv(envPath = path.join(repoRoot, ".env")) {
-  if (loaded) return process.env;
-  loaded = true;
-
+function applyEnvFile(envPath) {
   if (!fs.existsSync(envPath)) return process.env;
 
   for (const raw of fs.readFileSync(envPath, "utf8").split("\n")) {
@@ -41,6 +39,26 @@ export function loadEnv(envPath = path.join(repoRoot, ".env")) {
   }
 
   return process.env;
+}
+
+/**
+ * Load .env from the repo root if present. Safe to call repeatedly; the file is read
+ * once.
+ */
+export function loadEnv(envPath = path.join(repoRoot, ".env")) {
+  if (loaded) return process.env;
+  loaded = true;
+  return applyEnvFile(envPath);
+}
+
+/**
+ * Load ~/.deployme/config, the developer's own secrets file. Same format as .env, and
+ * the same rule: anything already in the environment wins. Read once.
+ */
+export function loadUserConfig(configPath = path.join(os.homedir(), ".deployme", "config")) {
+  if (userConfigLoaded) return process.env;
+  userConfigLoaded = true;
+  return applyEnvFile(configPath);
 }
 
 /** Read a required environment value, with a message that says where to set it. */
