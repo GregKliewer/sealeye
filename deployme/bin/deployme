@@ -60,8 +60,8 @@ Usage:
   ${product.command} validate --file <plan.yaml> [--api <url>] [--json]
   ${product.command} status <deploymentId> [--api <url>] [--json]
   ${product.command} watch <deploymentId> [--api <url>]
-  ${product.command} destroy <deploymentId> [--api <url>]
-  ${product.command} list [--all] [--api <url>] [--json]
+  ${product.command} destroy <app | deploymentId> [--api <url>]
+  ${product.command} list [--deployments] [--all] [--api <url>] [--json]
 
 Options:
   -f, --file      path to your plan YAML
@@ -70,6 +70,8 @@ Options:
       --answers   with init: answer the interview from a file, one line per question,
                   for rehearsals. Never answers "Deploy this?": that stays yours
       --all       with list: include environments you have torn down
+      --deployments
+                  with list: every deploy, instead of one row per environment
       --api       platform API base URL (default: http://localhost:3000)
       --json      machine-readable output
   -h, --help      show help
@@ -80,6 +82,7 @@ Examples:
   ${product.command} deploy -f plan.yaml
   ${product.command} watch dep_1a2b3c4d5e6f
   ${product.command} list
+  ${product.command} destroy my-app
   ${product.command} destroy dep_1a2b3c4d5e6f
 `);
 }
@@ -346,35 +349,70 @@ async function main() {
 
   if (command === "list") {
     const all = process.argv.includes("--all");
+    const perDeployment = process.argv.includes("--deployments");
     const everything = await listDeployments({ apiBaseUrl });
 
     // Torn-down environments are history, not something you can still open.
-    const shown = all ? everything : everything.filter(d => d.status !== "destroyed");
-    const hidden = everything.length - shown.length;
+    if (perDeployment) {
+      const shown = all ? everything : everything.filter(d => d.status !== "destroyed");
+      const hidden = everything.length - shown.length;
+
+      if (jsonOut) {
+        console.log(JSON.stringify(shown, null, 2));
+        return;
+      }
+
+      if (!shown.length) {
+        say(hidden ? `No live deployments (${hidden} torn down, see --all)` : "No deployments yet");
+        return;
+      }
+
+      printDeploymentTable(shown);
+      if (hidden) say(`${hidden} torn down and hidden, see --all`);
+      return;
+    }
+
+    const environments = groupEnvironments(everything);
+    const shown = all ? environments : environments.filter(env => env.rawStatus !== "destroyed");
+    const hidden = environments.length - shown.length;
 
     if (jsonOut) {
-      console.log(JSON.stringify(shown, null, 2));
+      console.log(JSON.stringify(shown.map(publicEnvironment), null, 2));
       return;
     }
 
     if (!shown.length) {
-      say(hidden ? `No live environments (${hidden} torn down — see --all)` : "No deployments yet");
+      say(hidden ? `No live environments (${hidden} torn down, see --all)` : "No environments yet");
       return;
     }
 
-    printDeploymentTable(shown);
-    if (hidden) say(`${hidden} torn down and hidden — see --all`);
+    printEnvironmentTable(shown);
+    if (hidden) say(`${hidden} torn down and hidden, see --all`);
+
+    // The question this view exists to answer is "why does one app have three rows",
+    // so point at the answer only when the developer actually has one.
+    if (shown.some(env => env.deploys > 1)) {
+      say(`One row per environment. ${product.command} list --deployments shows every deploy.`);
+    }
+
     return;
   }
 
   if (command === "destroy") {
-    const deploymentId = process.argv[3];
-    if (!deploymentId) {
-      console.error(c.fail(`Missing deploymentId: ${product.command} destroy <deploymentId>`));
+    const target = process.argv[3];
+    if (!target) {
+      console.error(c.fail(`Missing name: ${product.command} destroy <app | deploymentId>`));
       process.exit(1);
     }
 
-    say(`Asking seaLeye.run to tear down ${deploymentId}`);
+    // Typing the app name is how a developer thinks about what they are deleting. A
+    // deployment id still works, and still means exactly the record it names.
+    const resolved = await resolveTarget({ apiBaseUrl, target });
+    if (!resolved) return;
+
+    const { deploymentId, label } = resolved;
+
+    say(`Asking seaLeye.run to tear down ${label}`);
     const started = await destroyDeployment({ apiBaseUrl, deploymentId });
 
     if (jsonOut) {
@@ -520,6 +558,53 @@ async function askChoice(rl, question, choices) {
     say(`Please answer ${choices.join(" or ")}.`);
   }
 
+  return null;
+}
+
+/**
+ * Turn what the developer typed into the deployment that tears the environment down:
+ * an exact deployment id, then a stack name, then an app name. Deleting the stack
+ * deletes the environment whichever of its deployments asks, so a name resolves to the
+ * most recent one, which is also the one holding the current outputs.
+ *
+ * @returns {Promise<{deploymentId: string, label: string}|null>} null means it already
+ *          said why it is not going ahead
+ */
+async function resolveTarget({ apiBaseUrl, target }) {
+  const everything = await listDeployments({ apiBaseUrl });
+
+  const byId = everything.find(dep => dep.deploymentId === target);
+  if (byId) return { deploymentId: target, label: target };
+
+  const environments = groupEnvironments(everything);
+  const live = environments.filter(env => env.rawStatus !== "destroyed");
+  const named = env => env.stackName === target || env.stackName === `sealeye-${target}` || env.app === target;
+
+  const matches = live.filter(named);
+
+  if (matches.length === 1) {
+    const [env] = matches;
+    return { deploymentId: env.latest.deploymentId, label: `${env.app} (${env.latest.deploymentId})` };
+  }
+
+  // Two environments answering to one name is not something to guess at.
+  if (matches.length > 1) {
+    console.error(c.fail(`More than one environment answers to ${target}:`));
+    printEnvironmentTable(matches);
+    console.log("");
+    say(`Tear one down by its deployment id: ${product.command} list --deployments`);
+    process.exitCode = 1;
+    return null;
+  }
+
+  if (environments.some(named)) {
+    say(`${target} has already been torn down. ${product.command} list --all shows it.`);
+    return null;
+  }
+
+  console.error(c.fail(`There is nothing called ${target} to tear down.`));
+  say(`${product.command} list shows what is there.`);
+  process.exitCode = 1;
   return null;
 }
 
@@ -673,6 +758,103 @@ function statusColour(status, text = status) {
 
 // Pad before colouring: escape codes have width on the page but not on the screen.
 const pad = (s, n) => s + " ".repeat(Math.max(0, n - s.length));
+
+/**
+ * One environment is one stack. The stored record has no environment in it, so the
+ * view builds one: deployments that share a stackName are the same environment, and
+ * its status and URL are whatever the most recent deploy made them.
+ *
+ * A record that never reached a stack has no stack name to group on, so it groups
+ * under its app name and shows up as the failure it is.
+ */
+function groupEnvironments(deployments) {
+  const groups = new Map();
+
+  for (const dep of deployments) {
+    // listDeployments() is newest first, so the first record for a key is the latest.
+    const key = dep.stackName || dep.app?.name || dep.deploymentId;
+    const group = groups.get(key);
+
+    if (group) group.deploys.push(dep);
+    else groups.set(key, { key, latest: dep, deploys: [dep] });
+  }
+
+  return [...groups.values()].map(({ key, latest, deploys }) => ({
+    key,
+    stackName: latest.stackName || null,
+    app: latest.app?.name || "-",
+    rawStatus: latest.status,
+    interrupted: !!latest.interrupted,
+    status: latest.interrupted ? `${latest.status} (interrupted)` : latest.status,
+    url: publicUrl(latest) || "-",
+    deploys: deploys.length,
+    last: latest.startedAt || latest.finishedAt || null,
+    latest
+  }));
+}
+
+/** The environment as --json reports it: no view strings, no record internals. */
+const publicEnvironment = env => ({
+  app: env.app,
+  stackName: env.stackName,
+  status: env.rawStatus,
+  ...(env.interrupted ? { interrupted: true } : {}),
+  url: env.url === "-" ? null : env.url,
+  deploys: env.deploys,
+  lastDeployedAt: env.last,
+  latestDeploymentId: env.latest.deploymentId
+});
+
+/** "4m ago" answers "is this the one I just deployed?" faster than a timestamp does. */
+function relativeTime(iso) {
+  if (!iso) return "-";
+
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "-";
+
+  const seconds = Math.max(0, Math.round((Date.now() - then) / 1000));
+  if (seconds < 60) return "just now";
+
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+
+  return `${Math.round(hours / 24)}d ago`;
+}
+
+function printEnvironmentTable(environments) {
+  const rows = environments.map(env => ({
+    env,
+    app: env.app,
+    status: env.status,
+    url: env.url,
+    deploys: String(env.deploys),
+    last: relativeTime(env.last)
+  }));
+
+  const widthOf = key => Math.max(...rows.map(r => r[key].length));
+  const w = {
+    app: Math.max("APP".length, widthOf("app")),
+    status: Math.max("STATUS".length, widthOf("status")),
+    url: Math.max("URL".length, widthOf("url")),
+    deploys: Math.max("DEPLOYS".length, widthOf("deploys"))
+  };
+
+  console.log(
+    c.dim(`${pad("APP", w.app)}  ${pad("STATUS", w.status)}  ${pad("URL", w.url)}  ${pad("DEPLOYS", w.deploys)}  LAST`)
+  );
+
+  for (const r of rows) {
+    const status = r.env.interrupted
+      ? c.prompt(pad(r.status, w.status))
+      : statusColour(r.env.rawStatus, pad(r.status, w.status));
+    const url = r.url === "-" ? c.dim(pad(r.url, w.url)) : c.accent(pad(r.url, w.url));
+
+    console.log(`${pad(r.app, w.app)}  ${status}  ${url}  ${c.dim(pad(r.deploys, w.deploys))}  ${c.dim(r.last)}`);
+  }
+}
 
 function printDeploymentTable(deployments) {
   const rows = deployments.map(dep => ({

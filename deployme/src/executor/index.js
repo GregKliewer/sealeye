@@ -5,7 +5,7 @@ import { compose } from "./compose.js";
 import { stage, cleanStage } from "./package.js";
 import { deploy, describe, firstFailure, deleteStack, emptyBucket, syncSite } from "./cfn.js";
 import { renderReport } from "./report.js";
-import { putDeployment } from "../store.js";
+import { putDeployment, listDeployments } from "../store.js";
 
 const POLL_MS = 5000;
 // Once the deploy command has exited, describe() is the only way to learn anything.
@@ -192,6 +192,41 @@ export async function startDeployment(record, plan, appPath) {
  * Tear down everything this deployment created, then throw away the local build
  * artifacts. Mutates `record` in place; never rejects.
  */
+/**
+ * A stack is one environment, and every record that deployed to it is a sibling. When
+ * one of them tears the stack down, the others are describing something that no longer
+ * exists: same URL, still reading succeeded. CLAUDE.md says never fake a transition,
+ * and a record claiming success for a deleted stack is that, one table over.
+ *
+ * The note names the deployment that did it, so a record changing under a developer is
+ * traceable rather than mysterious.
+ *
+ * @returns {string[]} the sibling ids that were closed
+ */
+function closeSiblings(record) {
+  if (!record.stackName) return [];
+
+  const closed = [];
+
+  for (const sibling of listDeployments()) {
+    if (sibling.deploymentId === record.deploymentId) continue;
+    if (sibling.stackName !== record.stackName) continue;
+    if (sibling.status !== "succeeded") continue;
+
+    Object.assign(sibling, {
+      status: "destroyed",
+      destroyedAt: now(),
+      step: null,
+      note: `the environment was torn down by ${record.deploymentId}`
+    });
+
+    putDeployment(sibling);
+    closed.push(sibling.deploymentId);
+  }
+
+  return closed;
+}
+
 export async function startDestroy(record) {
   const set = (status, patch = {}) => {
     Object.assign(record, { status, ...patch });
@@ -211,6 +246,10 @@ export async function startDestroy(record) {
 
   const done = note => {
     cleanLocal();
+
+    // The stack is gone for every record that shares it, not only for this one.
+    closeSiblings(record);
+
     return set("destroyed", {
       destroyedAt: now(),
       failureReason: null,
@@ -229,7 +268,7 @@ export async function startDestroy(record) {
 
     const before = await describe(record.stackName);
     if (before.status === null) {
-      return done(`Stack ${record.stackName} was already gone — nothing left to delete.`);
+      return done(`Stack ${record.stackName} was already gone, so there was nothing left to delete.`);
     }
 
     // CloudFormation refuses to delete a bucket that still has objects in it.

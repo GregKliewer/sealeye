@@ -161,6 +161,146 @@ a demo that deploys without anyone approving it is a different and much worse de
 
 ---
 
+## 6. One row per environment, not one row per deploy
+
+**Effort.** ~60 min. `bin/deployme` (list, destroy), `src/server.js` (the destroy completion
+path). No change to the contract, the executor or the store's shape.
+
+**Why.** Found on Sept 21 during the Step 5 runs. Three deployments of
+`beneficiary-lookup-api` produced three rows in `sealeye list`, all `succeeded`, all with the
+same URL. They are not three environments. They are one environment and three deployment
+events: the stack is named `sealeye-<app>`, so the second and third runs updated the stack the
+first one created. CloudFormation agrees, created 16:32:22 and updated 16:45:15.
+
+The underlying behaviour is correct and worth keeping. A developer who ships the same app twice
+should get the same URL both times; a platform that hands out a new address on every deploy is
+one nobody can put in a config file. What is wrong is the reporting. That table tells a
+developer they have three things running and three things to tear down, and they have one of
+each.
+
+There is a live failure behind it. `startDestroy` only ever touches the record it was given;
+nothing updates the siblings sharing a `stackName`. Destroy one and the other two still read
+`succeeded` with a URL that now 404s. The second destroy recovers gracefully, because the
+executor checks `describe(stackName)` first and reports the stack already gone, so nothing
+crashes. But between the two destroys the list is showing live environments that do not exist,
+and that window is exactly when a list gets put on screen. CLAUDE.md says never fake a
+transition. A row that says `succeeded` about a stack that was deleted is the same offence in a
+different place.
+
+**The real gap is a missing noun.** There are deployments and there are no environments. The
+environment is the thing that exists, holds the URL and costs money; the deployment is the
+event that created or changed it. One environment, many deployments. Heroku has apps and
+releases, Vercel has projects and deployments, Kubernetes has deployments and rollouts. seaLeye
+collapses both into one record, which is why the list cannot tell the truth.
+
+**Scope: fix the reporting, not the model.** Introducing a real environment entity means a
+second store, ids, and a migration, and it is not a sensible thing to start eleven days before
+the panel. Group the view by `stackName`, make destroy honest about siblings, and keep the
+record shape exactly as it is. The full noun is a talking point for Day 6, not a build item:
+"the shipping version separates environments from deployments, and here is why" is a stronger
+line than half of it built.
+
+**What.**
+
+- `sealeye list` groups by `stackName` and prints one row per environment: app, status, URL,
+  deploy count, last deployed. The environment's status and URL come from its most recent
+  deployment.
+- `sealeye list --deployments` prints today's flat per-deployment view, unchanged. `--all`
+  keeps its current meaning, include torn-down, and composes with both.
+- When a destroy completes, every other record sharing that `stackName` is marked destroyed
+  too, with a note naming the deployment that tore it down. Traceable, not silently rewritten.
+- `sealeye destroy` accepts an app or stack name as well as a deployment id. Typing
+  `sealeye destroy beneficiary-lookup-api` in front of three people beats pasting a hex string,
+  and it is the argument that matches how the developer thinks about what they are deleting.
+
+**Done when.** Three deploys of one app show one row in `sealeye list` and three in
+`sealeye list --deployments`; one destroy leaves no row anywhere claiming `succeeded` for that
+stack; `sealeye destroy <app-name>` works; and `sealeye list --all` still shows the history.
+
+**The demo value.** This converts the worst moment in the run into one of the best. "Why do
+those three rows have the same URL?" gets answered with: this platform updates in place, so
+your address is stable across deploys, and here is the environment view that says so. That is a
+platform answer to a platform question, and it is the question the infrastructure person on the
+panel is most likely to ask.
+
+## 7. `sealeye init` on an app that already has a live environment
+
+**Effort.** Three separable pieces, in order. Estimates are at the recalibrated rate (about a
+quarter of the original novice estimates, per Sept 21): 7a about 15 min, 7b about 30 min, 7c
+about 15 min. Stop after any of them and the tool is still better than it was.
+
+**Why.** Right now `sealeye init` on an app with a live environment silently modifies a running
+service. A developer who believes they are creating something and is in fact changing what is
+live is the worst failure mode a platform has. Item 6 made `list` honest about this; `init` is
+where it actually costs something, so leaving it silent there would be strange.
+
+**7a. The notice, before the interview starts.** Right after the banner, before "Reading your
+app", look in the store for a live environment whose `stackName` is `sealeye-<app>`. If there
+is one, say so and ask before spending the developer's time on questions:
+
+    beneficiary-lookup-api already has a live environment.
+      https://dorduygli3.execute-api.ca-central-1.amazonaws.com
+      deployed 12 minutes ago, running http_api_serverless and observability_basic
+    This run will update that environment. It will not create a second one.
+    ? Continue? [y/N]
+
+N exits with nothing written. The URL and the modules are read from the store, never guessed.
+The app name comes from `package.json` (or the folder name for a static site), matched to
+`stackName` the same way `destroy` resolves names in item 6.
+
+**7b. The decision card becomes a diff.** When an environment exists, `decisionCard()` takes
+the deployed plan as well as the new one, and every line is marked unchanged, changed, new or
+removed, in the dim / accent / prompt colours already in `brand.js`. The heading changes from
+"We will provision this infrastructure to run it" to "We will change this environment". When
+nothing differs, the whole middle group collapses to one line:
+
+    Nothing changes. Your environment already matches this plan; deploying updates your code only.
+
+This is `terraform plan` / `cdk diff` / `kubectl diff` in the developer's language, and it is
+the strongest second-run moment available: a card that says "nothing changes" proves the
+platform knows what it already did. It also replaces the "tell them what is active, then tell
+them what is recommended" shape with one surface, so the developer reads what changes instead
+of computing it in their head.
+
+Requires storing the plan on the deployment record (`plan` alongside `resolvedModules` in the
+`POST /deployments` handler). Additive; old records without a `plan` field diff on
+`resolvedModules` only, at module level, and say so in one dim line.
+
+**7c. Fewer questions on a redeploy.** Pass the deployed plan into the interview as context,
+after the folder digest: "This app already has a live environment with this plan: ...". One
+rule in `prompts/interview-system.md`: on a redeploy, never re-ask anything the existing plan
+answers; ask only where the folder contradicts it. Expected result: zero questions when the
+folder is unchanged. "The first run asked one question; the second asked none" is a sentence
+that lands, and it feeds the cognitive-load score directly.
+
+**Report, do not recommend.** The instinct to have the platform suggest what to add on a redeploy
+is the right instinct in the wrong shape. A recommendation is upsell-flavoured, and it is where
+a wrong answer would be most visible: the model proposing `config_basic` for an app that reads
+nothing from its environment, in front of the people judging whether the thing works. The
+honest version is a finding grounded in the folder, surfaced through the diff card and the
+assumptions: "your app now reads DB_HOST and API_KEY from its environment, so config_basic is
+switched on." The platform noticed the app changed and adapted the plan, instead of asking the
+developer to remember. That is the infinite-context argument in miniature, and it is one of
+the five Part 1 questions, demonstrated rather than asserted. Put the rule in the prompt beside
+7c: on a redeploy, name what changed in the folder and what that changes in the plan; never
+propose a module the folder does not justify.
+
+**Known gap, and the answer to it.** The only place seaLeye knows what is deployed is the local
+store, which is the developer's own record. If a colleague deployed the environment, or the
+store was cleared, `init` sees nothing and goes back to modifying a live stack silently. The
+truthful source is the stack itself. Fine for the demo; the answer if asked is that the shipping
+version reads environment state from the environment, not from the developer's machine, and it
+is a better answer for being one already thought about. This is the "Cindy on her laptop"
+question, and it belongs in the simulated segment of the demo, not the live one.
+
+**Done when.** `sealeye init` on an app with a live environment prints the notice and waits;
+N writes nothing; y runs the interview with zero questions on an unchanged folder; the card
+says "Nothing changes"; changing the app so it reads an environment variable produces a card
+with `config_basic` marked new and one grounded line saying why; and a fresh app with no
+environment behaves exactly as it does today.
+
+---
+
 ## Not doing: refactoring DEPLOYMENT_PLAN.md
 
 The INIT-SCORING note asks whether the plan document is too busy to decide from, and whether it
