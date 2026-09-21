@@ -1,0 +1,1126 @@
+[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+[38;2;138;150;163m  Reading your app[0m
+[38;2;138;150;163m  Reading README.md[0m
+[38;2;138;150;163m  Looking at images[0m
+
+[38;2;138;150;163m  This is clearly a static site: index.html, about.html, style.css, an images folder, and no server code or dependencies anywhere.[0m
+[1G[0J[38;2;232;176;75m?[0m I see index.html and about.html, with images and style.css and no server code. This looks like a static site. Is that right? [128Gy
+  [38;2;127;216;194my[0m
+[38;2;138;150;163m  Checking the plan against the seaLeye.run plan contract[0m
+
+Your app is a static website: a home page, an about page, some CSS and a background image, with no server code behind it. It will run on the static_site_edge module, which just serves those files straight to visitors over HTTPS. The observability_basic module is included for every app and will quietly track requests, errors and response times, and keep logs, without any setup on your part. The http_api_serverless module is off since nothing here listens for requests, config_basic is off since the app does not read any settings from its environment, and a custom domain (domain_public) is off for now, though one can be added later. Once deployed you'll get a public HTTPS link to the site plus access to its logs and basic metrics.
+
+[38;2;138;150;163m  Wrote /private/tmp/try-static/DEPLOYMENT_PLAN.md[0m
+[38;2;138;150;163m  Wrote /private/tmp/try-static/deployme.yaml[0m
+
+[1G[0J[38;2;232;176;75m?[0m Deploy this? [y/N] [22Gy
+  [38;2;127;216;194my[0m
+[38;2;138;150;163m  Handing /private/tmp/try-static to seaLeye.run to build your environment[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mpackaging[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Reading your plan and picking the AWS template[0m
+
+Deployment id: [38;2;127;216;194mdep_3e227ef44301[0m
+[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running.[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running..[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running...[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running.[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running..[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running...[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running.[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running..[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running...[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running.[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running..[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running...[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (REVIEW_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running.[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (REVIEW_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running..[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (REVIEW_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running...[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (REVIEW_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running.[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (REVIEW_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running..[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (REVIEW_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running...[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (REVIEW_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running.[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (REVIEW_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running..[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (REVIEW_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running...[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (REVIEW_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running.[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (REVIEW_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running..[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (CREATE_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running...[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (CREATE_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running.[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (CREATE_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running..[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (CREATE_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running...[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (CREATE_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running.[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (CREATE_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running..[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (CREATE_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running...[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (CREATE_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running.[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (CREATE_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running..[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (CREATE_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running...[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (CREATE_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running.[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (CREATE_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running..[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (CREATE_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running...[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (CREATE_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running.[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (CREATE_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running..[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (CREATE_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running...[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (CREATE_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running.[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (CREATE_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running..[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (CREATE_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running...[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (CREATE_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running.[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (CREATE_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running..[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (CREATE_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running...[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (CREATE_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running.[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (CREATE_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running..[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (CREATE_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running...[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (CREATE_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running.[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (CREATE_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running..[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (CREATE_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running...[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (CREATE_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running.[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (CREATE_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running..[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (CREATE_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running...[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (CREATE_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running.[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (CREATE_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running..[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (CREATE_IN_PROGRESS)[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Creating your AWS environment (stack sealeye-try-static)[0m
+
+[38;2;138;150;163mStatus: running...[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (CREATE_COMPLETE)[0m
+URL:        [38;2;127;216;194mhttp://try-static-682542496821.s3-website.ca-central-1.amazonaws.com[0m
+Bucket:     [38;2;127;216;194mtry-static-682542496821[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Uploading your files to try-static-682542496821[0m
+
+[38;2;138;150;163mStatus: running.[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;138;150;163mrunning[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (CREATE_COMPLETE)[0m
+URL:        [38;2;127;216;194mhttp://try-static-682542496821.s3-website.ca-central-1.amazonaws.com[0m
+Bucket:     [38;2;127;216;194mtry-static-682542496821[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163m  Uploading your files to try-static-682542496821[0m
+
+[38;2;138;150;163mStatus: running..[0m[1;1H[0J[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+Deployment: dep_3e227ef44301
+Status:     [38;2;127;216;194msucceeded[0m
+App:        try-static (static-site)
+Stack:      [38;2;138;150;163msealeye-try-static (CREATE_COMPLETE)[0m
+URL:        [38;2;127;216;194mhttp://try-static-682542496821.s3-website.ca-central-1.amazonaws.com[0m
+Bucket:     [38;2;127;216;194mtry-static-682542496821[0m
+Started:    [38;2;138;150;163m2026-09-21T12:16:21.195Z[0m
+Finished:   [38;2;138;150;163m2026-09-21T12:16:50.884Z[0m
+You asked for:
+  [38;2;127;216;194mstatic_site_edge[0m
+  [38;2;127;216;194mobservability_basic[0m
+
+[38;2;138;150;163mStatus: succeeded...[0m
+
+[38;2;127;216;194m✓ Your app is live at http://try-static-682542496821.s3-website.ca-central-1.amazonaws.com[0m
+[38;2;138;150;163m  Wrote /private/tmp/try-static/DEPLOYMENT_REPORT.md[0m

@@ -1,0 +1,27 @@
+[38;2;127;216;194m                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/[0m
+[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
+
+[38;2;138;150;163m  Reading your app[0m
+[38;2;138;150;163m  Reading index.js[0m
+[38;2;138;150;163m  Reading README.md[0m
+[38;2;138;150;163m  Looking at .do[0m
+
+[38;2;138;150;163m  I looked at your files. `index.js` starts an Express server with `app.listen`, and reads only `process.env.PORT`, nothing else from the environment. `package.json`'s `start` script runs `node index.js`.[0m
+[1G[0J[38;2;232;176;75m?[0m Quick check: this looks like a small live web API that answers requests when someone visits it (not a script that runs once and exits). Is that right? [7Gy[1D[1C
+  [38;2;127;216;194my[0m
+[38;2;138;150;163m  Checking the plan against the seaLeye.run plan contract[0m
+
+Your app is a small Express server (index.js) that listens for requests and responds, confirmed as a live web API rather than a one-off script. It will run behind an on-demand HTTPS endpoint that starts when a request comes in and costs nothing while idle, using the http_api_serverless module, with your existing start command (node index.js) as the entry point. The observability_basic module is included so you automatically get logs plus request, error and latency tracking without any setup. Your app only reads the PORT setting, which the platform supplies itself, so no environment variable configuration was needed and that module is left off. No custom domain is attached, but a public HTTPS URL will be generated for you once it deploys.
+
+[38;2;138;150;163m  Wrote /private/tmp/try-api/DEPLOYMENT_PLAN.md[0m
+[38;2;138;150;163m  Wrote /private/tmp/try-api/deployme.yaml[0m
+
+[1G[0J[38;2;232;176;75m?[0m Deploy this? [y/N] [22Gn
+  [38;2;127;216;194mn[0m
+
+[38;2;138;150;163m  Your plan is in /private/tmp/try-api/DEPLOYMENT_PLAN.md, and the plan seaLeye.run would run is in /private/tmp/try-api/deployme.yaml[0m
+[38;2;138;150;163m  When you are ready: sealeye deploy -f deployme.yaml[0m
