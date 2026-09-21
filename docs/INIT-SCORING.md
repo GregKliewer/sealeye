@@ -4,7 +4,7 @@
 |---|---|---|---|---|
 | A. Question quality | |4 |4 | |
 | B. Relevance | |4 |4 | |
-| C. Developer experience | |2 |2 |It is easy to conclude that sealeye is frozen when reading the app as there is no visual feedback while that runs. I would like to see a simple version of the deployment plan markdown before saying yes on top of the simple prose readout. |
+| C. Developer experience | |2 |2 |It is easy to conclude that sealeye is frozen when reading the app as there is no visual feedback while that runs. The same is true in a couple of places, including the sealeye destroy function. A simple visual animation indicating that a process is working would help. I would also like to see the deployment plan markdown before saying yes on top of the simple prose readout. If that doc is too busy or contains too much information for the developer to decide whether or not to say "yes" to deploy, we should consider refactoring it somehow.|
 | D. Cognitive load | |5 |5 |1 is high, 5 is low | 
 | E. Recommendation clarity | |3 |3 | The single-paragraph, prose readout is a lot of text; we could try bullet-form instead.|
 | F. Adaptation across apps | |4 |4 | (one score for the set) |
