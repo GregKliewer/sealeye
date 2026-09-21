@@ -14,7 +14,7 @@ import {
 } from "../lib/run.js";
 import { banner, step, ask, answer, c, product, spinner, stopSpinner, animations } from "../src/brand.js";
 import { runInterview, resolveApiKey } from "../src/interview/loop.js";
-import { writeInterviewFiles } from "../src/interview/render.js";
+import { writeInterviewFiles, decisionCard } from "../src/interview/render.js";
 import { plainValidationErrors } from "../src/interview/explain.js";
 
 // --json is machine output: no banner, no colour, nothing but the object.
@@ -232,9 +232,12 @@ async function main() {
         const written = writeInterviewFiles(appPath, submission);
         wrote = true;
 
+        // The card is rendered from the plan that just passed validation, never from
+        // the model's prose. The prose is in the Notes section of the file.
         console.log("");
-        console.log(submission.summary);
+        console.log(decisionCard(submission.plan, { frame: true, charset: "line" }));
         console.log("");
+        say("Full plan, and every assumption seaLeye.run made: DEPLOYMENT_PLAN.md");
         say(`Wrote ${written.planPath}`);
         say(`Wrote ${written.configPath}`);
       }
