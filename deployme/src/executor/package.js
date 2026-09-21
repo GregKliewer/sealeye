@@ -78,10 +78,20 @@ export async function stage(appPath, deploymentId, composed, onStep = () => {}) 
   onStep("Installing production dependencies");
   await run("npm", ["install", "--omit=dev", "--no-audit", "--no-fund"], { cwd: stageDir });
 
+  // A plan that names an entry point the folder does not have would deploy to
+  // CREATE_COMPLETE and then fail on every request, which is a working URL serving an
+  // error. Cheaper to say so here, before anything is created.
+  const entryPoint = composed?.entryPoint || "index.js";
+  const entryFile = path.join(stageDir, entryPoint);
+
+  if (!fs.existsSync(entryFile) || !fs.statSync(entryFile).isFile()) {
+    throw new Error(`the entry point in your plan, ${entryPoint}, is not a file in your app folder`);
+  }
+
   // The adapter's Handler is run.sh; zip preserves the executable bit, and losing it
   // shows up only as "Permission denied" in the Lambda logs.
-  onStep("Adding the platform start script");
-  fs.copyFileSync(runSh, path.join(stageDir, "run.sh"));
+  onStep(`Adding the platform start script, which runs ${entryPoint}`);
+  fs.writeFileSync(path.join(stageDir, "run.sh"), renderRunScript(runSh, entryPoint));
   fs.chmodSync(path.join(stageDir, "run.sh"), 0o755);
 
   onStep("Packaging the artifact");
@@ -94,6 +104,14 @@ export async function stage(appPath, deploymentId, composed, onStep = () => {}) 
   await run("aws", ["s3", "cp", zipPath, `s3://${bucket}/${key}`]);
 
   return key;
+}
+
+/**
+ * templates/run.sh with the plan's entry point in it. Separate so it can be tested
+ * without an AWS account: everything else in stage() talks to rsync, npm and S3.
+ */
+export function renderRunScript(templatePath, entryPoint) {
+  return fs.readFileSync(templatePath, "utf8").split("__ENTRY_POINT__").join(entryPoint);
 }
 
 /** Where stage() put things, for the dev script and later for cleanup. */

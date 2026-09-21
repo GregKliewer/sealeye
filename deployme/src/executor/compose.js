@@ -8,6 +8,7 @@ import { backendMappings } from "../mappings.js";
 import { repoRoot, loadEnv, requireEnv } from "./env.js";
 
 const DEFAULT_RETENTION_DAYS = 30;
+const DEFAULT_ENTRY_POINT = "index.js";
 
 // The two core modules, and the deployment kind each one produces.
 const CORE_MODULE_KINDS = {
@@ -45,9 +46,32 @@ function retentionDays(plan) {
 }
 
 /**
+ * http_api_serverless.inputs.entry_point -> the file the start script runs.
+ *
+ * It has to be a path inside the artifact and nothing else: the value ends up in a
+ * shell script, and it is the one field in the plan that comes from what the model
+ * read in the developer's folder rather than from the contract.
+ */
+function entryPointFor(plan) {
+  const api = enabledModules(plan).find(m => m.id === "http_api_serverless");
+  const raw = String(api?.inputs?.entry_point ?? "").trim() || DEFAULT_ENTRY_POINT;
+
+  const unsafe =
+    raw.startsWith("/") ||
+    raw.split("/").includes("..") ||
+    !/^[A-Za-z0-9._\/-]+$/.test(raw);
+
+  if (unsafe) {
+    throw new Error(`entry_point has to be a file inside your app folder, and "${raw}" is not`);
+  }
+
+  return raw;
+}
+
+/**
  * @param {object} plan          a plan that has already passed planV02Schema validation
  * @param {string} deploymentId  required for kind "api" (it names the artifact)
- * @returns {{kind: "api"|"static", templatePath: string, stackName: string, parameters: object}}
+ * @returns {{kind: "api"|"static", templatePath: string, stackName: string, parameters: object, entryPoint?: string}}
  */
 export function compose(plan, deploymentId) {
   loadEnv();
@@ -81,7 +105,11 @@ export function compose(plan, deploymentId) {
   }
 
   let parameters;
+  let entryPoint;
+
   if (kind === "api") {
+    entryPoint = entryPointFor(plan);
+
     if (!deploymentId) {
       throw new Error("deploymentId is required to compose an http_api_serverless deployment");
     }
@@ -105,5 +133,11 @@ export function compose(plan, deploymentId) {
     parameters = { AppName: appName };
   }
 
-  return { kind, templatePath, stackName: stackNameFor(appName), parameters };
+  return {
+    kind,
+    templatePath,
+    stackName: stackNameFor(appName),
+    parameters,
+    ...(entryPoint ? { entryPoint } : {})
+  };
 }
