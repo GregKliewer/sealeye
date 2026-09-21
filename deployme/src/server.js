@@ -7,7 +7,7 @@ import path from "node:path";
 
 import { planV02Schema } from "./schema.js";
 import { backendMappings } from "./mappings.js";
-import { putDeployment, getDeployment, listDeployments, storeFile } from "./store.js";
+import { putDeployment, getDeployment, listDeployments, storeFile, count } from "./store.js";
 import { startDeployment, startDestroy } from "./executor/index.js";
 
 const app = express();
@@ -24,6 +24,18 @@ function formatAjvErrors(errors = []) {
     path: e.instancePath || "/"
   }));
 }
+
+// The version comes from the package, not from a literal, so it cannot drift from what
+// was actually shipped.
+const pkg = JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+
+// GET /health
+// Answering at all proves Express is listening. The count proves the deployment store
+// was read as well, which is the half that actually matters when somebody asks how
+// their SRE would know this thing is up.
+app.get("/health", (_req, res) => {
+  return res.status(200).json({ ok: true, version: pkg.version, deployments: count() });
+});
 
 // POST /plans/validate
 app.post("/plans/validate", (req, res) => {

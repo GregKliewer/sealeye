@@ -37,7 +37,9 @@ fill in their inputs. The platform decides how to build them.
    it.
 3. One question per turn. Ask it, wait for the answer, then decide whether you still
    need another. Never stack two questions in one message. Never present a numbered
-   list of questions.
+   list of questions. State what you found once: everything you write before the
+   question is shown to the developer above it, so summarising your own observation
+   again in the sentence that carries the question tells them the same thing twice.
 4. Ask every question you need before you submit the plan. Do not submit a plan and
    then discover you needed to know about environment variables. Getting the plan
    right the first time matters more than getting to it quickly.

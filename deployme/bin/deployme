@@ -55,7 +55,7 @@ function usage() {
 ${product.command} - deploy your app to a real AWS environment
 
 Usage:
-  ${product.command} init [--api <url>]
+  ${product.command} init [--answers <file>] [--api <url>]
   ${product.command} deploy --file <plan.yaml> [--app <path>] [--api <url>] [--json]
   ${product.command} validate --file <plan.yaml> [--api <url>] [--json]
   ${product.command} status <deploymentId> [--api <url>] [--json]
@@ -67,6 +67,8 @@ Options:
   -f, --file      path to your plan YAML
       --app       folder to deploy (default: the current folder)
   -b, --backend   cloudformation (default: cloudformation)
+      --answers   with init: answer the interview from a file, one line per question,
+                  for rehearsals. Never answers "Deploy this?": that stays yours
       --all       with list: include environments you have torn down
       --api       platform API base URL (default: http://localhost:3000)
       --json      machine-readable output
@@ -117,6 +119,10 @@ async function main() {
       console.error(`  Run it yourself in your app folder, or deploy an existing plan with ${product.command} deploy -f deployme.yaml.`);
       process.exit(1);
     }
+
+    // A rehearsal answers the interview from a file so a recording can be re-shot
+    // without typing it again. It never answers the confirmation.
+    const scripted = loadAnswers(getArg("--answers"));
 
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
@@ -204,7 +210,9 @@ async function main() {
           ask: async (question, lead = []) => {
             console.log("");
             for (const line of lead) console.log(step(line));
-            return askLine(rl, question);
+
+            // Out of lines, or no file at all: the terminal, as usual.
+            return scripted.length ? scriptedLine(question, scripted.shift()) : askLine(rl, question);
           }
         });
 
@@ -469,6 +477,38 @@ function echoAnswer(question, reply) {
 
   process.stdout.write(`\x1b[${rows}A\x1b[0J`);   // up over what was typed, clear it
   console.log(`${ask(question)}${answer(shown)}`);
+}
+
+// One answer per line, in the order the questions are asked. Blank lines and lines
+// starting with # are notes to whoever wrote the file, not answers.
+function loadAnswers(file) {
+  if (!file) return [];
+
+  let raw;
+  try {
+    raw = fs.readFileSync(path.resolve(file), "utf8");
+  } catch {
+    console.error(c.fail(`There is no answers file at ${file}.`));
+    process.exit(1);
+  }
+
+  return raw
+    .split("\n")
+    .map(line => line.trim())
+    .filter(line => line && !line.startsWith("#"));
+}
+
+// A scripted answer, printed exactly as a typed one ends up: the amber question, a
+// beat, then the answer in phosphor on the same line. The pause is what makes a
+// recording read as a person answering rather than a script running.
+const SCRIPTED_PAUSE_MS = 700;
+
+async function scriptedLine(question, reply) {
+  process.stdout.write(ask(question));
+  await sleep(SCRIPTED_PAUSE_MS);
+  console.log(answer(reply));
+
+  return reply;
 }
 
 // A question with a fixed set of answers. A stray Enter must not throw away a plan,

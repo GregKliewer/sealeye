@@ -74,4 +74,9 @@ export function listDeployments() {
   );
 }
 
+/** How many deployments the store is holding. Reading it is what /health checks. */
+export function count() {
+  return deployments.size;
+}
+
 export const storeFile = STORE_FILE;
