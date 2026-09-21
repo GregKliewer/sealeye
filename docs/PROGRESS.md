@@ -1,188 +1,144 @@
 # Progress — deployme demo
 
 Panel: Fri Oct 2, 2026. Code freeze: Sun Sept 27, 2026.
-Last updated: Sun Sept 20, 2026 (end of Day 2).
+Last updated: Sun Sept 20, 2026 (end of Day 3).
 
-## Done
+Day 3 turned `docs/DAY2-COMMANDS.md` into `deployme/src/executor/`. The simulation is gone.
+Both app kinds go from a plan to a working URL and back to nothing, through the CLI, against
+real AWS. Timings and the exact commands are in `docs/DAY3-COMMANDS.md`.
 
-**Planning artifacts** (commit `8b79a3a`)
-- `CLAUDE.md` — hard rules for the build.
-- `docs/SCOPE.md` — in/out list and the drop order if a day slips.
-- `prompts/plan-contract.yaml`, `prompts/plan-template.md`.
+## What works
 
-**Single backend + CLI fixes** (commit `36c0efc`)
-- `deployme/bin/deployme` — usage, examples, and the `--backend` default all moved
-  from `terraform` to `cloudformation`.
-- Removed a stray `return;` that was swallowing the unknown-command error path, so a
-  bad command exited 0 silently. It now prints the error and exits 1.
-- `deployme/src/server.js` — backend allowlist and error message are cloudformation-only.
-- `deployme/package.json` — added a `cli` script.
+**The full lifecycle, both app kinds.** Commits `6c68784`, `7c2e913`, `6a79b76`, `df1f90e`,
+`33eae2d`.
 
-**seaLeye.run brand + sample apps** (commit `d87cdd8`)
-- `brand/BRAND.md`, `deployme/src/brand.js`, `prompts/banner.txt`, `prompts/report.md`.
-- `apps/sample-expressjs` and `apps/static-website` tracked as real files.
+- **`deploy`** — plan in, real CloudFormation stack out. Packaging is the Day 2 sequence in
+  Node: staged copy, `npm install --omit=dev` in the stage dir, inject `run.sh`, zip, upload
+  to `<app>/<deploymentId>.zip` so `S3Key` changes on every deploy. The developer's folder is
+  never written to.
+- **`watch`** — redraws the live record; on success prints the URL and writes
+  `DEPLOYMENT_REPORT.md` into the app folder; on failure prints one plain sentence with the
+  first `CREATE_FAILED` reason from `describe-stack-events`.
+- **`status`** and **`list`** — `list` hides torn-down environments behind `--all` and marks
+  records whose server died mid-deploy as `running (interrupted)`.
+- **`destroy`** — empties the bucket first on the static path (CloudFormation will not delete
+  a bucket with anything in it), deletes the stack, polls to gone, then removes the local
+  stage dir and zip. A destroy that fails says so.
+- **Status is real.** It mirrors `describe-stacks` and nothing else. The `setTimeout` that
+  faked `running` at 10 s and `succeeded` at 20 s is deleted, and so is the hardcoded
+  `https://your-app-name.platform.app`.
+- **Report** — `prompts/report.md` header plus sections built from the record: what was
+  created, the URL, logs, redeploy, tear down, and the assumptions carried from the plan. On
+  the static path it explains that the address is `http://` and why.
+- **Brand** — every command prints `prompts/banner.txt` first; colours come only from
+  `deployme/src/brand.js`. Nothing the developer sees says "deployme".
+- **Node.js API path** — verified repeatedly: create ~45 s, update in place ~23 s, same URL
+  across an update.
+- **Static path** — verified three times end to end after the file sync landed this evening:
+  ~28 s from `deploy` to a served page.
 
-**Day 2 — both CloudFormation templates written and deployed by hand** (commit `06c0a3c`)
-
-Not wired to any code yet. Everything below was run from the shell; the exact commands,
-timings and gotchas are in `docs/DAY2-COMMANDS.md`, which is the spec the executor gets
-turned into on Tuesday.
-
-- `templates/http_api_serverless.yaml` — log group, IAM role
-  (`AWSLambdaBasicExecutionRole` only), Lambda (nodejs20.x, x86_64, 512 MB, 30 s), HTTP
-  API with `Target` pointed straight at the function (no explicit route/integration/stage
-  resources), and the `lambda:InvokeFunction` permission. Parameters: `AppName`,
-  `ArtifactBucket`, `ArtifactKey`, `RetentionDays`, `AdapterLayerVersion`.
-  Outputs: `ApiUrl`, `FunctionName`, `LogGroup`.
-- `templates/static_site_edge.yaml` — S3 bucket named `${AppName}-${AWS::AccountId}`,
-  website config (`index.html` for both index and error), `BucketOwnerEnforced`
-  ownership, all four public-access blocks off, and a public `s3:GetObject` bucket
-  policy. Parameters: `AppName`. Outputs: `WebsiteUrl`, `BucketName`.
-  No CloudFront, per the hard rules — so the URL is `http://`, not `https://`.
-- `templates/run.sh` — two lines, `exec node index.js`. Injected into the artifact.
-
-### Adapter, not shim
-
-The path taken is the **Lambda Web Adapter**, not a handwritten handler shim. The
-Express app is deployed byte-for-byte unmodified: the adapter layer
-(`LambdaAdapterLayerX86`, version 28, account `753240598075`) is attached to the
-function, `AWS_LAMBDA_EXEC_WRAPPER=/opt/bootstrap` and `PORT=8080` are set, the Lambda
-`Handler` is `run.sh`, and the adapter translates HTTP API events into real HTTP
-requests against the app's own listener.
-
-Why this matters for the demo: "we did not touch your code" is literally true and can be
-shown on stage by diffing the app folder. A shim would have meant injecting a
-`handler.js` that wraps the Express app, which is more code, more explaining, and one
-more thing that can break in front of the panel.
-
-Version 28 is pinned as `DEPLOYME_LWA_VERSION` in `.env` because
-`list-layer-versions` is denied on the public layer — there is no way to discover the
-latest version at runtime, so the executor must carry the number.
-
-### Packaging (works, and is the sequence the executor must reproduce)
-
-Staged copy → prod install → inject `run.sh` → zip → upload. Full commands in
-`docs/DAY2-COMMANDS.md`. Two things that cost time today and must survive into code:
-- `rsync` excludes `node_modules`, `.git`, `.do`, `.github`; `npm install --omit=dev`
-  runs in the *stage* directory, so the developer's `node_modules` is never read or
-  written.
-- `chmod +x run.sh` **before** zipping. `zip` preserves the executable bit; losing it
-  gets "Permission denied" in the Lambda logs and nothing else useful.
-
-### Timings measured today
+### Timings
 
 | Operation | Time |
 |---|---|
-| API stack — first create (`cloudformation deploy`) | 1:06 |
-| API stack — delete (+ `wait stack-delete-complete`) | 31 s |
-| Static stack — create | 37 s |
+| API — first create | ~45 s |
+| API — update in place | ~23 s |
+| Static — create + file sync | ~28 s |
 
-Not timed: the second create, and the in-place update (`v2.zip` redeploy). The
-update-keeps-the-same-URL behaviour was reasoned about and the commands are written
-down, but the run was not recorded — `docs/DAY2-COMMANDS.md` still has the `<fill in>`
-placeholders. **Confirm this on Tuesday before relying on it**, because the "edit your
-app, deploy again, same URL" beat is a good one for the panel and it is currently
-unverified.
+Roughly four minutes of the 5-minute budget is left for the interview.
 
-Against the 5-minute definition of done, 1:06 for the stack leaves plenty of room for
-the interview and the packaging. Nothing here is a timing risk.
+## Known gaps
 
-### Failure states seen, and what they meant
-
-- `{"message":"Not Found"}` after a delete-and-redeploy: **stale URL**, not a routing
-  bug. A recreated stack gets a new API id. The executor must read outputs fresh after
-  every deploy and never cache a URL across a destroy.
-- The static bucket must be emptied (`s3 rm --recursive`) before the stack will delete.
-  This is a hard requirement on `destroy`, not a nicety.
-- Account-level S3 Block Public Access needed no change; the bucket-level settings in
-  the template were enough.
-
-### Still true from the May POC
-
-- CLI: `validate`, `deploy`, `status`, `watch`.
-- API: `POST /plans/validate`, `POST /deployments`, `GET /deployments/{id}`.
-- `deployme/src/schema.js` — planVersion 0.2 schema, five modules, frozen.
+- **Destroy is not measured.** The record stamps `destroyedAt` but never when the destroy
+  began, so there is no real destroy timing. Add `destroyStartedAt`.
+- **An interrupted record never resolves.** The poll loop lives in the API process; restart
+  the server mid-deploy and the record sits at `running` forever while CloudFormation carries
+  on. `list` flags it, `watch` spins. Do not restart the API mid-demo.
+- **A successful deploy does not mean a working app.** An Express app with `index.js` deleted
+  deployed to `succeeded` in 44.6 s with a URL that errors. The status mirrors CloudFormation,
+  and CloudFormation does not know whether the code in the zip runs. Both failure states are
+  written up in `docs/DAY3-COMMANDS.md`.
+- **The report gets published on static redeploys.** `watch` writes
+  `DEPLOYMENT_REPORT.md` into the app folder, and the static sync uploads that folder. One
+  more `--exclude` fixes it.
+- **Stray stacks.** Day 2's hand-run `dep-sample-expressjs` and `dep-static-website` were
+  named before the `sealeye-<app>` rule; the code will never look them up. Every `sealeye-*`
+  stack from today has been destroyed. Confirm the `dep-*` pair is gone before Oct 2.
 
 ## Not started
 
-- `deployme/src/executor/` — does not exist.
-- `deployme/src/mappings.js` — still points at `cfn/*.yaml`. The real files are
-  `templates/http_api_serverless.yaml` and `templates/static_site_edge.yaml`. The paths
-  are wrong and the dead `terraform:` block is still there.
-- `prompts/` — has contract, plan template, banner, report template; missing the
-  interview system prompt.
-- CLI `init` and `destroy`.
-- **Real status.** `POST /deployments` still fakes the lifecycle: a `setTimeout` flips
-  status to `running` at 10 s and `succeeded` at 20 s, and `public_url` is hardcoded to
-  `https://your-app-name.platform.app`. This contradicts the "status must be real, never
-  fake success" rule and is the main thing the executor has to delete.
+- CLI `init` — the interview. Nothing written; deliberately no code yet.
+- `prompts/` — has the contract, plan template, banner and report template; **missing the
+  interview system prompt.**
+- `config_basic` and `domain_public` — ignored by the executor, per the hard rules.
 
-## Next — Tuesday
+## Next — Wednesday: `sealeye init`
 
-Build `deployme/src/executor/`. It turns the exact commands in `docs/DAY2-COMMANDS.md`
-into code behind the existing endpoints. Nothing new is being designed; this is
-transcription plus error handling.
+The developer runs `sealeye init` in their app folder and answers questions. Nothing about
+the executor changes; `init` produces the plan the executor already consumes.
 
-1. **Fix `mappings.js`** to the real template paths under `templates/`, and drop the
-   dead `terraform:` block while the file is open.
-2. **Compose** — pick templates from the plan's enabled modules and resolve parameters
-   (`AppName`, `ArtifactBucket` from `DEPLOYME_BUCKET`, `ArtifactKey`,
-   `AdapterLayerVersion` from `DEPLOYME_LWA_VERSION`, `RetentionDays`).
-3. **Package** — the staged-copy sequence above, in Node. Artifact key moves from
-   today's `<app>/v<n>.zip` to `<app>/<deploymentId>.zip` so every deployment is its own
-   object and a redeploy always changes `S3Key` (otherwise CloudFormation sees no diff
-   and skips the function update). The developer's folder stays untouched.
-4. **Deploy** — `CreateStack` / `UpdateStack` against `sealeye-<app>` (see the decision
-   below), `CAPABILITY_NAMED_IAM` on the API stack.
-5. **Poll** — `DescribeStacks` for status, mapped as:
-   `CREATE_IN_PROGRESS` / `UPDATE_IN_PROGRESS` → `running`;
-   `CREATE_COMPLETE` / `UPDATE_COMPLETE` → `succeeded`;
-   anything containing `ROLLBACK` or `FAILED` → `failed`, surfacing the first
-   `CREATE_FAILED` reason from `DescribeStackEvents`;
-   `DELETE_IN_PROGRESS` → `destroying`.
-   Then **delete the `setTimeout` simulation from `server.js`.**
-6. **Report** — read `DescribeStacks` outputs fresh (`ApiUrl` / `WebsiteUrl`,
-   `FunctionName`, `LogGroup`) and render `prompts/report.md` into
-   `DEPLOYMENT_REPORT.md`.
-7. **`DELETE /deployments/:id` + `sealeye destroy`** — for static, empty the bucket
-   first; then `DeleteStack` and poll to `DELETE_COMPLETE`. Real status here too: a
-   destroy that fails must say so.
+1. **System prompt** — write `prompts/interview-system.md` from the POC1 rules in
+   `docs/poc1` (`POC1 NodeJS App Run.docx`, `POC1 Static App Run.docx`, `POC1 Report.docx`).
+   The plan shape is already there in `docs/poc1/# Deployment Plan.md` and is what
+   `DEPLOYMENT_PLAN.md` must look like. The prompt is bound by the frozen contract in
+   `prompts/plan-contract.yaml`: five modules, no new fields.
+2. **Tools: `list_files` and `read_file`, scoped to the app folder.** The model looks at the
+   app to ask better questions instead of asking the developer to describe their own code.
+   Both tools resolve paths and refuse anything outside the folder, and both are read-only —
+   the "we never touched your code" claim covers the interview too.
+3. **Write `DEPLOYMENT_PLAN.md` and `deployme.yaml`** into the app folder. Note this widens
+   what the platform writes there from one file to three; the report's closing line says the
+   report is the only file written and will need to change.
+4. **Validate via `POST /plans/validate`** — the same endpoint `sealeye validate` already
+   uses. The interview does not get its own validation path. An invalid plan goes back to the
+   model to fix rather than reaching the developer.
+5. **Confirmation boundary.** `init` stops after writing the two files and prints the plan in
+   plain language. Nothing reaches AWS until the developer answers `y`. This is the line the
+   whole demo turns on: everything before it is a conversation and costs nothing, everything
+   after it is real and costs money.
+6. **Hand off to deploy + watch.** On `y`, call the same code path as `sealeye deploy` and
+   then `watch`. `init` orchestrates existing commands; it does not get its own deployment
+   logic.
 
-Then, in the scope doc's drop order: CLI `init`, `observability_basic` (dashboard),
-`config_basic`, and the recorded end-to-end run as insurance.
-
-Also on Tuesday, cheaply: run the v2 redeploy once and fill in the two `<fill in>`
-lines in `docs/DAY2-COMMANDS.md`.
+Then, in the scope doc's drop order: `observability_basic` (dashboard), `config_basic`, and
+the recorded end-to-end run as insurance.
 
 ## Decisions taken today
 
-- **Lambda Web Adapter over a handler shim.** Chosen so the app is deployed unmodified
-  and the "we never touched your code" claim is demonstrable on stage, not just stated.
-  Cost: a pinned layer version (`DEPLOYME_LWA_VERSION=28`) that the executor carries as
-  config, because the public layer will not let us list its versions.
-- **HTTP API with `Target`, not explicit routes.** One `AWS::ApiGatewayV2::Api` with
-  `Target` pointed at the function replaces the route + integration + stage + deployment
-  resources, and gives the app the whole path space (which is what a "deploy my app"
-  product should do). Fewer resources also means a faster create — part of the 1:06.
-- **No CloudFront on the static path**, per the hard rules. Accepted consequence: the
-  static site URL is `http://`, and the demo narration has to not stumble over that.
-- **Public bucket at the bucket level, not by changing account settings.** The template
-  is self-contained; running the demo does not require touching account-wide S3
-  settings.
-- **Templates were deployed by hand before any executor code was written.** Every
-  command is recorded in `docs/DAY2-COMMANDS.md`. The point is that Tuesday's executor
-  is transcribing a sequence that is known to work against real AWS, rather than
-  debugging CloudFormation and JavaScript at the same time.
-- **Day 1's open question is resolved: executor first, `init` second.** Today settled
-  the shape of what the executor consumes — app name, module, artifact — which is small
-  and stable enough that `init` can be written against it later without the executor
-  being built on a guess.
+From CLAUDE.md "Executor rules", all now implemented:
 
-## Open question
+- **Shell out to the AWS CLI, no SDK dependency.** `child_process` + `--output json`.
+  `cfn.js` is the only file that spawns `aws`, and it never rejects on a non-zero exit — it
+  resolves with the code and stderr and lets the lifecycle decide what that means.
+- **Deploy in the background, poll `describe-stacks` every 5 s.** The poll, not the child
+  process, is the source of truth. Outputs are re-read fresh after every deploy and never
+  cached across a destroy — a recreated stack gets a new API id, which is exactly the
+  `{"message":"Not Found"}` from Day 2.
+- **One template per deployment**, chosen from the plan's enabled core module.
+  `observability_basic.retention_days` -> `RetentionDays`. `config_basic` and `domain_public`
+  ignored until Day 6.
+- **Stack `sealeye-<app>`, artifact `<app>/<deploymentId>.zip`.** A new key every deploy, so
+  `S3Key` always changes and CloudFormation never skips the function update.
+- **`POST /deployments` takes `{ plan, appPath }`.** Contract unchanged; `DELETE
+  /deployments/:id` added for destroy.
+- **The developer's folder is read-only to the API**, and `DEPLOYMENT_REPORT.md` is written by
+  the CLI, not the API.
+- **Never fake a transition.** The status map is the one in CLAUDE.md, implemented in
+  `mapStackStatus()`.
+- **Static destroy empties the bucket before `delete-stack`.**
 
-Stack naming. `CLAUDE.md` says stacks are `sealeye-<app>`; today's hand-run stacks are
-`dep-sample-expressjs` and `dep-static-website`. The rule wins and the executor should
-create `sealeye-<app>`, but that means the stacks currently in the account are named
-something the code will never look up. Decide Tuesday whether to delete the `dep-*`
-stacks first or just leave them and let the executor create fresh ones — either way,
-they are stray AWS resources that should not still exist on Oct 2.
+Decided while building, beyond the written rules:
+
+- **A terminal stack status is ignored until this deployment's own operation is visibly under
+  way** (an `IN_PROGRESS` seen, or the AWS CLI child exited). Otherwise a redeploy reports the
+  previous run's `CREATE_COMPLETE` a second after it begins — reading a real status about the
+  wrong operation, which is its own kind of lying.
+- **A static deploy is not `succeeded` when the stack completes**, only after `s3 sync`
+  returns. The stack alone is an empty bucket, and calling that success would be the fake
+  success the rules forbid.
+- **`ROLLBACK_COMPLETE` is deleted, `UPDATE_ROLLBACK_COMPLETE` is not.** The first is a dead
+  stack that blocks every future deploy; the second is the developer's previous environment,
+  still up and still serving. Deleting that one because a redeploy had a bad parameter would
+  destroy a working environment.
+- **Failure reasons are read before any cleanup**, because `describe-stack-events` disappears
+  with the stack.

@@ -4,3 +4,7 @@ node_modules/
 .deployme/
 .DS_Store
 dist/
+DEPLOYMENT_REPORT.md
+DEPLOYMENT_PLAN.md
+deployme.yaml
+.claude/
