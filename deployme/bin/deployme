@@ -12,7 +12,7 @@ import {
   listDeployments,
   destroyDeployment
 } from "../lib/run.js";
-import { banner, step, ask, answer, c, product } from "../src/brand.js";
+import { banner, step, ask, answer, c, product, spinner, stopSpinner, animations } from "../src/brand.js";
 import { runInterview, resolveApiKey } from "../src/interview/loop.js";
 import { writeInterviewFiles } from "../src/interview/render.js";
 import { plainValidationErrors } from "../src/interview/explain.js";
@@ -129,6 +129,7 @@ async function main() {
       if (leaving) return;
       leaving = true;
 
+      stopSpinner();   // take the line back before anything is printed on it
       console.log("");
       say(
         wrote
@@ -372,16 +373,25 @@ async function main() {
 
     let lastStep = null;
 
+    // Tear-down runs about half a minute and changes step barely at all, so something
+    // has to move while it does. The spinner carries the step the platform is on now,
+    // and each step settles into its plain line when the next one starts, so the same
+    // words are never on the screen twice.
+    let wait = spinner("tearing down your environment");
+    const settled = () => (lastStep ? step(lastStep) : undefined);
+
     while (true) {
       const dep = await getDeployment({ apiBaseUrl, deploymentId });
 
       // Each new plain-language line once, as it happens.
       if (dep.step && dep.step !== lastStep) {
-        say(dep.step);
+        wait.stop(settled());
         lastStep = dep.step;
+        wait = spinner(dep.step);
       }
 
       if (dep.status === "destroyed") {
+        wait.stop(settled());
         console.log("");
         console.log(c.ok(`Everything seaLeye.run created for ${dep.app?.name} is gone`));
         if (dep.note) say(dep.note);
@@ -390,6 +400,7 @@ async function main() {
       }
 
       if (dep.status === "failed") {
+        wait.stop(settled());
         console.log("");
         console.log(c.fail(`Tear-down failed: ${dep.failureReason || "no reason reported"}`));
         process.exitCode = 1;
@@ -486,7 +497,16 @@ function reuseSummary(plan, planPath) {
 // here: init has no deployment logic of its own.
 async function runDeploy({ apiBaseUrl, backend, plan, appPath, follow = true }) {
   say(`Handing ${appPath} to seaLeye.run to build your environment`);
-  const result = await createDeployment({ apiBaseUrl, backend, plan, appPath });
+
+  // Packaging, installing dependencies and the upload all happen inside this one call.
+  const wait = spinner("handing your app to seaLeye.run");
+  let result;
+
+  try {
+    result = await createDeployment({ apiBaseUrl, backend, plan, appPath });
+  } finally {
+    wait.stop();
+  }
 
   if (jsonOut) {
     console.log(JSON.stringify(result, null, 2));
@@ -507,19 +527,30 @@ async function runWatch({ apiBaseUrl, deploymentId }) {
   const formatDots = tick => ".".repeat((tick % 3) + 1);   // 1..3
   let tick = 0;
 
+  // One spinner for the whole wait, on the line under the status line. Its label
+  // follows the platform's own step, and its count keeps running while a step sits
+  // still, which is most of a CloudFormation create.
+  let wait = null;
+
   while (true) {
     const dep = await getDeployment({ apiBaseUrl, deploymentId });
     const dots = formatDots(tick++);
 
     // Redraw: the banner stays at the top of the screen, the summary under it.
+    const live = dep.status !== "succeeded" && dep.status !== "failed";
+
     console.clear();
     printBanner();
-    printDeploymentSummary(dep);
+    printDeploymentSummary(dep, { step: !(live && animations()) });
     console.log("");
     process.stdout.write(c.dim(`Status: ${dep.status}${dots}`));
 
+    // The spinner owns the line below, so on a terminal the status line ends here.
+    if (animations()) process.stdout.write("\n");
+
     if (dep.status === "succeeded" || dep.status === "failed") {
-      process.stdout.write("\n\n");
+      if (wait) wait.stop();
+      process.stdout.write(animations() ? "\n" : "\n\n");
 
       if (dep.status === "succeeded") {
         const url = publicUrl(dep);
@@ -535,6 +566,10 @@ async function runWatch({ apiBaseUrl, deploymentId }) {
 
       return dep;
     }
+
+    const doing = dep.step || dep.status;
+    if (wait) wait.label(doing);
+    else wait = spinner(doing);
 
     await sleep(500); // refresh twice per second
   }
@@ -604,7 +639,7 @@ function printDeploymentTable(deployments) {
   }
 }
 
-function printDeploymentSummary(dep) {
+function printDeploymentSummary(dep, { step: showStep = true } = {}) {
   const row = (label, value) => console.log(`${label.padEnd(12)}${value}`);
 
   row("Deployment:", dep.deploymentId);
@@ -625,8 +660,10 @@ function printDeploymentSummary(dep) {
     for (const m of dep.resolvedModules) console.log(`  ${c.accent(m.id)}`);
   }
 
-  // One plain-language line of what the platform is doing right now.
-  if (dep.step) console.log(`\n${step(dep.step)}`);
+  // One plain-language line of what the platform is doing right now. `watch` turns
+  // this off while the deployment is live, because there the spinner carries the same
+  // line and the developer should not read the same words twice.
+  if (dep.step && showStep) console.log(`\n${step(dep.step)}`);
 }
 
 async function sleep(ms) {

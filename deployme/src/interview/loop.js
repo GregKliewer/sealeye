@@ -11,7 +11,7 @@ import path from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
 
 import { validatePlan } from "../../lib/run.js";
-import { product } from "../brand.js";
+import { product, spinner } from "../brand.js";
 import { repoRoot, loadEnv, loadUserConfig } from "../executor/env.js";
 import { submitPlanTool, splitSubmission } from "./schema.js";
 import { listFilesTool, readFileTool, runTool, folderDigest } from "./tools.js";
@@ -28,6 +28,9 @@ const MAX_TOKENS = 16000;
 // plan after a correction is the slowest one, so leave room for it: 120 s, retried
 // once, is still inside the five minute budget.
 const TIMEOUT_MS = 120_000;
+// A turn that writes a whole plan takes twenty seconds and is still a normal turn.
+// Past this, the wait is not normal any more and the line the developer reads says so.
+const SLOW_MS = 30_000;
 
 /**
  * Sampling parameters were removed on Sonnet 5 and the rest of the current
@@ -145,12 +148,21 @@ function asUserFacing(err) {
  * sentence rather than a stack: the developer cannot fix an SDK trace.
  */
 async function createWithOneRetry(client, params, onStep) {
+  const startedAt = Date.now();
+
   try {
     return await client.messages.create(params);
   } catch (err) {
     if (!isRetryable(err)) throw asUserFacing(err);
 
-    onStep("That is taking longer than it should, trying once more");
+    // A rate limit or a dropped connection comes back in well under a second. Saying
+    // that is taking longer than it should while it plainly has not is how a platform
+    // loses the room, so the alarming sentence waits until it is true.
+    onStep(
+      Date.now() - startedAt >= SLOW_MS
+        ? "That is taking longer than it should, trying once more"
+        : "Still waiting on an answer, asking again"
+    );
     if (process.env.DEPLOYME_DEBUG) {
       console.error(`  [debug] retrying after ${err?.name || "error"}${err?.status ? ` ${err.status}` : ""}: ${err?.message || ""}`);
     }
@@ -199,19 +211,64 @@ export async function runInterview({
   let validationRetries = 0;
   let nudged = false;
 
+  // Every await in this loop is a model round-trip, and each one was six to ten
+  // seconds of nothing on the screen. A spinner holds the line until the next real
+  // line lands on top of it.
+  let waiting = null;
+  let lastLine = "reading your app";   // the first turn, before the platform has said anything
+
+  let slowTimer = null;
+
+  const startWaiting = () => {
+    waiting = spinner(lastLine);
+
+    // The words change, the count does not: the developer is owed the whole wait, not
+    // the part of it that has been worrying.
+    slowTimer = setTimeout(() => {
+      if (waiting) waiting.label("this is taking longer than it should", { keepCount: true });
+    }, SLOW_MS);
+    slowTimer.unref();
+  };
+
+  const stopWaiting = () => {
+    clearTimeout(slowTimer);
+    slowTimer = null;
+    if (waiting) { waiting.stop(); waiting = null; }
+  };
+
+  // Every line the platform says goes through here, so the spinner is always off the
+  // line before anything else writes to it, and the last thing said becomes the label
+  // for what the platform is still doing.
+  const announce = line => {
+    const stillWaiting = waiting !== null;
+    stopWaiting();
+    onStep(line);
+    lastLine = line;
+    if (stillWaiting) startWaiting();
+  };
+
   for (let turn = 0; turn < MAX_TURNS; turn++) {
-    const response = await createWithOneRetry(
-      client,
-      {
-        model,
-        max_tokens: MAX_TOKENS,
-        system,
-        tools,
-        messages,
-        ...(supportsTemperature(model) ? { temperature: 0.2 } : {})
-      },
-      onStep
-    );
+    startWaiting();
+
+    let response;
+    try {
+      response = await createWithOneRetry(
+        client,
+        {
+          model,
+          max_tokens: MAX_TOKENS,
+          system,
+          tools,
+          messages,
+          ...(supportsTemperature(model) ? { temperature: 0.2 } : {})
+        },
+        announce
+      );
+    } finally {
+      // Whatever came back, including an error on its way to the CLI, the line is
+      // handed back before anything is printed on it.
+      stopWaiting();
+    }
 
     messages.push({ role: "assistant", content: response.content });
 
@@ -224,7 +281,7 @@ export async function runInterview({
         if (use.name === "submit_plan") {
           const submission = splitSubmission(use.input);
 
-          onStep("Checking the plan against the seaLeye.run plan contract");
+          announce("Checking the plan against the seaLeye.run plan contract");
           const result = await validatePlan({ apiBaseUrl, plan: submission.plan });
 
           if (result.valid) {
@@ -238,7 +295,7 @@ export async function runInterview({
           }
 
           validationRetries++;
-          onStep("The plan needs a correction, asking for one");
+          announce("The plan needs a correction, asking for one");
           results.push({
             type: "tool_result",
             tool_use_id: use.id,
@@ -256,7 +313,7 @@ export async function runInterview({
         // was about to be attempted.
         if (use.name === "list_files" || use.name === "read_file") {
           const target = use.input?.path || ".";
-          onStep(
+          announce(
             isError
               ? `Nothing to read at ${target}, moving on`
               : use.name === "list_files"
@@ -299,6 +356,7 @@ export async function runInterview({
 
       const { question, lead } = splitQuestion(text);
       questions++;
+      stopWaiting();   // a question owns the line, and the developer owns the wait
       const answer = await ask(question, lead);
       messages.push({ role: "user", content: answer || "(no answer)" });
       continue;
