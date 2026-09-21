@@ -1,21 +1,81 @@
 # Progress — deployme demo
 
 Panel: Fri Oct 2, 2026. Code freeze: Sun Sept 27, 2026.
-Last updated: Mon Sept 21, 2026 (end of Day 4).
+Last updated: Mon Sept 21, 2026 (end of Day 5).
 
 Day 4 turned the "Interview rules" in `CLAUDE.md` into `deployme/src/interview/`. A developer
-now runs one command in their own folder and the plan writes itself. Nothing about the executor
-changed: `init` produces the plan the executor already consumed on Day 3. The commands, the
-timings and the file layout are in `docs/DAY4-COMMANDS.md`.
+now runs one command in their own folder and the plan writes itself. The commands, the timings
+and the file layout are in `docs/DAY4-COMMANDS.md`.
+
+Day 5 was the polish the scoring asked for, plus the two real bugs the polish uncovered. Nothing
+about the plan contract changed, and the executor changed in one place only.
 
 ## The definition of done is met
 
-From a clean copy of `apps/sample-expressjs`, `sealeye init` -> one question -> `y` -> `y` -> a
+From a clean copy of `apps/sample-expressjs` (dressed and renamed on Day 5 to
+`apps/beneficiary-lookup-api`), `sealeye init` -> one question -> `y` -> `y` -> a
 live URL in **just under 3 minutes**, against a 5-minute budget. `sealeye destroy` cleaned it up.
 Deployment `dep_5f044fea5304`, the stack create itself 39.7 s of the three minutes. No plan was
 written by hand at any point.
 
 That is the demo. Everything after this is making it hold up in front of people.
+
+## Day 5
+
+Commits `3af5348`, `bffceea`, `c06dae4`, `48508ea`, `7bc07e5`, `d372814`, `aa1f5b3`, `74fac20`.
+
+### What changed
+
+- **Something moves during every wait.** `deployme/src/brand.js` has a spinner: braille frames in
+  the dim palette, an elapsed count after three seconds of the same label, silent with no TTY,
+  with `NO_COLOR`, on a dumb terminal and under `--json`. It covers every model round trip in the
+  interview, the handoff after `y`, and the destroy and watch polls. That is the C=2 score: the
+  silence was never between commands, it was inside them.
+- **`watch` stops clearing the screen.** The panel is redrawn on top of itself now, so the
+  interview the developer just had, and every command before it, stay on the screen and in the
+  scrollback. Clearing was throwing all of it away at the exact moment the demo became
+  interesting.
+- **The decision card.** `sealeye init` prints a card rendered from the validated plan rather
+  than the model's prose: what the app is, what will be provisioned, what comes back, in a box,
+  with the values the developer gave or confirmed in the phosphor accent. The prose moved to the
+  Notes section of `DEPLOYMENT_PLAN.md`. That is the E=3 score and the other half of C.
+- **`run.sh` runs the entry point the plan names.** It was hardcoded to `node index.js`, and the
+  executor never read `entry_point`. An app starting from `server.js` would have deployed to
+  `CREATE_COMPLETE` and then failed on every request. Packaging now also refuses a plan naming a
+  file the folder does not have, before anything is created.
+- **The demo app is a bank service.** `apps/beneficiary-lookup-api` is Northline Bank's
+  beneficiary lookup: a small JSON payload, three hard-coded records behind a path parameter, a
+  404 shape, a five-line README in business terms. No dependencies added, no build step, no
+  tests. The DigitalOcean startup banner, `.do/` and `.github/` are gone; the interview used to
+  read them and say "this is the DigitalOcean sample Express app" out loud.
+- **One row per environment.** `sealeye list` groups by stack and shows app, status, URL, deploy
+  count and last deployed; `--deployments` keeps the old per-deploy view. Destroying one deploy
+  now closes its siblings with a note naming the deployment that did it, so no row is left
+  claiming `succeeded` for a stack that was deleted. `sealeye destroy` takes an app name.
+- **`init` knows when the app already has a live environment.** It says so before asking
+  anything, with the URL and the modules read from the record, and waits for a `y`. The card
+  becomes a diff against the deployed plan, marked unchanged, changed, new or removed, collapsing
+  to "Nothing changes" when the environment already matches. The interview gets the deployed plan
+  as context and asks nothing at all when the folder has not moved.
+- **Smaller.** `GET /health` returns `{ ok, version, deployments }` with the version read from
+  the package and the count read from the store. `sealeye init --answers <file>` feeds a
+  rehearsal one line per question, never the `Deploy this?` boundary. Three em dashes left
+  developer-facing copy.
+
+### Timings
+
+| Operation | Time |
+|---|---|
+| API — first create | 45.0 s |
+| API — update in place | 23.0 s |
+| Static — create + file sync | 28.1 s |
+| Static — update in place | 6.0 s |
+
+Measured the way Day 3 measured, from the deployment records themselves
+(`~/.deployme/deployments.json`, `startedAt` to `finishedAt`), over this evening's runs. The
+static update is the interesting one: a redeploy that only syncs files is six seconds, which is
+the "change a line, deploy again" beat in its fastest form. `docs/DAY5-COMMANDS.md` does not
+exist yet; when it does, these four should be what it records.
 
 ## What works
 
@@ -44,8 +104,9 @@ That is the demo. Everything after this is making it hold up in front of people.
   get their own line and an action. One announced retry, not three silent ones.
 - **Scored against the POC1 criteria** (`docs/INIT-SCORING.md`, transcripts in
   `docs/transcripts/`): question quality 4, relevance 4, cognitive load 5, adaptation 4.
-  Developer experience 2 and recommendation clarity 3 are the two to fix, and both are CLI
-  presentation rather than prompt.
+  Developer experience 2 and recommendation clarity 3 were the two to fix, and both were CLI
+  presentation rather than prompt. Day 5 is the fix; the second table in that file is where the
+  after goes.
 
 ### The full lifecycle, both app kinds (Day 3). Commits `6c68784`, `7c2e913`, `6a79b76`, `df1f90e`, `33eae2d`.
 
@@ -80,65 +141,105 @@ The interview is the variable part of the three minutes and the executor is not 
 
 ## Known gaps
 
-- **The interview scrolls away.** `watch` clears and redraws the screen, so the moment the
-  developer answers `y` the questions and the summary are gone. It already cost the exact
-  wording of the definition-of-done question, and at the panel it costs the audience the best
-  part of the demo. Day 6.
-- **No visual feedback while the model reads the app.** Scored 2 out of 5 for developer
-  experience: "it is easy to conclude that sealeye is frozen". The tool lines appear only after
-  each tool returns. Day 6, with the step messages.
-- **The summary is one long paragraph.** Scored 3 out of 5 for recommendation clarity; bullets
-  were asked for, and a short plan readout before `Deploy this?` was asked for with it. Decide it
-  against the dressed-up app on Day 5.
-- **A static deploy now publishes three platform files.** `s3 sync` excludes only `.git/*`, so
-  `DEPLOYMENT_REPORT.md` was already being served, and `init` adds `DEPLOYMENT_PLAN.md` and
-  `deployme.yaml` beside it. Three `--exclude` flags in `syncSite`.
+- **`config_basic` is now reachable and still ignored.** The interview switches it on when the
+  folder reads environment variables, and the card shows it as new, but `compose()` maps nothing
+  from it: the variables would not reach the function. Until Day 6 this is a plan that promises
+  something the deploy does not do, which is the one kind of gap CLAUDE.md rules out. It only
+  fires on an app that reads its environment, so the demo app is safe as it stands.
+- **A static deploy still publishes three platform files.** `s3 sync` excludes only `.git/*`, so
+  `DEPLOYMENT_REPORT.md`, `DEPLOYMENT_PLAN.md` and `deployme.yaml` are served with the site.
+  Three `--exclude` flags in `syncSite`.
+- **The interview still restates itself before a question.** Rule 3 now says to state what was
+  found once, and a static run after the change produced the stutter anyway. The exemplar
+  question at line 150 of the prompt carries its own finding and "How a run goes" step 3 asks for
+  a separate line, so the rule is arguing with two examples. Fix the examples, not the rule.
+- **Only `node <entry_point>`.** An app that needs its start script, with flags or an env prefix,
+  has no field in the contract to say so.
+- **The store is the only place seaLeye knows what is deployed.** If a colleague deployed the
+  environment, or the store was cleared, `init` sees nothing and goes back to changing a live
+  stack quietly. Fine for the demo; the answer if asked is that the shipping version reads
+  environment state from the environment rather than from one laptop.
+- **A record that failed before its stack existed still carries a stack name.** `compose()` runs
+  before packaging, so `destroy` on such a record will happily delete the stack a different
+  deployment created. Same stack name by design, but the record that created nothing can delete
+  something.
 - **Destroy is not measured.** The record stamps `destroyedAt` but never when the destroy began.
   Add `destroyStartedAt`.
 - **An interrupted record never resolves.** The poll loop lives in the API process; restart the
   server mid-deploy and the record sits at `running` forever while CloudFormation carries on.
   `list` flags it, `watch` spins. Do not restart the API mid-demo.
-- **A successful deploy does not mean a working app.** An Express app with `index.js` deleted
-  deployed to `succeeded` in 44.6 s with a URL that errors. The status mirrors CloudFormation,
-  and CloudFormation does not know whether the code in the zip runs. Both failure states are
-  written up in `docs/DAY3-COMMANDS.md`.
-- **Only one shape of interview has been seen.** Four runs, four single-question interviews, all
-  on apps the folder nearly explains by itself. The dressed-up app is the first real test of
-  whether a second question appears when it should.
-- **No `GET /health` on the API.** Written up in `docs/DAY5-BACKLOG.md`.
+- **A successful deploy still does not mean a working app.** The entry-point check closes the
+  most common cause, but CloudFormation does not know whether the code in the zip runs.
 - **Stray stacks.** Day 2's hand-run `dep-sample-expressjs` and `dep-static-website` were named
   before the `sealeye-<app>` rule; the code will never look them up. Confirm the `dep-*` pair is
   gone before Oct 2.
 
 ## Not started
 
-- **The dressed-up app.** `apps/sample-expressjs` is DigitalOcean's sample and reads as one. The
-  demo app should look like something a bank developer wrote.
-- **`config_basic`** — in the plan contract and correctly disabled by the interview, still
-  ignored by the executor.
+- **`config_basic` in the executor** — Lambda environment variables from the plan. Now the most
+  urgent of these, because the interview can already ask for it.
 - **`observability_basic`'s dashboard** — the log group is real, the dashboard is not.
 - **`domain_public`** — ignored by design, per the hard rules.
 - **The recorded end-to-end run**, the insurance for Oct 2.
 
 ## Next — the scope drop order
 
-**Day 5: the dressed-up app and two clean end-to-end runs.** Replace the DigitalOcean sample with
-an app that looks like the bank's, and run the whole thing twice from a clean copy, once API and
-once static, with nothing hand-edited in between. That is where the interview meets an app it has
-not seen, so it is also where the second question (and the bullets-versus-paragraph question)
-gets decided. Cheap items from `docs/DAY5-BACKLOG.md` if the day allows.
-
-**Day 6: `config_basic`, the dashboard, step messages, failure polish, terminal setup.** The two
-remaining modules, then the presentation work the scoring asked for: keep the interview on the
-screen, show something while the model is reading, say what the platform is doing at each step,
-and make a failed deploy read like a sentence rather than an incident. Terminal setup is font,
-size, colours and window, tested on the screen that will be in the room.
+**Day 6: `config_basic` in the executor, the dashboard, the prompt examples, failure polish,
+terminal setup.** `config_basic` first, because the interview can now switch it on and the
+executor would quietly ignore it. Then the dashboard, then the two prompt examples that are
+teaching the stutter. Failure polish is making a failed deploy read like a sentence rather than
+an incident. Terminal setup is font, size, colours and window, tested on the screen that will be
+in the room, and it is also where the card's width is decided: the card is twelve lines at a
+hundred columns and fifteen at eighty.
 
 **Day 7: freeze and record.** Code freeze is Sun Sept 27. Record the end-to-end run as insurance
 and stop changing things.
 
 The scope doc's drop order still holds: dashboard, then `config_basic`, then the static path.
-Never the Node API happy path and never the recording.
+Never the Node API happy path and never the recording. Note that the order now argues with
+itself: `config_basic` is below the dashboard in the drop order and above it in urgency, because
+the interview reaching it changed what dropping it would mean.
+
+## Decisions taken on Day 5
+
+Most of today is visible in the diff. These are the ones that are not.
+
+- **The spinner's elapsed count belongs to the label, not to the run.** A wait that keeps
+  announcing progress never shows a counter; a wait that sits still always does. When a single
+  wait passes thirty seconds the label escalates and the count keeps running through the change,
+  because the developer is owed the whole wait, not the part of it that has been worrying.
+- **"That is taking longer than it should" waits until it is true.** It used to fire on any
+  retryable failure, including a rate limit that came back in under a second. A platform that
+  says things are slow while they plainly are not is a platform nobody reads.
+- **`watch` redraws in place rather than using the alternate screen.** The alternate screen was
+  the smaller change and it restores scrollback for free, but a CLI that dies mid-deploy would
+  leave the terminal on the alternate screen, and a recording of it does not read top to bottom.
+  Redrawing in place keeps one continuous transcript, which is what Day 7 records.
+- **The card is rendered from the plan, never from the model's prose.** Prose is the model's
+  account of what it decided; the card is the artifact that will run. Two runs over the same app
+  produce identical cards where two runs of prose did not.
+- **No "switched off" list and no assumptions on the card**, and an invariant instead: anything
+  the platform guesses that changes what gets built has to be a value on the card, not a line of
+  prose under it. Both lists grow as the platform supports more, and of the six assumptions a run
+  produced, four restated a value already on the card and the other two were about fields the
+  executor never reads. Both still live in `DEPLOYMENT_PLAN.md`, which the card points at.
+- **`entry_point` is validated, not trusted.** It is the one field in a plan that comes from what
+  the model read in a folder rather than from the contract, and it ends up inside a shell script.
+- **Packaging fails before CloudFormation is called** when the entry point is not in the folder.
+  Forty-five seconds and a URL that errors is worse than a sentence.
+- **A name given to `destroy` resolves to the environment's newest deploy**, because that record
+  holds the current outputs, which the static path needs to empty the bucket before deleting it.
+- **Closing sibling records writes a note naming the deployment that did it**, and adds no new
+  fields. A record changing under a developer has to be traceable, and the record shape is not
+  something to grow casually eleven days before a panel.
+- **`--answers` only ever answers interview questions.** Not `Deploy this?`, not the reuse
+  prompt, not the live-environment notice. A line eaten by a prompt that was not expecting one
+  puts every later answer off by one, which would be a strange way to lose a rehearsal.
+- **`init` now talks to the platform API before the interview starts**, to look for a live
+  environment. An unreachable API therefore fails immediately rather than after the questions.
+- **The demo app lost `.do/` and `.github/`.** They named `digitalocean/sample-expressjs`, the
+  interview reads them, and in two runs today the model said "this is the DigitalOcean sample
+  Express app" out loud.
 
 ## Decisions taken on Day 4
 

@@ -56,3 +56,60 @@ The correct ones.
 ## Prompt changes made
 
 None.
+
+---
+
+# After Day 5 polish
+
+The same criteria and the same three runs, scored against `sealeye init` as it stands at the end
+of Day 5. Everything above this line is the morning's run and is left exactly as it was: the
+before is the evidence that the after is worth anything.
+
+| Criterion | api-1 | api-2 | static-1 | Notes |
+|---|---|---|---|---|
+| A. Question quality |4 |4 |4 | |
+| B. Relevance |4 |4 |4 | |
+| C. Developer experience |4 |4 |4 |Much improved. |  
+| D. Cognitive load |5 |5 |5 |1 is high, 5 is low |
+| E. Recommendation clarity |4 |4 |4 | |
+| F. Adaptation across apps |4 |4 |4 | (one score for the set) |
+
+## Questions asked, verbatim
+
+### api-1:
+
+I did not record them. One only.
+
+### api-2:
+
+I did not record them. One only.
+
+### static-1:
+
+I did not record them. One only.
+
+## Modules chosen
+
+### api-1:
+
+### api-2:
+
+### static-1:
+
+## Prompt changes made
+
+Three, all in `prompts/interview-system.md`, and one of them is only half a fix.
+
+- **State what you found once** (rule 3). Everything written before the question is printed above
+  it, so repeating the observation in the question itself says it twice. This is the static-1
+  stutter from the morning table. It did not work: a static run after the change produced the
+  same shape. The cause is elsewhere in the prompt, where the exemplar question at line 150
+  carries its own finding and "How a run goes" step 3 asks for a separate finding line. A rule
+  that contradicts an example loses to the example. Still open.
+- **Two redeploy rules** (rules 4 and 5). Never re-ask what the live environment's plan already
+  answers, and name what changed in the folder and what that changes in the plan without
+  proposing a module the folder does not justify. Result: zero questions on an unchanged folder.
+- **Never ask for the values of environment variables** (the `config_basic` section). The plan
+  holds names; the platform takes values at deploy time. Added after a run asked "what values
+  should LEDGER_URL and LEDGER_API_KEY be set to", which cannot change the plan and invites a
+  secret to be typed into a terminal in front of an audience.
