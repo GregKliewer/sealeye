@@ -1,0 +1,132 @@
+# seaLeye.run module catalog, planVersion 0.2.
+#
+# One source of truth for the five modules: the interview system prompt
+# (prompts/interview-system.md) describes these in prose, the CLI reads this file for
+# the lines it prints and for the defaults it fills in. The contract itself is frozen:
+# prompts/plan-contract.yaml and deployme/src/schema.js. Do not add modules or fields
+# here, and keep every "line" free of em dashes and vendor terms, because the developer
+# sees them.
+
+catalogVersion: "0.2"
+
+modules:
+  - id: static_site_edge
+    role: core
+    line: >-
+      Serves your HTML, CSS, images and other files straight to visitors over HTTPS.
+    when: >-
+      The app has no server: files a browser opens directly, or the built output of a
+      front end with nothing running behind it.
+    signals:
+      - index.html at the root
+      - no server file and no listen call
+      - no web framework in dependencies
+    app_type: static-site
+    inputs:
+      site_root:
+        default: "."
+        line: Where your files live in the folder.
+        # The executor syncs the app folder root; site_root is recorded in the plan.
+      entry_point:
+        default: index.html
+        line: The page visitors land on.
+      additional_pages:
+        default: []
+        line: Other pages in the site.
+      assets_path:
+        default: images/
+        line: Where your images and other assets live.
+
+  - id: http_api_serverless
+    role: core
+    line: >-
+      Runs your code on demand behind an HTTPS endpoint. It starts when a request
+      arrives and costs nothing while nothing is calling it.
+    when: >-
+      Anything in the app listens for HTTP: an Express, Fastify or Koa server, a bare
+      http.createServer, a REST API, a webhook receiver, a small service.
+    signals:
+      - a listen call
+      - a start script that runs a server
+      - a web framework in dependencies
+    app_type: api
+    inputs:
+      runtime:
+        default: nodejs
+        enum: [nodejs]
+        line: The language your app runs in.
+        # The contract allows python; this version deploys nodejs only.
+      entry_point:
+        default: index.js
+        line: The file that starts your app.
+        # From package.json main, or the file the start script runs.
+      trigger:
+        default: http
+        enum: [http]
+        line: What causes your app to run.
+
+  - id: observability_basic
+    role: shared
+    always_enabled: true
+    line: >-
+      Collects your app's logs and tracks requests, errors and response times, so you
+      can see what your app is doing without setting anything up.
+    when: >-
+      Every app, static or HTTP. Never optional, so never ask about it.
+    inputs:
+      target:
+        default: auto
+        line: Attaches itself to however your app runs.
+      metrics:
+        default: [requests, errors, latency]
+        line: What gets tracked.
+      retention_days:
+        default: 30
+        line: How long logs are kept.
+        # compose.js maps this to the RetentionDays stack parameter.
+
+  - id: config_basic
+    role: optional
+    line: >-
+      Passes the settings your app reads from its environment through to it when it
+      runs, so they stay out of your code.
+    when: >-
+      Only if the app actually reads environment variables. Look for process.env, a
+      .env.example, or settings listed in the README. If none, include the module with
+      enabled false so the plan records that it was considered.
+    signals:
+      - process.env in the source
+      - a .env.example or .env.sample file
+      - settings documented in the README
+    inputs:
+      variables:
+        default: {}
+        line: The settings your app needs, by name.
+        # Names only. Values are supplied at deploy time, never written into the plan.
+    ignored_by_executor: true   # until Day 6
+
+  - id: domain_public
+    role: optional
+    never_select: true
+    line: >-
+      Attaches a custom domain you already own.
+    when: >-
+      Never in this version. Always enabled false, and never ask the developer about a
+      domain: the platform generates a public HTTPS URL either way, so the answer
+      cannot change the plan.
+    inputs:
+      domain_name:
+        default: null
+        line: The domain you want to use.
+    ignored_by_executor: true   # until Day 6
+
+# Exactly one core module is enabled per plan: one app, one way of running it.
+rules:
+  core_modules: [static_site_edge, http_api_serverless]
+  exactly_one_core: true
+  always_enabled: [observability_basic]
+  never_selected: [domain_public]
+
+defaults:
+  profile: poc            # poc | team | prodish
+  outputs: [public_url, logs, metrics]
