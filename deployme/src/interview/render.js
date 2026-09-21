@@ -269,23 +269,16 @@ function shortLine(text) {
   return clause ? `${clause[0].replace(/[,:]\s*$/, "")}.` : sentence;
 }
 
-/** `module_id   what it does`, wrapped under a hanging indent. */
-function moduleRows(entries, room) {
-  if (!entries.length) return [];
-
-  const idWidth = Math.max(...entries.map(e => e.id.length));
-  const textRoom = Math.max(24, room - idWidth - 2);
-  const hang = " ".repeat(idWidth + 2);
-
-  return entries.flatMap(({ id, text }) =>
-    wrapText(shortLine(text), textRoom).map((row, i) =>
-      i === 0 ? `${c.fg(id.padEnd(idWidth))}  ${c.dim(row)}` : `${hang}${c.dim(row)}`
-    )
-  );
-}
-
 /** What a row takes up on the screen: colour codes have no width. */
 const visibleLength = line => line.replace(/\x1b\[[0-9;]*m/g, "").length;
+
+/** Key order must not make two identical sets of inputs look different. */
+const stableJson = value =>
+  JSON.stringify(value, (_key, v) =>
+    v && typeof v === "object" && !Array.isArray(v)
+      ? Object.fromEntries(Object.keys(v).sort().map(k => [k, v[k]]))
+      : v
+  );
 
 /**
  * Colour a row of plain text: the values the developer gave or confirmed in the
@@ -306,77 +299,190 @@ function paintValues(text, values) {
     .join("");
 }
 
-/**
- * The groups the card is made of: a heading, and the rows under it, already wrapped to
- * `room` and already coloured. Rows carry no left margin, so the same groups can be
- * printed bare or inside a frame.
- */
-function cardGroups(plan, catalog, room) {
+// ---------------------------------------------------------------------------
+// The card as data
+// ---------------------------------------------------------------------------
+//
+// Rows carry a key and their plain text, before any colour or wrapping. The key is
+// what makes a diff possible: the same row in two plans keeps the same key whatever
+// its words turn out to be.
+
+function cardContent(plan, catalog) {
   const entryFor = id => catalog.modules.find(m => m.id === id) || {};
   const core = coreModule(plan);
   const isStatic = core?.id === "static_site_edge";
 
-  const groups = [];
-  const heading = text => groups.push({ heading: text, rows: [] });
-  const row = text => groups[groups.length - 1].rows.push(text);
-
-  // The app in one line, with the values the developer gave or confirmed in the
-  // phosphor accent.
-  heading("Your app:");
   const name = plan.app?.name || "your app";
   const typeLabel = appTypeLabel(plan);
   const entryPoint = core?.inputs?.entry_point;
-  const opening =
-    `${name}, a ${typeLabel}` +
-    (entryPoint ? ` that ${isStatic ? "lands on" : "starts with"} ${entryPoint}` : "");
 
-  for (const line of wrapText(opening, room)) row(paintValues(line, [name, typeLabel, entryPoint]));
+  const app = [
+    {
+      key: "app",
+      text:
+        `${name}, a ${typeLabel}` +
+        (entryPoint ? ` that ${isStatic ? "lands on" : "starts with"} ${entryPoint}` : ""),
+      values: [name, typeLabel, entryPoint]
+    }
+  ];
 
-  // The core module, and whatever else runs alongside it. What is switched off is not
-  // listed: that list only grows as the platform supports more, and a developer
-  // deciding whether to deploy does not need to read it. It stays in
-  // DEPLOYMENT_PLAN.md, under Modules Not Required.
-  heading("We will provision this infrastructure to run it:");
+  // A module's description never changes, so the row also carries its inputs: a
+  // retention or an entry point that moved is a change to this environment even when
+  // the sentence describing the module is the same.
   const running = enabledModules(plan)
     .slice()
     .sort((a, b) => CARD_ORDER.indexOf(a.id) - CARD_ORDER.indexOf(b.id))
     .filter(m => m.id !== "domain_public")   // the executor ignores it, so never promise it
-    .map(m => ({ id: m.id, text: entryFor(m.id).line }));
-  groups[groups.length - 1].rows.push(...moduleRows(running, room));
+    .map(m => ({
+      key: `module:${m.id}`,
+      id: m.id,
+      text: shortLine(entryFor(m.id).line),
+      signature: stableJson(m.inputs || {})
+    }));
 
   const variables = Object.keys(moduleById(plan, "config_basic")?.inputs?.variables || {});
   if (isEnabled(plan, "config_basic") && variables.length) {
-    const settings = `the settings it passes through: ${variables.join(", ")}`;
-    for (const line of wrapText(settings, room)) row(paintValues(line, variables));
+    running.push({
+      key: "module:config_basic:variables",
+      text: `the settings it passes through: ${variables.join(", ")}`,
+      values: variables
+    });
   }
 
-  // The plan's own outputs, in the developer's terms.
-  heading("You will get back:");
   const outputs = plan.outputs || [];
-  if (outputs.includes("public_url")) {
-    for (const line of wrapText("A public HTTPS address, as soon as it is live", room)) row(c.fg(line));
-  }
-
   const kept = moduleById(plan, "observability_basic")?.inputs?.retention_days;
   const collected = [
     outputs.includes("logs") ? "Your logs" : null,
     outputs.includes("metrics") ? "basic metrics" : null
   ].filter(Boolean);
 
+  const back = [];
+  if (outputs.includes("public_url")) {
+    back.push({ key: "out:url", text: "A public HTTPS address, as soon as it is live" });
+  }
   if (collected.length) {
-    const back = `${collected.join(" and ")}${kept ? `, kept for ${kept} days` : ""}`;
-    for (const line of wrapText(back, room)) row(c.fg(line));
+    back.push({
+      key: "out:collected",
+      text: `${collected.join(" and ")}${kept ? `, kept for ${kept} days` : ""}`
+    });
   }
 
-  // What the platform guessed is not listed here. Every guess that changes what gets
-  // built is already a value on this card, and the rest is provenance, which belongs
-  // in DEPLOYMENT_PLAN.md where the line under the card points.
-  return groups;
+  return { app, running, back };
+}
+
+/**
+ * What is already deployed, as card rows. A record written before plans were stored
+ * has only its module list, which is enough to diff at module level and not enough to
+ * claim anything about inputs, so it is marked partial and the card says so.
+ */
+function previousContent(previous, catalog) {
+  if (!previous) return null;
+  if (previous.plan) return { ...cardContent(previous.plan, catalog), partial: false };
+
+  const ids = (previous.modules || []).filter(id => id !== "domain_public");
+  if (!ids.length) return null;
+
+  const entryFor = id => catalog.modules.find(m => m.id === id) || {};
+
+  return {
+    running: ids
+      .slice()
+      .sort((a, b) => CARD_ORDER.indexOf(a) - CARD_ORDER.indexOf(b))
+      .map(id => ({ key: `module:${id}`, id, text: shortLine(entryFor(id).line) })),
+    partial: true
+  };
+}
+
+// dim for what stays, phosphor for what arrives, amber for what moves or goes.
+const MARKS = {
+  unchanged: { word: "unchanged", paint: s => c.dim(s) },
+  changed: { word: "changed", paint: s => c.prompt(s) },
+  new: { word: "new", paint: s => c.accent(s) },
+  removed: { word: "removed", paint: s => c.prompt(s) }
+};
+
+const NOTHING_CHANGES = {
+  key: "nothing",
+  text: "Nothing changes. Your environment already matches this plan; deploying updates your code only.",
+  values: ["Nothing changes."]
+};
+
+const PARTIAL_NOTE = {
+  key: "partial",
+  text: "That deploy did not record its plan, so this compares the modules and not their settings.",
+  tone: "dim"
+};
+
+/**
+ * Mark each row against what is deployed, and keep the rows that are going away.
+ *
+ * `settings: false` is the record that stored no plan: the modules can be compared and
+ * their inputs cannot, so a module in both is unchanged as far as anyone can honestly
+ * say, and the card carries a line admitting it.
+ */
+function markRows(rows, before, { settings = true } = {}) {
+  if (!before) return rows.map(row => ({ ...row }));
+
+  const was = new Map(before.map(row => [row.key, row]));
+
+  const marked = rows.map(row => {
+    const previous = was.get(row.key);
+    if (!previous) return { ...row, mark: "new" };
+
+    const same =
+      previous.text === row.text &&
+      (!settings || (previous.signature || "") === (row.signature || ""));
+
+    return { ...row, mark: same ? "unchanged" : "changed" };
+  });
+
+  const keys = new Set(rows.map(row => row.key));
+  for (const row of before) {
+    if (!keys.has(row.key)) marked.push({ ...row, mark: "removed" });
+  }
+
+  return marked;
+}
+
+// ---------------------------------------------------------------------------
+// The card on the screen
+// ---------------------------------------------------------------------------
+
+/** One row: its mark, its module id, and its text, wrapped under a hanging indent. */
+function renderRow(row, { room, markWidth, idWidth }) {
+  const mark = row.mark ? MARKS[row.mark] : null;
+  const markPad = markWidth ? markWidth + 2 : 0;
+  const markCell = markWidth
+    ? `${mark ? mark.paint(mark.word.padEnd(markWidth)) : " ".repeat(markWidth)}  `
+    : "";
+
+  if (row.id) {
+    const textRoom = Math.max(24, room - markPad - idWidth - 2);
+    const hang = " ".repeat(markPad + idWidth + 2);
+    const id = row.mark === "removed" ? c.dim(row.id.padEnd(idWidth)) : c.fg(row.id.padEnd(idWidth));
+
+    return wrapText(row.text, textRoom).map((line, i) =>
+      i === 0 ? `${markCell}${id}  ${c.dim(line)}` : `${hang}${c.dim(line)}`
+    );
+  }
+
+  const textRoom = Math.max(24, room - markPad);
+  const hang = " ".repeat(markPad);
+  const paint = line =>
+    row.tone === "dim" || row.mark === "removed" ? c.dim(line) : paintValues(line, row.values || []);
+
+  return wrapText(row.text, textRoom).map((line, i) => `${i === 0 ? markCell : hang}${paint(line)}`);
+}
+
+function renderRows(rows, room, markWidth) {
+  const idWidth = Math.max(0, ...rows.filter(row => row.id).map(row => row.id.length));
+
+  return rows.flatMap(row => renderRow(row, { room, markWidth, idWidth }));
 }
 
 const FRAMES_CHARS = {
   ascii: { h: "-", v: "|", tl: "+", tr: "+", bl: "+", br: "+", ml: "+", mr: "+" },
-  line: { h: "\u2500", v: "\u2502", tl: "\u250c", tr: "\u2510", bl: "\u2514", br: "\u2518", ml: "\u251c", mr: "\u2524" }
+  line: { h: "─", v: "│", tl: "┌", tr: "┐", bl: "└", br: "┘", ml: "├", mr: "┤" }
 };
 
 /** The groups as plain indented lines. */
@@ -411,17 +517,56 @@ function framedCard(groups, boxWidth, chars) {
 /**
  * The card the developer decides on.
  *
- * @param {object} plan  a plan that has already passed POST /plans/validate
+ * @param {object} plan               a plan that has already passed POST /plans/validate
+ * @param {object} [options.previous] what is already deployed: { plan } from a stored
+ *                                    record, or { modules } for a record written before
+ *                                    plans were stored. Absent means nothing is
+ *                                    deployed and the card reads as it always has.
  */
 export function decisionCard(plan, {
   catalog = loadCatalog(),
   width = process.stdout.columns || 80,
   frame = false,
-  charset = "ascii"
+  charset = "ascii",
+  previous = null
 } = {}) {
   const boxWidth = Math.min(width - 2, CARD_MAX_WIDTH);
   const room = frame ? boxWidth - 6 : Math.max(28, width - CARD_INDENT - 2);
-  const groups = cardGroups(plan, catalog, room);
+
+  const next = cardContent(plan, catalog);
+  const before = previousContent(previous, catalog);
+
+  const settings = !before?.partial;
+  const app = markRows(next.app, before?.app, { settings });
+  const running = markRows(next.running, before?.running, { settings });
+  const back = markRows(next.back, before?.back, { settings });
+
+  // A card that says nothing changes is the strongest thing a second run can say, so
+  // it is only said when it is true of every line, not only of the modules.
+  const nothingChanges =
+    before && !before.partial && [...app, ...running, ...back].every(row => row.mark === "unchanged");
+
+  const middle = nothingChanges
+    ? [NOTHING_CHANGES]
+    : before?.partial
+      ? [...running, PARTIAL_NOTE]
+      : running;
+
+  // One mark column for the whole card: a row that changed and a row that did not have
+  // to line up, or the eye reads the indent as meaning something.
+  const markWidth = Math.max(
+    0,
+    ...[...app, ...middle, ...back].map(row => (row.mark ? MARKS[row.mark].word.length : 0))
+  );
+
+  const groups = [
+    { heading: "Your app:", rows: renderRows(app, room, markWidth) },
+    {
+      heading: before ? "We will change this environment:" : "We will provision this infrastructure to run it:",
+      rows: renderRows(middle, room, markWidth)
+    },
+    { heading: "You will get back:", rows: renderRows(back, room, markWidth) }
+  ];
 
   return frame ? framedCard(groups, boxWidth, FRAMES_CHARS[charset] || FRAMES_CHARS.ascii) : bareCard(groups);
 }

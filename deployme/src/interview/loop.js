@@ -54,6 +54,19 @@ export function loadSystemPrompt() {
   return fs.readFileSync(path.join(repoRoot, "prompts", "interview-system.md"), "utf8");
 }
 
+/** The plan the live environment was built from, for the first message. */
+function deployedContext(plan) {
+  if (!plan) return "";
+
+  return [
+    "This app already has a live environment with this plan:",
+    "",
+    JSON.stringify(plan, null, 2),
+    "",
+    "This run updates that environment rather than creating a second one."
+  ].join("\n");
+}
+
 /** Every text block in an assistant turn, joined. */
 function textOf(content) {
   return content
@@ -180,6 +193,9 @@ async function createWithOneRetry(client, params, onStep) {
  *
  * @param {object}   options
  * @param {string}   options.appPath     the developer's folder, read only
+ * @param {object}   [options.deployed]  the plan the live environment was built from,
+ *                                       when this app has one. It is context, not an
+ *                                       instruction: the folder still decides.
  * @param {string}   options.apiBaseUrl  the platform API, for plan validation
  * @param {function} options.ask         (question, lead[]) => Promise<string>, one line from the terminal
  * @param {function} options.onStep      (line) => void, one plain-language line of what the platform is doing
@@ -188,6 +204,7 @@ async function createWithOneRetry(client, params, onStep) {
 export async function runInterview({
   appPath,
   apiBaseUrl,
+  deployed = null,
   ask,
   onStep = () => {},
   model = process.env.DEPLOYME_MODEL || DEFAULT_MODEL
@@ -205,7 +222,10 @@ export async function runInterview({
   const system = loadSystemPrompt();
   const tools = [listFilesTool, readFileTool, submitPlanTool];
 
-  const messages = [{ role: "user", content: folderDigest(appPath) }];
+  // The digest first, then what is already running. A redeploy that re-asks what the
+  // live environment already answers is asking the developer to do the platform's
+  // remembering.
+  const messages = [{ role: "user", content: [folderDigest(appPath), deployedContext(deployed)].filter(Boolean).join("\n\n") }];
 
   let questions = 0;
   let validationRetries = 0;

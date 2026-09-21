@@ -113,6 +113,9 @@ app.post("/deployments", (req, res) => {
     app: plan.app,
     appPath: resolvedAppPath,
     resolvedModules,
+    // The whole plan, so a later run can say what it is about to change. Additive:
+    // records written before this exist without it and are read as before.
+    plan,
     outputs: {},
     failureReason: null,
     startedAt: new Date().toISOString(),

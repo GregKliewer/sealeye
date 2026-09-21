@@ -13,6 +13,7 @@ import {
   destroyDeployment
 } from "../lib/run.js";
 import { banner, step, ask, answer, c, product, spinner, stopSpinner, animations } from "../src/brand.js";
+import { safeName } from "../src/executor/compose.js";
 import { runInterview, resolveApiKey } from "../src/interview/loop.js";
 import { writeInterviewFiles, decisionCard } from "../src/interview/render.js";
 import { plainValidationErrors } from "../src/interview/explain.js";
@@ -156,6 +157,29 @@ async function main() {
     let submission = null;
 
     try {
+      // A developer who believes they are creating something, and is in fact changing
+      // what is live, is the worst failure a platform has. Say so before spending
+      // their time on questions.
+      const live = await liveEnvironmentFor({ apiBaseUrl, appPath });
+
+      if (live) {
+        console.log("");
+        console.log(`${c.accent(live.app)}${c.fg(" already has a live environment.")}`);
+        if (live.url) console.log(`  ${c.accent(live.url)}`);
+        console.log(step(`deployed ${agoPhrase(live.last)}, running ${sentenceList(live.modules)}`));
+        console.log(c.fg("This run will update that environment. It will not create a second one."));
+        console.log("");
+
+        // Not answerable from --answers: this one is about a running service.
+        const go = await askLine(rl, "Continue? [y/N]");
+
+        if (go.toLowerCase() !== "y") {
+          console.log("");
+          say("Nothing has been written to your folder.");
+          return;
+        }
+      }
+
       // A plan from a previous run belongs to the developer, so it is not ours to
       // overwrite without asking.
       if (fs.existsSync(configPath)) {
@@ -208,6 +232,8 @@ async function main() {
         const result = await runInterview({
           appPath,
           apiBaseUrl,
+          // What is running, so the interview asks about what changed and nothing else.
+          deployed: live?.record?.plan || null,
           onStep: say,
           // One question at a time, amber, with whatever the platform found above it.
           ask: async (question, lead = []) => {
@@ -246,7 +272,12 @@ async function main() {
         // The card is rendered from the plan that just passed validation, never from
         // the model's prose. The prose is in the Notes section of the file.
         console.log("");
-        console.log(decisionCard(submission.plan, { frame: true, charset: "line" }));
+        // With an environment already up, the card is a diff against what is deployed.
+        console.log(decisionCard(submission.plan, {
+          frame: true,
+          charset: "line",
+          previous: live ? (live.record?.plan ? { plan: live.record.plan } : { modules: live.modules }) : null
+        }));
         console.log("");
         say("Full plan, and every assumption seaLeye.run made: DEPLOYMENT_PLAN.md");
         say(`Wrote ${written.planPath}`);
@@ -559,6 +590,81 @@ async function askChoice(rl, question, choices) {
   }
 
   return null;
+}
+
+/**
+ * The environment this folder would deploy into, if it already has one.
+ *
+ * The app name comes from package.json, or from the folder name when there is none, as
+ * a static site has, and it is matched to a stack the same way `destroy` matches a
+ * name. Everything the notice prints is read from the record, never guessed.
+ */
+async function liveEnvironmentFor({ apiBaseUrl, appPath }) {
+  const appName = appNameFor(appPath);
+  if (!appName) return null;
+
+  const everything = await listDeployments({ apiBaseUrl });
+  const environment = groupEnvironments(everything)
+    .filter(env => env.rawStatus === "succeeded" || env.rawStatus === "running")
+    .find(env => env.stackName === `sealeye-${appName}`);
+
+  if (!environment) return null;
+
+  // GET /deployments is a summary: the modules, and the plan the diff card needs, are
+  // only on the full record.
+  const record = await getDeployment({ apiBaseUrl, deploymentId: environment.latest.deploymentId });
+
+  return {
+    app: environment.app,
+    url: environment.url === "-" ? null : environment.url,
+    last: environment.last,
+    modules: (record.resolvedModules || []).map(m => m.id),
+    record
+  };
+}
+
+/** package.json's name, or the folder's, by the same rule that names the stack. */
+function appNameFor(appPath) {
+  const pkgPath = path.join(appPath, "package.json");
+
+  if (fs.existsSync(pkgPath)) {
+    try {
+      const { name } = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
+      if (name) return safeName(name);
+    } catch {
+      // A package.json nobody can parse tells us nothing; the folder name still does.
+    }
+  }
+
+  return safeName(path.basename(path.resolve(appPath)));
+}
+
+/** "12 minutes ago". Longer than the list's "12m ago", because this one is a sentence. */
+function agoPhrase(iso) {
+  if (!iso) return "at an unknown time";
+
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "at an unknown time";
+
+  const seconds = Math.max(0, Math.round((Date.now() - then) / 1000));
+  if (seconds < 60) return "moments ago";
+
+  const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"} ago`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return plural(minutes, "minute");
+
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return plural(hours, "hour");
+
+  return plural(Math.round(hours / 24), "day");
+}
+
+/** "a and b", "a, b and c". */
+function sentenceList(items) {
+  if (!items.length) return "nothing the platform recorded";
+  if (items.length === 1) return items[0];
+
+  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
 }
 
 /**
