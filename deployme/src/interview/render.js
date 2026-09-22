@@ -127,9 +127,9 @@ function selectedModules({ plan, catalog }) {
     .map(module => {
       const entry = catalog.modules.find(m => m.id === module.id);
       const role = entry?.role === "core" ? "Core" : entry?.role === "shared" ? "Observability" : "Optional";
-      const planned = entry?.availability && entry.availability !== "real" ? ", not built by this version" : "";
+      const state = entry?.availability && entry.availability !== "available" ? `, ${entry.availability}` : "";
       const line = entry?.line?.trim() || "";
-      return `### ${module.id} - ${role}${planned}\n${line}${inputLines(module)}`;
+      return `### ${module.id} - ${role}${state}\n${line}${inputLines(module)}`;
     })
     .join("\n\n");
 }
@@ -316,7 +316,7 @@ function paintValues(text, values) {
 
 function cardContent(plan, catalog) {
   const entryFor = id => moduleEntry(id, catalog) || {};
-  const buildable = id => entryFor(id).availability === "real";
+  const buildable = id => entryFor(id).availability === "available";
   const core = coreModule(plan);
   const isStatic = core?.id === "static_site_edge";
 
@@ -345,7 +345,7 @@ function cardContent(plan, catalog) {
     .map(m => ({
       key: `module:${m.id}`,
       id: m.id,
-      text: `${shortLine(entryFor(m.id).line)}${buildable(m.id) ? "" : " (planned)"}`,
+      text: `${shortLine(entryFor(m.id).line)}${buildable(m.id) ? "" : ` (${entryFor(m.id).availability})`}`,
       signature: stableJson(m.inputs || {})
     }));
 
@@ -399,8 +399,8 @@ function previousContent(previous, catalog) {
       .sort((a, b) => cardRank(a) - cardRank(b))
       .map(id => {
         const entry = entryFor(id);
-        const planned = entry.availability && entry.availability !== "real" ? " (planned)" : "";
-        return { key: `module:${id}`, id, text: `${shortLine(entry.line)}${planned}` };
+        const state = entry.availability && entry.availability !== "available" ? ` (${entry.availability})` : "";
+        return { key: `module:${id}`, id, text: `${shortLine(entry.line)}${state}` };
       }),
     partial: true
   };

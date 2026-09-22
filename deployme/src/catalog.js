@@ -69,7 +69,7 @@ export function firstSentence(text) {
  */
 export function notDeployable(plan, catalog = loadCatalog()) {
   const buildable = new Set(
-    (catalog.modules || []).filter(m => m.availability === "real").map(m => m.id)
+    (catalog.modules || []).filter(m => m.availability === "available").map(m => m.id)
   );
 
   const modules = (plan?.modules || [])
@@ -89,7 +89,7 @@ export function notDeployable(plan, catalog = loadCatalog()) {
   const whole = String(entry?.line || "").replace(/\s+/g, " ").trim();
   const patterns = whole.replace(/^[^.]*\.\s*/, "") || whole;
   const profile =
-    entry && entry.availability !== "real"
+    entry && entry.availability !== "available"
       ? { id: asked, line: patterns.charAt(0).toLowerCase() + patterns.slice(1) }
       : null;
 

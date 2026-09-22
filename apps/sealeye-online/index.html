@@ -71,13 +71,11 @@
         "modules": [
           {
             "id": "http_api_serverless",
-            "line": "Runs your code on demand behind an HTTPS endpoint.",
-            "planned": false
+            "line": "Runs your code on demand behind an HTTPS endpoint."
           },
           {
             "id": "observability_basic",
-            "line": "Collects your app's logs and tracks requests, errors and response times.",
-            "planned": false
+            "line": "Collects your app's logs and tracks requests, errors and response times."
           }
         ],
         "patterns": [
@@ -111,37 +109,35 @@
           {
             "id": "compute_container",
             "line": "A service that runs continuously, for an app that cannot start fresh on every request.",
-            "planned": true
+            "planned": "planned"
           },
           {
             "id": "observability_basic",
-            "line": "Collects your app's logs and tracks requests, errors and response times.",
-            "planned": false
+            "line": "Collects your app's logs and tracks requests, errors and response times."
           },
           {
             "id": "config_basic",
-            "line": "Passes the settings your app reads from its environment through to it when it runs.",
-            "planned": false
+            "line": "Passes the settings your app reads from its environment through to it when it runs."
           },
           {
             "id": "data_relational",
             "line": "A managed relational database your app connects to, kept patched and backed up for you.",
-            "planned": true
+            "planned": "planned"
           },
           {
             "id": "events_stream",
             "line": "A stream your services publish events to and read events from, in the order they happened.",
-            "planned": true
+            "planned": "planned"
           },
           {
             "id": "secrets_basic",
             "line": "Secrets your app reads while it runs, kept out of your code and out of your plan.",
-            "planned": true
+            "planned": "planned"
           },
           {
             "id": "network_private",
             "line": "Your app is reachable from inside your organization only.",
-            "planned": true
+            "planned": "planned"
           }
         ],
         "patterns": [
@@ -184,77 +180,77 @@
     {
       "id": "static_site_edge",
       "line": "Serves your HTML, CSS, images and other files straight to visitors over HTTPS",
-      "available": true
+      "state": "available"
     },
     {
       "id": "http_api_serverless",
       "line": "Runs your code on demand behind an HTTPS endpoint",
-      "available": true
+      "state": "available"
     },
     {
       "id": "observability_basic",
       "line": "Collects your app's logs and tracks requests, errors and response times",
-      "available": true
+      "state": "available"
     },
     {
       "id": "config_basic",
       "line": "Passes the settings your app reads from its environment through to it when it runs",
-      "available": true
+      "state": "available"
     },
     {
       "id": "domain_public",
       "line": "a custom domain you already own",
-      "available": false
+      "state": "planned"
     },
     {
       "id": "data_relational",
       "line": "a managed relational database your app connects to",
-      "available": false
+      "state": "planned"
     },
     {
       "id": "data_cache",
       "line": "a fast in-memory cache",
-      "available": false
+      "state": "planned"
     },
     {
       "id": "events_stream",
       "line": "a stream your services publish to and read from",
-      "available": false
+      "state": "planned"
     },
     {
       "id": "queue_basic",
       "line": "a work queue between services",
-      "available": false
+      "state": "planned"
     },
     {
       "id": "secrets_basic",
       "line": "secrets your app reads at runtime, never stored in code",
-      "available": false
+      "state": "planned"
     },
     {
       "id": "identity_service",
       "line": "sign-in and tokens for your app's users",
-      "available": false
+      "state": "planned"
     },
     {
       "id": "network_private",
       "line": "your app is not reachable from the public internet",
-      "available": false
+      "state": "planned"
     },
     {
       "id": "compute_container",
       "line": "a service that runs continuously rather than on demand",
-      "available": false
+      "state": "planned"
     },
     {
       "id": "scheduled_job",
       "line": "something that runs on a schedule",
-      "available": false
+      "state": "planned"
     },
     {
       "id": "storage_object",
       "line": "files your app stores and reads, distinct from serving a site",
-      "available": false
+      "state": "planned"
     }
   ]
 }
@@ -427,6 +423,46 @@
   }
   .ghost:hover { color: var(--ink); border-color: var(--dim); }
 
+  .kebab {
+    font: inherit;
+    line-height: 1;
+    color: var(--dim);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    padding: 4px 8px;
+    margin-left: 8px;
+    cursor: pointer;
+  }
+  .kebab:hover, .kebab[aria-expanded="true"] { color: var(--ink); border-color: var(--rule); }
+
+  /* Positioned against the viewport, because the panel clips its own corners and a
+     menu on the last row would be cut in half by that. */
+  .menu {
+    position: fixed;
+    z-index: 10;
+    min-width: 140px;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 4px;
+    text-align: left;
+  }
+  .menu[hidden] { display: none; }
+  .menu button {
+    font: inherit;
+    display: block;
+    width: 100%;
+    text-align: left;
+    color: var(--ink);
+    background: transparent;
+    border: 0;
+    border-radius: 4px;
+    padding: 7px 10px;
+    cursor: pointer;
+  }
+  .menu button:hover, .menu button:focus-visible { background: var(--ground); }
+
   tr.card td { padding: 0 16px 20px; background: var(--ground); }
   tr.card[hidden] { display: none; }
 
@@ -558,7 +594,7 @@
       const what = el("span", "what", row.line);
       if (row.planned) {
         what.appendChild(document.createTextNode(" "));
-        what.appendChild(el("span", "tag", "(planned)"));
+        what.appendChild(el("span", "tag", "(" + row.planned + ")"));
       }
       line.appendChild(what);
       box.appendChild(line);
@@ -576,6 +612,61 @@
     }
     box.appendChild(group("You will get back:", env.card.back));
     return box;
+  }
+
+  let openMenu = null;
+
+  function closeMenu() {
+    if (!openMenu) return;
+    openMenu.menu.hidden = true;
+    openMenu.button.setAttribute("aria-expanded", "false");
+    openMenu = null;
+  }
+
+  document.addEventListener("click", closeMenu);
+  document.addEventListener("scroll", closeMenu, true);
+  window.addEventListener("resize", closeMenu);
+  document.addEventListener("keydown", event => { if (event.key === "Escape") closeMenu(); });
+
+  /** The row's own menu. One item for now, and it is the shape that matters. */
+  function kebab(env) {
+    const holder = el("span");
+
+    const button = el("button", "kebab", "\u22EE");
+    button.type = "button";
+    button.setAttribute("aria-haspopup", "menu");
+    button.setAttribute("aria-expanded", "false");
+    button.setAttribute("aria-label", "More for " + env.app);
+
+    const menu = el("div", "menu");
+    menu.setAttribute("role", "menu");
+    menu.hidden = true;
+
+    const costs = el("button", null, "Costs");
+    costs.type = "button";
+    costs.setAttribute("role", "menuitem");
+    costs.addEventListener("click", event => { event.stopPropagation(); closeMenu(); });
+    menu.appendChild(costs);
+
+    button.addEventListener("click", event => {
+      event.stopPropagation();
+      const wasOpen = openMenu && openMenu.menu === menu;
+      closeMenu();
+      if (wasOpen) return;
+
+      const box = button.getBoundingClientRect();
+      menu.hidden = false;
+      menu.style.top = box.bottom + 6 + "px";
+      menu.style.left = Math.max(8, box.right - menu.offsetWidth) + "px";
+      button.setAttribute("aria-expanded", "true");
+      openMenu = { menu, button };
+      costs.focus();
+    });
+
+    holder.appendChild(button);
+    holder.appendChild(menu);
+
+    return holder;
   }
 
   const body = document.getElementById("rows");
@@ -624,6 +715,7 @@
       button.addEventListener("click", event => event.stopPropagation());
       actions.appendChild(button);
     }
+    actions.appendChild(kebab(env));
     row.appendChild(actions);
 
     const holder = el("tr", "card");
@@ -654,8 +746,11 @@
     body_.appendChild(el("div", "id", module.id));
     body_.appendChild(el("div", "what", module.line));
     box.appendChild(body_);
-    box.appendChild(el("span", "chip " + (module.available ? "phosphor" : "amber"),
-      module.available ? "Available" : "Platform Library"));
+    // Available is good news, planned is agreed and waiting, requested is waiting on a
+    // person. Phosphor, amber, neutral, which is the whole palette and no more of it.
+    const tone = { available: "phosphor", planned: "amber", requested: "neutral" };
+    box.appendChild(el("span", "chip " + (tone[module.state] || "neutral"),
+      module.state.charAt(0).toUpperCase() + module.state.slice(1)));
     catalog.appendChild(box);
   }
 </script>

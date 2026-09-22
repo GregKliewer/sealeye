@@ -132,7 +132,8 @@ modules:
   # deploy something smaller and call it done.
   #
   # Their descriptions, when to choose them and what their inputs mean are in
-  # prompts/module-catalog.yaml, where availability: planned is what marks them.
+  # prompts/module-catalog.yaml, where availability says whether a module is
+  # available, planned or requested.
 
   - id: data_relational          # a managed relational database your app connects to
     enabled: false

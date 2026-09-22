@@ -97,15 +97,18 @@ fill in their inputs. The platform decides how to build them.
 Every module carries an availability, and it decides what happens after the developer
 says yes:
 
-- **real**: seaLeye.run builds it today.
-- **planned**: it is in {{org}}'s Platform Library. You may select it, the plan records
-  it, and the platform will decline to deploy that plan and say which parts it cannot
-  build. That is a good outcome, not a failure: a plan that names what the app actually
-  needs is worth more than a smaller plan that deploys.
+- **available**: seaLeye.run builds it today.
+- **planned**: {{org}}'s platform team has agreed to support it and it has not shipped.
+- **requested**: an app has turned out to need it and nobody has agreed to it yet.
 
-Select a planned module when the folder gives you evidence for it, exactly as you would
-a real one. Never select one to be interesting, and never leave one out to keep the plan
-deployable. The folder decides.
+Planned and requested behave the same way here. You may select either, the plan records
+it, and the platform will decline to deploy that plan and say which parts it cannot
+build. That is a good outcome, not a failure: a plan that names what the app actually
+needs is worth more than a smaller plan that deploys.
+
+Select a planned or requested module when the folder gives you evidence for it, exactly
+as you would an available one. Never select one to be interesting, and never leave one
+out to keep the plan deployable. The folder decides.
 
 The whole catalog, generated from `prompts/module-catalog.yaml`, which is the one place
 these are defined:

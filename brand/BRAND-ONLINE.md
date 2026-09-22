@@ -74,10 +74,15 @@ full on hover. A right-aligned actions column with two ghost buttons per row, "P
 "Destroy", both inert; the row already expands to the decision card on click, and that stays.
 
 The Catalog becomes a two-column list of cards, not two big panels: each module is a card with
-the id in mono bold, the line in sans, and a chip top right reading "Available" (phosphor) or
-"Platform Library" (amber). The Platform Library chip is the visual link to the refusal message
-in the terminal, so the panel that says "waiting on 5 catalog modules" and the list of what is
-waiting use the same word.
+the id in mono bold, the line in sans, and a chip top right carrying the module's state:
+**Available** (phosphor), **Planned** (amber), **Requested** (neutral).
+
+Not "Platform Library", which this file said in its first draft. Everything in the Catalog is in
+the Platform Library, the available ones included, so that chip would be naming the panel rather
+than the module, and it would read as though the available ones had come from somewhere else.
+The three state words are the ones the catalog file, the plan, the decision card and the
+terminal all use, so the console and the terminal say the same thing about the same module. The
+reasoning is in DESIGN.md.
 
 ### 5. The header and the wordmark
 

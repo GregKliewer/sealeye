@@ -8,11 +8,15 @@
 # because the developer sees them. No sizes, counts or capacity numbers anywhere in this
 # file: profiles choose patterns, and capacity is set by a load test.
 #
-# availability says what the platform can do with a module, and it is the whole of the
-# honesty in this file:
-#   real     the platform deploys it today
-#   planned  it is in the library, the interview may select it and the plan records it,
-#            and the platform refuses to deploy it rather than pretend it did
+# availability says where a module has got to, and it is the whole of the honesty in
+# this file:
+#   available  the platform deploys it today
+#   planned    your platform team has agreed to support it and it has not shipped. The
+#              interview may select it and the plan records it, and the platform refuses
+#              to deploy that plan rather than pretend it did
+#   requested  an app has turned out to need it and nobody has agreed to it yet. It
+#              behaves like planned: recorded, selectable, not deployed. The difference
+#              is whose decision it is waiting on
 #
 # short_line is the same module in a few words, for the refusal, where a list of them
 # has to be read at a glance. "line" is the sentence the card and the plan file use.
@@ -26,7 +30,7 @@ catalogVersion: "0.3"
 
 modules:
   - id: static_site_edge
-    availability: real
+    availability: available
     role: core
     line: >-
       Serves your HTML, CSS, images and other files straight to visitors over HTTPS.
@@ -56,7 +60,7 @@ modules:
         line: Where your images and other assets live.
 
   - id: http_api_serverless
-    availability: real
+    availability: available
     role: core
     line: >-
       Runs your code on demand behind an HTTPS endpoint. It starts when a request
@@ -87,7 +91,7 @@ modules:
         line: What causes your app to run.
 
   - id: observability_basic
-    availability: real
+    availability: available
     role: shared
     always_enabled: true
     line: >-
@@ -110,7 +114,7 @@ modules:
         # compose.js maps this to the RetentionDays stack parameter.
 
   - id: config_basic
-    availability: real
+    availability: available
     role: optional
     line: >-
       Passes the settings your app reads from its environment through to it when it
@@ -420,7 +424,7 @@ modules:
 # a plan is a thing to be honest about rather than a thing to quietly ignore.
 profiles:
   - id: poc
-    availability: real
+    availability: available
     line: >-
       Trying something out. Cheap to run, quick to throw away, nothing kept warm.
   - id: dev

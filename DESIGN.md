@@ -31,3 +31,40 @@ image that no longer exists, so the variant was written clean.
 **If the dashboard is ever shown beside the CLI**, the two wordmarks differ only in the
 last word, which is the point: same product, two surfaces, and the address is how you
 tell which one you are in.
+
+## The Catalog chip says planned, not Platform Library
+
+Decided Mon Sept 22, 2026. It changes `brand/BRAND-ONLINE.md` section 4, which said
+"Platform Library" in its first draft.
+
+Everything in the Catalog on seaLeye.online is in the Platform Library, including the
+modules the platform builds today. A chip reading "Platform Library" on only some of the
+cards therefore names the panel rather than the module, and invites the reader to think
+the available ones came from somewhere else. It is also wrong about where things are
+heading: once the initial install is done, everything in the library is built, and the
+only modules carrying a chip at all are the new ones an app has turned out to need.
+
+`planned` is what the plan file, the decision card and the terminal's `(planned)` marks
+already say, so the console and the terminal describe a module the same way. The
+terminal's refusal still names the Platform Library in its closing sentence, which is
+the right place for it: there it is saying where the modules come from, which is a
+sentence about provenance rather than a label on a card.
+
+**Three states, one word each.** A module an app needs moves through more than one, and
+the words are now the same everywhere:
+
+- **available**: the platform deploys it today.
+- **planned**: the platform team has agreed to support it and it has not shipped.
+- **requested**: an app has turned out to need it and nobody has agreed to it yet. The
+  platform team can still say no.
+
+The difference between planned and requested is whose decision it is waiting on, and
+nothing else: both are recorded in a plan, both are marked on the card, and both make
+the platform decline to deploy rather than build something smaller and report success.
+
+`availability: real` in the catalog file became `available` for the same reason the chip
+changed. "Real" described what the executor could do; "available" describes where the
+module has got to, which is the thing everyone reading the page or the card is actually
+asking about. Nothing is `requested` today. The state exists because the demo is asked
+what happens when an app needs something nobody has agreed to yet, and the honest answer
+is a word rather than a shrug.
