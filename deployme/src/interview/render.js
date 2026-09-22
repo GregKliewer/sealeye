@@ -14,7 +14,7 @@ import YAML from "yaml";
 
 import { c } from "../brand.js";
 import { normalizeProfile } from "../schema.js";
-import { loadCatalog, moduleEntry, profileEntry } from "../catalog.js";
+import { loadCatalog, moduleEntry, profileEntry, patternsFor } from "../catalog.js";
 import { repoRoot } from "../executor/env.js";
 
 const PLAN_FILE = "DEPLOYMENT_PLAN.md";
@@ -48,17 +48,19 @@ const disabledModules = plan => (plan.modules || []).filter(m => m.enabled === f
 const moduleById = (plan, id) => (plan.modules || []).find(m => m.id === id);
 const isEnabled = (plan, id) => enabledModules(plan).some(m => m.id === id);
 
+const CORE_MODULES = ["static_site_edge", "http_api_serverless", "compute_container"];
+
 function coreModule(plan) {
-  return enabledModules(plan).find(
-    m => m.id === "static_site_edge" || m.id === "http_api_serverless"
-  );
+  return enabledModules(plan).find(m => CORE_MODULES.includes(m.id));
 }
 
 /** "Static Website" or "Node.js API", from the plan rather than from a guess. */
 function appTypeLabel(plan) {
   const core = coreModule(plan);
-  if (!core) return plan.app?.type === "static-site" ? "Static Website" : "Application";
+  if (!core) return plan.app?.type === "static-site" ? "Static Website" : "service";
   if (core.id === "static_site_edge") return "Static Website";
+  if (core.id === "compute_container") return "service that runs continuously";
+
   const runtime = core.inputs?.runtime;
   return runtime === "python" ? "Python API" : "Node.js API";
 }
@@ -235,6 +237,10 @@ const CARD_INDENT = 4;
 const CARD_MAX_WIDTH = 96;   // a framed card stops widening past this, whatever the window
 const CARD_ORDER = ["static_site_edge", "http_api_serverless", "observability_basic", "config_basic", "domain_public"];
 
+// What runs the app comes first, whatever else the plan asks for: a module the catalog
+// order does not know about is a planned one, and it belongs after the ones that build.
+const cardRank = id => (CARD_ORDER.indexOf(id) === -1 ? CARD_ORDER.length : CARD_ORDER.indexOf(id));
+
 /** Rows that fit the room, broken on word boundaries. */
 function wrapText(text, room) {
   const rows = [];
@@ -331,35 +337,17 @@ function cardContent(plan, catalog) {
   // A module's description never changes, so the row also carries its inputs: a
   // retention or an entry point that moved is a change to this environment even when
   // the sentence describing the module is the same.
-  const rows = enabledModules(plan)
+  // A module the platform does not build yet stays in the list and says so, so the
+  // developer meets it here, on the card, and not after they have said yes.
+  const running = enabledModules(plan)
     .slice()
-    .sort((a, b) => CARD_ORDER.indexOf(a.id) - CARD_ORDER.indexOf(b.id))
+    .sort((a, b) => cardRank(a.id) - cardRank(b.id))
     .map(m => ({
       key: `module:${m.id}`,
       id: m.id,
-      text: shortLine(entryFor(m.id).line),
-      signature: stableJson(m.inputs || {}),
-      buildable: buildable(m.id)
+      text: `${shortLine(entryFor(m.id).line)}${buildable(m.id) ? "" : " (planned)"}`,
+      signature: stableJson(m.inputs || {})
     }));
-
-  const running = rows.filter(row => row.buildable);
-
-  // What the plan asks for and this version does not build. It is on the card because
-  // the developer should meet it here, before they say yes, and not afterwards.
-  const planned = rows.filter(row => !row.buildable);
-
-  const askedProfile = normalizeProfile(plan.profile);
-  const profile = profileEntry(askedProfile, catalog);
-
-  if (profile && profile.availability !== "real") {
-    planned.push({
-      key: `profile:${askedProfile}`,
-      id: `the ${askedProfile} profile`,
-      // Not shortened: a module's first sentence describes it, and a profile's first
-      // sentence is only its framing. The patterns are what follows.
-      text: String(profile.line || "").replace(/\s+/g, " ").trim()
-    });
-  }
 
   const variables = Object.keys(moduleById(plan, "config_basic")?.inputs?.variables || {});
   if (isEnabled(plan, "config_basic") && variables.length) {
@@ -388,7 +376,7 @@ function cardContent(plan, catalog) {
     });
   }
 
-  return { app, running, planned, back };
+  return { app, running, back };
 }
 
 /**
@@ -404,14 +392,16 @@ function previousContent(previous, catalog) {
   if (!ids.length) return null;
 
   const entryFor = id => moduleEntry(id, catalog) || {};
-  const rows = ids
-    .slice()
-    .sort((a, b) => CARD_ORDER.indexOf(a) - CARD_ORDER.indexOf(b))
-    .map(id => ({ key: `module:${id}`, id, text: shortLine(entryFor(id).line), buildable: entryFor(id).availability === "real" }));
 
   return {
-    running: rows.filter(row => row.buildable),
-    planned: rows.filter(row => !row.buildable),
+    running: ids
+      .slice()
+      .sort((a, b) => cardRank(a) - cardRank(b))
+      .map(id => {
+        const entry = entryFor(id);
+        const planned = entry.availability && entry.availability !== "real" ? " (planned)" : "";
+        return { key: `module:${id}`, id, text: `${shortLine(entry.line)}${planned}` };
+      }),
     partial: true
   };
 }
@@ -428,12 +418,6 @@ const NOTHING_CHANGES = {
   key: "nothing",
   text: "Nothing changes. Your environment already matches this plan; deploying updates your code only.",
   values: ["Nothing changes."]
-};
-
-const DECLINED_NOTE = {
-  key: "declined",
-  text: "A plan that asks for these is a plan seaLeye.run will not deploy. Your plan is still valid, and it is still yours to keep.",
-  tone: "dim"
 };
 
 const PARTIAL_NOTE = {
@@ -568,19 +552,12 @@ export function decisionCard(plan, {
   const settings = !before?.partial;
   const app = markRows(next.app, before?.app, { settings });
   const running = markRows(next.running, before?.running, { settings });
-  const planned = markRows(next.planned, before?.planned, { settings });
   const back = markRows(next.back, before?.back, { settings });
-
-  // A plan that asks for something this version does not build is not deployed in
-  // part: it is declined whole. So the card stops saying what will be provisioned and
-  // starts saying what the plan asks for, because nothing here is going to happen yet.
-  const declined = planned.length > 0;
 
   // A card that says nothing changes is the strongest thing a second run can say, so
   // it is only said when it is true of every line, not only of the modules.
   const nothingChanges =
-    before && !before.partial &&
-    [...app, ...running, ...planned, ...back].every(row => row.mark === "unchanged");
+    before && !before.partial && [...app, ...running, ...back].every(row => row.mark === "unchanged");
 
   const middle = nothingChanges
     ? [NOTHING_CHANGES]
@@ -592,28 +569,28 @@ export function decisionCard(plan, {
   // to line up, or the eye reads the indent as meaning something.
   const markWidth = Math.max(
     0,
-    ...[...app, ...middle, ...planned, ...back].map(row => (row.mark ? MARKS[row.mark].word.length : 0))
+    ...[...app, ...middle, ...back].map(row => (row.mark ? MARKS[row.mark].word.length : 0))
   );
 
-  const middleHeading = declined
-    ? "What this plan asks for:"
-    : before
-      ? "We will change this environment:"
-      : "We will provision this infrastructure to run it:";
+  // A profile is a set of patterns, so a card that names one says what it chose. The
+  // words are the catalog's, and there is not a number among them.
+  const patterns = normalizeProfile(plan.profile) === "poc"
+    ? []
+    : patternsFor(plan, catalog).map(p => ({ key: `pattern:${p.id}`, id: p.id, text: p.line }));
 
   const groups = [
     { heading: "Your app:", rows: renderRows(app, room, markWidth) },
-    { heading: middleHeading, rows: renderRows(middle, room, markWidth) },
-    ...(declined
+    {
+      heading: before ? "We will change this environment:" : "We will provision this infrastructure to run it:",
+      rows: renderRows(middle, room, markWidth)
+    },
+    ...(patterns.length
       ? [{
-          heading: "seaLeye.run does not build these:",
-          rows: renderRows([...planned, DECLINED_NOTE], room, markWidth)
+          heading: `Patterns the ${normalizeProfile(plan.profile)} profile applies:`,
+          rows: renderRows(patterns, room, markWidth)
         }]
       : []),
-    {
-      heading: declined ? "What it would give you:" : "You will get back:",
-      rows: renderRows(back, room, markWidth)
-    }
+    { heading: "You will get back:", rows: renderRows(back, room, markWidth) }
   ];
 
   return frame ? framedCard(groups, boxWidth, FRAMES_CHARS[charset] || FRAMES_CHARS.ascii) : bareCard(groups);

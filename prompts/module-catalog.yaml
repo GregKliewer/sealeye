@@ -14,6 +14,9 @@
 #   planned  it is in the library, the interview may select it and the plan records it,
 #            and the platform refuses to deploy it rather than pretend it did
 #
+# short_line is the same module in a few words, for the refusal, where a list of them
+# has to be read at a glance. "line" is the sentence the card and the plan file use.
+#
 # Every "when" and every signal describes code or configuration, never prose. A README
 # says what an app is for, and what an app is for is not a thing the platform can
 # deploy. Selecting a module because a sentence mentioned the idea of it is how a plan
@@ -132,6 +135,7 @@ modules:
 
   - id: domain_public
     availability: planned
+    short_line: "a custom domain you already own"
     role: optional
     never_select: true
     line: >-
@@ -157,6 +161,7 @@ modules:
 
   - id: data_relational
     availability: planned
+    short_line: "a managed relational database your app connects to"
     role: optional
     line: >-
       A managed relational database your app connects to, kept patched and backed up
@@ -184,6 +189,7 @@ modules:
 
   - id: data_cache
     availability: planned
+    short_line: "a fast in-memory cache"
     role: optional
     line: >-
       A fast in-memory cache to put in front of work your app would otherwise repeat.
@@ -207,6 +213,7 @@ modules:
 
   - id: events_stream
     availability: planned
+    short_line: "a stream your services publish to and read from"
     role: optional
     line: >-
       A stream your services publish events to and read events from, in the order they
@@ -230,6 +237,7 @@ modules:
 
   - id: queue_basic
     availability: planned
+    short_line: "a work queue between services"
     role: optional
     line: >-
       A work queue between your services, so slow work does not keep a request waiting.
@@ -255,6 +263,7 @@ modules:
 
   - id: secrets_basic
     availability: planned
+    short_line: "secrets your app reads at runtime, never stored in code"
     role: optional
     line: >-
       Secrets your app reads while it runs, kept out of your code and out of your plan.
@@ -278,6 +287,7 @@ modules:
 
   - id: identity_service
     availability: planned
+    short_line: "sign-in and tokens for your app's users"
     role: optional
     line: >-
       Sign-in and tokens for the people who use your app.
@@ -300,6 +310,7 @@ modules:
 
   - id: network_private
     availability: planned
+    short_line: "your app is not reachable from the public internet"
     role: optional
     line: >-
       Your app is reachable from inside your organization only, and not from the public
@@ -327,6 +338,7 @@ modules:
 
   - id: compute_container
     availability: planned
+    short_line: "a service that runs continuously rather than on demand"
     role: optional
     line: >-
       A service that runs continuously, for an app that cannot start fresh on every
@@ -350,6 +362,7 @@ modules:
 
   - id: scheduled_job
     availability: planned
+    short_line: "something that runs on a schedule"
     role: optional
     line: >-
       Work that runs on a schedule rather than when somebody calls your app.
@@ -374,6 +387,7 @@ modules:
 
   - id: storage_object
     availability: planned
+    short_line: "files your app stores and reads, distinct from serving a site"
     role: optional
     line: >-
       Files your app stores and reads back, separate from the files it serves as a site.

@@ -14,9 +14,14 @@ import {
 } from "../lib/run.js";
 import { banner, step, ask, answer, c, product, spinner, stopSpinner, animations } from "../src/brand.js";
 import { safeName } from "../src/executor/compose.js";
+import { notDeployable, refusalClosing } from "../src/catalog.js";
 import { runInterview, resolveApiKey } from "../src/interview/loop.js";
 import { writeInterviewFiles, decisionCard } from "../src/interview/render.js";
 import { plainValidationErrors } from "../src/interview/explain.js";
+
+// Statuses that are history rather than something you can still open: one was torn
+// down, the other was never built because the platform said so.
+const PAST = new Set(["destroyed", "planned"]);
 
 // --json is machine output: no banner, no colour, nothing but the object.
 const jsonOut = process.argv.includes("--json");
@@ -284,6 +289,25 @@ async function main() {
         say(`Wrote ${written.configPath}`);
       }
 
+      // One line, above the boundary, so nobody says yes to a plan expecting a URL.
+      const declined = notDeployable(submission.plan);
+
+      if (declined.modules.length || declined.profile) {
+        const count = declined.modules.length;
+        const asks = [
+          count ? `${count} of these modules ${count === 1 ? "is" : "are"} not in the catalog yet` : null,
+          declined.profile ? `the ${declined.profile.id} profile is not one this version builds` : null
+        ].filter(Boolean).join(", and ");
+
+        // Amber, like every other line that tells the developer something is not as
+        // they might assume. What follows it is reassurance, so it stays dim.
+        console.log("");
+        console.log(
+          `  ${c.prompt(`${asks[0].toUpperCase()}${asks.slice(1)}.`)} ` +
+            c.dim("seaLeye.run will save this plan and tell you what would make it deployable.")
+        );
+      }
+
       console.log("");
       const reply = await askLine(rl, "Deploy this? [y/N]");
 
@@ -388,7 +412,7 @@ async function main() {
 
     // Torn-down environments are history, not something you can still open.
     if (perDeployment) {
-      const shown = all ? everything : everything.filter(d => d.status !== "destroyed");
+      const shown = all ? everything : everything.filter(d => !PAST.has(d.status));
       const hidden = everything.length - shown.length;
 
       if (jsonOut) {
@@ -407,7 +431,7 @@ async function main() {
     }
 
     const environments = groupEnvironments(everything);
-    const shown = all ? environments : environments.filter(env => env.rawStatus !== "destroyed");
+    const shown = all ? environments : environments.filter(env => !PAST.has(env.rawStatus));
     const hidden = environments.length - shown.length;
 
     if (jsonOut) {
@@ -686,7 +710,7 @@ async function resolveTarget({ apiBaseUrl, target }) {
   if (byId) return { deploymentId: target, label: target };
 
   const environments = groupEnvironments(everything);
-  const live = environments.filter(env => env.rawStatus !== "destroyed");
+  const live = environments.filter(env => !PAST.has(env.rawStatus));
   const named = env => env.stackName === target || env.stackName === `sealeye-${target}` || env.app === target;
 
   const matches = live.filter(named);
@@ -706,8 +730,16 @@ async function resolveTarget({ apiBaseUrl, target }) {
     return null;
   }
 
-  if (environments.some(named)) {
-    say(`${target} has already been torn down. ${product.command} list --all shows it.`);
+  const known = environments.find(named);
+
+  if (known) {
+    // A plan the platform declined never had anything built for it, so "torn down" is
+    // the wrong word and the developer would be right to wonder what was deleted.
+    say(
+      known.rawStatus === "planned"
+        ? `Nothing was built for ${target}, so there is nothing to tear down. ${product.command} list --all shows the plan.`
+        : `${target} has already been torn down. ${product.command} list --all shows it.`
+    );
     return null;
   }
 
@@ -778,32 +810,59 @@ async function runDeploy({ apiBaseUrl, backend, plan, appPath, follow = true }) 
   return result;
 }
 
+// Counts a developer reads are words, not digits, until there are too many to read.
+const COUNT_WORDS = ["no", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"];
+const countWord = n => COUNT_WORDS[n] || String(n);
+
 /**
  * What the platform will not build, in the developer's language.
  *
- * It names what is missing, says the plan is good and where it is, and stops. No
- * mechanism, no pitch, nothing about when: a developer who wants to know what it would
- * take can ask a person, and a line promising a date is a line somebody has to keep.
+ * It names what is missing, says the plan is valid and where it is, and closes with the
+ * paragraph in prompts/refusal.md, which is fixed text so the words can change without
+ * anyone touching this file. No mechanism, no date, nothing that reads as a pitch.
  */
 function printRefusal(details = {}) {
+  const modules = details.modules || [];
   const rows = [
-    ...(details.modules || []).map(m => ({ id: m.id, line: m.line })),
+    ...modules.map(m => ({ id: m.id, line: m.line })),
     ...(details.profile ? [{ id: `the ${details.profile.id} profile`, line: details.profile.line }] : [])
   ];
 
   const width = Math.max(...rows.map(r => r.id.length));
+  const count = countWord(modules.length);
+  const noun = modules.length === 1 ? "module is" : "modules are";
 
   console.log("");
-  console.log(c.fail("seaLeye.run does not build everything this plan asks for."));
+  console.log(c.fail("seaLeye.run cannot build this environment yet."));
   console.log("");
+  console.log(
+    c.dim(`  Your plan is valid and saved in DEPLOYMENT_PLAN.md. ${count} of its ${noun} not`)
+  );
+  console.log(c.dim("  in the seaLeye catalog:"));
+  console.log("");
+
+  // A long line wraps under its own id rather than running off the terminal.
+  const room = Math.max(24, (process.stdout.columns || 80) - width - 8);
+  const hang = " ".repeat(width + 6);
 
   for (const row of rows) {
-    console.log(`  ${c.fg(row.id.padEnd(width))}  ${c.dim(row.line)}`);
+    const words = row.line.split(" ");
+    const wrapped = [];
+
+    for (const word of words) {
+      const last = wrapped[wrapped.length - 1];
+      if (last && `${last} ${word}`.length <= room) wrapped[wrapped.length - 1] = `${last} ${word}`;
+      else wrapped.push(word);
+    }
+
+    wrapped.forEach((line, i) => {
+      console.log(i === 0 ? `    ${c.fg(row.id.padEnd(width))}  ${c.dim(line)}` : `${hang}${c.dim(line)}`);
+    });
   }
 
   console.log("");
-  say("Your plan is valid and it is saved in your folder.");
-  say("Nothing in your app has to change for it to deploy, and nothing has been created.");
+  for (const line of refusalClosing().split("\n")) console.log(c.dim(`  ${line}`));
+  console.log("");
 }
 
 // Follow a deployment to its real end state, redrawing twice a second.

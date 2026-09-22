@@ -94,21 +94,6 @@ app.post("/deployments", (req, res) => {
     });
   }
 
-  // A plan can be valid and still ask for things this version does not build. The
-  // platform says which, and deploys nothing: half of what a plan asks for, reported as
-  // success, is the failure this whole contract exists to avoid.
-  const missing = notDeployable(plan);
-
-  if (missing.modules.length || missing.profile) {
-    return res.status(422).json({
-      error: {
-        code: missing.modules.length ? "PLANNED_MODULES" : "PLANNED_PROFILE",
-        message: "this version of the platform does not build everything this plan asks for",
-        details: missing
-      }
-    });
-  }
-
   // Enabled modules and the template each one maps to (null for the modules that
   // contribute parameters rather than a template of their own).
   const mapping = backendMappings[backend];
@@ -120,6 +105,38 @@ app.post("/deployments", (req, res) => {
     }));
 
   const deploymentId = `dep_${crypto.randomBytes(6).toString("hex")}`;
+
+  // A plan can be valid and still ask for things this version does not build. Nothing
+  // is created in AWS, and the record is still written: what a developer asked for is
+  // part of the history of their app, and a plan that was refused is a thing they
+  // should be able to find again.
+  const missing = notDeployable(plan);
+
+  if (missing.modules.length || missing.profile) {
+    const planned = putDeployment({
+      deploymentId,
+      status: "planned",
+      backend,
+      planVersion: plan.planVersion,
+      app: plan.app,
+      appPath: resolvedAppPath,
+      resolvedModules,
+      plan,
+      notDeployable: missing,
+      outputs: {},
+      failureReason: null,
+      startedAt: new Date().toISOString(),
+      finishedAt: new Date().toISOString()
+    });
+
+    return res.status(422).json({
+      error: {
+        code: missing.modules.length ? "PLANNED_MODULES" : "PLANNED_PROFILE",
+        message: "this version of the platform does not build everything this plan asks for",
+        details: { ...missing, deploymentId: planned.deploymentId }
+      }
+    });
+  }
 
   const record = putDeployment({
     deploymentId,

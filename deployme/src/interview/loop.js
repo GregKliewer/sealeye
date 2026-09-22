@@ -12,6 +12,7 @@ import Anthropic from "@anthropic-ai/sdk";
 
 import { validatePlan } from "../../lib/run.js";
 import { product, spinner } from "../brand.js";
+import { catalogForPrompt, orgName } from "../catalog.js";
 import { repoRoot, loadEnv, loadUserConfig } from "../executor/env.js";
 import { submitPlanTool, splitSubmission } from "./schema.js";
 import { listFilesTool, readFileTool, runTool, folderDigest } from "./tools.js";
@@ -49,9 +50,18 @@ export function resolveApiKey() {
   return process.env.ANTHROPIC_API_KEY || null;
 }
 
-/** The system prompt, read relative to the CLI, never to the developer's folder. */
+/**
+ * The system prompt, read relative to the CLI, never to the developer's folder.
+ *
+ * The catalog is substituted in rather than written out twice: a module described in
+ * two places eventually says two different things, and the one the developer hears
+ * would be the copy nobody updated. The organization's name comes from the developer's
+ * own config, because whose platform library this is was never ours to hard code.
+ */
 export function loadSystemPrompt() {
-  return fs.readFileSync(path.join(repoRoot, "prompts", "interview-system.md"), "utf8");
+  const text = fs.readFileSync(path.join(repoRoot, "prompts", "interview-system.md"), "utf8");
+
+  return text.split("{{catalog}}").join(catalogForPrompt()).split("{{org}}").join(orgName());
 }
 
 /** The plan the live environment was built from, for the first message. */
