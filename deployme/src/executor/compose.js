@@ -5,10 +5,17 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { backendMappings } from "../mappings.js";
-import { repoRoot, loadEnv, requireEnv } from "./env.js";
+import { repoRoot, loadEnv, requireEnv, readEnvFile } from "./env.js";
 
 const DEFAULT_RETENTION_DAYS = 30;
 const DEFAULT_ENTRY_POINT = "index.js";
+
+// The platform decides the port and tells the app what it is, so it is never a setting
+// the plan gets to pass.
+const PLATFORM_OWNED = new Set(["PORT"]);
+const CONFIG_PARAMETER_MARKER = "# sealeye:config-parameters";
+const CONFIG_VARIABLE_MARKER = "# sealeye:config-variables";
+const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 // The two core modules, and the deployment kind each one produces.
 const CORE_MODULE_KINDS = {
@@ -69,11 +76,91 @@ function entryPointFor(plan) {
 }
 
 /**
+ * The settings the plan asks the platform to pass to the app, with their values.
+ *
+ * A value comes from the developer's own `.env` when they have one, because that is
+ * where a developer already keeps these, and from the plan otherwise, where the
+ * interview left a placeholder for them to fill in. The file is read, never written,
+ * and never applied to the platform's own environment.
+ */
+function configSettings(plan, appPath) {
+  const module = enabledModules(plan).find(m => m.id === "config_basic");
+  const wanted = module?.inputs?.variables || {};
+  const fromFolder = appPath ? readEnvFile(path.join(appPath, ".env")) : {};
+
+  return Object.keys(wanted)
+    .filter(name => !PLATFORM_OWNED.has(name))
+    .map(name => {
+      if (!ENV_NAME.test(name)) {
+        throw new Error(
+          `config_basic asks for a setting called "${name}", which is not a name an environment variable can have`
+        );
+      }
+
+      const mine = Object.prototype.hasOwnProperty.call(fromFolder, name);
+
+      return {
+        name,
+        value: String((mine ? fromFolder[name] : wanted[name]) ?? ""),
+        source: mine ? ".env" : "plan"
+      };
+    });
+}
+
+/**
+ * The template this deployment actually gets: the module's own file, with one parameter
+ * and one environment variable written in per setting.
+ *
+ * CloudFormation cannot take an environment variable's *name* from a parameter, so the
+ * names are rendered into a copy of the template and only the values travel as
+ * parameters, where NoEcho keeps them out of the console, the stack events and
+ * `get-template`. With no settings the module's own file is used untouched.
+ */
+function renderTemplate(templatePath, settings, deploymentId) {
+  if (!settings.length) return templatePath;
+
+  const base = fs.readFileSync(templatePath, "utf8");
+
+  for (const marker of [CONFIG_PARAMETER_MARKER, CONFIG_VARIABLE_MARKER]) {
+    if (!base.includes(marker)) {
+      throw new Error(`${templatePath} has no ${marker} line, so there is nowhere to put the plan's settings`);
+    }
+  }
+
+  const parameters = settings
+    .map((_, i) => [`  ConfigValue${i + 1}:`, "    Type: String", '    Default: ""', "    NoEcho: true"].join("\n"))
+    .join("\n");
+
+  const variables = settings
+    .map((setting, i) => `          ${setting.name}: !Ref ConfigValue${i + 1}`)
+    .join("\n");
+
+  const rendered = base
+    .replace(new RegExp(`^[ \\t]*${CONFIG_PARAMETER_MARKER}$`, "m"), parameters)
+    .replace(new RegExp(`^[ \\t]*${CONFIG_VARIABLE_MARKER}$`, "m"), variables);
+
+  const out = path.join(repoRoot, "dist", `${deploymentId}.template.yaml`);
+  fs.mkdirSync(path.dirname(out), { recursive: true });
+  fs.writeFileSync(out, rendered);
+
+  return out;
+}
+
+/** The parameters with every value the developer owns taken back out. */
+function withoutSecrets(parameters) {
+  return Object.fromEntries(
+    Object.entries(parameters).map(([key, value]) => [key, /^ConfigValue\d+$/.test(key) ? "(redacted)" : value])
+  );
+}
+
+/**
  * @param {object} plan          a plan that has already passed planV02Schema validation
  * @param {string} deploymentId  required for kind "api" (it names the artifact)
- * @returns {{kind: "api"|"static", templatePath: string, stackName: string, parameters: object, entryPoint?: string}}
+ * @param {string} [appPath]      the developer's folder, read for its .env only
+ * @returns {{kind: "api"|"static", templatePath: string, stackName: string, parameters: object,
+ *            safeParameters: object, settings: {name: string, source: string}[], entryPoint?: string}}
  */
-export function compose(plan, deploymentId) {
+export function compose(plan, deploymentId, appPath) {
   loadEnv();
 
   const appName = safeName(plan?.app?.name);
@@ -106,9 +193,12 @@ export function compose(plan, deploymentId) {
 
   let parameters;
   let entryPoint;
+  let settings = [];
+  let resolvedTemplate = templatePath;
 
   if (kind === "api") {
     entryPoint = entryPointFor(plan);
+    settings = configSettings(plan, appPath);
 
     if (!deploymentId) {
       throw new Error("deploymentId is required to compose an http_api_serverless deployment");
@@ -128,6 +218,10 @@ export function compose(plan, deploymentId) {
       AdapterLayerVersion: adapterLayerVersion,
       RetentionDays: retentionDays(plan)
     };
+
+    for (const [i, setting] of settings.entries()) parameters[`ConfigValue${i + 1}`] = setting.value;
+
+    resolvedTemplate = renderTemplate(templatePath, settings, deploymentId);
   } else {
     // static_site_edge takes AppName only; the files are synced after the stack exists.
     parameters = { AppName: appName };
@@ -135,9 +229,13 @@ export function compose(plan, deploymentId) {
 
   return {
     kind,
-    templatePath,
+    templatePath: resolvedTemplate,
     stackName: stackNameFor(appName),
     parameters,
+    // What may be written down: the record is a file on the developer's machine and an
+    // API response, and neither is a place for their values.
+    safeParameters: withoutSecrets(parameters),
+    settings: settings.map(({ name, source }) => ({ name, source })),
     ...(entryPoint ? { entryPoint } : {})
   };
 }

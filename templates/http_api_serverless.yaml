@@ -12,6 +12,10 @@ Parameters:
     Default: 30
   AdapterLayerVersion:
     Type: Number
+  # One parameter per setting the plan asks for is written in below, each NoEcho, so the
+  # values never reach this file on disk, the stack events or the console. The template
+  # deploys unchanged when the plan asks for none.
+  # sealeye:config-parameters
 Resources:
   LogGroup:
     Type: AWS::Logs::LogGroup
@@ -51,6 +55,9 @@ Resources:
         Variables:
           AWS_LAMBDA_EXEC_WRAPPER: /opt/bootstrap
           PORT: "8080"
+          # Each setting the plan asks for is written in below, pointing at its own
+          # parameter. PORT is the platform's and is never one of them.
+          # sealeye:config-variables
   HttpApi:
     Type: AWS::ApiGatewayV2::Api
     Properties:

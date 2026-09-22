@@ -40,12 +40,15 @@ export async function startDeployment(record, plan, appPath) {
   try {
     set("packaging", { step: "Reading your plan and picking the AWS template" });
 
-    composed = compose(plan, record.deploymentId);
+    composed = compose(plan, record.deploymentId, appPath);
     Object.assign(record, {
       kind: composed.kind,
       stackName: composed.stackName,
       templatePath: composed.templatePath,
-      parameters: composed.parameters
+      // The values belong to the developer; the record keeps the names and where they
+      // came from, and nothing else.
+      parameters: composed.safeParameters,
+      settings: composed.settings
     });
     putDeployment(record);
 

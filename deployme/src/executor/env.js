@@ -12,12 +12,17 @@ let loaded = false;
 let userConfigLoaded = false;
 
 /**
- * Apply a KEY=value file to process.env. Lines may be `KEY=value` or the
- * shell-sourceable `export KEY=value`. A variable already set in the real
- * environment always wins, so `DEPLOYME_BUCKET=x node ...` overrides the file.
+ * Read a KEY=value file into a plain object. Lines may be `KEY=value` or the
+ * shell-sourceable `export KEY=value`. Nothing is applied to process.env: the
+ * developer's own .env is read for their deployment, and putting it into the
+ * platform's environment would be a way to leak it somewhere else.
+ *
+ * @returns {Record<string, string>} empty when the file is not there
  */
-function applyEnvFile(envPath) {
-  if (!fs.existsSync(envPath)) return process.env;
+export function readEnvFile(envPath) {
+  if (!fs.existsSync(envPath)) return {};
+
+  const values = {};
 
   for (const raw of fs.readFileSync(envPath, "utf8").split("\n")) {
     const line = raw.trim();
@@ -26,7 +31,6 @@ function applyEnvFile(envPath) {
     const match = /^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(line);
     if (!match) continue;
 
-    const key = match[1];
     let value = match[2].trim();
     if (
       (value.startsWith('"') && value.endsWith('"')) ||
@@ -35,6 +39,18 @@ function applyEnvFile(envPath) {
       value = value.slice(1, -1);
     }
 
+    values[match[1]] = value;
+  }
+
+  return values;
+}
+
+/**
+ * Apply a KEY=value file to process.env. A variable already set in the real
+ * environment always wins, so `DEPLOYME_BUCKET=x node ...` overrides the file.
+ */
+function applyEnvFile(envPath) {
+  for (const [key, value] of Object.entries(readEnvFile(envPath))) {
     if (process.env[key] === undefined) process.env[key] = value;
   }
 

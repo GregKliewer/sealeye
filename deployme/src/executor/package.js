@@ -8,7 +8,10 @@ import { spawn } from "node:child_process";
 
 import { repoRoot, loadEnv, requireEnv } from "./env.js";
 
-const RSYNC_EXCLUDES = ["node_modules", ".git", ".do", ".github"];
+// .env is excluded deliberately: its values are passed to the function as real
+// environment variables by config_basic, so shipping the file as well would put the
+// developer's secrets inside the artifact for no gain.
+const RSYNC_EXCLUDES = ["node_modules", ".git", ".do", ".github", ".env"];
 
 /** Run a command, no shell. Resolves with stdout; rejects with stderr on a non-zero exit. */
 function run(cmd, args, opts = {}) {
@@ -118,7 +121,10 @@ export function renderRunScript(templatePath, entryPoint) {
 export function stagePaths(deploymentId) {
   return {
     stageDir: path.join(repoRoot, "dist", "stage", deploymentId),
-    zipPath: path.join(repoRoot, "dist", `${deploymentId}.zip`)
+    zipPath: path.join(repoRoot, "dist", `${deploymentId}.zip`),
+    // Written by compose() when the plan asks for settings; a copy of the module's
+    // template with their names in it.
+    templatePath: path.join(repoRoot, "dist", `${deploymentId}.template.yaml`)
   };
 }
 
@@ -128,10 +134,10 @@ export function stagePaths(deploymentId) {
  * @returns {string[]} what was removed
  */
 export function cleanStage(deploymentId) {
-  const { stageDir, zipPath } = stagePaths(deploymentId);
+  const { stageDir, zipPath, templatePath } = stagePaths(deploymentId);
   const removed = [];
 
-  for (const target of [stageDir, zipPath]) {
+  for (const target of [stageDir, zipPath, templatePath]) {
     if (!fs.existsSync(target)) continue;
     fs.rmSync(target, { recursive: true, force: true });
     removed.push(target);

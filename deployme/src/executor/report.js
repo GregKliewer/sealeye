@@ -84,6 +84,36 @@ function logs(record) {
   return lines.join("\n");
 }
 
+/**
+ * What the app was given, by name only. A report is a file the developer keeps and
+ * hands to whoever asks what this environment is, so it says which settings reached the
+ * app and says nothing at all about what they contain.
+ */
+function settings(record) {
+  const passed = record.settings || [];
+  if (!passed.length) return null;
+
+  const lines = [
+    "## Settings",
+    "",
+    "Your app was started with these settings in its environment. Their values are not in this report, not in your plan file, and not in anything seaLeye.run stores:",
+    ""
+  ];
+
+  for (const setting of passed) {
+    lines.push(
+      `- \`${setting.name}\`: value redacted, taken from ${setting.source === ".env" ? "the `.env` in your folder" : "your plan"}`
+    );
+  }
+
+  lines.push(
+    "",
+    "`PORT` is not one of them. The platform chooses the port and tells your app what it is."
+  );
+
+  return lines.join("\n");
+}
+
 function redeploy(record) {
   const what = record.kind === "static" ? "your files" : "your code";
   return [
@@ -159,10 +189,11 @@ export function renderReport(record, plan) {
     whatWasCreated(record),
     yourUrl(record),
     logs(record),
+    settings(record),
     redeploy(record),
     tearDown(record),
     assumptions(record, plan)
-  ];
+  ].filter(Boolean);   // a deployment with no settings has no Settings section
 
   return `${header.replace(/\s+$/, "")}\n\n${sections.join("\n\n")}\n`;
 }
