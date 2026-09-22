@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>seaLeye.run</title>
+<meta name="description" content="Point seaLeye.run at the app you already have and it gives you back a URL.">
+<style>
+  :root {
+    --ground: #13181D;
+    --panel: #0E1216;
+    --edge: #2A333C;
+    --fg: #D9E0E6;
+    --phosphor: #7FD8C2;
+    --amber: #E8B04B;
+    --dim: #8A96A3;
+    --mono: "JetBrains Mono", "IBM Plex Mono", Menlo, monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 48px 20px 64px;
+    background: var(--ground);
+    color: var(--fg);
+    font-family: var(--mono);
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  main { max-width: 66ch; margin: 0 auto; }
+
+  header img { width: 100%; max-width: 420px; height: auto; display: block; }
+
+  .tagline { color: var(--dim); margin: 12px 0 40px; }
+
+  p.lede { margin: 0 0 32px; }
+  p.lede .aside { color: var(--dim); }
+
+  h2 {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin: 40px 0 12px;
+  }
+
+  .block {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    background: var(--panel);
+    border: 1px solid var(--edge);
+    border-radius: 8px;
+    padding: 14px 16px;
+  }
+
+  .block code { flex: 1 1 22ch; word-break: break-all; }
+
+  /* The browser will not tell a page where a folder lives, so the path in front of the
+     folder name is the developer's to set, and it looks editable because it is. */
+  .parent {
+    font: inherit;
+    color: var(--dim);
+    background: transparent;
+    border: none;
+    border-bottom: 1px dashed var(--edge);
+    padding: 0 1px;
+    min-width: 2ch;
+  }
+  .parent:focus { outline: none; color: var(--fg); border-bottom-color: var(--phosphor); }
+  .prompt { color: var(--amber); }
+  .cmd { color: var(--fg); }
+  .folder { color: var(--phosphor); }
+
+  button {
+    font: inherit;
+    color: var(--dim);
+    background: transparent;
+    border: 1px solid var(--edge);
+    border-radius: 6px;
+    padding: 6px 12px;
+    cursor: pointer;
+  }
+  button:hover, button:focus-visible { color: var(--phosphor); border-color: var(--phosphor); }
+  button[data-copied="yes"] { color: var(--phosphor); border-color: var(--phosphor); }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--edge);
+    border-radius: 8px;
+    padding: 20px;
+  }
+
+  .picker { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .picker label { color: var(--dim); }
+  input[type="file"] { font: inherit; color: var(--dim); max-width: 100%; }
+  input[type="file"]::file-selector-button {
+    font: inherit;
+    color: var(--dim);
+    background: transparent;
+    border: 1px solid var(--edge);
+    border-radius: 6px;
+    padding: 6px 12px;
+    margin-right: 12px;
+    cursor: pointer;
+  }
+  input[type="file"]::file-selector-button:hover { color: var(--phosphor); border-color: var(--phosphor); }
+
+  .result { margin-top: 16px; }
+  .result[hidden] { display: none; }
+  .note { color: var(--dim); margin: 10px 0 0; }
+
+  ul { list-style: none; padding: 0; margin: 0; }
+  li { padding: 6px 0 6px 20px; position: relative; }
+  li::before { content: "\2713"; position: absolute; left: 0; color: var(--phosphor); }
+  li span { color: var(--dim); }
+
+  footer {
+    margin-top: 56px;
+    padding-top: 20px;
+    border-top: 1px solid var(--edge);
+    color: var(--dim);
+  }
+  a { color: var(--phosphor); }
+</style>
+</head>
+<body>
+<main>
+
+  <header>
+    <img src="sealeye-wordmark.svg" alt="seaLeye.run">
+    <p class="tagline">cd your-app &amp;&amp; sealeye init</p>
+  </header>
+
+  <p class="lede">
+    You have an app in a folder. seaLeye reads it, asks you a few questions, and gives you back a URL.
+    <span class="aside">You never need to know what a stack is. (We will tell you anyway, in the plan it writes next to your code.)</span>
+  </p>
+
+  <h2>Try it</h2>
+  <div class="block">
+    <code><span class="prompt">$</span> <span class="cmd">cd your-app &amp;&amp; sealeye init</span></code>
+    <button type="button" data-copy="cd your-app &amp;&amp; sealeye init">copy</button>
+  </div>
+
+  <h2>Start from your app</h2>
+  <div class="panel">
+    <div class="picker">
+      <label for="folder">Choose the folder your app is in:</label>
+      <input id="folder" type="file" webkitdirectory directory multiple>
+    </div>
+
+    <div class="result" id="result" hidden>
+      <div class="block">
+        <code><span class="prompt">$</span> <span class="cmd">cd <input id="parent" class="parent" value="~/" size="3" spellcheck="false" autocapitalize="off" autocorrect="off" aria-label="the folder your app sits in"><span class="folder" id="folderName">your-app</span> &amp;&amp; sealeye init</span></code>
+        <button type="button" id="copyLine">copy</button>
+      </div>
+      <p class="note">Your browser does not tell this page where the folder lives, so set the path in front of the name if it is not right. Open Terminal and paste.</p>
+    </div>
+
+    <p class="note" id="pickerNote">Nothing is uploaded. The folder name never leaves this page.</p>
+  </div>
+
+  <h2>What you get back</h2>
+  <ul>
+    <li>A URL <span>that works as soon as it is live, and stays the same every time you deploy again.</span></li>
+    <li>Logs and metrics <span>collected from the first request, with nothing to set up.</span></li>
+    <li>A plan in your folder <span>saying what was built and what was assumed, yours to keep and to edit.</span></li>
+  </ul>
+
+  <footer>
+    seaLeye.run · <a href="https://sealeye.online">sealeye.online</a>
+  </footer>
+
+</main>
+
+<script>
+  function copy(text, button) {
+    const done = () => {
+      const was = button.textContent;
+      button.textContent = "copied";
+      button.dataset.copied = "yes";
+      setTimeout(() => { button.textContent = was; delete button.dataset.copied; }, 1600);
+    };
+
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(done, () => fallback(text, done));
+    } else {
+      fallback(text, done);
+    }
+  }
+
+  // A page served over plain http has no clipboard API, and a developer who cannot copy
+  // the line is a developer who has to retype it.
+  function fallback(text, done) {
+    const box = document.createElement("textarea");
+    box.value = text;
+    box.setAttribute("readonly", "");
+    box.style.position = "fixed";
+    box.style.opacity = "0";
+    document.body.appendChild(box);
+    box.select();
+    try { document.execCommand("copy"); done(); } catch (err) { /* nothing left to try */ }
+    document.body.removeChild(box);
+  }
+
+  document.querySelectorAll("button[data-copy]").forEach(button => {
+    button.addEventListener("click", () => copy(button.dataset.copy, button));
+  });
+
+  const folder = document.getElementById("folder");
+  const result = document.getElementById("result");
+  const folderName = document.getElementById("folderName");
+  const pickerNote = document.getElementById("pickerNote");
+  const copyLine = document.getElementById("copyLine");
+  const parent = document.getElementById("parent");
+
+  // The input is part of a line of text, so it is only ever as wide as what it holds.
+  function fitParent() {
+    parent.size = Math.max(2, parent.value.length + 1);
+  }
+
+  /** Whatever the developer typed, joined to the folder name with exactly one slash. */
+  function commandLine() {
+    const prefix = parent.value.trim().replace(/\/+$/, "");
+    const path = prefix ? prefix + "/" + folderName.textContent : folderName.textContent;
+
+    return "cd " + path + " && sealeye init";
+  }
+
+  folder.addEventListener("change", () => {
+    const first = folder.files && folder.files[0];
+    const name = first && first.webkitRelativePath ? first.webkitRelativePath.split("/")[0] : "";
+
+    if (!name) return;
+
+    folderName.textContent = name;
+    result.hidden = false;
+    fitParent();
+    pickerNote.textContent = "Nothing was uploaded. The folder name never left this page.";
+  });
+
+  parent.addEventListener("input", fitParent);
+  copyLine.addEventListener("click", () => copy(commandLine(), copyLine));
+  fitParent();
+</script>
+</body>
+</html>
