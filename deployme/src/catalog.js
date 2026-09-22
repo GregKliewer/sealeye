@@ -22,10 +22,22 @@ export function orgName() {
   return process.env.ORG || "your organization";
 }
 
-/** The fixed closing paragraph of the refusal, so the words can change without code. */
-export function refusalClosing(org = orgName()) {
+/**
+ * The fixed closing paragraph of the refusal, so the words can change without code.
+ * `what` is the noun the paragraph is about, because a plan can be declined for its
+ * modules, for the patterns its profile asks for, or for both, and "these modules" is
+ * wrong in two of those three.
+ */
+export function refusalClosing(what = "modules", org = orgName()) {
   const file = path.join(repoRoot, "prompts", "refusal.md");
-  return fs.readFileSync(file, "utf8").trim().split("{{org}}").join(org);
+
+  return fs
+    .readFileSync(file, "utf8")
+    .trim()
+    .split("{{what}}")
+    .join(what)
+    .split("{{org}}")
+    .join(org);
 }
 
 export function loadCatalog() {

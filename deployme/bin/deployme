@@ -821,6 +821,19 @@ const countWord = n => COUNT_WORDS[n] || String(n);
  * paragraph in prompts/refusal.md, which is fixed text so the words can change without
  * anyone touching this file. No mechanism, no date, nothing that reads as a pitch.
  */
+/** Break a sentence into lines that fit, on word boundaries. */
+function wrapWords(text, room) {
+  const lines = [];
+
+  for (const word of String(text).split(" ")) {
+    const last = lines[lines.length - 1];
+    if (last && `${last} ${word}`.length <= room) lines[lines.length - 1] = `${last} ${word}`;
+    else lines.push(word);
+  }
+
+  return lines.length ? lines : [""];
+}
+
 function printRefusal(details = {}) {
   const modules = details.modules || [];
   const rows = [
@@ -829,39 +842,43 @@ function printRefusal(details = {}) {
   ];
 
   const width = Math.max(...rows.map(r => r.id.length));
-  const count = countWord(modules.length);
-  const noun = modules.length === 1 ? "module is" : "modules are";
+  const columns = process.stdout.columns || 80;
+
+  // A plan can be declined for its modules, for the patterns its profile asks for, or
+  // for both. The subject is built without its verb so the three sentences agree.
+  // "One of its modules is": the noun stays plural, the verb does the counting.
+  const moduleSubject = modules.length ? `${countWord(modules.length)} of its modules` : null;
+  const profileSubject = details.profile
+    ? `the patterns its ${details.profile.id} profile asks for`
+    : null;
+
+  const subjects = [moduleSubject, profileSubject].filter(Boolean);
+  const subject = subjects.join(" and ");
+  const verb = subjects.length === 1 && modules.length === 1 ? "is" : "are";
+  const what = moduleSubject && profileSubject ? "modules and patterns" : moduleSubject ? "modules" : "patterns";
+
+  const sentence =
+    `Your plan is valid and saved in DEPLOYMENT_PLAN.md. ` +
+    `${subject.charAt(0).toUpperCase()}${subject.slice(1)} ${verb} not in the seaLeye catalog:`;
 
   console.log("");
   console.log(c.fail("seaLeye.run cannot build this environment yet."));
   console.log("");
-  console.log(
-    c.dim(`  Your plan is valid and saved in DEPLOYMENT_PLAN.md. ${count} of its ${noun} not`)
-  );
-  console.log(c.dim("  in the seaLeye catalog:"));
+  for (const line of wrapWords(sentence, Math.max(32, columns - 4))) console.log(c.dim(`  ${line}`));
   console.log("");
 
   // A long line wraps under its own id rather than running off the terminal.
-  const room = Math.max(24, (process.stdout.columns || 80) - width - 8);
+  const room = Math.max(24, columns - width - 8);
   const hang = " ".repeat(width + 6);
 
   for (const row of rows) {
-    const words = row.line.split(" ");
-    const wrapped = [];
-
-    for (const word of words) {
-      const last = wrapped[wrapped.length - 1];
-      if (last && `${last} ${word}`.length <= room) wrapped[wrapped.length - 1] = `${last} ${word}`;
-      else wrapped.push(word);
-    }
-
-    wrapped.forEach((line, i) => {
+    wrapWords(row.line, room).forEach((line, i) => {
       console.log(i === 0 ? `    ${c.fg(row.id.padEnd(width))}  ${c.dim(line)}` : `${hang}${c.dim(line)}`);
     });
   }
 
   console.log("");
-  for (const line of refusalClosing().split("\n")) console.log(c.dim(`  ${line}`));
+  for (const line of refusalClosing(what).split("\n")) console.log(c.dim(`  ${line}`));
   console.log("");
 }
 
