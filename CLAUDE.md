@@ -86,3 +86,22 @@ Interview rules (decided Day 4)
   deployment logic of its own.
 - Every prompt line is amber ask(); every echoed answer phosphor answer(); every
   platform action a dim step() line. No em dash in anything the developer sees.
+
+Platform Library rules (decided Day 6)
+- planVersion 0.3 extends 0.2. It adds modules with `availability: planned` and
+  profiles poc | dev | perf | prod. Every 0.2 plan is a valid 0.3 plan. The executor
+  supports 0.2 modules only and refuses anything else honestly.
+- Three tiers, and every feature knows its tier: real (runs on AWS), plan-only (the
+  interview and card work, the executor refuses), mocked (static or recorded).
+- A planned module has: id, role, line, when, skip_line, signals, inputs, and
+  availability: planned. The interview may select it. The card marks it. The API
+  refuses to deploy a plan that enables one, with code PLANNED_MODULES and the list.
+- The refusal is the API's decision, rendered by the CLI. It states what is missing,
+  that the plan is valid and saved, and at most two sentences on what would make it
+  deployable. No mechanism: the mechanism is spoken, not printed.
+  It never pitches, never names a vendor, never says "coming soon".
+- No sizes, counts or capacity numbers in any plan, card, file or prompt output.
+  Profiles select patterns (multi-zone, warm capacity, a queue in front of a burst,
+  perf provisioned from prod's plan). Capacity is "set by a load test", always.
+- The org name for messages comes from ~/.deployme/config ORG=..., default "your
+  organization". Never hard-code a bank.
