@@ -362,6 +362,63 @@
 
   /* ---- table ---- */
   .panel { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
+
+  /* Two rows fit on a screen. Two hundred will not, and the controls for that are
+     worth having before the list needs them. */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .search {
+    font: inherit;
+    font-family: var(--mono);
+    color: var(--ink);
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 7px 10px;
+    flex: 0 1 260px;
+    min-width: 160px;
+  }
+  .search::placeholder { color: var(--dim); font-family: var(--sans); }
+  .search:focus, .profile:focus { outline: none; border-color: var(--phosphor); }
+
+  .toggle {
+    font: inherit;
+    font-size: 13px;
+    color: var(--dim);
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 99px;
+    padding: 5px 14px;
+    cursor: pointer;
+  }
+  .toggle[aria-pressed="true"].live {
+    background: var(--chip-phosphor-bg); color: var(--phosphor); border-color: var(--chip-phosphor-bg);
+  }
+  .toggle[aria-pressed="true"].planned {
+    background: var(--chip-amber-bg); color: var(--amber); border-color: var(--chip-amber-bg);
+  }
+
+  .filterlabel { color: var(--dim); font-size: 13px; }
+  .profile {
+    font: inherit;
+    font-size: 13px;
+    color: var(--ink);
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 6px 10px;
+  }
+
+  .count { margin-left: auto; color: var(--dim); font-size: 13px; }
+  .count .n { font-family: var(--mono); }
+  .empty { padding: 18px 16px; color: var(--dim); }
+  .empty[hidden] { display: none; }
   table { width: 100%; border-collapse: collapse; }
 
   thead th {
@@ -409,19 +466,9 @@
   }
   td.url span.none { color: var(--dim); }
 
-  td.actions { text-align: right; white-space: nowrap; }
-  .ghost {
-    font: inherit;
-    font-size: 13px;
-    color: var(--dim);
-    background: transparent;
-    border: 1px solid var(--rule);
-    border-radius: 6px;
-    padding: 4px 12px;
-    margin-left: 8px;
-    cursor: pointer;
-  }
-  .ghost:hover { color: var(--ink); border-color: var(--dim); }
+  /* Each menu gets its own narrow column so its heading sits over its own dots
+     rather than over the row's right edge. */
+  th.menucol, td.menucol { width: 1%; white-space: nowrap; text-align: center; }
 
   .kebab {
     font: inherit;
@@ -431,7 +478,6 @@
     border: 1px solid transparent;
     border-radius: 6px;
     padding: 4px 8px;
-    margin-left: 8px;
     cursor: pointer;
   }
   .kebab:hover, .kebab[aria-expanded="true"] { color: var(--ink); border-color: var(--rule); }
@@ -462,9 +508,17 @@
     cursor: pointer;
   }
   .menu button:hover, .menu button:focus-visible { background: var(--ground); }
+  .menu h4 {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--dim);
+    margin: 4px 10px 6px;
+  }
 
   tr.card td { padding: 0 16px 20px; background: var(--ground); }
-  tr.card[hidden] { display: none; }
+  tr.card[hidden], tr.env[hidden] { display: none; }
 
   .cardbox { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; }
   .group { padding: 14px 18px; }
@@ -496,7 +550,7 @@
   footer { margin-top: 44px; padding-top: 16px; border-top: 1px solid var(--rule); color: var(--dim); }
 
   @media (max-width: 720px) {
-    td.actions, th.actions { display: none; }
+    th.menucol, td.menucol { display: none; }
     .topbar .inner { gap: 16px; }
   }
 </style>
@@ -525,15 +579,25 @@
   <div class="stats" id="stats"></div>
 
   <div class="panel">
+    <div class="toolbar">
+      <input id="search" class="search" type="search" placeholder="Search apps and owners"
+             aria-label="Search apps and owners" spellcheck="false" autocomplete="off">
+      <button type="button" class="toggle live" id="toggleLive" aria-pressed="true">Live</button>
+      <button type="button" class="toggle planned" id="togglePlanned" aria-pressed="true">Planned</button>
+      <label class="filterlabel" for="profile">Profile</label>
+      <select id="profile" class="profile"></select>
+      <span class="count" id="count" aria-live="polite"></span>
+    </div>
     <table>
       <thead>
         <tr>
           <th>App</th><th>Owner</th><th>Status</th><th>URL</th><th>Profile</th>
-          <th>Deploys</th><th>Last</th><th class="right actions">Actions</th>
+          <th>Deploys</th><th>Last</th><th class="menucol">Actions</th><th class="menucol">Info</th>
         </tr>
       </thead>
       <tbody id="rows"></tbody>
     </table>
+    <div class="empty" id="empty" hidden>No environments match what you are looking for.</div>
   </div>
 
   <h2>Catalog</h2>
@@ -628,25 +692,39 @@
   window.addEventListener("resize", closeMenu);
   document.addEventListener("keydown", event => { if (event.key === "Escape") closeMenu(); });
 
-  /** The row's own menu. One item for now, and it is the shape that matters. */
-  function kebab(env) {
+  /**
+   * One menu on a row: a heading so the developer knows which of the two they opened,
+   * then its items. Every item is inert in this version; the shape is the point.
+   */
+  function kebab(env, heading, items) {
     const holder = el("span");
 
     const button = el("button", "kebab", "\u22EE");
     button.type = "button";
     button.setAttribute("aria-haspopup", "menu");
     button.setAttribute("aria-expanded", "false");
-    button.setAttribute("aria-label", "More for " + env.app);
+    button.setAttribute("aria-label", heading + " for " + env.app);
 
     const menu = el("div", "menu");
     menu.setAttribute("role", "menu");
+    menu.setAttribute("aria-label", heading + " for " + env.app);
     menu.hidden = true;
+    // The menu carries the same words as its aria-label, so the visible heading is
+    // decoration to a screen reader and says so.
+    const title = el("h4", null, heading);
+    title.setAttribute("aria-hidden", "true");
+    menu.appendChild(title);
 
-    const costs = el("button", null, "Costs");
-    costs.type = "button";
-    costs.setAttribute("role", "menuitem");
-    costs.addEventListener("click", event => { event.stopPropagation(); closeMenu(); });
-    menu.appendChild(costs);
+    let first = null;
+
+    for (const label of items) {
+      const item = el("button", null, label);
+      item.type = "button";
+      item.setAttribute("role", "menuitem");
+      item.addEventListener("click", event => { event.stopPropagation(); closeMenu(); });
+      menu.appendChild(item);
+      if (!first) first = item;
+    }
 
     button.addEventListener("click", event => {
       event.stopPropagation();
@@ -660,7 +738,7 @@
       menu.style.left = Math.max(8, box.right - menu.offsetWidth) + "px";
       button.setAttribute("aria-expanded", "true");
       openMenu = { menu, button };
-      costs.focus();
+      if (first) first.focus();
     });
 
     holder.appendChild(button);
@@ -670,6 +748,7 @@
   }
 
   const body = document.getElementById("rows");
+  const listed = [];
 
   for (const env of state.environments) {
     const row = el("tr", "env");
@@ -708,20 +787,18 @@
     row.appendChild(el("td", "mono", String(env.deploys)));
     row.appendChild(el("td", "mono", env.last));
 
-    const actions = el("td", "actions");
-    for (const label of ["Plan", "Destroy"]) {
-      const button = el("button", "ghost", label);
-      button.type = "button";
-      button.addEventListener("click", event => event.stopPropagation());
-      actions.appendChild(button);
-    }
-    actions.appendChild(kebab(env));
+    const actions = el("td", "menucol");
+    actions.appendChild(kebab(env, "Actions", ["Plan", "Configure", "Destroy"]));
     row.appendChild(actions);
+
+    const info = el("td", "menucol");
+    info.appendChild(kebab(env, "Info", ["Costs", "Logs", "Performance"]));
+    row.appendChild(info);
 
     const holder = el("tr", "card");
     holder.hidden = true;
     const cell = el("td");
-    cell.colSpan = 8;
+    cell.colSpan = 9;
     cell.appendChild(card(env));
     holder.appendChild(cell);
 
@@ -737,7 +814,70 @@
 
     body.appendChild(row);
     body.appendChild(holder);
+    listed.push({ env, row, holder });
   }
+
+  // ---- finding things in a long list ----
+
+  const search = document.getElementById("search");
+  const toggles = { live: document.getElementById("toggleLive"), planned: document.getElementById("togglePlanned") };
+  const profile = document.getElementById("profile");
+  const count = document.getElementById("count");
+  const empty = document.getElementById("empty");
+
+  // The profiles the page actually has, in the order the catalog names them, so the
+  // dropdown never offers a profile nothing is running.
+  const PROFILE_ORDER = ["poc", "dev", "perf", "prod"];
+  const present = [...new Set(state.environments.map(e => e.profile))]
+    .sort((a, b) => PROFILE_ORDER.indexOf(a) - PROFILE_ORDER.indexOf(b));
+
+  profile.appendChild(new Option("All profiles", ""));
+  for (const id of present) profile.appendChild(new Option(id, id));
+
+  function matches(env) {
+    const term = search.value.trim().toLowerCase();
+    if (term && !(env.app + " " + env.owner.name).toLowerCase().includes(term)) return false;
+
+    const pressed = toggles[env.status];
+    if (pressed && pressed.getAttribute("aria-pressed") === "false") return false;
+
+    if (profile.value && env.profile !== profile.value) return false;
+
+    return true;
+  }
+
+  function filter() {
+    closeMenu();
+    let shown = 0;
+
+    for (const item of listed) {
+      const keep = matches(item.env);
+      item.row.hidden = !keep;
+      if (!keep) {
+        item.holder.hidden = true;
+        item.row.setAttribute("aria-expanded", "false");
+      }
+      if (keep) shown += 1;
+    }
+
+    empty.hidden = shown > 0;
+    count.innerHTML = "";
+    count.appendChild(el("span", "n", String(shown)));
+    count.appendChild(document.createTextNode(" of "));
+    count.appendChild(el("span", "n", String(listed.length)));
+  }
+
+  search.addEventListener("input", filter);
+  profile.addEventListener("change", filter);
+
+  for (const toggle of Object.values(toggles)) {
+    toggle.addEventListener("click", () => {
+      toggle.setAttribute("aria-pressed", toggle.getAttribute("aria-pressed") === "true" ? "false" : "true");
+      filter();
+    });
+  }
+
+  filter();
 
   const catalog = document.getElementById("catalog");
   for (const module of state.catalog) {
