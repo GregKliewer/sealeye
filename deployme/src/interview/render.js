@@ -13,6 +13,8 @@ import path from "node:path";
 import YAML from "yaml";
 
 import { c } from "../brand.js";
+import { normalizeProfile } from "../schema.js";
+import { loadCatalog, moduleEntry, profileEntry } from "../catalog.js";
 import { repoRoot } from "../executor/env.js";
 
 const PLAN_FILE = "DEPLOYMENT_PLAN.md";
@@ -22,9 +24,7 @@ export function loadTemplate() {
   return fs.readFileSync(path.join(repoRoot, "prompts", "plan-template.md"), "utf8");
 }
 
-export function loadCatalog() {
-  return YAML.parse(fs.readFileSync(path.join(repoRoot, "prompts", "module-catalog.yaml"), "utf8"));
-}
+export { loadCatalog };
 
 /** Split the template on its horizontal rules: the preamble, then one block per section. */
 function templateSections(template) {
@@ -113,7 +113,7 @@ function applicationSummary({ plan }) {
     `Runtime: ${isStatic ? "browser" : inputs.runtime === "python" ? "python" : "node"}`,
     `Backend: ${isStatic ? "none, it runs entirely in the browser" : "your own code, running on request"}`,
     `Build Step: ${isStatic ? "none required" : "none, your dependencies are installed for you"}`,
-    `Profile: ${plan.profile || "poc"}`
+    `Profile: ${normalizeProfile(plan.profile) || "poc"}`
   ]);
 }
 
@@ -125,8 +125,9 @@ function selectedModules({ plan, catalog }) {
     .map(module => {
       const entry = catalog.modules.find(m => m.id === module.id);
       const role = entry?.role === "core" ? "Core" : entry?.role === "shared" ? "Observability" : "Optional";
+      const planned = entry?.availability && entry.availability !== "real" ? ", not built by this version" : "";
       const line = entry?.line?.trim() || "";
-      return `### ${module.id} - ${role}\n${line}${inputLines(module)}`;
+      return `### ${module.id} - ${role}${planned}\n${line}${inputLines(module)}`;
     })
     .join("\n\n");
 }
@@ -308,7 +309,8 @@ function paintValues(text, values) {
 // its words turn out to be.
 
 function cardContent(plan, catalog) {
-  const entryFor = id => catalog.modules.find(m => m.id === id) || {};
+  const entryFor = id => moduleEntry(id, catalog) || {};
+  const buildable = id => entryFor(id).availability === "real";
   const core = coreModule(plan);
   const isStatic = core?.id === "static_site_edge";
 
@@ -329,16 +331,35 @@ function cardContent(plan, catalog) {
   // A module's description never changes, so the row also carries its inputs: a
   // retention or an entry point that moved is a change to this environment even when
   // the sentence describing the module is the same.
-  const running = enabledModules(plan)
+  const rows = enabledModules(plan)
     .slice()
     .sort((a, b) => CARD_ORDER.indexOf(a.id) - CARD_ORDER.indexOf(b.id))
-    .filter(m => m.id !== "domain_public")   // the executor ignores it, so never promise it
     .map(m => ({
       key: `module:${m.id}`,
       id: m.id,
       text: shortLine(entryFor(m.id).line),
-      signature: stableJson(m.inputs || {})
+      signature: stableJson(m.inputs || {}),
+      buildable: buildable(m.id)
     }));
+
+  const running = rows.filter(row => row.buildable);
+
+  // What the plan asks for and this version does not build. It is on the card because
+  // the developer should meet it here, before they say yes, and not afterwards.
+  const planned = rows.filter(row => !row.buildable);
+
+  const askedProfile = normalizeProfile(plan.profile);
+  const profile = profileEntry(askedProfile, catalog);
+
+  if (profile && profile.availability !== "real") {
+    planned.push({
+      key: `profile:${askedProfile}`,
+      id: `the ${askedProfile} profile`,
+      // Not shortened: a module's first sentence describes it, and a profile's first
+      // sentence is only its framing. The patterns are what follows.
+      text: String(profile.line || "").replace(/\s+/g, " ").trim()
+    });
+  }
 
   const variables = Object.keys(moduleById(plan, "config_basic")?.inputs?.variables || {});
   if (isEnabled(plan, "config_basic") && variables.length) {
@@ -367,7 +388,7 @@ function cardContent(plan, catalog) {
     });
   }
 
-  return { app, running, back };
+  return { app, running, planned, back };
 }
 
 /**
@@ -379,16 +400,18 @@ function previousContent(previous, catalog) {
   if (!previous) return null;
   if (previous.plan) return { ...cardContent(previous.plan, catalog), partial: false };
 
-  const ids = (previous.modules || []).filter(id => id !== "domain_public");
+  const ids = previous.modules || [];
   if (!ids.length) return null;
 
-  const entryFor = id => catalog.modules.find(m => m.id === id) || {};
+  const entryFor = id => moduleEntry(id, catalog) || {};
+  const rows = ids
+    .slice()
+    .sort((a, b) => CARD_ORDER.indexOf(a) - CARD_ORDER.indexOf(b))
+    .map(id => ({ key: `module:${id}`, id, text: shortLine(entryFor(id).line), buildable: entryFor(id).availability === "real" }));
 
   return {
-    running: ids
-      .slice()
-      .sort((a, b) => CARD_ORDER.indexOf(a) - CARD_ORDER.indexOf(b))
-      .map(id => ({ key: `module:${id}`, id, text: shortLine(entryFor(id).line) })),
+    running: rows.filter(row => row.buildable),
+    planned: rows.filter(row => !row.buildable),
     partial: true
   };
 }
@@ -405,6 +428,12 @@ const NOTHING_CHANGES = {
   key: "nothing",
   text: "Nothing changes. Your environment already matches this plan; deploying updates your code only.",
   values: ["Nothing changes."]
+};
+
+const DECLINED_NOTE = {
+  key: "declined",
+  text: "A plan that asks for these is a plan seaLeye.run will not deploy. Your plan is still valid, and it is still yours to keep.",
+  tone: "dim"
 };
 
 const PARTIAL_NOTE = {
@@ -539,12 +568,19 @@ export function decisionCard(plan, {
   const settings = !before?.partial;
   const app = markRows(next.app, before?.app, { settings });
   const running = markRows(next.running, before?.running, { settings });
+  const planned = markRows(next.planned, before?.planned, { settings });
   const back = markRows(next.back, before?.back, { settings });
+
+  // A plan that asks for something this version does not build is not deployed in
+  // part: it is declined whole. So the card stops saying what will be provisioned and
+  // starts saying what the plan asks for, because nothing here is going to happen yet.
+  const declined = planned.length > 0;
 
   // A card that says nothing changes is the strongest thing a second run can say, so
   // it is only said when it is true of every line, not only of the modules.
   const nothingChanges =
-    before && !before.partial && [...app, ...running, ...back].every(row => row.mark === "unchanged");
+    before && !before.partial &&
+    [...app, ...running, ...planned, ...back].every(row => row.mark === "unchanged");
 
   const middle = nothingChanges
     ? [NOTHING_CHANGES]
@@ -556,16 +592,28 @@ export function decisionCard(plan, {
   // to line up, or the eye reads the indent as meaning something.
   const markWidth = Math.max(
     0,
-    ...[...app, ...middle, ...back].map(row => (row.mark ? MARKS[row.mark].word.length : 0))
+    ...[...app, ...middle, ...planned, ...back].map(row => (row.mark ? MARKS[row.mark].word.length : 0))
   );
+
+  const middleHeading = declined
+    ? "What this plan asks for:"
+    : before
+      ? "We will change this environment:"
+      : "We will provision this infrastructure to run it:";
 
   const groups = [
     { heading: "Your app:", rows: renderRows(app, room, markWidth) },
+    { heading: middleHeading, rows: renderRows(middle, room, markWidth) },
+    ...(declined
+      ? [{
+          heading: "seaLeye.run does not build these:",
+          rows: renderRows([...planned, DECLINED_NOTE], room, markWidth)
+        }]
+      : []),
     {
-      heading: before ? "We will change this environment:" : "We will provision this infrastructure to run it:",
-      rows: renderRows(middle, room, markWidth)
-    },
-    { heading: "You will get back:", rows: renderRows(back, room, markWidth) }
+      heading: declined ? "What it would give you:" : "You will get back:",
+      rows: renderRows(back, room, markWidth)
+    }
   ];
 
   return frame ? framedCard(groups, boxWidth, FRAMES_CHARS[charset] || FRAMES_CHARS.ascii) : bareCard(groups);

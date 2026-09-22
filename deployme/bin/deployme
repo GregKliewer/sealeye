@@ -313,6 +313,9 @@ async function main() {
       follow: false
     });
 
+    // Declined: it has already said so, and there is nothing to watch.
+    if (!deployment) return;
+
     await runWatch({ apiBaseUrl, deploymentId: deployment.deploymentId });
 
     return;
@@ -738,6 +741,19 @@ async function runDeploy({ apiBaseUrl, backend, plan, appPath, follow = true }) 
 
   try {
     result = await createDeployment({ apiBaseUrl, backend, plan, appPath });
+  } catch (err) {
+    const refusal = err?.details?.error;
+
+    // The platform decided this, not the CLI. All the CLI does is say it in the
+    // developer's language.
+    if (refusal?.code === "PLANNED_MODULES" || refusal?.code === "PLANNED_PROFILE") {
+      wait.stop();
+      printRefusal(refusal.details);
+      process.exitCode = 1;
+      return null;
+    }
+
+    throw err;
   } finally {
     wait.stop();
   }
@@ -760,6 +776,34 @@ async function runDeploy({ apiBaseUrl, backend, plan, appPath, follow = true }) 
   }
 
   return result;
+}
+
+/**
+ * What the platform will not build, in the developer's language.
+ *
+ * It names what is missing, says the plan is good and where it is, and stops. No
+ * mechanism, no pitch, nothing about when: a developer who wants to know what it would
+ * take can ask a person, and a line promising a date is a line somebody has to keep.
+ */
+function printRefusal(details = {}) {
+  const rows = [
+    ...(details.modules || []).map(m => ({ id: m.id, line: m.line })),
+    ...(details.profile ? [{ id: `the ${details.profile.id} profile`, line: details.profile.line }] : [])
+  ];
+
+  const width = Math.max(...rows.map(r => r.id.length));
+
+  console.log("");
+  console.log(c.fail("seaLeye.run does not build everything this plan asks for."));
+  console.log("");
+
+  for (const row of rows) {
+    console.log(`  ${c.fg(row.id.padEnd(width))}  ${c.dim(row.line)}`);
+  }
+
+  console.log("");
+  say("Your plan is valid and it is saved in your folder.");
+  say("Nothing in your app has to change for it to deploy, and nothing has been created.");
 }
 
 // Follow a deployment to its real end state, redrawing twice a second.

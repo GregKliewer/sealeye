@@ -5,7 +5,7 @@
 // properties". True, and useless to somebody who has never read the schema. This
 // turns each one into a sentence about their plan, and where the contract fixes the
 // allowed values it names them, because the developer cannot look them up.
-import { planV02Schema } from "../schema.js";
+import { planSchema } from "../schema.js";
 
 const TYPE_WORDS = {
   string: "text",
@@ -50,7 +50,7 @@ function subjectOf(pathString) {
 /** Walk the frozen contract to the field the error is about, so its values can be named. */
 function schemaAt(pathString) {
   const segments = String(pathString || "/").split("/").filter(Boolean);
-  let node = planV02Schema;
+  let node = planSchema;
 
   for (const segment of segments) {
     if (!node) return null;

@@ -154,7 +154,7 @@ function withoutSecrets(parameters) {
 }
 
 /**
- * @param {object} plan          a plan that has already passed planV02Schema validation
+ * @param {object} plan          a plan that has already passed planSchema validation
  * @param {string} deploymentId  required for kind "api" (it names the artifact)
  * @param {string} [appPath]      the developer's folder, read for its .env only
  * @returns {{kind: "api"|"static", templatePath: string, stackName: string, parameters: object,

@@ -1,4 +1,6 @@
-planVersion: 0.2
+planVersion: 0.3
+# 0.3 extends 0.2. Every 0.2 plan is a valid 0.3 plan: the version, the two older
+# profile names and the five original modules are all still accepted.
 
 # -------------------------------
 # Application Metadata
@@ -11,11 +13,17 @@ app:
 # -------------------------------
 # Deployment Profile
 # -------------------------------
-profile: poc | team | prodish
-# Describes scale, reliability, and cost expectations
-# - poc: minimal cost, basic features
-# - team: moderate scale, shared usage
-# - prodish: higher reliability, stronger defaults
+profile: poc | dev | perf | prod
+# Chooses the patterns the modules are built with, not a size. The patterns live in
+# prompts/module-catalog.yaml, and capacity is set by a load test.
+# - poc:  trying something out, nothing kept warm
+# - dev:  a team using it every day, backups kept, failed work held onto
+# - perf: provisioned from the prod plan, on a network of its own, so it can be measured
+# - prod: data across more than one zone, warm capacity, a queue in front of bursts,
+#         alarms on errors and latency
+#
+# team and prodish were the 0.2 names. A plan that still says so is read as dev and
+# prod, and nothing else about the plan changes.
 
 # -------------------------------
 # Selected Platform Modules
@@ -114,6 +122,79 @@ modules:
     #
     # Notes:
     # - Optional for both static and API apps
+
+  # ---------------------------
+  # PLANNED MODULES
+  # ---------------------------
+  # In the library, not yet deployable. The interview may select any of these and the
+  # plan records them exactly like the others. The platform refuses to deploy a plan
+  # that enables one, names which, and says the plan is valid and saved. It does not
+  # deploy something smaller and call it done.
+  #
+  # Their descriptions, when to choose them and what their inputs mean are in
+  # prompts/module-catalog.yaml, where availability: planned is what marks them.
+
+  - id: data_relational          # a managed relational database your app connects to
+    enabled: false
+    inputs:
+      engine: postgres | mysql
+      database_name: app
+      connection_setting: DATABASE_URL
+
+  - id: data_cache               # a fast in-memory cache
+    enabled: false
+    inputs:
+      connection_setting: CACHE_URL
+      purpose: lookups | sessions | rendered pages
+
+  - id: events_stream            # a stream your services publish to and read from
+    enabled: false
+    inputs:
+      stream_name: events
+      readers: []
+
+  - id: queue_basic              # a work queue between services
+    enabled: false
+    inputs:
+      queue_name: work
+      handled_by: worker
+      keep_failed_work: true
+
+  - id: secrets_basic            # secrets your app reads at runtime, never in code
+    enabled: false
+    inputs:
+      names: []
+      rotation: manual | scheduled
+
+  - id: identity_service         # sign-in and tokens for your app's users
+    enabled: false
+    inputs:
+      sign_in_with: [email]
+      token_audience: your-app
+
+  - id: network_private          # your app is not reachable from the public internet
+    enabled: false
+    inputs:
+      reachable_from: [internal]
+      public_path: closed | open
+
+  - id: compute_container        # a service that runs continuously rather than on demand
+    enabled: false
+    inputs:
+      start_command: npm start
+      health_path: /health
+
+  - id: scheduled_job            # something that runs on a schedule
+    enabled: false
+    inputs:
+      runs: hourly | nightly | weekly
+      command: node job.js
+
+  - id: storage_object           # files your app stores and reads, not a served site
+    enabled: false
+    inputs:
+      store_name: files
+      readable_by: your app only | anyone with the link
 
 # -------------------------------
 # Expected Outputs

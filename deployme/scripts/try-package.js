@@ -12,7 +12,7 @@ import path from "node:path";
 import Ajv from "ajv";
 import addFormats from "ajv-formats";
 
-import { planV02Schema } from "../src/schema.js";
+import { planSchema } from "../src/schema.js";
 import { compose } from "../src/executor/compose.js";
 import { stage, stagePaths } from "../src/executor/package.js";
 import { loadPlanFromYaml } from "../lib/run.js";
@@ -34,7 +34,7 @@ const plan = loadPlanFromYaml(planPath);
 
 const ajv = new Ajv({ allErrors: true });
 addFormats(ajv);
-const validate = ajv.compile(planV02Schema);
+const validate = ajv.compile(planSchema);
 
 if (!validate(plan)) {
   console.error(`plan failed validation: ${planPath}`);

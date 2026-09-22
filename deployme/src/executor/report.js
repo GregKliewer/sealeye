@@ -6,6 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { repoRoot } from "./env.js";
+import { normalizeProfile } from "../schema.js";
 import { region } from "./cfn.js";
 
 const TEMPLATE_PATH = path.join(repoRoot, "prompts", "report.md");
@@ -143,7 +144,7 @@ function assumptions(record, plan) {
     ""
   ];
 
-  if (plan?.profile) lines.push(`- Profile: \`${plan.profile}\``);
+  if (plan?.profile) lines.push(`- Profile: \`${normalizeProfile(plan.profile)}\``);
 
   const modules = (plan?.modules || []).filter(m => m.enabled !== false);
   if (modules.length) {
@@ -180,7 +181,7 @@ function assumptions(record, plan) {
 export function renderReport(record, plan) {
   const header = fillHeader(fs.readFileSync(TEMPLATE_PATH, "utf8"), {
     app: record.app,
-    profile: plan?.profile || "",
+    profile: normalizeProfile(plan?.profile) || "",
     region: region(),
     date: (record.finishedAt || new Date().toISOString()).slice(0, 10)
   });

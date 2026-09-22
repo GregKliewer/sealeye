@@ -1,11 +1,11 @@
 // src/interview/schema.js
 // The input schema for the submit_plan tool the interview gives the model.
 //
-// The plan half is planV02Schema itself, not a copy: the contract is frozen and the
+// The plan half is planSchema itself, not a copy: the contract is frozen and the
 // interview must not be able to drift from what POST /plans/validate accepts. The two
 // extra arguments are conversation output, not part of the plan, and are dropped
 // before the plan is validated or deployed.
-import { planV02Schema } from "../schema.js";
+import { planSchema } from "../schema.js";
 
 export const submitPlanInputSchema = {
   type: "object",
@@ -13,7 +13,7 @@ export const submitPlanInputSchema = {
   required: ["plan", "summary", "assumptions"],
   properties: {
     plan: {
-      ...planV02Schema,
+      ...planSchema,
       description:
         "The planVersion 0.2 deployment plan. Exactly one of static_site_edge and " +
         "http_api_serverless enabled, observability_basic always enabled, " +

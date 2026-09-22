@@ -1,16 +1,29 @@
-# seaLeye.run module catalog, planVersion 0.2.
+# seaLeye.run module catalog, planVersion 0.3.
 #
-# One source of truth for the five modules: the interview system prompt
+# One source of truth for the modules: the interview system prompt
 # (prompts/interview-system.md) describes these in prose, the CLI reads this file for
 # the lines it prints and for the defaults it fills in. The contract itself is frozen:
 # prompts/plan-contract.yaml and deployme/src/schema.js. Do not add modules or fields
-# here, and keep every "line" free of em dashes and vendor terms, because the developer
-# sees them.
+# here for planVersion 0.2, and keep every "line" free of em dashes and vendor terms,
+# because the developer sees them. No sizes, counts or capacity numbers anywhere in this
+# file: profiles choose patterns, and capacity is set by a load test.
+#
+# availability says what the platform can do with a module, and it is the whole of the
+# honesty in this file:
+#   real     the platform deploys it today
+#   planned  it is in the library, the interview may select it and the plan records it,
+#            and the platform refuses to deploy it rather than pretend it did
+#
+# Every "when" and every signal describes code or configuration, never prose. A README
+# says what an app is for, and what an app is for is not a thing the platform can
+# deploy. Selecting a module because a sentence mentioned the idea of it is how a plan
+# ends up with infrastructure nobody's code asked for.
 
-catalogVersion: "0.2"
+catalogVersion: "0.3"
 
 modules:
   - id: static_site_edge
+    availability: real
     role: core
     line: >-
       Serves your HTML, CSS, images and other files straight to visitors over HTTPS.
@@ -40,6 +53,7 @@ modules:
         line: Where your images and other assets live.
 
   - id: http_api_serverless
+    availability: real
     role: core
     line: >-
       Runs your code on demand behind an HTTPS endpoint. It starts when a request
@@ -70,6 +84,7 @@ modules:
         line: What causes your app to run.
 
   - id: observability_basic
+    availability: real
     role: shared
     always_enabled: true
     line: >-
@@ -92,6 +107,7 @@ modules:
         # compose.js maps this to the RetentionDays stack parameter.
 
   - id: config_basic
+    availability: real
     role: optional
     line: >-
       Passes the settings your app reads from its environment through to it when it
@@ -111,9 +127,11 @@ modules:
         default: {}
         line: The settings your app needs, by name.
         # Names only. Values are supplied at deploy time, never written into the plan.
-    ignored_by_executor: true   # until Day 6
+        # compose.js passes each name to the function, values from the folder's .env
+        # when there is one and from the plan otherwise. PORT is never one of them.
 
   - id: domain_public
+    availability: planned
     role: optional
     never_select: true
     line: >-
@@ -130,13 +148,388 @@ modules:
         line: The domain you want to use.
     ignored_by_executor: true   # until Day 6
 
+  # ---------------------------------------------------------------------------
+  # Planned. In the library, not yet deployable. The interview may select any of
+  # these, the plan records them, the card marks them, and the platform refuses to
+  # deploy a plan that enables one. It says so plainly rather than deploying
+  # something less and calling it done.
+  # ---------------------------------------------------------------------------
+
+  - id: data_relational
+    availability: planned
+    role: optional
+    line: >-
+      A managed relational database your app connects to, kept patched and backed up
+      for you.
+    when: >-
+      The code opens a database: a driver or query library among its dependencies, a
+      connection string among the settings it reads, migrations in the folder.
+    skip_line: >-
+      Your app does not talk to a relational database.
+    signals:
+      - a connection string setting such as DATABASE_URL
+      - a query builder, ORM or database driver in dependencies
+      - a migrations folder
+    inputs:
+      engine:
+        default: postgres
+        enum: [postgres, mysql]
+        line: The kind of database your app expects to talk to.
+      database_name:
+        default: app
+        line: The name of the database your app opens.
+      connection_setting:
+        default: DATABASE_URL
+        line: The setting your app reads the connection string from.
+
+  - id: data_cache
+    availability: planned
+    role: optional
+    line: >-
+      A fast in-memory cache to put in front of work your app would otherwise repeat.
+    when: >-
+      A cache client is among its dependencies, or the code reads a cache address from
+      its settings, or it keeps sessions somewhere other than in its own process.
+    skip_line: >-
+      Your app keeps nothing in a cache outside its own process.
+    signals:
+      - a cache client in dependencies
+      - a setting naming a cache address
+      - a session store configured outside the process
+    inputs:
+      connection_setting:
+        default: CACHE_URL
+        line: The setting your app reads the cache address from.
+      purpose:
+        default: lookups
+        enum: [lookups, sessions, rendered pages]
+        line: What your app keeps in it.
+
+  - id: events_stream
+    availability: planned
+    role: optional
+    line: >-
+      A stream your services publish events to and read events from, in the order they
+      happened.
+    when: >-
+      The code publishes or consumes events: a publisher or consumer client among its
+      dependencies, or a stream name among the settings it reads.
+    skip_line: >-
+      Nothing in your app publishes or reads events.
+    signals:
+      - a publisher or consumer client in dependencies
+      - code that publishes an event after it changes something
+      - a stream or topic name among the settings
+    inputs:
+      stream_name:
+        default: events
+        line: The name your services use for the stream.
+      readers:
+        default: []
+        line: The parts of your app that read from it.
+
+  - id: queue_basic
+    availability: planned
+    role: optional
+    line: >-
+      A work queue between your services, so slow work does not keep a request waiting.
+    when: >-
+      A queue or background job client is among its dependencies, or a request starts
+      work and returns without waiting for it.
+    skip_line: >-
+      Nothing in your app hands work off to be finished later.
+    signals:
+      - a queue or worker client in dependencies
+      - a background job library
+      - work started during a request and not waited for
+    inputs:
+      queue_name:
+        default: work
+        line: The name your services use for the queue.
+      handled_by:
+        default: worker
+        line: The part of your app that takes work off the queue.
+      keep_failed_work:
+        default: true
+        line: Keep work that fails repeatedly instead of losing it.
+
+  - id: secrets_basic
+    availability: planned
+    role: optional
+    line: >-
+      Secrets your app reads while it runs, kept out of your code and out of your plan.
+    when: >-
+      The code reads a credential from its settings, or a secrets client is among its
+      dependencies. The name of the setting is the evidence, never its value.
+    skip_line: >-
+      Your app needs no secrets while it runs.
+    signals:
+      - a setting whose name reads like a credential
+      - a key or token read from the environment
+      - a secrets client in dependencies
+    inputs:
+      names:
+        default: []
+        line: The secrets your app needs, by name. Values are never written here.
+      rotation:
+        default: manual
+        enum: [manual, scheduled]
+        line: How the secrets get replaced.
+
+  - id: identity_service
+    availability: planned
+    role: optional
+    line: >-
+      Sign-in and tokens for the people who use your app.
+    when: >-
+      The code signs people in or checks their tokens: a sign-in library among its
+      dependencies, a login route, a token verified on incoming requests.
+    skip_line: >-
+      Your app has no users of its own to sign in.
+    signals:
+      - a sign-in or token library in dependencies
+      - a login route
+      - a token checked on incoming requests
+    inputs:
+      sign_in_with:
+        default: [email]
+        line: How your users sign in.
+      token_audience:
+        default: your-app
+        line: The name your app expects to find in the tokens it is given.
+
+  - id: network_private
+    availability: planned
+    role: optional
+    line: >-
+      Your app is reachable from inside your organization only, and not from the public
+      internet.
+    when: >-
+      The configuration says so: an allowlist of addresses or networks, a setting naming
+      a host inside your own network, or a check on every request that only something
+      inside your network could pass. Never a README describing who uses the app: who an
+      app is for is not the same as where it can be reached from, and only the second is
+      something to deploy.
+    skip_line: >-
+      Your app is meant to be reachable from the public internet.
+    signals:
+      - an allowlist of addresses or networks in the configuration
+      - a setting naming a host inside your own network
+      - a client certificate or an internal token checked on every request
+    inputs:
+      reachable_from:
+        default: [internal]
+        line: Where your app can be reached from.
+      public_path:
+        default: closed
+        enum: [closed, open]
+        line: Whether anything of it stays reachable publicly.
+
+  - id: compute_container
+    availability: planned
+    role: optional
+    line: >-
+      A service that runs continuously, for an app that cannot start fresh on every
+      request.
+    when: >-
+      The code cannot start fresh per request: it opens a long-lived connection, starts
+      a loop at boot, warms something before it can serve, or takes too long to start.
+    skip_line: >-
+      Your app is happy starting when a request arrives.
+    signals:
+      - a long-lived connection or socket
+      - work started once at boot and kept running
+      - a slow startup, or a container file in the folder
+    inputs:
+      start_command:
+        default: npm start
+        line: The command that starts your service.
+      health_path:
+        default: /health
+        line: The path the platform asks to check your service is well.
+
+  - id: scheduled_job
+    availability: planned
+    role: optional
+    line: >-
+      Work that runs on a schedule rather than when somebody calls your app.
+    when: >-
+      The folder holds the schedule itself: a schedule expression, a workflow that runs
+      on a timer, or an entry point that does its work once and exits. Not a README
+      sentence about nightly work: a sentence is not something the platform can run.
+    skip_line: >-
+      Nothing in your app runs on a schedule.
+    signals:
+      - a schedule expression in the folder
+      - a workflow or task file that runs on a timer
+      - an entry point that runs once and exits, with nothing listening
+    inputs:
+      runs:
+        default: nightly
+        enum: [hourly, nightly, weekly]
+        line: How often the job runs.
+      command:
+        default: node job.js
+        line: What the job runs.
+
+  - id: storage_object
+    availability: planned
+    role: optional
+    line: >-
+      Files your app stores and reads back, separate from the files it serves as a site.
+    when: >-
+      The code reads or writes files it did not ship with: an upload route, a storage
+      client among its dependencies, a setting naming where files go.
+    skip_line: >-
+      Your app stores no files of its own.
+    signals:
+      - an upload route
+      - a storage client in dependencies
+      - a setting naming a bucket or a folder for files
+    inputs:
+      store_name:
+        default: files
+        line: The name your app uses for the store.
+      readable_by:
+        default: your app only
+        enum: [your app only, anyone with the link]
+        line: Who can read what it stores.
+
+# ---------------------------------------------------------------------------
+# Profiles
+# ---------------------------------------------------------------------------
+# A profile is not a size. It chooses the patterns the modules are built with, and the
+# patterns are in the section below. Capacity is set by a load test, always.
+
+# A profile carries the same availability as a module, and for the same reason: the
+# platform builds the patterns of one of them today, and writing any of the others into
+# a plan is a thing to be honest about rather than a thing to quietly ignore.
+profiles:
+  - id: poc
+    availability: real
+    line: >-
+      Trying something out. Cheap to run, quick to throw away, nothing kept warm.
+  - id: dev
+    availability: planned
+    line: >-
+      A team using it every day. The same shape as a proof of concept, with backups
+      kept and work that fails held onto.
+  - id: perf
+    availability: planned
+    line: >-
+      Built to be measured. Provisioned from the production plan, on a network of its
+      own, so a load test can say what the capacity is.
+  - id: prod
+    availability: planned
+    line: >-
+      People depend on it. Data across more than one zone, capacity warm on the request
+      path, a queue in front of anything that bursts, alarms on errors and latency.
+
+# planVersion 0.2 named two of these differently. A plan that still says so is read as
+# the profile that replaced it, and nothing else about the plan changes.
+legacy_profiles:
+  team: dev
+  prodish: prod
+
+# ---------------------------------------------------------------------------
+# Patterns
+# ---------------------------------------------------------------------------
+# What each profile asks of each module, in the developer's language. No sizes, no
+# counts, no capacity numbers: those are what the load test is for.
+
+patterns:
+  poc:
+    line: >-
+      A single zone, started on demand, nothing kept warm, and nothing to pay for while
+      nothing is calling it. This is what the platform deploys today.
+    modules:
+      http_api_serverless: >-
+        Starts when a request arrives and costs nothing while nothing is calling it.
+      static_site_edge: >-
+        Files served straight to visitors over HTTPS.
+      observability_basic: >-
+        Logs and basic metrics, kept for as long as the plan asks.
+      config_basic: >-
+        Settings handed to the app as it starts.
+
+  dev:
+    line: >-
+      A single zone and on demand, like a proof of concept, but nothing is thrown away:
+      data is backed up and failed work is kept.
+    modules:
+      data_relational: >-
+        A single zone, with backups kept and restorable.
+      data_cache: >-
+        A single zone, and the app keeps working when the cache is empty.
+      queue_basic: >-
+        Work that fails repeatedly is kept rather than dropped.
+      compute_container: >-
+        Runs continuously in a single zone, replaced when it stops being well.
+      scheduled_job: >-
+        Runs on its schedule, and a failed run is visible rather than silent.
+
+  perf:
+    line: >-
+      Provisioned from the production plan: the same modules, the same patterns, on a
+      separate network. Nothing here is guessed, and the numbers come from the load
+      test rather than from this file.
+    modules:
+      network_private: >-
+        A network of its own, so a load test cannot reach anything that people depend
+        on.
+      observability_basic: >-
+        The same alarms as production, so a load test is measured the way the real
+        thing is watched.
+
+  prod:
+    line: >-
+      Data across more than one zone, capacity warm on the request path, a queue in
+      front of anything that bursts, and alarms on errors and latency. Capacity is set
+      by a load test.
+    modules:
+      data_relational: >-
+        Across more than one zone, with a standby ready to take over and backups kept.
+      data_cache: >-
+        Across more than one zone, and the app keeps serving when the cache is cold.
+      http_api_serverless: >-
+        Warm capacity on the request path, so the first request after a quiet spell is
+        not the slow one.
+      compute_container: >-
+        Across more than one zone, behind a health check, replaced rather than repaired.
+      queue_basic: >-
+        A queue in front of anything that bursts, with failed work kept and alarmed on.
+      events_stream: >-
+        Readers keep their place, so a reader that falls behind catches up instead of
+        losing events.
+      storage_object: >-
+        Copies kept across more than one zone, and earlier versions kept.
+      secrets_basic: >-
+        Replaced on a schedule, and read while the app runs rather than baked into
+        anything.
+      identity_service: >-
+        Short-lived tokens, checked on every request.
+      network_private: >-
+        Reachable from your organization only, with the public way in closed.
+      observability_basic: >-
+        Alarms on errors and latency, going to whoever is on call.
+      scheduled_job: >-
+        Runs where it can be watched, and a failed run raises an alarm.
+      static_site_edge: >-
+        Served from storage that keeps copies across more than one zone.
+      config_basic: >-
+        Settings from the environment, and anything secret from secrets_basic rather
+        than from a setting.
+
 # Exactly one core module is enabled per plan: one app, one way of running it.
 rules:
   core_modules: [static_site_edge, http_api_serverless]
   exactly_one_core: true
   always_enabled: [observability_basic]
   never_selected: [domain_public]
+  # The executor deploys the real modules. A plan that enables a planned one is a valid
+  # plan the platform will not deploy, and it says which and why.
+  deployable: [static_site_edge, http_api_serverless, observability_basic, config_basic]
 
 defaults:
-  profile: poc            # poc | team | prodish
+  profile: poc            # poc | dev | perf | prod
   outputs: [public_url, logs, metrics]

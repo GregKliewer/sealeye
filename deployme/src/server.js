@@ -5,17 +5,18 @@ import crypto from "crypto";
 import fs from "node:fs";
 import path from "node:path";
 
-import { planV02Schema } from "./schema.js";
+import { planSchema } from "./schema.js";
 import { backendMappings } from "./mappings.js";
 import { putDeployment, getDeployment, listDeployments, storeFile, count } from "./store.js";
 import { startDeployment, startDestroy } from "./executor/index.js";
+import { notDeployable } from "./catalog.js";
 
 const app = express();
 app.use(express.json({ limit: "1mb" }));
 
 const ajv = new Ajv({ allErrors: true });
 addFormats(ajv);
-const validatePlan = ajv.compile(planV02Schema);
+const validatePlan = ajv.compile(planSchema);
 
 function formatAjvErrors(errors = []) {
   return errors.map(e => ({
@@ -89,6 +90,21 @@ app.post("/deployments", (req, res) => {
         code: "INVALID_PLAN",
         message: "plan failed validation",
         details: formatAjvErrors(validatePlan.errors)
+      }
+    });
+  }
+
+  // A plan can be valid and still ask for things this version does not build. The
+  // platform says which, and deploys nothing: half of what a plan asks for, reported as
+  // success, is the failure this whole contract exists to avoid.
+  const missing = notDeployable(plan);
+
+  if (missing.modules.length || missing.profile) {
+    return res.status(422).json({
+      error: {
+        code: missing.modules.length ? "PLANNED_MODULES" : "PLANNED_PROFILE",
+        message: "this version of the platform does not build everything this plan asks for",
+        details: missing
       }
     });
   }
