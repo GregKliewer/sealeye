@@ -1,0 +1,23 @@
+{
+  "name": "payment-events-processor",
+  "version": "1.0.0",
+  "description": "Decides and records the outcome of each outgoing payment event",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git.northline.internal/payments-product/payment-events-processor"
+  },
+  "author": "Payments Product, Northline Bank",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">= 18"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "kafkajs": "^2.2.4",
+    "pg": "^8.13.1"
+  }
+}
