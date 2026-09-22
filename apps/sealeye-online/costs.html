@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Costs, seaLeye.online</title>
+
+<!-- Everything this page shows. The environment is three days old and has served a
+     few hundred requests, so the amounts are what an on-demand API costs when almost
+     nobody has called it yet: almost nothing. Amounts are CAD before tax. -->
+<script type="application/json" id="state">
+{
+  "org": "Northline Bank",
+  "user": { "name": "Greg K.", "initial": "G" },
+  "env": {
+    "app": "beneficiary-lookup-api",
+    "status": "live",
+    "profile": "dev",
+    "region": "ca-central-1",
+    "firstDeploy": "2026-09-20"
+  },
+  "currency": "CAD",
+  "today": "2026-09-22",
+  "lastFullDay": "2026-09-21",
+  "days": {
+    "2026-09-20": 0.012,
+    "2026-09-21": 0.018,
+    "2026-09-22": 0.006
+  },
+  "forecastPerDay": 0.012,
+  "requests": { "month": 312, "yesterday": 141 },
+  "lines": [
+    { "module": "http_api_serverless", "what": "Runs your code on demand behind an HTTPS endpoint.", "items": [
+      { "name": "Requests", "usage": "312 requests", "cost": 0.000 },
+      { "name": "Compute time", "usage": "3.9 s at 512 MB", "cost": 0.007 },
+      { "name": "Endpoint", "usage": "312 requests", "cost": 0.001 }
+    ]},
+    { "module": "observability_basic", "what": "Collects your app's logs and tracks requests, errors and response times.", "items": [
+      { "name": "Log ingestion", "usage": "0.3 MB", "cost": 0.005 },
+      { "name": "Log storage", "usage": "0.3 MB, 30 days", "cost": 0.000 },
+      { "name": "Request metrics", "usage": "4 metrics", "cost": 0.021 }
+    ]},
+    { "module": "platform", "what": "Packages kept so a deploy can be rolled back.", "items": [
+      { "name": "Package storage", "usage": "13 packages, 34 MB", "cost": 0.002 }
+    ]}
+  ],
+  "previous": { "month": 0.000 },
+  "budget": { "amount": 10.00, "notifyAt": 80 }
+}
+</script>
+
+<link rel="stylesheet" href="console.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="inner">
+    <span class="wordmark"><img src="sealeye-online-wordmark-light.svg" alt="seaLeye.online"></span>
+    <nav id="nav"></nav>
+    <div class="who"><span id="org"></span><span class="disc" id="userDisc"></span><span id="userName"></span></div>
+  </div>
+</div>
+
+<main>
+  <div class="crumbs" id="crumbs"></div>
+
+  <div class="title">
+    <div>
+      <h1>Costs</h1>
+      <p class="sub">What this environment costs, by resource and by day. Amounts are CAD before tax and arrive up to a day late.</p>
+      <div class="meta" id="meta"></div>
+    </div>
+    <div class="spacer"></div>
+    <div class="actions">
+      <button type="button" class="ghost" id="download">Download CSV</button>
+    </div>
+  </div>
+
+  <div class="subnav" id="subnav"></div>
+
+  <div class="stats" id="stats"></div>
+
+  <section class="section">
+    <header>
+      <h2 id="chartTitle">By day</h2><span class="hint" id="chartHint"></span>
+      <div class="period count" id="period" role="group" aria-label="Period">
+        <button type="button" data-period="month" aria-pressed="true">This month</button>
+        <button type="button" data-period="7" aria-pressed="false">Last 7 days</button>
+        <button type="button" data-period="30" aria-pressed="false">Last 30 days</button>
+      </div>
+    </header>
+    <div class="chart">
+      <div class="bars" id="bars"></div>
+      <div class="axis" id="axis"></div>
+      <p class="legend"><span><i></i>Billed</span><span><i class="forecast"></i>Forecast, at the current rate</span></p>
+    </div>
+  </section>
+
+  <section class="section">
+    <header>
+      <h2>By resource</h2>
+      <span class="hint" id="tableHint"></span>
+      <span class="count"><label><input type="checkbox" id="compare"> Compare with the previous period</label></span>
+    </header>
+    <table id="table">
+      <thead>
+        <tr><th>Resource</th><th>Usage</th><th class="num prev" hidden>Previous</th><th class="num">Cost</th></tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </section>
+
+  <section class="section">
+    <header><h2>Budget</h2><span class="hint">A monthly amount for this environment. The owner is told when it is close, and again when it is passed. Nothing is switched off.</span></header>
+    <div class="field">
+      <label for="budget">Monthly budget</label>
+      <div>
+        <div class="budget">
+          <span class="unit">CAD</span>
+          <input type="number" id="budget" min="1" step="1">
+          <span class="unit">tell the owner at</span>
+          <input type="number" id="notifyAt" min="1" max="100" aria-label="Notify at percent">
+          <span class="unit">%</span>
+          <button type="button" class="ghost" id="saveBudget">Save</button>
+          <span class="saved" id="budgetSaved" hidden></span>
+        </div>
+        <div class="meter" aria-hidden="true"><div id="meterFill"></div></div>
+        <p class="help" id="budgetLine"></p>
+      </div>
+    </div>
+  </section>
+
+  <footer id="footer"></footer>
+</main>
+
+<script src="console.js"></script>
+<script>
+  const state = JSON.parse(document.getElementById("state").textContent);
+  const { el, chip, money, flash } = Console;
+  const app = state.env.app;
+  const cur = state.currency;
+
+  Console.chrome(state, "Environments");
+  Console.crumbs(app, "Costs");
+  Console.subnav(app, "Costs");
+
+  const meta = document.getElementById("meta");
+  meta.appendChild(chip("Live", "phosphor"));
+  meta.appendChild(chip(state.env.profile));
+  meta.appendChild(el("span", "mono notice", state.env.region));
+
+  const $ = id => document.getElementById(id);
+
+  // ---- dates ----
+  const day = 24 * 60 * 60 * 1000;
+  const iso = d => d.toISOString().slice(0, 10);
+  const parse = s => new Date(s + "T00:00:00Z");
+  const today = parse(state.today);
+  const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const short = d => MONTHS[d.getUTCMonth()] + " " + d.getUTCDate();
+
+  function range(period) {
+    if (period === "month") {
+      const first = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
+      const last = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 0));
+      return { from: first, to: last, label: MONTHS[today.getUTCMonth()] + " " + today.getUTCFullYear() };
+    }
+    const n = Number(period);
+    return { from: new Date(today - (n - 1) * day), to: today, label: "the last " + n + " days" };
+  }
+
+  // Billed for a day, or null when there is nothing yet (before the first deploy,
+  // or in the future).
+  const billed = d => (d <= today ? state.days[iso(d)] || 0 : null);
+
+  // ---- the numbers ----
+  const monthToDate = Object.values(state.days).reduce((a, b) => a + b, 0);
+  const yesterday = state.days[state.lastFullDay] || 0;
+  const monthEnd = range("month").to;
+  const daysLeft = Math.round((monthEnd - today) / day);
+  const forecast = monthToDate + daysLeft * state.forecastPerDay;
+
+  const stats = $("stats");
+  function tile(n, label, detail) {
+    const box = el("div", "stat");
+    const num = el("div", "n");
+    if (n.startsWith(cur)) {
+      num.appendChild(el("span", "cur", cur));
+      num.appendChild(document.createTextNode(n.slice(cur.length + 1)));
+    } else {
+      num.textContent = n;
+    }
+    box.appendChild(num);
+    box.appendChild(el("div", "l", label));
+    if (detail) box.appendChild(el("div", "d", detail));
+    stats.appendChild(box);
+  }
+  tile(cur + " " + money(monthToDate), "Month to date", "since the first deploy on " + short(parse(state.env.firstDeploy)));
+  tile(cur + " " + money(forecast), "Forecast for the month", "at the current rate");
+  tile(cur + " " + money(yesterday), "Last full day", short(parse(state.lastFullDay)));
+  tile(String(state.requests.month), "Requests this month", state.requests.yesterday + " on the last full day");
+
+  // ---- chart ----
+  let period = "month";
+
+  function drawChart() {
+    const r = range(period);
+    const bars = $("bars");
+    const axis = $("axis");
+    bars.textContent = "";
+    axis.textContent = "";
+
+    const values = [];
+    for (let d = new Date(r.from); d <= r.to; d = new Date(d.getTime() + day)) values.push({ d: new Date(d), v: billed(d) });
+    const top = Math.max(state.forecastPerDay, ...values.map(x => x.v || 0)) || 1;
+
+    const count = values.length;
+    values.forEach(({ d, v }, i) => {
+      const bar = el("div", "bar");
+      const isForecast = v === null && period === "month";
+      const amount = isForecast ? state.forecastPerDay : v;
+      if (amount === null || (amount === 0 && d < parse(state.env.firstDeploy))) {
+        bar.classList.add("none");
+        bar.style.height = "1px";
+        bar.dataset.label = short(d) + ": nothing";
+      } else {
+        if (isForecast) bar.classList.add("forecast");
+        bar.style.height = Math.max(2, Math.round((amount / top) * 100)) + "%";
+        bar.dataset.label = short(d) + ": " + cur + " " + money(amount) + (isForecast ? " forecast" : "");
+      }
+      bar.setAttribute("title", bar.dataset.label);
+      bars.appendChild(bar);
+
+      // Labels: every day for a week, every few days otherwise, always the ends.
+      const every = count <= 7 ? 1 : count <= 14 ? 2 : 5;
+      const label = el("span", null, (i === 0 || i === count - 1 || (i + 1) % every === 0) ? String(d.getUTCDate()) : "");
+      axis.appendChild(label);
+    });
+
+    $("chartTitle").textContent = "By day, " + r.label;
+    $("chartHint").textContent = period === "month"
+      ? "Solid is billed. Striped is the rest of the month at the current rate."
+      : "Today is partial; the day is not over.";
+    $("tableHint").textContent = "For " + r.label + ". Lines under " + cur + " 0.005 show as 0.00.";
+  }
+
+  // ---- table ----
+  function drawTable() {
+    const rows = $("rows");
+    rows.textContent = "";
+    const compare = $("compare").checked;
+    for (const th of document.querySelectorAll("th.prev")) th.hidden = !compare;
+
+    let total = 0;
+    for (const group of state.lines) {
+      const sum = group.items.reduce((a, b) => a + b.cost, 0);
+      total += sum;
+
+      const head = el("tr");
+      const name = el("td");
+      name.appendChild(el("span", "mono", group.module));
+      name.appendChild(el("div", "notice", group.what));
+      head.appendChild(name);
+      head.appendChild(el("td"));
+      if (compare) head.appendChild(el("td", "num", money(0)));
+      head.appendChild(el("td", "num", money(sum)));
+      rows.appendChild(head);
+
+      for (const item of group.items) {
+        const row = el("tr", "sub");
+        row.appendChild(el("td", null, item.name));
+        row.appendChild(el("td", "mono notice", item.usage));
+        if (compare) row.appendChild(el("td", "num notice", money(0)));
+        row.appendChild(el("td", "num", money(item.cost)));
+        rows.appendChild(row);
+      }
+    }
+
+    const foot = el("tr", "sum");
+    foot.appendChild(el("td", null, "Total"));
+    foot.appendChild(el("td"));
+    if (compare) foot.appendChild(el("td", "num", money(state.previous.month)));
+    const cell = el("td", "num");
+    cell.appendChild(el("span", "cur", cur + " "));
+    cell.appendChild(document.createTextNode(money(total)));
+    foot.appendChild(cell);
+    rows.appendChild(foot);
+  }
+
+  $("compare").addEventListener("change", drawTable);
+
+  for (const button of $("period").querySelectorAll("button")) {
+    button.addEventListener("click", () => {
+      period = button.dataset.period;
+      for (const b of $("period").querySelectorAll("button")) b.setAttribute("aria-pressed", b === button ? "true" : "false");
+      drawChart();
+      drawTable();
+    });
+  }
+
+  // ---- budget ----
+  $("budget").value = state.budget.amount.toFixed(2);
+  $("notifyAt").value = state.budget.notifyAt;
+
+  function drawBudget() {
+    const amount = Number($("budget").value) || 0;
+    const used = amount ? (monthToDate / amount) * 100 : 0;
+    $("meterFill").style.width = Math.min(100, Math.max(0.5, used)) + "%";
+    $("budgetLine").textContent = amount
+      ? cur + " " + money(monthToDate) + " of " + cur + " " + money(amount) + " used, " + (Math.round(used * 10) / 10) + "%. At the current rate this month ends at " + cur + " " + money(forecast) + "."
+      : "No budget set.";
+  }
+  $("budget").addEventListener("input", drawBudget);
+  $("saveBudget").addEventListener("click", () => { drawBudget(); flash($("budgetSaved"), "Saved"); });
+
+  // ---- download ----
+  $("download").addEventListener("click", () => {
+    const lines = ["app,module,resource,usage,cost_" + cur.toLowerCase()];
+    for (const group of state.lines) {
+      for (const item of group.items) lines.push([app, group.module, item.name, JSON.stringify(item.usage), item.cost.toFixed(3)].join(","));
+    }
+    Console.download(app + "-costs-" + state.today + ".csv", lines.join("\n") + "\n", "text/csv");
+  });
+
+  drawChart();
+  drawTable();
+  drawBudget();
+</script>
+</body>
+</html>

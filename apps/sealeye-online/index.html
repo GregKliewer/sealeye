@@ -15,21 +15,6 @@
     "name": "Greg K.",
     "initial": "G"
   },
-  "nav": [
-    {
-      "label": "Environments",
-      "current": true
-    },
-    {
-      "label": "Catalog"
-    },
-    {
-      "label": "Activity"
-    },
-    {
-      "label": "Team"
-    }
-  ],
   "page": {
     "title": "Environments",
     "subtitle": "Every environment seaLeye.run has built for Northline Bank, and the plans it has been asked for.",
@@ -42,7 +27,7 @@
     },
     {
       "label": "Planned",
-      "value": "1"
+      "value": "2"
     },
     {
       "label": "Deploys this week",
@@ -65,7 +50,7 @@
       "url": "https://znys54b61c.execute-api.ca-central-1.amazonaws.com",
       "profile": "dev",
       "deploys": 13,
-      "last": "1h ago",
+      "last": "Just now",
       "card": {
         "app": "beneficiary-lookup-api, a Node.js API that starts with index.js",
         "modules": [
@@ -93,16 +78,16 @@
     {
       "app": "payment-events-processor",
       "owner": {
-        "name": "Cindy",
-        "initial": "C"
+        "name": "Greg",
+        "initial": "G"
       },
       "status": "planned",
       "chip": "amber",
       "url": null,
       "note": "waiting on 5 catalog modules",
       "profile": "prod",
-      "deploys": 7,
-      "last": "1h ago",
+      "deploys": 0,
+      "last": "Just now",
       "card": {
         "app": "payment-events-processor, a service that runs continuously",
         "modules": [
@@ -168,6 +153,71 @@
           {
             "id": "network_private",
             "line": "Reachable from your organization only, with the public way in closed."
+          }
+        ],
+        "back": [
+          "Your logs and basic metrics, kept for 30 days"
+        ]
+      }
+    },
+    {
+      "app": "payment-events-processor",
+      "owner": {
+        "name": "Cindy",
+        "initial": "C"
+      },
+      "status": "planned",
+      "chip": "amber",
+      "url": null,
+      "note": "waiting on 5 catalog modules",
+      "profile": "dev",
+      "deploys": 0,
+      "last": "1h ago",
+      "card": {
+        "app": "payment-events-processor, a service that runs continuously",
+        "modules": [
+          {
+            "id": "compute_container",
+            "line": "A service that runs continuously, for an app that cannot start fresh on every request.",
+            "planned": "planned"
+          },
+          {
+            "id": "observability_basic",
+            "line": "Collects your app's logs and tracks requests, errors and response times."
+          },
+          {
+            "id": "config_basic",
+            "line": "Passes the settings your app reads from its environment through to it when it runs."
+          },
+          {
+            "id": "data_relational",
+            "line": "A managed relational database your app connects to, kept patched and backed up for you.",
+            "planned": "planned"
+          },
+          {
+            "id": "events_stream",
+            "line": "A stream your services publish events to and read events from, in the order they happened.",
+            "planned": "planned"
+          },
+          {
+            "id": "secrets_basic",
+            "line": "Secrets your app reads while it runs, kept out of your code and out of your plan.",
+            "planned": "planned"
+          },
+          {
+            "id": "network_private",
+            "line": "Your app is reachable from inside your organization only.",
+            "planned": "planned"
+          }
+        ],
+        "patterns": [
+          {
+            "id": "compute_container",
+            "line": "Runs continuously in a single zone, replaced when it stops being well."
+          },
+          {
+            "id": "data_relational",
+            "line": "A single zone, with backups kept and restorable."
           }
         ],
         "back": [
@@ -256,304 +306,7 @@
 }
 </script>
 
-<style>
-  /* seaLeye.online, the console. A delta from brand/BRAND.md, spelled out in
-     brand/BRAND-ONLINE.md: the ground inverts, sans for reading, mono for data. */
-  :root {
-    --ground: #F4F6F8;
-    --surface: #FFFFFF;
-    --ink: #13181D;
-    --dim: #5C6B7A;
-    --rule: #DCE2E8;
-    --phosphor: #1A7A64;
-    --amber: #9A6418;
-    --chip-phosphor-bg: #DDF3EC;
-    --chip-amber-bg: #FBEFD6;
-    --chip-neutral-bg: #E8ECF0;
-    --sans: "IBM Plex Sans", Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
-    --mono: "JetBrains Mono", "IBM Plex Mono", Menlo, monospace;
-  }
-
-  * { box-sizing: border-box; }
-
-  body {
-    margin: 0;
-    background: var(--ground);
-    color: var(--ink);
-    font-family: var(--sans);
-    font-size: 14px;
-    line-height: 1.55;
-  }
-
-  .mono { font-family: var(--mono); }
-
-  /* ---- top bar ---- */
-  .topbar {
-    background: var(--surface);
-    border-bottom: 1px solid var(--rule);
-  }
-  .topbar .inner {
-    max-width: 1120px;
-    margin: 0 auto;
-    padding: 12px 24px;
-    display: flex;
-    align-items: center;
-    gap: 28px;
-    flex-wrap: wrap;
-  }
-  /* 26 px cap height, not a 26 px image: in the SVG the capitals span 47 of the 160
-     units, so the image renders at 88 and the frame crops the padding the drawing
-     carries, which leaves the bar the height a console bar should be. */
-  .wordmark { display: block; height: 44px; overflow: hidden; }
-  .wordmark img { height: 88px; width: auto; display: block; margin-top: -22px; }
-
-  nav { display: flex; gap: 22px; flex: 1 1 auto; }
-  nav a {
-    color: var(--dim);
-    text-decoration: none;
-    padding: 6px 0;
-    border-bottom: 2px solid transparent;
-  }
-  nav a[aria-current="page"] { color: var(--ink); border-bottom-color: var(--phosphor); }
-  nav a:hover { color: var(--ink); }
-
-  .who { display: flex; align-items: center; gap: 12px; color: var(--dim); }
-  .disc {
-    width: 26px; height: 26px; border-radius: 50%;
-    background: var(--chip-phosphor-bg); color: var(--phosphor);
-    display: inline-flex; align-items: center; justify-content: center;
-    font-size: 12px; font-weight: 600;
-  }
-
-  /* ---- page ---- */
-  main { max-width: 1120px; margin: 0 auto; padding: 32px 24px 64px; }
-
-  .title { display: flex; align-items: flex-start; gap: 24px; flex-wrap: wrap; }
-  .title h1 { font-size: 22px; font-weight: 600; margin: 0; }
-  .title .sub { color: var(--dim); margin: 4px 0 0; }
-  .title .spacer { flex: 1 1 auto; }
-
-  .primary {
-    font: inherit;
-    font-weight: 500;
-    background: var(--phosphor);
-    color: #FFFFFF;
-    border: 1px solid var(--phosphor);
-    border-radius: 6px;
-    padding: 9px 16px;
-    cursor: pointer;
-  }
-
-  /* ---- stats ---- */
-  .stats {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-    gap: 16px;
-    margin: 28px 0 32px;
-  }
-  .stat {
-    background: var(--surface);
-    border: 1px solid var(--rule);
-    border-radius: 8px;
-    padding: 16px 18px;
-  }
-  .stat .n { font-family: var(--mono); font-size: 28px; line-height: 1.2; }
-  .stat .l { color: var(--dim); font-size: 13px; }
-
-  /* ---- table ---- */
-  .panel { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
-
-  /* Two rows fit on a screen. Two hundred will not, and the controls for that are
-     worth having before the list needs them. */
-  .toolbar {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--rule);
-  }
-  .search {
-    font: inherit;
-    font-family: var(--mono);
-    color: var(--ink);
-    background: var(--surface);
-    border: 1px solid var(--rule);
-    border-radius: 6px;
-    padding: 7px 10px;
-    flex: 0 1 260px;
-    min-width: 160px;
-  }
-  .search::placeholder { color: var(--dim); font-family: var(--sans); }
-  .search:focus, .profile:focus { outline: none; border-color: var(--phosphor); }
-
-  .toggle {
-    font: inherit;
-    font-size: 13px;
-    color: var(--dim);
-    background: var(--surface);
-    border: 1px solid var(--rule);
-    border-radius: 99px;
-    padding: 5px 14px;
-    cursor: pointer;
-  }
-  .toggle[aria-pressed="true"].live {
-    background: var(--chip-phosphor-bg); color: var(--phosphor); border-color: var(--chip-phosphor-bg);
-  }
-  .toggle[aria-pressed="true"].planned {
-    background: var(--chip-amber-bg); color: var(--amber); border-color: var(--chip-amber-bg);
-  }
-
-  .filterlabel { color: var(--dim); font-size: 13px; }
-  .profile {
-    font: inherit;
-    font-size: 13px;
-    color: var(--ink);
-    background: var(--surface);
-    border: 1px solid var(--rule);
-    border-radius: 6px;
-    padding: 6px 10px;
-  }
-
-  .count { margin-left: auto; color: var(--dim); font-size: 13px; }
-  .count .n { font-family: var(--mono); }
-  .empty { padding: 18px 16px; color: var(--dim); }
-  .empty[hidden] { display: none; }
-  table { width: 100%; border-collapse: collapse; }
-
-  thead th {
-    text-align: left;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--dim);
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--rule);
-    white-space: nowrap;
-  }
-  thead th.right { text-align: right; }
-
-  tbody td { padding: 0 16px; height: 44px; border-bottom: 1px solid var(--rule); vertical-align: middle; }
-  tr.env { cursor: pointer; }
-  tr.env:hover td { background: var(--ground); }
-  tr.env:focus-visible { outline: 2px solid var(--phosphor); outline-offset: -2px; }
-
-  .chip {
-    display: inline-block;
-    font-size: 12px;
-    padding: 2px 10px;
-    border-radius: 99px;
-    background: var(--chip-neutral-bg);
-    color: var(--dim);
-    white-space: nowrap;
-  }
-  .chip.phosphor { background: var(--chip-phosphor-bg); color: var(--phosphor); }
-  .chip.amber { background: var(--chip-amber-bg); color: var(--amber); }
-
-  .owner { display: flex; align-items: center; gap: 8px; }
-  .owner .disc { width: 22px; height: 22px; font-size: 11px; background: var(--chip-neutral-bg); color: var(--dim); }
-
-  td.url { max-width: 26ch; }
-  td.url a, td.url span {
-    font-family: var(--mono);
-    color: var(--phosphor);
-    display: block;
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  td.url span.none { color: var(--dim); }
-
-  /* Each menu gets its own narrow column so its heading sits over its own dots
-     rather than over the row's right edge. */
-  th.menucol, td.menucol { width: 1%; white-space: nowrap; text-align: center; }
-
-  .kebab {
-    font: inherit;
-    line-height: 1;
-    color: var(--dim);
-    background: transparent;
-    border: 1px solid transparent;
-    border-radius: 6px;
-    padding: 4px 8px;
-    cursor: pointer;
-  }
-  .kebab:hover, .kebab[aria-expanded="true"] { color: var(--ink); border-color: var(--rule); }
-
-  /* Positioned against the viewport, because the panel clips its own corners and a
-     menu on the last row would be cut in half by that. */
-  .menu {
-    position: fixed;
-    z-index: 10;
-    min-width: 140px;
-    background: var(--surface);
-    border: 1px solid var(--rule);
-    border-radius: 6px;
-    padding: 4px;
-    text-align: left;
-  }
-  .menu[hidden] { display: none; }
-  .menu button {
-    font: inherit;
-    display: block;
-    width: 100%;
-    text-align: left;
-    color: var(--ink);
-    background: transparent;
-    border: 0;
-    border-radius: 4px;
-    padding: 7px 10px;
-    cursor: pointer;
-  }
-  .menu button:hover, .menu button:focus-visible { background: var(--ground); }
-  .menu h4 {
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--dim);
-    margin: 4px 10px 6px;
-  }
-
-  tr.card td { padding: 0 16px 20px; background: var(--ground); }
-  tr.card[hidden], tr.env[hidden] { display: none; }
-
-  .cardbox { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; }
-  .group { padding: 14px 18px; }
-  .group + .group { border-top: 1px solid var(--rule); }
-  .group h3 { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; color: var(--dim); margin: 0 0 8px; text-transform: none; }
-  .row { display: flex; gap: 16px; padding: 3px 0; flex-wrap: wrap; }
-  .row .id { font-family: var(--mono); min-width: 20ch; }
-  .row .what { color: var(--dim); flex: 1 1 32ch; }
-  .row .tag { color: var(--amber); }
-  .plain { padding: 3px 0; }
-
-  /* ---- catalog ---- */
-  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 12px; }
-  .modcard {
-    background: var(--surface);
-    border: 1px solid var(--rule);
-    border-radius: 8px;
-    padding: 14px 16px;
-    display: flex;
-    gap: 12px;
-    align-items: flex-start;
-  }
-  .modcard .body { flex: 1 1 auto; }
-  .modcard .id { font-family: var(--mono); font-weight: 700; }
-  .modcard .what { color: var(--dim); }
-
-  h2 { font-size: 15px; font-weight: 600; margin: 36px 0 12px; }
-
-  footer { margin-top: 44px; padding-top: 16px; border-top: 1px solid var(--rule); color: var(--dim); }
-
-  @media (max-width: 720px) {
-    th.menucol, td.menucol { display: none; }
-    .topbar .inner { gap: 16px; }
-  }
-</style>
+<link rel="stylesheet" href="console.css">
 </head>
 <body>
 
@@ -607,34 +360,15 @@
 
 </main>
 
+<script src="console.js"></script>
 <script>
   const state = JSON.parse(document.getElementById("state").textContent);
+  const { el } = Console;
 
-  const el = (tag, cls, text) => {
-    const node = document.createElement(tag);
-    if (cls) node.className = cls;
-    if (text !== undefined) node.textContent = text;
-    return node;
-  };
-
-  document.getElementById("org").textContent = state.org;
-  document.getElementById("userDisc").textContent = state.user.initial;
-  document.getElementById("userName").textContent = state.user.name;
+  Console.chrome(state, "Environments");
   document.getElementById("pageTitle").textContent = state.page.title;
   document.getElementById("pageSub").textContent = state.page.subtitle;
   document.getElementById("primary").textContent = state.page.action;
-
-  document.getElementById("footer").textContent =
-    "State shown here is read from your environments, not from anyone's laptop.";
-
-  const nav = document.getElementById("nav");
-  for (const item of state.nav) {
-    const link = el("a", null, item.label);
-    link.href = "#";
-    if (item.current) link.setAttribute("aria-current", "page");
-    link.addEventListener("click", event => event.preventDefault());
-    nav.appendChild(link);
-  }
 
   const stats = document.getElementById("stats");
   for (const stat of state.stats) {
@@ -694,7 +428,10 @@
 
   /**
    * One menu on a row: a heading so the developer knows which of the two they opened,
-   * then its items. Every item is inert in this version; the shape is the point.
+   * then its items. An item is { label, href } for a page of its own, { label, run }
+   * for something this page does, { label } for a thing the console has but this
+   * version does not do, and { label, disabled: true } when it cannot be done for
+   * this row at all: a plan that was never built has no costs, logs or settings.
    */
   function kebab(env, heading, items) {
     const holder = el("span");
@@ -717,13 +454,26 @@
 
     let first = null;
 
-    for (const label of items) {
-      const item = el("button", null, label);
-      item.type = "button";
+    for (const spec of items) {
+      let item;
+      if (spec.href && !spec.disabled) {
+        item = el("a", null, spec.label);
+        item.href = spec.href;
+        item.addEventListener("click", event => event.stopPropagation());
+      } else {
+        item = el("button", null, spec.label);
+        item.type = "button";
+        item.addEventListener("click", event => {
+          event.stopPropagation();
+          if (spec.disabled) return;
+          closeMenu();
+          if (spec.run) spec.run();
+        });
+      }
       item.setAttribute("role", "menuitem");
-      item.addEventListener("click", event => { event.stopPropagation(); closeMenu(); });
+      if (spec.disabled) item.setAttribute("aria-disabled", "true");
       menu.appendChild(item);
-      if (!first) first = item;
+      if (!first && !spec.disabled) first = item;
     }
 
     button.addEventListener("click", event => {
@@ -785,15 +535,7 @@
 
     row.appendChild(el("td", "mono", env.profile));
     row.appendChild(el("td", "mono", String(env.deploys)));
-    row.appendChild(el("td", "mono", env.last));
-
-    const actions = el("td", "menucol");
-    actions.appendChild(kebab(env, "Actions", ["Plan", "Configure", "Destroy"]));
-    row.appendChild(actions);
-
-    const info = el("td", "menucol");
-    info.appendChild(kebab(env, "Info", ["Costs", "Logs", "Performance"]));
-    row.appendChild(info);
+    row.appendChild(el("td", "mono last", env.last));
 
     const holder = el("tr", "card");
     holder.hidden = true;
@@ -807,6 +549,27 @@
       row.setAttribute("aria-expanded", holder.hidden ? "false" : "true");
     };
 
+    // Only a live environment has pages behind these. A plan that was never built has
+    // a plan to look at and nothing else, and the menu says so rather than hiding it.
+    const live = env.status === "live";
+    const page = name => name + ".html?app=" + encodeURIComponent(env.app);
+
+    const actions = el("td", "menucol");
+    actions.appendChild(kebab(env, "Actions", [
+      { label: "Plan", run: () => { if (holder.hidden) toggle(); } },
+      { label: "Configure", href: page("configure"), disabled: !live },
+      { label: "Destroy", disabled: !live }
+    ]));
+    row.appendChild(actions);
+
+    const info = el("td", "menucol");
+    info.appendChild(kebab(env, "Info", [
+      { label: "Costs", href: page("costs"), disabled: !live },
+      { label: "Logs", href: page("logs"), disabled: !live },
+      { label: "Performance", disabled: true }
+    ]));
+    row.appendChild(info);
+
     row.addEventListener("click", toggle);
     row.addEventListener("keydown", event => {
       if (event.key === "Enter" || event.key === " ") { event.preventDefault(); toggle(); }
@@ -815,6 +578,16 @@
     body.appendChild(row);
     body.appendChild(holder);
     listed.push({ env, row, holder });
+  }
+
+  // Coming back from one of an environment's pages, the link names the app in the
+  // hash; open its card so the reader lands where they left.
+  const wanted = decodeURIComponent(location.hash.slice(1));
+  const back = wanted && listed.find(item => item.env.app === wanted);
+  if (back) {
+    back.holder.hidden = false;
+    back.row.setAttribute("aria-expanded", "true");
+    back.row.scrollIntoView({ block: "center" });
   }
 
   // ---- finding things in a long list ----

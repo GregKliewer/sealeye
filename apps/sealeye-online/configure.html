@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Configure, seaLeye.online</title>
+
+<!-- Everything this page shows. The current values are the ones the platform deployed
+     this environment with: memory and timeout from the http_api_serverless template,
+     retention from the plan, no settings because the app had no .env when planned. -->
+<script type="application/json" id="state">
+{
+  "org": "Northline Bank",
+  "user": { "name": "Greg K.", "initial": "G" },
+  "env": {
+    "app": "beneficiary-lookup-api",
+    "status": "live",
+    "profile": "dev",
+    "region": "ca-central-1",
+    "stack": "sealeye-beneficiary-lookup-api",
+    "planVersion": "0.3",
+    "lastDeploy": "Just now"
+  },
+  "resources": {
+    "memoryMb": 512,
+    "timeoutS": 30,
+    "concurrency": "unlimited",
+    "reserved": 10,
+    "warm": 0
+  },
+  "logs": {
+    "retentionDays": 30,
+    "requestLog": true,
+    "alertOn": true,
+    "alertErrorRate": 5,
+    "alertWindowMin": 5
+  },
+  "settings": [],
+  "profiles": [
+    { "id": "poc", "line": "A single zone, on demand, nothing kept. Fine for a week, not for a customer." },
+    { "id": "dev", "line": "A single zone and on demand, like a proof of concept, but nothing is thrown away: data is backed up and failed work is kept." },
+    { "id": "perf", "line": "Sized like production and disposable: built to be measured and torn down." },
+    { "id": "prod", "line": "More than one zone, always on, backed up, recoverable, and paged when it is not well." }
+  ]
+}
+</script>
+
+<link rel="stylesheet" href="console.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="inner">
+    <span class="wordmark"><img src="sealeye-online-wordmark-light.svg" alt="seaLeye.online"></span>
+    <nav id="nav"></nav>
+    <div class="who"><span id="org"></span><span class="disc" id="userDisc"></span><span id="userName"></span></div>
+  </div>
+</div>
+
+<main>
+  <div class="crumbs" id="crumbs"></div>
+
+  <div class="title">
+    <div>
+      <h1>Configure</h1>
+      <p class="sub">Sizing and settings for this environment. Changes are kept here and applied on the next deploy.</p>
+      <div class="meta" id="meta"></div>
+    </div>
+    <div class="spacer"></div>
+    <div class="actions">
+      <span class="saved" id="saved" hidden></span>
+      <span class="notice" id="pending" hidden></span>
+      <button type="button" class="ghost" id="discard" disabled>Discard</button>
+      <button type="button" class="primary" id="save" disabled>Save changes</button>
+    </div>
+  </div>
+
+  <div class="subnav" id="subnav"></div>
+
+  <form id="form" autocomplete="off">
+
+    <section class="section">
+      <header><h2>Resources</h2><span class="hint">http_api_serverless. What each request gets to run with.</span></header>
+
+      <div class="field">
+        <label for="memory">Memory</label>
+        <div class="value">
+          <input type="range" id="memoryRange" min="128" max="3008" step="64" aria-label="Memory, slider">
+          <input type="number" id="memory" min="128" max="3008" step="64">
+          <span class="unit">MB</span>
+          <span class="was" id="memoryWas" hidden></span>
+        </div>
+        <p class="help">Compute scales with memory, so this is also the speed knob. 128 to 3008, in steps of 64.</p>
+      </div>
+
+      <div class="field">
+        <label for="timeout">Timeout</label>
+        <div class="value">
+          <input type="number" id="timeout" min="1" max="900">
+          <span class="unit">seconds</span>
+          <span class="was" id="timeoutWas" hidden></span>
+        </div>
+        <p class="help">The longest one request may take before the platform ends it. 1 to 900.</p>
+      </div>
+
+      <div class="field">
+        <label for="concurrency">Concurrency</label>
+        <div class="value">
+          <select id="concurrency">
+            <option value="unlimited">As many at once as arrive</option>
+            <option value="reserved">Reserve a fixed number</option>
+          </select>
+          <input type="number" id="reserved" min="1" max="1000" hidden aria-label="Reserved concurrency">
+          <span class="was" id="concurrencyWas" hidden></span>
+        </div>
+        <p class="help">Reserving a number caps this app and also guarantees it that many, whatever else the account is doing.</p>
+      </div>
+
+      <div class="field">
+        <label for="warm">Kept warm</label>
+        <div class="value">
+          <input type="number" id="warm" min="0" max="100">
+          <span class="unit">instances</span>
+          <span class="was" id="warmWas" hidden></span>
+        </div>
+        <p class="help">Instances held ready so the first request after a quiet spell is not slow. Each one is billed while it waits.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <header><h2>Logs and metrics</h2><span class="hint">observability_basic. What is collected and how long it stays.</span></header>
+
+      <div class="field">
+        <label for="retention">Log retention</label>
+        <div class="value">
+          <select id="retention"></select>
+          <span class="was" id="retentionWas" hidden></span>
+        </div>
+        <p class="help">Lines older than this are dropped. Storage is billed by what is kept.</p>
+      </div>
+
+      <div class="field">
+        <label for="requestLog">Request tracking</label>
+        <div class="value">
+          <input type="checkbox" id="requestLog">
+          <span class="unit">One line per request: method, path, status, time.</span>
+          <span class="was" id="requestLogWas" hidden></span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="alertOn">Error alert</label>
+        <div class="value">
+          <input type="checkbox" id="alertOn">
+          <span class="unit">Tell the owner when more than</span>
+          <input type="number" id="alertRate" min="1" max="100" aria-label="Error rate, percent">
+          <span class="unit">% of requests fail over</span>
+          <input type="number" id="alertWindow" min="1" max="60" aria-label="Window, minutes">
+          <span class="unit">minutes</span>
+          <span class="was" id="alertWas" hidden></span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <header><h2>Settings your app reads</h2><span class="hint">config_basic. Names are shown. Values are written once and never shown again, here or anywhere.</span></header>
+
+      <div class="field" id="settingsField">
+        <span class="name">Current</span>
+        <div>
+          <table class="settings" id="settingsTable" hidden>
+            <thead><tr><th>Name</th><th>Value</th><th></th></tr></thead>
+            <tbody id="settingsBody"></tbody>
+          </table>
+          <p class="notice" id="settingsEmpty">None. The app had no .env when it was planned, and nothing has been added since.</p>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="newName">Add a setting</label>
+        <div class="value">
+          <input type="text" id="newName" placeholder="NAME" spellcheck="false" aria-label="Setting name">
+          <input type="text" id="newValue" placeholder="value" spellcheck="false" aria-label="Setting value">
+          <button type="button" class="ghost" id="addSetting">Add</button>
+        </div>
+        <p class="help">Upper case, letters, digits and underscore. PORT is the platform's and cannot be set.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <header><h2>Profile</h2><span class="hint">The patterns the platform applies to every module in this environment.</span></header>
+
+      <div class="field">
+        <label for="profile">Profile</label>
+        <div class="value">
+          <select id="profile"></select>
+          <span class="was" id="profileWas" hidden></span>
+        </div>
+        <p class="help" id="profileLine"></p>
+      </div>
+    </section>
+
+    <section class="section">
+      <header><h2>Where it runs</h2><span class="hint">Read only. Set when the environment was planned.</span></header>
+      <div class="field"><span class="name">Region</span><div class="value"><span class="mono" id="region"></span></div></div>
+      <div class="field"><span class="name">Stack</span><div class="value"><span class="mono" id="stack"></span></div></div>
+      <div class="field"><span class="name">Plan version</span><div class="value"><span class="mono" id="planVersion"></span></div></div>
+      <div class="field"><span class="name">Last deploy</span><div class="value"><span class="mono" id="lastDeploy"></span></div></div>
+    </section>
+
+  </form>
+
+  <footer id="footer"></footer>
+</main>
+
+<script src="console.js"></script>
+<script>
+  const state = JSON.parse(document.getElementById("state").textContent);
+  const { el, chip, flash } = Console;
+  const app = state.env.app;
+
+  Console.chrome(state, "Environments");
+  Console.crumbs(app, "Configure");
+  Console.subnav(app, "Configure");
+
+  const meta = document.getElementById("meta");
+  meta.appendChild(chip("Live", "phosphor"));
+  meta.appendChild(chip(state.env.profile));
+  meta.appendChild(el("span", "mono notice", state.env.region));
+
+  for (const key of ["region", "stack", "planVersion", "lastDeploy"]) {
+    document.getElementById(key).textContent = state.env[key];
+  }
+
+  const $ = id => document.getElementById(id);
+
+  // ---- fill the form from what is deployed ----
+  const RETENTION = [1, 3, 7, 14, 30, 60, 90, 180, 365];
+  for (const days of RETENTION) {
+    const option = el("option", null, days === 1 ? "1 day" : days + " days");
+    option.value = String(days);
+    $("retention").appendChild(option);
+  }
+  for (const profile of state.profiles) {
+    const option = el("option", null, profile.id);
+    option.value = profile.id;
+    $("profile").appendChild(option);
+  }
+
+  const deployed = {
+    memory: state.resources.memoryMb,
+    timeout: state.resources.timeoutS,
+    concurrency: state.resources.concurrency,
+    reserved: state.resources.reserved,
+    warm: state.resources.warm,
+    retention: state.logs.retentionDays,
+    requestLog: state.logs.requestLog,
+    alertOn: state.logs.alertOn,
+    alertRate: state.logs.alertErrorRate,
+    alertWindow: state.logs.alertWindowMin,
+    profile: state.env.profile,
+    settings: state.settings.map(s => s.name)
+  };
+
+  // What is saved on this page and waiting for the next deploy. Starts as what is
+  // deployed; a save moves it.
+  let saved = JSON.parse(JSON.stringify(deployed));
+  const settings = state.settings.map(s => s.name);
+
+  function fill(from) {
+    $("memory").value = from.memory;
+    $("memoryRange").value = from.memory;
+    $("timeout").value = from.timeout;
+    $("concurrency").value = from.concurrency;
+    $("reserved").value = from.reserved;
+    $("reserved").hidden = from.concurrency !== "reserved";
+    $("warm").value = from.warm;
+    $("retention").value = String(from.retention);
+    $("requestLog").checked = from.requestLog;
+    $("alertOn").checked = from.alertOn;
+    $("alertRate").value = from.alertRate;
+    $("alertWindow").value = from.alertWindow;
+    $("profile").value = from.profile;
+    settings.length = 0;
+    settings.push(...from.settings);
+    renderSettings();
+    review();
+  }
+
+  function current() {
+    return {
+      memory: Number($("memory").value),
+      timeout: Number($("timeout").value),
+      concurrency: $("concurrency").value,
+      reserved: Number($("reserved").value),
+      warm: Number($("warm").value),
+      retention: Number($("retention").value),
+      requestLog: $("requestLog").checked,
+      alertOn: $("alertOn").checked,
+      alertRate: Number($("alertRate").value),
+      alertWindow: Number($("alertWindow").value),
+      profile: $("profile").value,
+      settings: settings.slice()
+    };
+  }
+
+  // ---- what differs from what is deployed, shown next to each field ----
+  function was(id, text) {
+    const node = $(id);
+    node.hidden = !text;
+    node.textContent = text || "";
+  }
+
+  function review() {
+    const now = current();
+    $("reserved").hidden = now.concurrency !== "reserved";
+    $("profileLine").textContent = state.profiles.find(p => p.id === now.profile).line;
+
+    was("memoryWas", now.memory !== deployed.memory ? "deployed: " + deployed.memory + " MB" : "");
+    was("timeoutWas", now.timeout !== deployed.timeout ? "deployed: " + deployed.timeout + " s" : "");
+    was("concurrencyWas",
+      now.concurrency !== deployed.concurrency || (now.concurrency === "reserved" && now.reserved !== deployed.reserved)
+        ? "deployed: " + (deployed.concurrency === "reserved" ? deployed.reserved + " reserved" : "unlimited") : "");
+    was("warmWas", now.warm !== deployed.warm ? "deployed: " + deployed.warm : "");
+    was("retentionWas", now.retention !== deployed.retention ? "deployed: " + deployed.retention + " days" : "");
+    was("requestLogWas", now.requestLog !== deployed.requestLog ? "deployed: " + (deployed.requestLog ? "on" : "off") : "");
+    was("alertWas",
+      now.alertOn !== deployed.alertOn || now.alertRate !== deployed.alertRate || now.alertWindow !== deployed.alertWindow
+        ? "deployed: " + (deployed.alertOn ? deployed.alertRate + "% over " + deployed.alertWindow + " min" : "off") : "");
+    was("profileWas", now.profile !== deployed.profile ? "deployed: " + deployed.profile : "");
+
+    const dirty = JSON.stringify(now) !== JSON.stringify(saved);
+    $("save").disabled = !dirty;
+    $("discard").disabled = !dirty;
+
+    const pendingCount = countDiff(saved, deployed);
+    const pending = $("pending");
+    pending.hidden = pendingCount === 0;
+    pending.textContent = pendingCount === 1
+      ? "1 saved change applies on the next deploy"
+      : pendingCount + " saved changes apply on the next deploy";
+  }
+
+  function countDiff(a, b) {
+    let n = 0;
+    for (const key of Object.keys(a)) {
+      if (JSON.stringify(a[key]) !== JSON.stringify(b[key])) n += 1;
+    }
+    return n;
+  }
+
+  // ---- settings table ----
+  function renderSettings() {
+    const body = $("settingsBody");
+    body.textContent = "";
+    $("settingsTable").hidden = settings.length === 0;
+    $("settingsEmpty").hidden = settings.length !== 0;
+
+    for (const name of settings) {
+      const row = el("tr");
+      row.appendChild(el("td", "mono", name));
+      row.appendChild(el("td", "secret", "••••••••"));
+      const cell = el("td");
+      const del = el("button", "del", "Remove");
+      del.type = "button";
+      del.addEventListener("click", () => {
+        settings.splice(settings.indexOf(name), 1);
+        renderSettings();
+        review();
+      });
+      cell.appendChild(del);
+      row.appendChild(cell);
+      body.appendChild(row);
+    }
+  }
+
+  $("addSetting").addEventListener("click", () => {
+    const name = $("newName").value.trim();
+    const value = $("newValue").value;
+    if (!/^[A-Z][A-Z0-9_]*$/.test(name) || name === "PORT" || settings.includes(name) || !value) {
+      $("newName").focus();
+      return;
+    }
+    settings.push(name);
+    // The value goes nowhere on this mock. On the real thing it goes to the platform
+    // once, over TLS, and is not readable back.
+    $("newName").value = "";
+    $("newValue").value = "";
+    renderSettings();
+    review();
+  });
+
+  // ---- wiring ----
+  $("memoryRange").addEventListener("input", () => { $("memory").value = $("memoryRange").value; review(); });
+  $("memory").addEventListener("input", () => { $("memoryRange").value = $("memory").value; review(); });
+  $("form").addEventListener("input", review);
+  $("form").addEventListener("change", review);
+  $("form").addEventListener("submit", event => event.preventDefault());
+
+  $("discard").addEventListener("click", () => fill(saved));
+
+  $("save").addEventListener("click", () => {
+    saved = current();
+    review();
+    flash($("saved"), "Saved");
+  });
+
+  fill(deployed);
+</script>
+</body>
+</html>

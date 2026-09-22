@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Logs, seaLeye.online</title>
+
+<!-- Everything this page shows. The lines are what a newly deployed API writes: the
+     platform starting it, the app saying it is listening, and the first few requests
+     from whoever tried the URL. Times are seconds before the page was opened, so the
+     stream reads as fresh whenever it is shown. -->
+<script type="application/json" id="state">
+{
+  "org": "Northline Bank",
+  "user": { "name": "Greg K.", "initial": "G" },
+  "env": {
+    "app": "beneficiary-lookup-api",
+    "status": "live",
+    "profile": "dev",
+    "region": "ca-central-1",
+    "retentionDays": 30,
+    "deploymentId": "dep_9c31e07a44f2"
+  },
+  "lines": [
+    { "ago": 214.882, "level": "platform", "req": "", "text": "Deploy dep_9c31e07a44f2 is live. Package 2.6 MB, 512 MB memory, 30 s timeout." },
+    { "ago": 213.611, "level": "platform", "req": "", "text": "Starting run.sh, entry point index.js" },
+    { "ago": 212.207, "level": "info", "req": "", "text": "beneficiary-lookup-api listening on port 8080" },
+    { "ago": 212.093, "level": "platform", "req": "", "text": "App answered on port 8080 after 412 ms" },
+    { "ago": 187.418, "level": "info", "req": "a41f2c", "text": "GET / 200 5 ms" },
+    { "ago": 171.771, "level": "info", "req": "b0d9e1", "text": "GET /beneficiaries/BEN-4417-2290 200 12 ms" },
+    { "ago": 158.256, "level": "info", "req": "b7a3c8", "text": "GET /beneficiaries/ben-4417-2290 200 8 ms" },
+    { "ago": 133.934, "level": "info", "req": "c25d10", "text": "GET /beneficiaries/BEN-0000-0001 404 4 ms" },
+    { "ago": 133.930, "level": "info", "req": "c25d10", "text": "No beneficiary is on file for that reference. accountReference=BEN-0000-0001" },
+    { "ago": 96.145,  "level": "info", "req": "d81e77", "text": "GET /favicon.ico 404 2 ms" },
+    { "ago": 41.502,  "level": "info", "req": "e3f0a2", "text": "GET /beneficiaries/BEN-4417-2290 200 7 ms" }
+  ],
+  "tail": [
+    "GET / 200 4 ms",
+    "GET /beneficiaries/BEN-4417-2290 200 6 ms",
+    "GET /beneficiaries/BEN-4417-2290 200 7 ms"
+  ]
+}
+</script>
+
+<link rel="stylesheet" href="console.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="inner">
+    <span class="wordmark"><img src="sealeye-online-wordmark-light.svg" alt="seaLeye.online"></span>
+    <nav id="nav"></nav>
+    <div class="who"><span id="org"></span><span class="disc" id="userDisc"></span><span id="userName"></span></div>
+  </div>
+</div>
+
+<main>
+  <div class="crumbs" id="crumbs"></div>
+
+  <div class="title">
+    <div>
+      <h1>Logs</h1>
+      <p class="sub" id="sub"></p>
+      <div class="meta" id="meta"></div>
+    </div>
+    <div class="spacer"></div>
+    <div class="actions">
+      <button type="button" class="ghost" id="download">Download</button>
+    </div>
+  </div>
+
+  <div class="subnav" id="subnav"></div>
+
+  <div class="panel">
+    <div class="logbar">
+      <input id="search" class="search" type="search" placeholder="Search lines" aria-label="Search lines" spellcheck="false" autocomplete="off">
+      <label class="filterlabel" for="level">Level</label>
+      <select id="level" class="profile">
+        <option value="">All</option>
+        <option value="info">Info</option>
+        <option value="warn">Warn</option>
+        <option value="error">Error</option>
+        <option value="platform">Platform</option>
+      </select>
+      <label class="filterlabel" for="range">Since</label>
+      <select id="range" class="profile">
+        <option value="15">15 minutes ago</option>
+        <option value="60" selected>1 hour ago</option>
+        <option value="1440">24 hours ago</option>
+        <option value="10080">7 days ago</option>
+        <option value="43200">30 days ago</option>
+      </select>
+      <button type="button" class="tail" id="tail" aria-pressed="true"><span class="dot"></span>Live</button>
+    </div>
+
+    <div class="logbar" id="views" aria-label="Saved views">
+      <span class="filterlabel">Views</span>
+    </div>
+
+    <div class="stream">
+      <table>
+        <thead><tr><th class="ts">Time</th><th class="lvl">Level</th><th class="req">Request</th><th>Line</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <p class="empty" id="empty" hidden>No lines match.</p>
+    </div>
+
+    <div class="streamfoot">
+      <span id="count" aria-live="polite"></span>
+      <span id="kept"></span>
+      <span id="oldest"></span>
+    </div>
+  </div>
+
+  <footer id="footer"></footer>
+</main>
+
+<script src="console.js"></script>
+<script>
+  const state = JSON.parse(document.getElementById("state").textContent);
+  const { el, chip } = Console;
+  const app = state.env.app;
+
+  Console.chrome(state, "Environments");
+  Console.crumbs(app, "Logs");
+  Console.subnav(app, "Logs");
+
+  const meta = document.getElementById("meta");
+  meta.appendChild(chip("Live", "phosphor"));
+  meta.appendChild(chip(state.env.profile));
+  meta.appendChild(el("span", "mono notice", state.env.region));
+
+  const $ = id => document.getElementById(id);
+
+  $("sub").textContent = "Everything this app writes to its output, plus one line per request. Kept for " + state.env.retentionDays + " days.";
+
+  // ---- the lines, stamped relative to now ----
+  const opened = Date.now();
+  const lines = state.lines.map(line => ({ ...line, at: opened - line.ago * 1000 }));
+
+  const pad = (n, w) => String(n).padStart(w || 2, "0");
+  const stamp = t => {
+    const d = new Date(t);
+    return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + " " +
+      pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds()) + "." + pad(d.getMilliseconds(), 3);
+  };
+
+  // A request line carries a status; anything 500 and up is the app failing.
+  const status = text => { const m = /\b(\d{3}) \d+ ms$/.exec(text); return m ? Number(m[1]) : null; };
+  const levelOf = line => {
+    const s = status(line.text);
+    if (s !== null && s >= 500) return "error";
+    return line.level;
+  };
+
+  function row(line) {
+    const tr = el("tr");
+    tr.appendChild(el("td", "ts", stamp(line.at)));
+    const level = levelOf(line);
+    tr.appendChild(el("td", "lvl " + level, level));
+    tr.appendChild(el("td", "req", line.req));
+    tr.appendChild(el("td", "text", line.text));
+    tr._line = line;
+    return tr;
+  }
+
+  const rows = $("rows");
+  for (const line of lines) rows.appendChild(row(line));
+
+  // ---- filters ----
+  function ms(text) { const m = /(\d+) ms$/.exec(text); return m ? Number(m[1]) : null; }
+
+  const views = [
+    { label: "Requests", test: l => status(l.text) !== null },
+    { label: "Not found", test: l => status(l.text) === 404 },
+    { label: "Failures", test: l => levelOf(l) === "error" || levelOf(l) === "warn" },
+    { label: "Slow, over 500 ms", test: l => (ms(l.text) || 0) > 500 },
+    { label: "This deploy", test: l => true }
+  ];
+  let view = null;
+
+  const viewBox = $("views");
+  for (const v of views) {
+    const button = el("button", "toggle", v.label);
+    button.type = "button";
+    button.setAttribute("aria-pressed", "false");
+    button.addEventListener("click", () => {
+      view = view === v ? null : v;
+      for (const b of viewBox.querySelectorAll("button")) b.setAttribute("aria-pressed", b === button && view ? "true" : "false");
+      if (view) button.classList.add("live"); else button.classList.remove("live");
+      for (const b of viewBox.querySelectorAll("button")) if (b !== button) b.classList.remove("live");
+      filter();
+    });
+    viewBox.appendChild(button);
+  }
+
+  function highlight(cell, text, needle) {
+    cell.textContent = "";
+    if (!needle) { cell.textContent = text; return; }
+    const lower = text.toLowerCase();
+    let i = 0;
+    for (;;) {
+      const j = lower.indexOf(needle, i);
+      if (j < 0) { cell.appendChild(document.createTextNode(text.slice(i))); break; }
+      cell.appendChild(document.createTextNode(text.slice(i, j)));
+      cell.appendChild(el("mark", null, text.slice(j, j + needle.length)));
+      i = j + needle.length;
+    }
+  }
+
+  function filter() {
+    const needle = $("search").value.trim().toLowerCase();
+    const level = $("level").value;
+    const since = Date.now() - Number($("range").value) * 60 * 1000;
+    let shown = 0;
+
+    for (const tr of rows.children) {
+      const line = tr._line;
+      const ok = line.at >= since &&
+        (!level || levelOf(line) === level) &&
+        (!view || view.test(line)) &&
+        (!needle || line.text.toLowerCase().includes(needle) || line.req.includes(needle));
+      tr.hidden = !ok;
+      if (ok) { shown += 1; highlight(tr.lastChild, line.text, needle); }
+    }
+
+    $("empty").hidden = shown > 0;
+    $("count").textContent = shown === rows.children.length
+      ? shown + " lines"
+      : shown + " of " + rows.children.length + " lines";
+    $("kept").textContent = "Kept " + state.env.retentionDays + " days";
+    $("oldest").textContent = "Oldest line: " + stamp(lines[0].at) + ", when this deploy started. Nothing older is kept for this environment yet.";
+  }
+
+  $("search").addEventListener("input", filter);
+  $("level").addEventListener("change", filter);
+  $("range").addEventListener("change", filter);
+
+  // ---- live tail: a request now and then, as if someone were still trying the URL ----
+  let timer = null;
+  let next = 0;
+  function tick() {
+    const text = state.tail[next % state.tail.length];
+    next += 1;
+    const line = { at: Date.now(), level: "info", req: Math.random().toString(16).slice(2, 8), text };
+    lines.push(line);
+    rows.appendChild(row(line));
+    filter();
+    timer = setTimeout(tick, 20000 + Math.random() * 25000);
+  }
+  function setTail(on) {
+    $("tail").setAttribute("aria-pressed", on ? "true" : "false");
+    clearTimeout(timer);
+    if (on) timer = setTimeout(tick, 12000 + Math.random() * 8000);
+  }
+  $("tail").addEventListener("click", () => setTail($("tail").getAttribute("aria-pressed") !== "true"));
+  setTail(true);
+
+  // ---- download what is shown ----
+  $("download").addEventListener("click", () => {
+    const out = [];
+    for (const tr of rows.children) {
+      if (tr.hidden) continue;
+      const l = tr._line;
+      out.push([stamp(l.at), levelOf(l).toUpperCase().padEnd(8), (l.req || "-").padEnd(6), l.text].join("  "));
+    }
+    Console.download(app + "-" + new Date(opened).toISOString().slice(0, 19).replace(/[:T]/g, "-") + ".log", out.join("\n") + "\n");
+  });
+
+  filter();
+</script>
+</body>
+</html>
