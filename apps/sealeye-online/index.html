@@ -1,0 +1,663 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>seaLeye.online</title>
+
+<!-- Everything this page shows. Edit here; nothing else holds state. The values are a
+     snapshot of `sealeye list --deployments --all` and have to match the terminal on
+     the day, or the two screens disagree in front of the room. -->
+<script type="application/json" id="state">
+{
+  "org": "Northline Bank",
+  "user": {
+    "name": "Greg K.",
+    "initial": "G"
+  },
+  "nav": [
+    {
+      "label": "Environments",
+      "current": true
+    },
+    {
+      "label": "Catalog"
+    },
+    {
+      "label": "Activity"
+    },
+    {
+      "label": "Team"
+    }
+  ],
+  "page": {
+    "title": "Environments",
+    "subtitle": "Every environment seaLeye.run has built for Northline Bank, and the plans it has been asked for.",
+    "action": "New environment"
+  },
+  "stats": [
+    {
+      "label": "Live environments",
+      "value": "1"
+    },
+    {
+      "label": "Planned",
+      "value": "1"
+    },
+    {
+      "label": "Deploys this week",
+      "value": "20"
+    },
+    {
+      "label": "Modules in the library",
+      "value": "11"
+    }
+  ],
+  "environments": [
+    {
+      "app": "beneficiary-lookup-api",
+      "owner": {
+        "name": "Greg",
+        "initial": "G"
+      },
+      "status": "live",
+      "chip": "phosphor",
+      "url": "https://znys54b61c.execute-api.ca-central-1.amazonaws.com",
+      "profile": "dev",
+      "deploys": 13,
+      "last": "1h ago",
+      "card": {
+        "app": "beneficiary-lookup-api, a Node.js API that starts with index.js",
+        "modules": [
+          {
+            "id": "http_api_serverless",
+            "line": "Runs your code on demand behind an HTTPS endpoint.",
+            "planned": false
+          },
+          {
+            "id": "observability_basic",
+            "line": "Collects your app's logs and tracks requests, errors and response times.",
+            "planned": false
+          }
+        ],
+        "patterns": [
+          {
+            "id": "dev",
+            "line": "A single zone and on demand, like a proof of concept, but nothing is thrown away: data is backed up and failed work is kept."
+          }
+        ],
+        "back": [
+          "A public HTTPS address, as soon as it is live",
+          "Your logs and basic metrics, kept for 30 days"
+        ]
+      }
+    },
+    {
+      "app": "payment-events-processor",
+      "owner": {
+        "name": "Cindy",
+        "initial": "C"
+      },
+      "status": "planned",
+      "chip": "amber",
+      "url": null,
+      "note": "waiting on 5 catalog modules",
+      "profile": "prod",
+      "deploys": 7,
+      "last": "1h ago",
+      "card": {
+        "app": "payment-events-processor, a service that runs continuously",
+        "modules": [
+          {
+            "id": "compute_container",
+            "line": "A service that runs continuously, for an app that cannot start fresh on every request.",
+            "planned": true
+          },
+          {
+            "id": "observability_basic",
+            "line": "Collects your app's logs and tracks requests, errors and response times.",
+            "planned": false
+          },
+          {
+            "id": "config_basic",
+            "line": "Passes the settings your app reads from its environment through to it when it runs.",
+            "planned": false
+          },
+          {
+            "id": "data_relational",
+            "line": "A managed relational database your app connects to, kept patched and backed up for you.",
+            "planned": true
+          },
+          {
+            "id": "events_stream",
+            "line": "A stream your services publish events to and read events from, in the order they happened.",
+            "planned": true
+          },
+          {
+            "id": "secrets_basic",
+            "line": "Secrets your app reads while it runs, kept out of your code and out of your plan.",
+            "planned": true
+          },
+          {
+            "id": "network_private",
+            "line": "Your app is reachable from inside your organization only.",
+            "planned": true
+          }
+        ],
+        "patterns": [
+          {
+            "id": "compute_container",
+            "line": "Across more than one zone, behind a health check, replaced rather than repaired."
+          },
+          {
+            "id": "observability_basic",
+            "line": "Alarms on errors and latency, going to whoever is on call."
+          },
+          {
+            "id": "config_basic",
+            "line": "Settings from the environment, and anything secret from secrets_basic rather than from a setting."
+          },
+          {
+            "id": "data_relational",
+            "line": "Across more than one zone, with a standby ready to take over and backups kept."
+          },
+          {
+            "id": "events_stream",
+            "line": "Readers keep their place, so a reader that falls behind catches up instead of losing events."
+          },
+          {
+            "id": "secrets_basic",
+            "line": "Replaced on a schedule, and read while the app runs rather than baked into anything."
+          },
+          {
+            "id": "network_private",
+            "line": "Reachable from your organization only, with the public way in closed."
+          }
+        ],
+        "back": [
+          "Your logs and basic metrics, kept for 30 days"
+        ]
+      }
+    }
+  ],
+  "catalog": [
+    {
+      "id": "static_site_edge",
+      "line": "Serves your HTML, CSS, images and other files straight to visitors over HTTPS",
+      "available": true
+    },
+    {
+      "id": "http_api_serverless",
+      "line": "Runs your code on demand behind an HTTPS endpoint",
+      "available": true
+    },
+    {
+      "id": "observability_basic",
+      "line": "Collects your app's logs and tracks requests, errors and response times",
+      "available": true
+    },
+    {
+      "id": "config_basic",
+      "line": "Passes the settings your app reads from its environment through to it when it runs",
+      "available": true
+    },
+    {
+      "id": "domain_public",
+      "line": "a custom domain you already own",
+      "available": false
+    },
+    {
+      "id": "data_relational",
+      "line": "a managed relational database your app connects to",
+      "available": false
+    },
+    {
+      "id": "data_cache",
+      "line": "a fast in-memory cache",
+      "available": false
+    },
+    {
+      "id": "events_stream",
+      "line": "a stream your services publish to and read from",
+      "available": false
+    },
+    {
+      "id": "queue_basic",
+      "line": "a work queue between services",
+      "available": false
+    },
+    {
+      "id": "secrets_basic",
+      "line": "secrets your app reads at runtime, never stored in code",
+      "available": false
+    },
+    {
+      "id": "identity_service",
+      "line": "sign-in and tokens for your app's users",
+      "available": false
+    },
+    {
+      "id": "network_private",
+      "line": "your app is not reachable from the public internet",
+      "available": false
+    },
+    {
+      "id": "compute_container",
+      "line": "a service that runs continuously rather than on demand",
+      "available": false
+    },
+    {
+      "id": "scheduled_job",
+      "line": "something that runs on a schedule",
+      "available": false
+    },
+    {
+      "id": "storage_object",
+      "line": "files your app stores and reads, distinct from serving a site",
+      "available": false
+    }
+  ]
+}
+</script>
+
+<style>
+  /* seaLeye.online, the console. A delta from brand/BRAND.md, spelled out in
+     brand/BRAND-ONLINE.md: the ground inverts, sans for reading, mono for data. */
+  :root {
+    --ground: #F4F6F8;
+    --surface: #FFFFFF;
+    --ink: #13181D;
+    --dim: #5C6B7A;
+    --rule: #DCE2E8;
+    --phosphor: #1A7A64;
+    --amber: #9A6418;
+    --chip-phosphor-bg: #DDF3EC;
+    --chip-amber-bg: #FBEFD6;
+    --chip-neutral-bg: #E8ECF0;
+    --sans: "IBM Plex Sans", Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "JetBrains Mono", "IBM Plex Mono", Menlo, monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.55;
+  }
+
+  .mono { font-family: var(--mono); }
+
+  /* ---- top bar ---- */
+  .topbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--rule);
+  }
+  .topbar .inner {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    flex-wrap: wrap;
+  }
+  /* 26 px cap height, not a 26 px image: in the SVG the capitals span 47 of the 160
+     units, so the image renders at 88 and the frame crops the padding the drawing
+     carries, which leaves the bar the height a console bar should be. */
+  .wordmark { display: block; height: 44px; overflow: hidden; }
+  .wordmark img { height: 88px; width: auto; display: block; margin-top: -22px; }
+
+  nav { display: flex; gap: 22px; flex: 1 1 auto; }
+  nav a {
+    color: var(--dim);
+    text-decoration: none;
+    padding: 6px 0;
+    border-bottom: 2px solid transparent;
+  }
+  nav a[aria-current="page"] { color: var(--ink); border-bottom-color: var(--phosphor); }
+  nav a:hover { color: var(--ink); }
+
+  .who { display: flex; align-items: center; gap: 12px; color: var(--dim); }
+  .disc {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: var(--chip-phosphor-bg); color: var(--phosphor);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 600;
+  }
+
+  /* ---- page ---- */
+  main { max-width: 1120px; margin: 0 auto; padding: 32px 24px 64px; }
+
+  .title { display: flex; align-items: flex-start; gap: 24px; flex-wrap: wrap; }
+  .title h1 { font-size: 22px; font-weight: 600; margin: 0; }
+  .title .sub { color: var(--dim); margin: 4px 0 0; }
+  .title .spacer { flex: 1 1 auto; }
+
+  .primary {
+    font: inherit;
+    font-weight: 500;
+    background: var(--phosphor);
+    color: #FFFFFF;
+    border: 1px solid var(--phosphor);
+    border-radius: 6px;
+    padding: 9px 16px;
+    cursor: pointer;
+  }
+
+  /* ---- stats ---- */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 16px;
+    margin: 28px 0 32px;
+  }
+  .stat {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    padding: 16px 18px;
+  }
+  .stat .n { font-family: var(--mono); font-size: 28px; line-height: 1.2; }
+  .stat .l { color: var(--dim); font-size: 13px; }
+
+  /* ---- table ---- */
+  .panel { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; }
+
+  thead th {
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--dim);
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--rule);
+    white-space: nowrap;
+  }
+  thead th.right { text-align: right; }
+
+  tbody td { padding: 0 16px; height: 44px; border-bottom: 1px solid var(--rule); vertical-align: middle; }
+  tr.env { cursor: pointer; }
+  tr.env:hover td { background: var(--ground); }
+  tr.env:focus-visible { outline: 2px solid var(--phosphor); outline-offset: -2px; }
+
+  .chip {
+    display: inline-block;
+    font-size: 12px;
+    padding: 2px 10px;
+    border-radius: 99px;
+    background: var(--chip-neutral-bg);
+    color: var(--dim);
+    white-space: nowrap;
+  }
+  .chip.phosphor { background: var(--chip-phosphor-bg); color: var(--phosphor); }
+  .chip.amber { background: var(--chip-amber-bg); color: var(--amber); }
+
+  .owner { display: flex; align-items: center; gap: 8px; }
+  .owner .disc { width: 22px; height: 22px; font-size: 11px; background: var(--chip-neutral-bg); color: var(--dim); }
+
+  td.url { max-width: 26ch; }
+  td.url a, td.url span {
+    font-family: var(--mono);
+    color: var(--phosphor);
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  td.url span.none { color: var(--dim); }
+
+  td.actions { text-align: right; white-space: nowrap; }
+  .ghost {
+    font: inherit;
+    font-size: 13px;
+    color: var(--dim);
+    background: transparent;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 4px 12px;
+    margin-left: 8px;
+    cursor: pointer;
+  }
+  .ghost:hover { color: var(--ink); border-color: var(--dim); }
+
+  tr.card td { padding: 0 16px 20px; background: var(--ground); }
+  tr.card[hidden] { display: none; }
+
+  .cardbox { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; }
+  .group { padding: 14px 18px; }
+  .group + .group { border-top: 1px solid var(--rule); }
+  .group h3 { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; color: var(--dim); margin: 0 0 8px; text-transform: none; }
+  .row { display: flex; gap: 16px; padding: 3px 0; flex-wrap: wrap; }
+  .row .id { font-family: var(--mono); min-width: 20ch; }
+  .row .what { color: var(--dim); flex: 1 1 32ch; }
+  .row .tag { color: var(--amber); }
+  .plain { padding: 3px 0; }
+
+  /* ---- catalog ---- */
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 12px; }
+  .modcard {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    padding: 14px 16px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .modcard .body { flex: 1 1 auto; }
+  .modcard .id { font-family: var(--mono); font-weight: 700; }
+  .modcard .what { color: var(--dim); }
+
+  h2 { font-size: 15px; font-weight: 600; margin: 36px 0 12px; }
+
+  footer { margin-top: 44px; padding-top: 16px; border-top: 1px solid var(--rule); color: var(--dim); }
+
+  @media (max-width: 720px) {
+    td.actions, th.actions { display: none; }
+    .topbar .inner { gap: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="inner">
+    <span class="wordmark"><img src="sealeye-online-wordmark-light.svg" alt="seaLeye.online"></span>
+    <nav id="nav"></nav>
+    <div class="who"><span id="org"></span><span class="disc" id="userDisc"></span><span id="userName"></span></div>
+  </div>
+</div>
+
+<main>
+
+  <div class="title">
+    <div>
+      <h1 id="pageTitle"></h1>
+      <p class="sub" id="pageSub"></p>
+    </div>
+    <div class="spacer"></div>
+    <button type="button" class="primary" id="primary"></button>
+  </div>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="panel">
+    <table>
+      <thead>
+        <tr>
+          <th>App</th><th>Owner</th><th>Status</th><th>URL</th><th>Profile</th>
+          <th>Deploys</th><th>Last</th><th class="right actions">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+
+  <h2>Catalog</h2>
+  <div class="cards" id="catalog"></div>
+
+  <footer id="footer"></footer>
+
+</main>
+
+<script>
+  const state = JSON.parse(document.getElementById("state").textContent);
+
+  const el = (tag, cls, text) => {
+    const node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  };
+
+  document.getElementById("org").textContent = state.org;
+  document.getElementById("userDisc").textContent = state.user.initial;
+  document.getElementById("userName").textContent = state.user.name;
+  document.getElementById("pageTitle").textContent = state.page.title;
+  document.getElementById("pageSub").textContent = state.page.subtitle;
+  document.getElementById("primary").textContent = state.page.action;
+
+  document.getElementById("footer").textContent =
+    "State shown here is read from your environments, not from anyone's laptop.";
+
+  const nav = document.getElementById("nav");
+  for (const item of state.nav) {
+    const link = el("a", null, item.label);
+    link.href = "#";
+    if (item.current) link.setAttribute("aria-current", "page");
+    link.addEventListener("click", event => event.preventDefault());
+    nav.appendChild(link);
+  }
+
+  const stats = document.getElementById("stats");
+  for (const stat of state.stats) {
+    const box = el("div", "stat");
+    box.appendChild(el("div", "n", stat.value));
+    box.appendChild(el("div", "l", stat.label));
+    stats.appendChild(box);
+  }
+
+  /** One group of the decision card, in the same words the terminal uses. */
+  function group(heading, rows) {
+    const box = el("div", "group");
+    box.appendChild(el("h3", null, heading));
+
+    for (const row of rows) {
+      if (typeof row === "string") { box.appendChild(el("div", "plain", row)); continue; }
+
+      const line = el("div", "row");
+      line.appendChild(el("span", "id", row.id));
+
+      const what = el("span", "what", row.line);
+      if (row.planned) {
+        what.appendChild(document.createTextNode(" "));
+        what.appendChild(el("span", "tag", "(planned)"));
+      }
+      line.appendChild(what);
+      box.appendChild(line);
+    }
+
+    return box;
+  }
+
+  function card(env) {
+    const box = el("div", "cardbox");
+    box.appendChild(group("Your app:", [env.card.app]));
+    box.appendChild(group("We will provision this infrastructure to run it:", env.card.modules));
+    if (env.card.patterns && env.card.patterns.length) {
+      box.appendChild(group("Patterns the " + env.profile + " profile applies:", env.card.patterns));
+    }
+    box.appendChild(group("You will get back:", env.card.back));
+    return box;
+  }
+
+  const body = document.getElementById("rows");
+
+  for (const env of state.environments) {
+    const row = el("tr", "env");
+    row.tabIndex = 0;
+    row.setAttribute("role", "button");
+    row.setAttribute("aria-expanded", "false");
+
+    row.appendChild(el("td", "mono", env.app));
+
+    const owner = el("td");
+    const who = el("div", "owner");
+    who.appendChild(el("span", "disc", env.owner.initial));
+    who.appendChild(el("span", null, env.owner.name));
+    owner.appendChild(who);
+    row.appendChild(owner);
+
+    const status = el("td");
+    status.appendChild(el("span", "chip " + (env.chip || "neutral"), env.status));
+    row.appendChild(status);
+
+    const url = el("td", "url");
+    if (env.url) {
+      const link = el("a", null, env.url);
+      link.href = env.url;
+      link.title = env.url;
+      link.addEventListener("click", event => event.stopPropagation());
+      url.appendChild(link);
+    } else {
+      const none = el("span", "none", env.note || "none");
+      none.title = env.note || "none";
+      url.appendChild(none);
+    }
+    row.appendChild(url);
+
+    row.appendChild(el("td", "mono", env.profile));
+    row.appendChild(el("td", "mono", String(env.deploys)));
+    row.appendChild(el("td", "mono", env.last));
+
+    const actions = el("td", "actions");
+    for (const label of ["Plan", "Destroy"]) {
+      const button = el("button", "ghost", label);
+      button.type = "button";
+      button.addEventListener("click", event => event.stopPropagation());
+      actions.appendChild(button);
+    }
+    row.appendChild(actions);
+
+    const holder = el("tr", "card");
+    holder.hidden = true;
+    const cell = el("td");
+    cell.colSpan = 8;
+    cell.appendChild(card(env));
+    holder.appendChild(cell);
+
+    const toggle = () => {
+      holder.hidden = !holder.hidden;
+      row.setAttribute("aria-expanded", holder.hidden ? "false" : "true");
+    };
+
+    row.addEventListener("click", toggle);
+    row.addEventListener("keydown", event => {
+      if (event.key === "Enter" || event.key === " ") { event.preventDefault(); toggle(); }
+    });
+
+    body.appendChild(row);
+    body.appendChild(holder);
+  }
+
+  const catalog = document.getElementById("catalog");
+  for (const module of state.catalog) {
+    const box = el("div", "modcard");
+    const body_ = el("div", "body");
+    body_.appendChild(el("div", "id", module.id));
+    body_.appendChild(el("div", "what", module.line));
+    box.appendChild(body_);
+    box.appendChild(el("span", "chip " + (module.available ? "phosphor" : "amber"),
+      module.available ? "Available" : "Platform Library"));
+    catalog.appendChild(box);
+  }
+</script>
+</body>
+</html>

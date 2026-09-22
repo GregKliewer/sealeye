@@ -57,6 +57,9 @@
   }
 
   .block code { flex: 1 1 22ch; word-break: break-all; }
+  .block .line { display: block; }
+  .out { color: var(--dim); }            /* what the terminal answered, not what you type */
+  .aside { margin-top: 28px; }           /* the internal line sits apart from the public one */
 
   /* The browser will not tell a page where a folder lives, so the path in front of the
      folder name is the developer's to set, and it looks editable because it is. */
@@ -139,10 +142,18 @@
     <span class="aside">You never need to know what a stack is. (We will tell you anyway, in the plan it writes next to your code.)</span>
   </p>
 
-  <h2>Try it</h2>
+  <h2>Install</h2>
   <div class="block">
-    <code><span class="prompt">$</span> <span class="cmd">cd your-app &amp;&amp; sealeye init</span></code>
-    <button type="button" data-copy="cd your-app &amp;&amp; sealeye init">copy</button>
+    <code><span class="line"><span class="prompt">$</span> <span class="cmd">npm install -g sealeye</span></span><span class="line"><span class="prompt">$</span> <span class="cmd">sealeye --version</span></span><span class="line out">sealeye 1.0.0</span></code>
+    <button type="button" data-copy="npm install -g sealeye&#10;sealeye --version">copy</button>
+  </div>
+
+  <p class="note">Nothing else to set up. seaLeye uses the cloud credentials you already have.</p>
+
+  <p class="note aside">At Northline Bank: your platform team publishes seaLeye to your internal registry, so the line is</p>
+  <div class="block">
+    <code><span class="prompt">$</span> <span class="cmd">npm install -g @northline/sealeye</span></code>
+    <button type="button" data-copy="npm install -g @northline/sealeye">copy</button>
   </div>
 
   <h2>Start from your app</h2>
