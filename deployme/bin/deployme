@@ -1097,7 +1097,7 @@ async function runBackground({ apiBaseUrl, deploymentId, appPath, plan }) {
   }
 
   console.log("");
-  say("Deploying in the background. I'll let you know.");
+  say("Deploying in the background. I'll let you know when it's complete.");
   spawnNotifier({ deploymentId, apiBaseUrl, appPath, appName: plan?.app?.name });
 
   return dep;
@@ -1119,6 +1119,10 @@ function spawnNotifier({ deploymentId, apiBaseUrl, appPath, appName }) {
     if (appName) args.push("--app-name", appName);
 
     const child = spawn(process.execPath, args, { detached: true, stdio: "ignore" });
+    // An unhandled 'error' event on a ChildProcess throws, same as any other
+    // EventEmitter. This process is about to exit either way; the notification
+    // being lost is not a reason to crash on the way out.
+    child.on("error", () => {});
     child.unref();
   } catch {
     // A notification that never arrives is a nicety lost, not a run gone wrong: the
