@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import readline from "node:readline/promises";
 import { fileURLToPath } from "node:url";
+import { spawn } from "node:child_process";
 
 import {
   loadPlanFromYaml,
@@ -25,6 +26,12 @@ const PAST = new Set(["destroyed", "planned"]);
 
 // --json is machine output: no banner, no colour, nothing but the object.
 const jsonOut = process.argv.includes("--json");
+
+// --watch opts back into the old behavior: stay on the live panel until the
+// deployment finishes, instead of handing the terminal back and watching in the
+// background. Off by default, because staring at a spinner is the thing this
+// platform is supposed to remove from a developer's day.
+const watchFlag = process.argv.includes("--watch");
 
 // Everything the CLI reads is found relative to the CLI itself, never to the
 // developer's folder.
@@ -61,8 +68,8 @@ function usage() {
 ${product.command} - deploy your app to a real AWS environment
 
 Usage:
-  ${product.command} init [--answers <file>] [--team-context] [--api <url>]
-  ${product.command} deploy --file <plan.yaml> [--app <path>] [--api <url>] [--json]
+  ${product.command} init [--answers <file>] [--team-context] [--watch] [--api <url>]
+  ${product.command} deploy --file <plan.yaml> [--app <path>] [--api <url>] [--json] [--watch]
   ${product.command} validate --file <plan.yaml> [--api <url>] [--json]
   ${product.command} status <deploymentId> [--api <url>] [--json]
   ${product.command} watch <deploymentId> [--api <url>]
@@ -78,6 +85,8 @@ Options:
       --team-context
                   with init: after a refusal, say whether another team has hit the
                   same boundary (reads a local fixture)
+      --watch     with init or deploy: stay on the live panel until the deployment
+                  finishes, instead of watching in the background and notifying you
       --all       with list: include environments you have torn down
       --deployments
                   with list: every deploy, instead of one row per environment
@@ -333,8 +342,7 @@ async function main() {
       apiBaseUrl,
       backend: "cloudformation",
       plan: submission.plan,
-      appPath,
-      follow: false
+      appPath
     });
 
     // Declined: it has already said so, and there is nothing to watch. With
@@ -345,7 +353,11 @@ async function main() {
       return;
     }
 
-    await runWatch({ apiBaseUrl, deploymentId: deployment.deploymentId });
+    if (watchFlag) {
+      await runWatch({ apiBaseUrl, deploymentId: deployment.deploymentId });
+    } else {
+      await runBackground({ apiBaseUrl, deploymentId: deployment.deploymentId, appPath, plan: submission.plan });
+    }
 
     return;
   }
@@ -389,7 +401,17 @@ async function main() {
     say(`Reading your plan from ${file}`);
     const plan = loadPlanFromYaml(file);
 
-    await runDeploy({ apiBaseUrl, backend, plan, appPath });
+    const deployment = await runDeploy({ apiBaseUrl, backend, plan, appPath });
+
+    // Declined, or --json already printed the object and there is nothing left to
+    // watch: either way runDeploy has said everything there is to say.
+    if (!deployment || jsonOut) return;
+
+    if (watchFlag) {
+      await runWatch({ apiBaseUrl, deploymentId: deployment.deploymentId });
+    } else {
+      await runBackground({ apiBaseUrl, deploymentId: deployment.deploymentId, appPath, plan });
+    }
 
     return;
   }
@@ -769,7 +791,7 @@ function reuseSummary(plan, planPath) {
 
 // Hand a plan and a folder to the platform. `deploy` and `init` both come through
 // here: init has no deployment logic of its own.
-async function runDeploy({ apiBaseUrl, backend, plan, appPath, follow = true }) {
+async function runDeploy({ apiBaseUrl, backend, plan, appPath }) {
   say(`Handing ${appPath} to seaLeye.run to build your environment`);
 
   // Packaging, installing dependencies and the upload all happen inside this one call.
@@ -800,17 +822,10 @@ async function runDeploy({ apiBaseUrl, backend, plan, appPath, follow = true }) 
     return result;
   }
 
-  // On the init path `watch` takes over immediately and draws this same summary live,
-  // so a static copy of it here would only be read twice.
-  if (follow) {
-    console.log("");
-    printDeploymentSummary(result);
-    console.log("");
-    console.log(`Deployment id: ${c.accent(result.deploymentId)}`);
-    say(`Follow it with: ${product.command} watch ${result.deploymentId}`);
-  } else {
-    console.log("");   // the live panel starts on a line of its own
-  }
+  // Whichever of runWatch or runBackground the caller dispatches to next draws its
+  // own summary of this same deployment, so all this needs to do is give that live
+  // panel a line of its own to start on.
+  console.log("");
 
   return result;
 }
@@ -1016,6 +1031,98 @@ async function runWatch({ apiBaseUrl, deploymentId }) {
     else wait = spinner(doing);
 
     await sleep(500); // refresh twice per second
+  }
+}
+
+// The default once "Deploy this? [y/N]" is answered y: show the same panel runWatch
+// draws, long enough for the developer to see it actually started, then hand the
+// terminal back and keep watching from a fully separate process. --watch skips this
+// and calls runWatch instead, unchanged.
+//
+// A deployment that finishes inside this window (the static path does, in a handful
+// of seconds) is reported right here, the same way runWatch reports it, and no
+// background process is ever spawned: there is nothing left to watch.
+const BACKGROUND_WINDOW_MS = 4000;
+const BACKGROUND_POLL_MS = 500;
+
+async function runBackground({ apiBaseUrl, deploymentId, appPath, plan }) {
+  const formatDots = tick => ".".repeat((tick % 3) + 1);   // 1..3, same as runWatch
+  const deadline = Date.now() + BACKGROUND_WINDOW_MS;
+  let tick = 0;
+  let drawn = 0;
+  let lastPanel = null;
+  let dep;
+
+  while (true) {
+    dep = await getDeployment({ apiBaseUrl, deploymentId });
+    const dots = animations() ? formatDots(tick++) : "";
+    const live = dep.status !== "succeeded" && dep.status !== "failed";
+
+    const panel = [
+      ...deploymentSummaryLines(dep, { step: !(live && animations()) }),
+      "",
+      c.dim(`Status: ${dep.status}${dots}`)
+    ];
+
+    if (animations()) {
+      if (drawn) process.stdout.write(`\r\x1b[${drawn}A\x1b[0J`);
+      for (const line of panel) console.log(line);
+      drawn = rowsUsed(panel);
+    } else if (panel.join("\n") !== lastPanel) {
+      lastPanel = panel.join("\n");
+      for (const line of panel) console.log(line);
+    }
+
+    if (!live) {
+      console.log("");
+
+      if (dep.status === "succeeded") {
+        const url = publicUrl(dep);
+        console.log(c.ok(url ? `Your app is live at ${url}` : "Your environment is ready"));
+        writeReport(dep);
+      } else {
+        console.log(c.fail(failureSentence(dep)));
+        if (dep.rolledBackStackRemoved) {
+          say("The half-built stack has been removed, so you can fix the plan and deploy again");
+        }
+        process.exitCode = 1;
+      }
+
+      return dep;
+    }
+
+    if (Date.now() >= deadline) break;
+
+    await sleep(BACKGROUND_POLL_MS);
+  }
+
+  console.log("");
+  say("Deploying in the background. I'll let you know.");
+  spawnNotifier({ deploymentId, apiBaseUrl, appPath, appName: plan?.app?.name });
+
+  return dep;
+}
+
+/**
+ * The process that keeps watching after this one hands the terminal back. It has to
+ * survive this CLI exiting and the terminal tab closing, so it is spawned fully
+ * detached, with its own stdio, and never awaited: a developer who never gets the
+ * notification still has `sealeye status` and `sealeye list`, both of which read the
+ * same truth the notifier is polling.
+ */
+function spawnNotifier({ deploymentId, apiBaseUrl, appPath, appName }) {
+  const script = path.join(cliDir, "notify-when-done.js");
+
+  try {
+    const args = [script, "--deployment-id", deploymentId, "--api", apiBaseUrl];
+    if (appPath) args.push("--app", appPath);
+    if (appName) args.push("--app-name", appName);
+
+    const child = spawn(process.execPath, args, { detached: true, stdio: "ignore" });
+    child.unref();
+  } catch {
+    // A notification that never arrives is a nicety lost, not a run gone wrong: the
+    // deployment itself was already handed to the platform before this was ever called.
   }
 }
 
