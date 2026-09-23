@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Integrations, seaLeye.online</title>
+
+<!-- Everything this page shows. Edit here; nothing else holds state. Grouped by the job
+     the integration does rather than by vendor, because a developer arrives knowing what
+     they want to happen and not who sells it. Within a group the providers are
+     competitors, so at most one of them is ever connected. -->
+<script type="application/json" id="state">
+{
+  "org": "Northline Bank",
+  "user": { "name": "Greg K.", "initial": "G" },
+  "page": {
+    "title": "Integrations",
+    "subtitle": "What seaLeye reads from, writes to and hands off to at Northline Bank."
+  },
+  "notice": "Signed in as Greg K., Money Movement. Connecting or changing an integration is a Site Admin action. Request sends a note to yours.",
+  "groups": [
+    {
+      "job": "Sign people in",
+      "why": "So sealeye knows who is running it, and seaLeye.online shows each team only its own environments. Your team mapping comes from here.",
+      "providers": [
+        { "name": "Azure AD", "connected": true, "detail": "northline.onmicrosoft.com  ·  3 teams mapped, including Money Movement" },
+        { "name": "Okta" },
+        { "name": "Ping Identity" }
+      ]
+    },
+    {
+      "job": "Turn refusals into backlog",
+      "why": "So every 'not in the catalog' becomes a ticket for your platform team, with the module, the app and the team that asked. The platform backlog writes itself.",
+      "providers": [
+        { "name": "Atlassian Jira", "connected": true, "detail": "northline.atlassian.net  ·  project PLAT  ·  5 tickets opened from refusals this month" },
+        { "name": "Azure Boards" },
+        { "name": "Linear" },
+        { "name": "GitHub Issues" }
+      ]
+    },
+    {
+      "job": "Read your Platform Library",
+      "why": "So seaLeye can read your modules and pipelines, generate a plan interface for each one, and teach the assistant what to ask about them. Until this is connected, the catalog is the five seaLeye base modules.",
+      "note": "1 environment is waiting on 5 modules from here.",
+      "providers": [
+        { "name": "GitHub Enterprise" },
+        { "name": "GitLab" },
+        { "name": "Bitbucket" },
+        { "name": "Azure DevOps" }
+      ]
+    },
+    {
+      "job": "Check plans against your policies",
+      "why": "So every plan is checked against your guardrails before anything is built, and a plan that would fail is refused with the rule named.",
+      "providers": [
+        { "name": "Open Policy Agent" },
+        { "name": "HashiCorp Sentinel" },
+        { "name": "AWS Config" },
+        { "name": "Wiz" }
+      ]
+    },
+    {
+      "job": "Keep secrets out of plans",
+      "why": "So secrets_basic reads from the vault your security team already runs, and no value is ever written into a plan, a report or a repo.",
+      "providers": [
+        { "name": "HashiCorp Vault" },
+        { "name": "CyberArk" },
+        { "name": "AWS Secrets Manager" },
+        { "name": "Azure Key Vault" }
+      ]
+    },
+    {
+      "job": "Place environments in the right accounts",
+      "why": "So each team's environments land in that team's own account, with that account's guardrails. Today every dev environment lands in one shared account.",
+      "providers": [
+        { "name": "AWS Organizations" },
+        { "name": "Azure Landing Zones" },
+        { "name": "Google Cloud folders" }
+      ]
+    },
+    {
+      "job": "Scan before anything deploys",
+      "why": "So a deploy, even to dev, waits for your scanner, and the result is on the report next to the plan.",
+      "providers": [
+        { "name": "Snyk" },
+        { "name": "Checkmarx" },
+        { "name": "Veracode" },
+        { "name": "GitHub Advanced Security" }
+      ]
+    },
+    {
+      "job": "Send logs and metrics where your teams already look",
+      "why": "So the Logs and Performance links on an environment open your team's own dashboards, not seaLeye's.",
+      "providers": [
+        { "name": "Datadog" },
+        { "name": "Splunk" },
+        { "name": "Dynatrace" },
+        { "name": "Grafana Cloud" }
+      ]
+    },
+    {
+      "job": "Show what environments cost",
+      "why": "So the cost column on Environments is real, charged back to the team that owns the environment, and idle dev environments can be torn down on a schedule.",
+      "providers": [
+        { "name": "Apptio Cloudability" },
+        { "name": "CloudHealth" },
+        { "name": "AWS Cost Explorer" }
+      ]
+    },
+    {
+      "job": "Record every environment, route every incident",
+      "why": "So each environment is a configuration item from the day it is built, changes past dev carry a change record, and an incident on seaLeye-managed infrastructure reaches the team that owns it.",
+      "providers": [
+        { "name": "ServiceNow" },
+        { "name": "Jira Service Management" },
+        { "name": "PagerDuty" }
+      ]
+    },
+    {
+      "job": "Show up in your developer portal",
+      "why": "So seaLeye is the deploy action inside the portal your developers already use, and seaLeye.online stays the platform team's view.",
+      "providers": [
+        { "name": "Backstage" },
+        { "name": "Port" },
+        { "name": "Cortex" }
+      ]
+    },
+    {
+      "job": "Tell people when things happen",
+      "why": "So a finished deploy, a refusal or an incident reaches the team channel without anyone checking a page.",
+      "providers": [
+        { "name": "Microsoft Teams" },
+        { "name": "Slack" }
+      ]
+    }
+  ]
+}
+</script>
+
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="inner">
+    <span class="wordmark"><img src="sealeye-online-wordmark-light.svg" alt="seaLeye.online"></span>
+    <nav id="nav"></nav>
+    <div class="who"><span id="org"></span><span class="disc" id="userDisc"></span><span id="userName"></span></div>
+  </div>
+</div>
+
+<main>
+
+  <div class="title">
+    <div>
+      <h1 id="pageTitle"></h1>
+      <p class="sub" id="pageSub"></p>
+    </div>
+  </div>
+
+  <p class="infostrip" id="notice"></p>
+
+  <div class="jobs" id="jobs"></div>
+
+  <footer id="footer"></footer>
+</main>
+
+<script src="console.js"></script>
+<script>
+  const state = JSON.parse(document.getElementById("state").textContent);
+  const { el, chip } = Console;
+
+  Console.chrome(state, "Integrations");
+  document.getElementById("pageTitle").textContent = state.page.title;
+  document.getElementById("pageSub").textContent = state.page.subtitle;
+  document.getElementById("notice").textContent = state.notice;
+
+  const jobs = document.getElementById("jobs");
+
+  for (const group of state.groups) {
+    const connected = group.providers.some(p => p.connected);
+    const card = el("div", "job" + (connected ? " connected" : ""));
+
+    card.appendChild(el("h3", null, group.job));
+    card.appendChild(el("p", "why", group.why));
+    if (group.note) card.appendChild(el("p", "note", group.note));
+
+    const list = el("div", "providers");
+
+    for (const provider of group.providers) {
+      const row = el("div", "provider");
+
+      const left = el("div", "who2");
+      left.appendChild(el("div", "name", provider.name));
+      // The detail is what this connection actually is: a tenant, a project, a count.
+      // Mono, because every part of it is an identifier or a number someone can check.
+      if (provider.connected && provider.detail) {
+        left.appendChild(el("div", "detail mono", provider.detail));
+      }
+      row.appendChild(left);
+
+      const action = el("div", "action");
+
+      if (provider.connected) {
+        action.appendChild(chip("Connected", "phosphor"));
+      } else {
+        const ask = el("button", "ghost small", "Request");
+        ask.type = "button";
+        ask.setAttribute("aria-label", "Request " + provider.name);
+        // No dialog and nothing else moves: the button becomes the state it asked for,
+        // in place. Nothing is stored, because a request is a note to a Site Admin and
+        // this page is not where it lives.
+        ask.addEventListener("click", () => {
+          const asked = chip("Requested", "neutral");
+          asked.setAttribute("role", "status");
+          asked.title = "A note has gone to your Site Admin";
+          ask.replaceWith(asked);
+        });
+        action.appendChild(ask);
+      }
+
+      row.appendChild(action);
+      list.appendChild(row);
+    }
+
+    card.appendChild(list);
+    jobs.appendChild(card);
+  }
+</script>
+</body>
+</html>

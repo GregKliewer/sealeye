@@ -11,6 +11,7 @@ const Console = (() => {
   const NAV = [
     ["Environments", "index.html"],
     ["Catalog", "catalog.html"],
+    ["Integrations", "integrations.html"],
     ["Team", "team.html"]
   ];
 

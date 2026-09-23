@@ -522,3 +522,54 @@
   .chip.stage { font-size: 11px; padding: 2px 7px; }
   .chip.stage.unlit { background: var(--chip-neutral-bg); color: var(--dim); opacity: 0.45; }
   td.path { white-space: nowrap; }
+
+  /* ---- integrations: grouped by the job, not by the vendor ---- */
+  .infostrip {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--dim);
+    border-radius: 0 8px 8px 0;
+    color: var(--dim);
+    margin: 20px 0 0;
+    padding: 12px 16px;
+  }
+
+  .jobs {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+    gap: 16px;
+    margin: 28px 0 0;
+    align-items: start;
+  }
+
+  .job {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--rule);
+    border-radius: 0 8px 8px 0;
+    padding: 16px 18px 6px;
+  }
+  /* A connected group is the one thing on this page a developer can already rely on. */
+  .job.connected { border-left-color: var(--phosphor); }
+  .job h3 { font-size: 15px; font-weight: 600; margin: 0 0 6px; }
+  .job .why { color: var(--dim); margin: 0; }
+  .job .note { color: var(--dim); margin: 8px 0 0; font-size: 13px; }
+
+  .providers { margin-top: 12px; }
+  .provider {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    padding: 10px 0;
+    border-top: 1px solid var(--rule);
+  }
+  .provider .who2 { flex: 1 1 auto; min-width: 0; }
+  .provider .name { font-weight: 500; }
+  .provider .detail { color: var(--dim); font-size: 12px; margin-top: 2px; word-break: break-word; }
+  .provider .action { flex: 0 0 auto; }
+
+  .ghost.small { font-size: 13px; padding: 5px 12px; }
+
+  @media (max-width: 720px) {
+    .jobs { grid-template-columns: 1fr; }
+  }
