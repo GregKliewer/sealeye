@@ -61,7 +61,7 @@ function usage() {
 ${product.command} - deploy your app to a real AWS environment
 
 Usage:
-  ${product.command} init [--answers <file>] [--api <url>]
+  ${product.command} init [--answers <file>] [--team-context] [--api <url>]
   ${product.command} deploy --file <plan.yaml> [--app <path>] [--api <url>] [--json]
   ${product.command} validate --file <plan.yaml> [--api <url>] [--json]
   ${product.command} status <deploymentId> [--api <url>] [--json]
@@ -75,6 +75,9 @@ Options:
   -b, --backend   cloudformation (default: cloudformation)
       --answers   with init: answer the interview from a file, one line per question,
                   for rehearsals. Never answers "Deploy this?": that stays yours
+      --team-context
+                  with init: after a refusal, say whether another team has hit the
+                  same boundary (reads a local fixture)
       --all       with list: include environments you have torn down
       --deployments
                   with list: every deploy, instead of one row per environment
@@ -334,8 +337,13 @@ async function main() {
       follow: false
     });
 
-    // Declined: it has already said so, and there is nothing to watch.
-    if (!deployment) return;
+    // Declined: it has already said so, and there is nothing to watch. With
+    // --team-context, this is where somebody else's attempt at the same wall gets a
+    // mention, after the refusal rather than instead of it.
+    if (!deployment) {
+      await showTeamContext(submission.plan);
+      return;
+    }
 
     await runWatch({ apiBaseUrl, deploymentId: deployment.deploymentId });
 
@@ -867,6 +875,80 @@ function printRefusal(details = {}) {
   console.log("");
   for (const line of refusalClosing(what).split("\n")) console.log(c.dim(`  ${line}`));
   console.log("");
+}
+
+/**
+ * What another team already found out, after this developer finds it out too.
+ *
+ * Off unless `--team-context` is typed. There is deliberately no env var and no config
+ * key for it: a demo is not the place for a feature that can switch itself on, and a
+ * flag somebody has to type cannot fire by accident.
+ */
+function loadTeamContext(appName) {
+  if (!process.argv.includes("--team-context")) return null;
+
+  try {
+    const file = new URL("../fixtures/team-context.json", import.meta.url);
+    const context = JSON.parse(fs.readFileSync(file, "utf8"));
+    return context.app === appName ? context : null;
+  } catch {
+    // A missing or unreadable fixture is silence, not an error: nothing about this
+    // run depends on it.
+    return null;
+  }
+}
+
+async function showTeamContext(plan) {
+  const context = loadTeamContext(plan?.app?.name);
+  if (!context) return;
+
+  const prior = context.priorAttempt;
+  const ticket = context.ticket;
+
+  // "the same" is only said when it is true, so the line cannot become a small lie
+  // if the fixture and the plan drift apart.
+  const refused = notDeployable(plan).modules.map(m => m.id).sort();
+  const before = (prior.modules || []).slice().sort();
+  const same = refused.length === before.length && refused.every((id, i) => id === before[i]);
+  const count = before.length;
+
+  console.log("");
+  console.log(c.fg("  This app has hit the catalog boundary before."));
+  console.log(
+    c.dim(`    ${prior.by} (${prior.team})  \u00B7  ${prior.when}  \u00B7  ${same ? "the same " : ""}${count} modules`)
+  );
+  console.log(c.dim(`    Ticket ${ticket.id} is open with your platform team.`));
+  console.log("");
+
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  let choice;
+  try {
+    choice = await askChoice(rl, "Show the ticket here, open it in Jira, or skip? [here/open/skip]", [
+      "here",
+      "open",
+      "skip"
+    ]);
+  } finally {
+    rl.close();
+  }
+
+  if (choice === "here") {
+    console.log("");
+    console.log(c.dim(`  ${ticket.id}  ${ticket.status}`));
+    console.log(c.fg(`  ${ticket.subject}`));
+    console.log("");
+    for (const line of String(ticket.description).split("\n")) console.log(c.dim(`  ${line}`));
+    console.log("");
+    return;
+  }
+
+  if (choice === "open") {
+    // Printed, not launched: a browser opening itself in the middle of a terminal is
+    // the platform taking the screen away from whoever is driving.
+    console.log("");
+    console.log(c.dim(`  ${ticket.url}`));
+    console.log("");
+  }
 }
 
 // Follow a deployment to its real end state, redrawing twice a second.
