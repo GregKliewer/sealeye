@@ -292,12 +292,9 @@ async function main() {
       // One line, above the boundary, so nobody says yes to a plan expecting a URL.
       const declined = notDeployable(submission.plan);
 
-      if (declined.modules.length || declined.profile) {
+      if (declined.modules.length) {
         const count = declined.modules.length;
-        const asks = [
-          count ? `${count} of these modules ${count === 1 ? "is" : "are"} not in the catalog yet` : null,
-          declined.profile ? `the ${declined.profile.id} profile is not one this version builds` : null
-        ].filter(Boolean).join(", and ");
+        const asks = `${count} of these modules ${count === 1 ? "is" : "are"} not in the catalog yet`;
 
         // Amber, like every other line that tells the developer something is not as
         // they might assume. What follows it is reassurance, so it stays dim.
@@ -836,26 +833,16 @@ function wrapWords(text, room) {
 
 function printRefusal(details = {}) {
   const modules = details.modules || [];
-  const rows = [
-    ...modules.map(m => ({ id: m.id, line: m.line })),
-    ...(details.profile ? [{ id: `the ${details.profile.id} profile`, line: details.profile.line }] : [])
-  ];
+  const rows = modules.map(m => ({ id: m.id, line: m.line }));
 
   const width = Math.max(...rows.map(r => r.id.length));
   const columns = process.stdout.columns || 80;
 
-  // A plan can be declined for its modules, for the patterns its profile asks for, or
-  // for both. The subject is built without its verb so the three sentences agree.
-  // "One of its modules is": the noun stays plural, the verb does the counting.
-  const moduleSubject = modules.length ? `${countWord(modules.length)} of its modules` : null;
-  const profileSubject = details.profile
-    ? `the patterns its ${details.profile.id} profile asks for`
-    : null;
-
-  const subjects = [moduleSubject, profileSubject].filter(Boolean);
-  const subject = subjects.join(" and ");
-  const verb = subjects.length === 1 && modules.length === 1 ? "is" : "are";
-  const what = moduleSubject && profileSubject ? "modules and patterns" : moduleSubject ? "modules" : "patterns";
+  // Only modules reach here, so the count and the list always agree. "One of its
+  // modules is": the noun stays plural, the verb does the counting.
+  const subject = `${countWord(modules.length)} of its modules`;
+  const verb = modules.length === 1 ? "is" : "are";
+  const what = "modules";
 
   const sentence =
     `Your plan is valid and saved in DEPLOYMENT_PLAN.md. ` +

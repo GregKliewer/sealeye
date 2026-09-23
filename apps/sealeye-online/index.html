@@ -74,7 +74,10 @@
           "Your logs and basic metrics, kept for 30 days"
         ]
       },
-      "deploymentId": "dep_9c31e07a44f2"
+      "deploymentId": "dep_9c31e07a44f2",
+      "path": [
+        "dev"
+      ]
     },
     {
       "app": "payment-events-processor",
@@ -159,7 +162,8 @@
         "back": [
           "Your logs and basic metrics, kept for 30 days"
         ]
-      }
+      },
+      "path": []
     },
     {
       "app": "payment-events-processor",
@@ -224,7 +228,8 @@
         "back": [
           "Your logs and basic metrics, kept for 30 days"
         ]
-      }
+      },
+      "path": []
     },
     {
       "app": "beneficiary-lookup-api",
@@ -264,7 +269,10 @@
       "note": "torn down",
       "deploymentId": "dep_5e14b8c07d31",
       "ran": "2h 10m",
-      "requests": 64
+      "requests": 64,
+      "path": [
+        "dev"
+      ]
     },
     {
       "app": "beneficiary-lookup-api",
@@ -304,7 +312,10 @@
       "note": "torn down",
       "deploymentId": "dep_b2907fa13c64",
       "ran": "1h 55m",
-      "requests": 47
+      "requests": 47,
+      "path": [
+        "dev"
+      ]
     },
     {
       "app": "beneficiary-lookup-api",
@@ -344,8 +355,19 @@
       "note": "torn down",
       "deploymentId": "dep_7a3c05e2d918",
       "ran": "2h 40m",
-      "requests": 38
+      "requests": 38,
+      "path": [
+        "dev"
+      ]
     }
+  ],
+  "stages": [
+    "dev",
+    "SIT",
+    "UAT",
+    "staging",
+    "perf",
+    "prod"
   ]
 }
 </script>
@@ -390,7 +412,7 @@
     <table>
       <thead>
         <tr>
-          <th>App</th><th>Owner</th><th>Status</th><th>URL</th><th>Profile</th>
+          <th>App</th><th>Owner</th><th>Status</th><th>Path</th><th>URL</th><th>Profile</th>
           <th>Deploys</th><th>Last</th><th class="menucol">Actions</th><th class="menucol">Info</th>
         </tr>
       </thead>
@@ -410,6 +432,13 @@
   const { el } = Console;
 
   Console.chrome(state, "Environments");
+
+  const footer = document.getElementById("footer");
+  const state_line = footer.textContent;
+  footer.textContent = "";
+  footer.appendChild(el("div", null,
+    "Developers deploy to dev. The plan they approve is what the later stages are built from."));
+  footer.appendChild(el("div", null, state_line));
   document.getElementById("pageTitle").textContent = state.page.title;
   document.getElementById("pageSub").textContent = state.page.subtitle;
   document.getElementById("primary").textContent = state.page.action;
@@ -563,6 +592,19 @@
     status.appendChild(el("span", "chip " + (env.chip || "neutral"), env.status));
     row.appendChild(status);
 
+    // Where this app's plan has reached. Developers deploy to dev; the stages after it
+    // are built from the same plan by the pipeline, so the strip reads left to right.
+    const path = el("td", "path");
+    const strip = el("div", "stages");
+    for (const stage of state.stages) {
+      const lit = (env.path || []).includes(stage);
+      const mark = el("span", "chip stage " + (lit ? "phosphor" : "unlit"), stage);
+      mark.title = lit ? stage + " has been built from this plan" : stage + " has not been built yet";
+      strip.appendChild(mark);
+    }
+    path.appendChild(strip);
+    row.appendChild(path);
+
     const url = el("td", "url");
     if (env.url) {
       const link = el("a", null, env.url);
@@ -584,7 +626,7 @@
     const holder = el("tr", "card");
     holder.hidden = true;
     const cell = el("td");
-    cell.colSpan = 9;
+    cell.colSpan = 10;
     cell.appendChild(card(env));
     holder.appendChild(cell);
 

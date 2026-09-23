@@ -516,3 +516,9 @@
 
   .version { display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; }
   .version .big { font-size: 22px; font-weight: 600; }
+
+  /* ---- the path to production ---- */
+  .stages { display: flex; gap: 4px; flex-wrap: nowrap; }
+  .chip.stage { font-size: 11px; padding: 2px 7px; }
+  .chip.stage.unlit { background: var(--chip-neutral-bg); color: var(--dim); opacity: 0.45; }
+  td.path { white-space: nowrap; }

@@ -106,13 +106,18 @@ app.post("/deployments", (req, res) => {
 
   const deploymentId = `dep_${crypto.randomBytes(6).toString("hex")}`;
 
-  // A plan can be valid and still ask for things this version does not build. Nothing
+  // A plan can be valid and still ask for a module this version does not build. Nothing
   // is created in AWS, and the record is still written: what a developer asked for is
   // part of the history of their app, and a plan that was refused is a thing they
   // should be able to find again.
+  //
+  // A profile is not a reason to refuse. Whatever the plan is designed for, this run
+  // builds a dev environment, and a dev environment is built from the standard modules.
+  // The patterns a prod or dev profile asks for are what the pipeline applies to the
+  // environments it builds later, and they are recorded in the plan for it.
   const missing = notDeployable(plan);
 
-  if (missing.modules.length || missing.profile) {
+  if (missing.modules.length) {
     const planned = putDeployment({
       deploymentId,
       status: "planned",
@@ -131,7 +136,7 @@ app.post("/deployments", (req, res) => {
 
     return res.status(422).json({
       error: {
-        code: missing.modules.length ? "PLANNED_MODULES" : "PLANNED_PROFILE",
+        code: "PLANNED_MODULES",
         message: "this version of the platform does not build everything this plan asks for",
         details: { ...missing, deploymentId: planned.deploymentId }
       }

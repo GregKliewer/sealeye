@@ -103,5 +103,8 @@ Platform Library rules (decided Day 6)
 - No sizes, counts or capacity numbers in any plan, card, file or prompt output.
   Profiles select patterns (multi-zone, warm capacity, a queue in front of a burst,
   perf provisioned from prod's plan). Capacity is "set by a load test", always.
+- Developers only ever deploy to a dev environment. The profile describes what the plan
+  is designed for; the pipeline builds the later stages from it.
+- A prod profile never refuses on its own. Only planned modules refuse.
 - The org name for messages comes from ~/.deployme/config ORG=..., default "your
   organization". Never hard-code a bank.

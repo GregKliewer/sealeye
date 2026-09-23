@@ -376,6 +376,13 @@ function cardContent(plan, catalog) {
     });
   }
 
+  // A proof of concept is not headed anywhere, so it is the one profile this is not
+  // true of. Everything else is designed for the pipeline, and the plan is the design.
+  const profile = normalizeProfile(plan.profile);
+  if (profile === "dev" || profile === "prod") {
+    back.push({ key: "out:design", text: "A plan your later environments are built from" });
+  }
+
   return { app, running, back };
 }
 
@@ -581,12 +588,12 @@ export function decisionCard(plan, {
   const groups = [
     { heading: "Your app:", rows: renderRows(app, room, markWidth) },
     {
-      heading: before ? "We will change this environment:" : "We will provision this infrastructure to run it:",
+      heading: before ? "We will change this environment:" : "We will build your dev environment with:",
       rows: renderRows(middle, room, markWidth)
     },
     ...(patterns.length
       ? [{
-          heading: `Patterns the ${normalizeProfile(plan.profile)} profile applies:`,
+          heading: "Patterns your production environment will apply:",
           rows: renderRows(patterns, room, markWidth)
         }]
       : []),
