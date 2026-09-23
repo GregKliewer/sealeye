@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Control, seaLeye.online</title>
+
+<!-- Everything this page shows. Pausing and tearing down both live here, because they
+     are the same question asked with different force, and a menu that offers only the
+     irreversible one invites it. What the page does is real to the page and to nothing
+     else: reloading puts the environment back the way the list has it. -->
+<script type="application/json" id="state">
+{
+  "org": "Northline Bank",
+  "user": { "name": "Greg K.", "initial": "G" },
+  "env": {
+    "app": "beneficiary-lookup-api",
+    "status": "live",
+    "profile": "dev",
+    "region": "ca-central-1",
+    "url": "https://znys54b61c.execute-api.ca-central-1.amazonaws.com",
+    "deploymentId": "dep_9c31e07a44f2",
+    "stack": "sealeye-beneficiary-lookup-api",
+    "since": "7m ago",
+    "deploys": 13
+  },
+  "history": [
+    { "ago": "7m ago", "what": "Deployed", "who": "Greg", "detail": "dep_9c31e07a44f2, from the terminal" },
+    { "ago": "Yesterday", "what": "Destroyed", "who": "Greg", "detail": "the environment before this one" },
+    { "ago": "Yesterday", "what": "Paused", "who": "Greg", "detail": "for 40 minutes, while the branch data was reloaded" }
+  ]
+}
+</script>
+
+<link rel="stylesheet" href="console.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="inner">
+    <span class="wordmark"><img src="sealeye-online-wordmark-light.svg" alt="seaLeye.online"></span>
+    <nav id="nav"></nav>
+    <div class="who"><span id="org"></span><span class="disc" id="userDisc"></span><span id="userName"></span></div>
+  </div>
+</div>
+
+<main>
+  <div class="crumbs" id="crumbs"></div>
+
+  <div class="title">
+    <div>
+      <h1>Control</h1>
+      <p class="sub">Stop this environment answering, or take it away. Everything else about it is on the other pages.</p>
+      <div class="meta" id="meta"></div>
+    </div>
+    <div class="spacer"></div>
+  </div>
+
+  <div class="subnav" id="subnav"></div>
+
+  <section class="section">
+    <header><h2>State</h2><span class="hint">Read from the environment itself, not from anyone's laptop.</span></header>
+    <div class="statebox">
+      <div class="big" id="stateChip"></div>
+      <div>
+        <p class="line" id="stateLine"></p>
+        <p class="notice" id="stateSince"></p>
+      </div>
+    </div>
+    <div class="field"><span class="name">Address</span><div class="value" id="addr"></div></div>
+    <div class="field"><span class="name">Deployment</span><div class="value"><span class="mono" id="depId"></span><span class="notice" id="depCount"></span></div></div>
+  </section>
+
+  <section class="section" id="pauseSection">
+    <header><h2 id="pauseTitle">Pause</h2><span class="hint">Reversible. Nothing is thrown away.</span></header>
+    <div class="field">
+      <span class="name" id="pauseWhatName">What it does</span>
+      <div>
+        <ul class="plainlist" id="pauseWhat"></ul>
+      </div>
+    </div>
+    <div class="field">
+      <span class="name" id="pauseActionName">Action</span>
+      <div>
+        <div class="actions" id="pauseActions"></div>
+        <p class="notice" id="pauseNote"></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section danger" id="destroySection">
+    <header><h2>Destroy</h2><span class="hint">Not reversible. The plan is kept; everything the plan built is taken away.</span></header>
+    <div class="field">
+      <span class="name">What goes</span>
+      <div>
+        <ul class="plainlist">
+          <li>The address callers use. A new environment gets a new one.</li>
+          <li>The running app and everything it holds in memory.</li>
+          <li>The logs and the metrics collected for it.</li>
+          <li>The settings your app reads, and their values.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="field">
+      <span class="name">What stays</span>
+      <div>
+        <ul class="plainlist">
+          <li>The plan, in the list, so this app's history is still readable.</li>
+          <li>Your code, which the platform has never written to.</li>
+          <li>The other environments of this app, which are untouched.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="field">
+      <label for="confirm">Type the name to confirm</label>
+      <div>
+        <div class="actions">
+          <input type="text" id="confirm" class="mono" spellcheck="false" autocomplete="off" placeholder="beneficiary-lookup-api" aria-describedby="confirmNote">
+          <button type="button" class="ghost amber" id="destroy" disabled>Destroy this environment</button>
+        </div>
+        <p class="notice" id="confirmNote">Typing the name is the whole of the confirmation. There is no undo after it.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <header><h2>What has been done to this app</h2><span class="hint">Every control action, whoever made it, from here or from the terminal.</span></header>
+    <table>
+      <thead><tr><th>When</th><th>Action</th><th>Who</th><th>Detail</th></tr></thead>
+      <tbody id="history"></tbody>
+    </table>
+  </section>
+
+  <footer id="footer"></footer>
+</main>
+
+<script src="console.js"></script>
+<script>
+  const state = JSON.parse(document.getElementById("state").textContent);
+  const { el, chip } = Console;
+  const app = state.env.app;
+
+  Console.chrome(state, "Environments");
+  Console.crumbs(app, "Control");
+  Console.subnav(app, "Control");
+
+  const meta = document.getElementById("meta");
+  meta.appendChild(chip(state.env.profile));
+  meta.appendChild(el("span", "mono notice", state.env.region));
+
+  const $ = id => document.getElementById(id);
+
+  // running, paused, destroying, destroyed. The page starts where the list says it is.
+  let phase = "running";
+  const history = state.history.slice();
+
+  const PAUSED_WHAT = [
+    "Callers get a plain refusal instead of an answer. Nothing hangs.",
+    "The address is held, so resuming does not change it.",
+    "Logs, metrics and settings are kept exactly as they are.",
+    "What you pay drops to what is stored, which for this app is almost nothing."
+  ];
+
+  function record(what, detail) {
+    history.unshift({ ago: "Just now", what, who: state.user.name.replace(" K.", ""), detail });
+    drawHistory();
+  }
+
+  function drawHistory() {
+    const body = $("history");
+    body.textContent = "";
+    for (const item of history) {
+      const row = el("tr");
+      row.appendChild(el("td", null, item.ago));
+      row.appendChild(el("td", null, item.what));
+      row.appendChild(el("td", null, item.who));
+      row.appendChild(el("td", "notice", item.detail));
+      body.appendChild(row);
+    }
+  }
+
+  function drawState() {
+    const chipBox = $("stateChip");
+    chipBox.textContent = "";
+
+    const words = {
+      running: ["Running", "phosphor", "This environment is answering requests."],
+      paused: ["Paused", "amber", "This environment is up and is refusing requests."],
+      destroying: ["Destroying", "amber", "Everything this plan built is being taken away."],
+      destroyed: ["Destroyed", "neutral", "Nothing is running. The plan is still in the list."]
+    };
+    const [label, tone, line] = words[phase];
+    chipBox.appendChild(chip(label, tone));
+    $("stateLine").textContent = line;
+    $("stateSince").textContent = phase === "running"
+      ? "Deployed " + state.env.since + ", and it has been answering ever since."
+      : phase === "paused" ? "Paused just now. Resume puts it back as it was."
+      : phase === "destroying" ? "This takes a few minutes. You can leave the page."
+      : "Torn down just now.";
+
+    const addr = $("addr");
+    addr.textContent = "";
+    if (phase === "running") {
+      const link = el("a", "mono", state.env.url);
+      link.href = state.env.url;
+      addr.appendChild(link);
+    } else if (phase === "paused") {
+      addr.appendChild(el("span", "mono notice", state.env.url));
+      addr.appendChild(el("span", "notice", "held, and refusing"));
+    } else {
+      addr.appendChild(el("span", "notice", "none, this environment has no address"));
+    }
+
+    $("depId").textContent = state.env.deploymentId;
+    $("depCount").textContent = "the " + state.env.deploys + "th deploy of this app";
+
+    drawPause();
+    drawDestroy();
+  }
+
+  // ---- pause ----
+  function drawPause() {
+    const what = $("pauseWhat");
+    what.textContent = "";
+    for (const line of PAUSED_WHAT) what.appendChild(el("li", null, line));
+    // The same four lines read as a promise before, and as a description after.
+    $("pauseWhatName").textContent = phase === "paused" ? "While it is paused" : "What it does";
+
+    const actions = $("pauseActions");
+    actions.textContent = "";
+    const note = $("pauseNote");
+    note.textContent = "";
+
+    if (phase === "destroying" || phase === "destroyed") {
+      $("pauseTitle").textContent = "Pause";
+      const button = el("button", "ghost", "Pause this environment");
+      button.type = "button";
+      button.disabled = true;
+      actions.appendChild(button);
+      note.textContent = "There is nothing left to pause.";
+      return;
+    }
+
+    if (phase === "paused") {
+      $("pauseTitle").textContent = "Resume";
+      const button = el("button", "primary", "Resume");
+      button.type = "button";
+      button.addEventListener("click", () => {
+        phase = "running";
+        record("Resumed", "answering again on the same address");
+        drawState();
+      });
+      actions.appendChild(button);
+      note.textContent = "The first request after resuming waits for the app to start, as it does after any quiet spell.";
+      return;
+    }
+
+    $("pauseTitle").textContent = "Pause";
+    const button = el("button", "ghost", "Pause this environment");
+    button.type = "button";
+    button.addEventListener("click", () => {
+      actions.textContent = "";
+      note.textContent = "Callers will start getting refusals within a few seconds.";
+      const yes = el("button", "ghost amber", "Pause, and hold the address");
+      yes.type = "button";
+      yes.addEventListener("click", () => {
+        phase = "paused";
+        record("Paused", "from the console");
+        drawState();
+      });
+      const no = el("button", "ghost", "Cancel");
+      no.type = "button";
+      no.addEventListener("click", drawPause);
+      actions.appendChild(yes);
+      actions.appendChild(no);
+      yes.focus();
+    });
+    actions.appendChild(button);
+  }
+
+  // ---- destroy ----
+  function drawDestroy() {
+    const input = $("confirm");
+    const button = $("destroy");
+    const gone = phase === "destroying" || phase === "destroyed";
+
+    input.disabled = gone;
+    button.disabled = gone || input.value.trim() !== app;
+
+    if (phase === "destroying") {
+      $("confirmNote").textContent = "Taking it away. The list shows this environment as destroying until it is gone.";
+    } else if (phase === "destroyed") {
+      $("confirmNote").textContent = "Gone. The plan stays in the list, and a new deploy of this app builds a new environment with a new address.";
+    } else {
+      $("confirmNote").textContent = "Typing the name is the whole of the confirmation. There is no undo after it.";
+    }
+  }
+
+  $("confirm").addEventListener("input", drawDestroy);
+
+  $("destroy").addEventListener("click", () => {
+    if ($("confirm").value.trim() !== app) return;
+    phase = "destroying";
+    record("Destroyed", "from the console");
+    drawState();
+    // The real thing watches the stack; this waits, and says so above.
+    setTimeout(() => { phase = "destroyed"; drawState(); }, 6000);
+  });
+
+  drawHistory();
+  drawState();
+</script>
+</body>
+</html>

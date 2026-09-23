@@ -50,7 +50,7 @@
       "url": "https://znys54b61c.execute-api.ca-central-1.amazonaws.com",
       "profile": "dev",
       "deploys": 13,
-      "last": "Just now",
+      "last": "7m ago",
       "card": {
         "app": "beneficiary-lookup-api, a Node.js API that starts with index.js",
         "modules": [
@@ -87,7 +87,7 @@
       "note": "waiting on 5 catalog modules",
       "profile": "prod",
       "deploys": 0,
-      "last": "Just now",
+      "last": "3m ago",
       "card": {
         "app": "payment-events-processor, a service that runs continuously",
         "modules": [
@@ -224,6 +224,117 @@
           "Your logs and basic metrics, kept for 30 days"
         ]
       }
+    },
+    {
+      "app": "beneficiary-lookup-api",
+      "owner": {
+        "name": "Greg",
+        "initial": "G"
+      },
+      "status": "destroyed",
+      "chip": "neutral",
+      "url": null,
+      "profile": "dev",
+      "deploys": 12,
+      "last": "Yesterday",
+      "card": {
+        "app": "beneficiary-lookup-api, a Node.js API that starts with index.js",
+        "modules": [
+          {
+            "id": "http_api_serverless",
+            "line": "Runs your code on demand behind an HTTPS endpoint."
+          },
+          {
+            "id": "observability_basic",
+            "line": "Collects your app's logs and tracks requests, errors and response times."
+          }
+        ],
+        "patterns": [
+          {
+            "id": "dev",
+            "line": "A single zone and on demand, like a proof of concept, but nothing is thrown away: data is backed up and failed work is kept."
+          }
+        ],
+        "back": [
+          "A public HTTPS address, as soon as it is live",
+          "Your logs and basic metrics, kept for 30 days"
+        ]
+      },
+      "note": "torn down"
+    },
+    {
+      "app": "beneficiary-lookup-api",
+      "owner": {
+        "name": "Greg",
+        "initial": "G"
+      },
+      "status": "destroyed",
+      "chip": "neutral",
+      "url": null,
+      "profile": "dev",
+      "deploys": 9,
+      "last": "2026 Sep 29",
+      "card": {
+        "app": "beneficiary-lookup-api, a Node.js API that starts with index.js",
+        "modules": [
+          {
+            "id": "http_api_serverless",
+            "line": "Runs your code on demand behind an HTTPS endpoint."
+          },
+          {
+            "id": "observability_basic",
+            "line": "Collects your app's logs and tracks requests, errors and response times."
+          }
+        ],
+        "patterns": [
+          {
+            "id": "dev",
+            "line": "A single zone and on demand, like a proof of concept, but nothing is thrown away: data is backed up and failed work is kept."
+          }
+        ],
+        "back": [
+          "A public HTTPS address, as soon as it is live",
+          "Your logs and basic metrics, kept for 30 days"
+        ]
+      },
+      "note": "torn down"
+    },
+    {
+      "app": "beneficiary-lookup-api",
+      "owner": {
+        "name": "Greg",
+        "initial": "G"
+      },
+      "status": "destroyed",
+      "chip": "neutral",
+      "url": null,
+      "profile": "dev",
+      "deploys": 4,
+      "last": "2026 Sep 28",
+      "card": {
+        "app": "beneficiary-lookup-api, a Node.js API that starts with index.js",
+        "modules": [
+          {
+            "id": "http_api_serverless",
+            "line": "Runs your code on demand behind an HTTPS endpoint."
+          },
+          {
+            "id": "observability_basic",
+            "line": "Collects your app's logs and tracks requests, errors and response times."
+          }
+        ],
+        "patterns": [
+          {
+            "id": "dev",
+            "line": "A single zone and on demand, like a proof of concept, but nothing is thrown away: data is backed up and failed work is kept."
+          }
+        ],
+        "back": [
+          "A public HTTPS address, as soon as it is live",
+          "Your logs and basic metrics, kept for 30 days"
+        ]
+      },
+      "note": "torn down"
     }
   ],
   "catalog": [
@@ -337,10 +448,12 @@
              aria-label="Search apps and owners" spellcheck="false" autocomplete="off">
       <button type="button" class="toggle live" id="toggleLive" aria-pressed="true">Live</button>
       <button type="button" class="toggle planned" id="togglePlanned" aria-pressed="true">Planned</button>
+      <button type="button" class="toggle destroyed" id="toggleDestroyed" aria-pressed="true">Destroyed</button>
       <label class="filterlabel" for="profile">Profile</label>
       <select id="profile" class="profile"></select>
       <span class="count" id="count" aria-live="polite"></span>
     </div>
+    <div class="tablewrap">
     <table>
       <thead>
         <tr>
@@ -350,6 +463,7 @@
       </thead>
       <tbody id="rows"></tbody>
     </table>
+    </div>
     <div class="empty" id="empty" hidden>No environments match what you are looking for.</div>
   </div>
 
@@ -506,7 +620,7 @@
     row.setAttribute("role", "button");
     row.setAttribute("aria-expanded", "false");
 
-    row.appendChild(el("td", "mono", env.app));
+    row.appendChild(el("td", "mono app", env.app));
 
     const owner = el("td");
     const who = el("div", "owner");
@@ -558,7 +672,7 @@
     actions.appendChild(kebab(env, "Actions", [
       { label: "Plan", run: () => { if (holder.hidden) toggle(); } },
       { label: "Configure", href: page("configure"), disabled: !live },
-      { label: "Destroy", disabled: !live }
+      { label: "Control", href: page("control"), disabled: !live }
     ]));
     row.appendChild(actions);
 
@@ -566,7 +680,7 @@
     info.appendChild(kebab(env, "Info", [
       { label: "Costs", href: page("costs"), disabled: !live },
       { label: "Logs", href: page("logs"), disabled: !live },
-      { label: "Performance", disabled: true }
+      { label: "Performance", href: page("performance"), disabled: !live }
     ]));
     row.appendChild(info);
 
@@ -593,7 +707,11 @@
   // ---- finding things in a long list ----
 
   const search = document.getElementById("search");
-  const toggles = { live: document.getElementById("toggleLive"), planned: document.getElementById("togglePlanned") };
+  const toggles = {
+    live: document.getElementById("toggleLive"),
+    planned: document.getElementById("togglePlanned"),
+    destroyed: document.getElementById("toggleDestroyed")
+  };
   const profile = document.getElementById("profile");
   const count = document.getElementById("count");
   const empty = document.getElementById("empty");

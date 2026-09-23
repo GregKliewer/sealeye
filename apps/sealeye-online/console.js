@@ -87,22 +87,23 @@ const Console = (() => {
 })();
 
 // The strip of pages one environment has. Plan is the card on the list page; the
-// rest are pages of their own. Performance is here and greyed so the strip tells the
-// truth about what this version shows.
+// rest are pages of their own.
 Console.subnav = function (app, current) {
   const box = document.getElementById("subnav");
   if (!box) return;
   const { el } = Console;
+  const page = name => name + ".html?app=" + encodeURIComponent(app);
   const pages = [
     ["Plan", "index.html#" + encodeURIComponent(app)],
-    ["Configure", "configure.html?app=" + encodeURIComponent(app)],
-    ["Costs", "costs.html?app=" + encodeURIComponent(app)],
-    ["Logs", "logs.html?app=" + encodeURIComponent(app)],
-    ["Performance", null]
+    ["Configure", page("configure")],
+    ["Costs", page("costs")],
+    ["Logs", page("logs")],
+    ["Performance", page("performance")],
+    ["Control", page("control")]
   ];
   for (const [label, href] of pages) {
     const link = el("a", null, label);
-    if (href) link.href = href; else { link.setAttribute("aria-disabled", "true"); link.href = "#"; }
+    if (href) link.href = href; else { link.href = "#"; link.addEventListener("click", event => event.preventDefault()); }
     if (label === current) link.setAttribute("aria-current", "page");
     box.appendChild(link);
   }

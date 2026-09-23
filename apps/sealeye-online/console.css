@@ -144,6 +144,9 @@
   .toggle[aria-pressed="true"].planned {
     background: var(--chip-amber-bg); color: var(--amber); border-color: var(--chip-amber-bg);
   }
+  .toggle[aria-pressed="true"].destroyed {
+    background: var(--chip-neutral-bg); color: var(--dim); border-color: var(--chip-neutral-bg);
+  }
 
   .filterlabel { color: var(--dim); font-size: 13px; }
   .profile {
@@ -155,6 +158,8 @@
     border-radius: 6px;
     padding: 6px 10px;
   }
+
+  .tablewrap { overflow-x: auto; }
 
   .count { margin-left: auto; color: var(--dim); font-size: 13px; }
   .count .n { font-family: var(--mono); }
@@ -195,8 +200,8 @@
   .owner { display: flex; align-items: center; gap: 8px; }
   .owner .disc { width: 22px; height: 22px; font-size: 11px; background: var(--chip-neutral-bg); color: var(--dim); }
 
-  td.last { white-space: nowrap; }
-  td.url { max-width: 26ch; }
+  td.app, td.last { white-space: nowrap; }
+  td.url { max-width: 18ch; }
   td.url a, td.url span {
     font-family: var(--mono);
     color: var(--phosphor);
@@ -322,10 +327,12 @@
     border: 1px solid var(--rule); border-radius: 6px;
     padding: 8px 14px; cursor: pointer;
   }
+  .ghost { text-decoration: none; display: inline-block; }
   .ghost:hover { border-color: var(--dim); }
   .ghost:disabled, .primary:disabled { color: var(--dim); border-color: var(--rule); background: var(--ground); cursor: default; }
   .ghost.amber { color: var(--amber); }
 
+  main a { color: var(--phosphor); }
   .notice { color: var(--dim); font-size: 13px; }
   .notice.amber { color: var(--amber); }
   .notice[hidden] { display: none; }
@@ -437,3 +444,26 @@
     .field .help { grid-column: 1; }
     .stream .ts, .stream .req { display: none; }
   }
+
+  /* ---- performance: a line chart that is drawn to the width it is given ---- */
+  .linechart { width: 100%; }
+  .linechart svg { display: block; width: 100%; }
+  .legend i.line { width: 14px; height: 0; border-top: 2px solid var(--phosphor); background: none; }
+  .legend i.line.p50 { border-top-style: dashed; opacity: 0.65; }
+  .legend i.gapmark { width: 14px; height: 0; border-top: 1px dashed var(--rule); background: none; }
+
+  /* ---- control ---- */
+  .statebox { display: flex; gap: 18px; align-items: center; padding: 18px; border-bottom: 1px solid var(--rule); }
+  .statebox .big .chip { font-size: 14px; padding: 5px 16px; }
+  .statebox .line { margin: 0; font-weight: 500; }
+  .statebox .notice { margin: 2px 0 0; }
+
+  .plainlist { margin: 0; padding-left: 18px; color: var(--dim); }
+  .plainlist li { padding: 2px 0; }
+
+  .section.danger { border-color: var(--chip-amber-bg); }
+  .section.danger > header { background: var(--chip-amber-bg); border-bottom-color: var(--chip-amber-bg); }
+  .section.danger > header h2 { color: var(--amber); }
+  .section.danger > header .hint { color: var(--amber); }
+
+  .field input.mono { font-family: var(--mono); width: 28ch; }

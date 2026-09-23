@@ -1,0 +1,729 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Performance, seaLeye.online</title>
+
+<!-- Everything this page shows. The environment is seven minutes old and has served the
+     six requests the logs list, so every period holds the same six and the longer two are
+     empty until their last bucket. Times are relative to when the page is opened, so
+     nothing here goes stale between demos. Latencies are milliseconds; a 404 for a
+     reference nobody has on file is an ordinary answer and is not counted as a failure. -->
+<script type="application/json" id="state">
+{
+  "org": "Northline Bank",
+  "user": {
+    "name": "Greg K.",
+    "initial": "G"
+  },
+  "env": {
+    "app": "beneficiary-lookup-api",
+    "status": "live",
+    "profile": "dev",
+    "region": "ca-central-1",
+    "lastDeploy": "7m ago"
+  },
+  "periods": {
+    "1h": {
+      "label": "the last hour",
+      "step": 5,
+      "stepLabel": "5 minutes",
+      "points": [
+        {
+          "requests": 0
+        },
+        {
+          "requests": 0
+        },
+        {
+          "requests": 0
+        },
+        {
+          "requests": 0
+        },
+        {
+          "requests": 0
+        },
+        {
+          "requests": 0
+        },
+        {
+          "requests": 0
+        },
+        {
+          "requests": 0
+        },
+        {
+          "requests": 0
+        },
+        {
+          "requests": 0
+        },
+        {
+          "requests": 4,
+          "p50": 8,
+          "p95": 12
+        },
+        {
+          "requests": 2,
+          "p50": 6,
+          "p95": 7
+        }
+      ],
+      "requests": 6,
+      "p50": 7,
+      "p95": 12,
+      "p99": 12,
+      "failures": 0,
+      "coldStarts": 0,
+      "slowestCold": null,
+      "routes": [
+        {
+          "route": "GET /beneficiaries/{reference}",
+          "requests": 4,
+          "p50": 8,
+          "p95": 12,
+          "p99": 12,
+          "failures": 0
+        },
+        {
+          "route": "GET /",
+          "requests": 1,
+          "p50": 5,
+          "p95": 5,
+          "p99": 5,
+          "failures": 0
+        },
+        {
+          "route": "Everything else",
+          "requests": 1,
+          "p50": 2,
+          "p95": 2,
+          "p99": 2,
+          "failures": 0
+        }
+      ],
+      "codes": [
+        {
+          "code": "200",
+          "what": "Answered",
+          "count": 4
+        },
+        {
+          "code": "404",
+          "what": "No beneficiary on file for that reference",
+          "count": 2
+        },
+        {
+          "code": "5xx",
+          "what": "The app failed",
+          "count": 0
+        }
+      ]
+    },
+    "24h": {
+      "label": "the last 24 hours",
+      "step": 60,
+      "stepLabel": "1 hour",
+      "points": [
+        {
+          "requests": 0
+        },
+        {
+          "requests": 0
+        },
+        {
+          "requests": 0
+        },
+        {
+          "requests": 0
+        },
+        {
+          "requests": 0
+        },
+        {
+          "requests": 0
+        },
+        {
+          "requests": 0
+        },
+        {
+          "requests": 0
+        },
+        {
+          "requests": 0
+        },
+        {
+          "requests": 0
+        },
+        {
+          "requests": 0
+        },
+        {
+          "requests": 0
+        },
+        {
+          "requests": 0
+        },
+        {
+          "requests": 0
+        },
+        {
+          "requests": 0
+        },
+        {
+          "requests": 0
+        },
+        {
+          "requests": 0
+        },
+        {
+          "requests": 0
+        },
+        {
+          "requests": 0
+        },
+        {
+          "requests": 0
+        },
+        {
+          "requests": 0
+        },
+        {
+          "requests": 0
+        },
+        {
+          "requests": 0
+        },
+        {
+          "requests": 6,
+          "p50": 7,
+          "p95": 12
+        }
+      ],
+      "requests": 6,
+      "p50": 7,
+      "p95": 12,
+      "p99": 12,
+      "failures": 0,
+      "coldStarts": 0,
+      "slowestCold": null,
+      "routes": [
+        {
+          "route": "GET /beneficiaries/{reference}",
+          "requests": 4,
+          "p50": 8,
+          "p95": 12,
+          "p99": 12,
+          "failures": 0
+        },
+        {
+          "route": "GET /",
+          "requests": 1,
+          "p50": 5,
+          "p95": 5,
+          "p99": 5,
+          "failures": 0
+        },
+        {
+          "route": "Everything else",
+          "requests": 1,
+          "p50": 2,
+          "p95": 2,
+          "p99": 2,
+          "failures": 0
+        }
+      ],
+      "codes": [
+        {
+          "code": "200",
+          "what": "Answered",
+          "count": 4
+        },
+        {
+          "code": "404",
+          "what": "No beneficiary on file for that reference",
+          "count": 2
+        },
+        {
+          "code": "5xx",
+          "what": "The app failed",
+          "count": 0
+        }
+      ]
+    },
+    "7d": {
+      "label": "the last 7 days",
+      "step": 1440,
+      "stepLabel": "1 day",
+      "points": [
+        {
+          "requests": 0
+        },
+        {
+          "requests": 0
+        },
+        {
+          "requests": 0
+        },
+        {
+          "requests": 0
+        },
+        {
+          "requests": 0
+        },
+        {
+          "requests": 0
+        },
+        {
+          "requests": 6,
+          "p50": 7,
+          "p95": 12
+        }
+      ],
+      "requests": 6,
+      "p50": 7,
+      "p95": 12,
+      "p99": 12,
+      "failures": 0,
+      "coldStarts": 0,
+      "slowestCold": null,
+      "routes": [
+        {
+          "route": "GET /beneficiaries/{reference}",
+          "requests": 4,
+          "p50": 8,
+          "p95": 12,
+          "p99": 12,
+          "failures": 0
+        },
+        {
+          "route": "GET /",
+          "requests": 1,
+          "p50": 5,
+          "p95": 5,
+          "p99": 5,
+          "failures": 0
+        },
+        {
+          "route": "Everything else",
+          "requests": 1,
+          "p50": 2,
+          "p95": 2,
+          "p99": 2,
+          "failures": 0
+        }
+      ],
+      "codes": [
+        {
+          "code": "200",
+          "what": "Answered",
+          "count": 4
+        },
+        {
+          "code": "404",
+          "what": "No beneficiary on file for that reference",
+          "count": 2
+        },
+        {
+          "code": "5xx",
+          "what": "The app failed",
+          "count": 0
+        }
+      ]
+    }
+  },
+  "warm": {
+    "p50": 7,
+    "p95": 12
+  },
+  "cold": null,
+  "slowest": [
+    {
+      "ago": 171,
+      "route": "GET /beneficiaries/{reference}",
+      "ms": 12,
+      "cold": false,
+      "req": "b0d9e1"
+    },
+    {
+      "ago": 158,
+      "route": "GET /beneficiaries/{reference}",
+      "ms": 8,
+      "cold": false,
+      "req": "b7a3c8"
+    },
+    {
+      "ago": 41,
+      "route": "GET /beneficiaries/{reference}",
+      "ms": 7,
+      "cold": false,
+      "req": "e3f0a2"
+    },
+    {
+      "ago": 187,
+      "route": "GET /",
+      "ms": 5,
+      "cold": false,
+      "req": "a41f2c"
+    },
+    {
+      "ago": 133,
+      "route": "GET /beneficiaries/{reference}",
+      "ms": 4,
+      "cold": false,
+      "req": "c25d10"
+    }
+  ],
+  "appStart": 412
+}
+</script>
+
+<link rel="stylesheet" href="console.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="inner">
+    <span class="wordmark"><img src="sealeye-online-wordmark-light.svg" alt="seaLeye.online"></span>
+    <nav id="nav"></nav>
+    <div class="who"><span id="org"></span><span class="disc" id="userDisc"></span><span id="userName"></span></div>
+  </div>
+</div>
+
+<main>
+  <div class="crumbs" id="crumbs"></div>
+
+  <div class="title">
+    <div>
+      <h1>Performance</h1>
+      <p class="sub">How long this app takes to answer, and how often it does not. Measured at the endpoint, so it includes everything between the caller and your code.</p>
+      <div class="meta" id="meta"></div>
+    </div>
+    <div class="spacer"></div>
+    <div class="actions">
+      <a class="ghost" id="toLogs">Open the logs</a>
+    </div>
+  </div>
+
+  <div class="subnav" id="subnav"></div>
+
+  <div class="stats" id="stats"></div>
+
+  <section class="section">
+    <header>
+      <h2 id="chartTitle">Response time</h2>
+      <span class="hint" id="chartHint"></span>
+      <div class="period count" id="period" role="group" aria-label="Period">
+        <button type="button" data-period="1h" aria-pressed="true">Last hour</button>
+        <button type="button" data-period="24h" aria-pressed="false">Last 24 hours</button>
+        <button type="button" data-period="7d" aria-pressed="false">Last 7 days</button>
+      </div>
+    </header>
+    <div class="chart">
+      <div class="linechart"><svg id="svg" role="img" aria-label="Response time over the selected period"></svg></div>
+      <div class="axis" id="axis"></div>
+      <p class="legend">
+        <span><i class="line p95"></i>Slowest</span>
+        <span><i class="line p50"></i>Half under</span>
+        <span id="gap"><i class="gapmark"></i>Nothing served</span>
+      </p>
+    </div>
+  </section>
+
+  <section class="section">
+    <header><h2>Requests</h2><span class="hint" id="reqHint"></span></header>
+    <div class="chart">
+      <div class="bars" id="bars"></div>
+      <div class="axis" id="axis2"></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <header><h2>By route</h2><span class="hint">A route is the shape of the path, not one caller's path, so one line covers every reference looked up.</span></header>
+    <table>
+      <thead><tr><th>Route</th><th class="num">Requests</th><th class="num">Half under</th><th class="num">Slowest 5%</th><th class="num">Slowest 1%</th><th class="num">Failures</th></tr></thead>
+      <tbody id="routes"></tbody>
+    </table>
+  </section>
+
+  <section class="section">
+    <header><h2>Answers</h2><span class="hint">What the callers got back. A reference nobody has on file is an ordinary answer, not a failure.</span></header>
+    <table>
+      <thead><tr><th>Code</th><th>What it means</th><th class="num">Count</th><th class="num">Share</th></tr></thead>
+      <tbody id="codes"></tbody>
+    </table>
+  </section>
+
+  <section class="section">
+    <header><h2>First request after a quiet spell</h2><span class="hint" id="coldHint"></span></header>
+    <div class="field">
+      <span class="name">Warm</span>
+      <div class="value"><span class="mono" id="warmLine"></span></div>
+      <p class="help">A request that arrives while the app is already running.</p>
+    </div>
+    <div class="field">
+      <span class="name">Cold</span>
+      <div class="value"><span class="mono" id="coldLine"></span></div>
+      <p class="help">A request that has to wait for the app to start first. Keeping instances warm on the Configure page trades a little cost for losing these.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <header><h2>Slowest requests</h2><span class="hint">The five slowest seen, whenever they happened.</span></header>
+    <table>
+      <thead><tr><th>When</th><th>Route</th><th class="num">Took</th><th>Why</th><th>Request</th></tr></thead>
+      <tbody id="slowest"></tbody>
+    </table>
+  </section>
+
+  <footer id="footer"></footer>
+</main>
+
+<script src="console.js"></script>
+<script>
+  const state = JSON.parse(document.getElementById("state").textContent);
+  const { el, chip } = Console;
+  const app = state.env.app;
+
+  Console.chrome(state, "Environments");
+  Console.crumbs(app, "Performance");
+  Console.subnav(app, "Performance");
+
+  const meta = document.getElementById("meta");
+  meta.appendChild(chip("Live", "phosphor"));
+  meta.appendChild(chip(state.env.profile));
+  meta.appendChild(el("span", "mono notice", state.env.region));
+
+  const $ = id => document.getElementById(id);
+  $("toLogs").href = "logs.html?app=" + encodeURIComponent(app);
+
+  let key = "1h";
+  const ms = n => n === null || n === undefined ? "" : n + " ms";
+
+  // Bucket labels are worked out from the clock, so the last bucket is always now.
+  const pad = n => String(n).padStart(2, "0");
+  const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  function labels(period) {
+    const now = new Date();
+    const out = [];
+    for (let i = period.points.length - 1; i >= 0; i -= 1) {
+      const at = new Date(now.getTime() - i * period.step * 60 * 1000);
+      if (period.step >= 1440) out.push(DAYS[at.getDay()]);
+      else out.push(pad(at.getHours()) + ":" + pad(at.getMinutes()));
+    }
+    return out;
+  }
+
+  // ---- tiles ----
+  function drawStats() {
+    const p = state.periods[key];
+    const stats = $("stats");
+    stats.textContent = "";
+
+    const tile = (n, label, detail) => {
+      const box = el("div", "stat");
+      box.appendChild(el("div", "n", n));
+      box.appendChild(el("div", "l", label));
+      if (detail) box.appendChild(el("div", "d", detail));
+      stats.appendChild(box);
+    };
+
+    tile(String(p.requests), "Requests", "in " + p.label);
+    tile(p.p50 + " ms", "Half of requests under", "measured over " + p.requests + (p.requests === 1 ? " request" : " requests"));
+    tile(p.p99 + " ms", "Slowest request", "at the endpoint, not in your code alone");
+    tile(p.failures === 0 ? "None" : String(p.failures), "Failures",
+      p.failures === 0 ? "nothing has failed since this went live" : "requests the app could not answer");
+  }
+
+  // ---- response time, drawn to the width it is given ----
+  const svg = $("svg");
+  const NS = "http://www.w3.org/2000/svg";
+
+  function node(name, attrs) {
+    const n = document.createElementNS(NS, name);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+    return n;
+  }
+
+  function drawLine() {
+    const p = state.periods[key];
+    const width = svg.parentNode.clientWidth || 900;
+    const height = 150;
+    svg.setAttribute("width", width);
+    svg.setAttribute("height", height);
+    svg.textContent = "";
+
+    const pad = { top: 14, right: 8, bottom: 8, left: 44 };
+    const top = Math.max(20, Math.ceil(Math.max(...p.points.map(pt => pt.p95 || 0)) / 10) * 10);
+    const x = i => pad.left + (width - pad.left - pad.right) * (p.points.length === 1 ? 0 : i / (p.points.length - 1));
+    const y = v => pad.top + (height - pad.top - pad.bottom) * (1 - v / top);
+
+    // Three gridlines and their values, so a shape becomes a number.
+    for (const v of [0, top / 2, top]) {
+      svg.appendChild(node("line", { x1: pad.left, x2: width - pad.right, y1: y(v), y2: y(v), stroke: "#DCE2E8" }));
+      const text = node("text", { x: pad.left - 8, y: y(v) + 4, "text-anchor": "end", fill: "#5C6B7A", "font-size": "11" });
+      text.textContent = v === 0 ? "0" : v + " ms";
+      svg.appendChild(text);
+    }
+
+    // One path per series, broken wherever nothing was served: a line drawn straight
+    // across an empty hour would claim a measurement nobody took.
+    const series = (field, dashed) => {
+      let d = "";
+      let joined = false;   // true while the current stretch of buckets has values
+      p.points.forEach((pt, i) => {
+        const v = pt[field];
+        if (v === undefined) { joined = false; return; }
+        d += (joined ? "L" : "M") + x(i) + " " + y(v) + " ";
+        joined = true;
+      });
+      if (!d) return;
+      svg.appendChild(node("path", {
+        d: d.trim(),
+        fill: "none",
+        stroke: "#1A7A64",
+        "stroke-width": dashed ? 1.5 : 2,
+        "stroke-dasharray": dashed ? "4 3" : "none",
+        "stroke-linejoin": "round",
+        "stroke-linecap": "round",
+        opacity: dashed ? 0.65 : 1
+      }));
+    };
+    series("p95", false);
+    series("p50", true);
+
+    // A dot on every bucket that has a measurement, so a single lonely one is visible.
+    p.points.forEach((pt, i) => {
+      if (pt.p95 === undefined) return;
+      svg.appendChild(node("circle", { cx: x(i), cy: y(pt.p95), r: 2.5, fill: "#1A7A64" }));
+    });
+
+    const served = p.points.filter(pt => pt.requests > 0).length;
+    $("chartHint").textContent = served <= 2 && key !== "1h"
+      ? "This environment is minutes old, so everything it has served sits in the last bucket."
+      : "In " + p.label + ", by " + p.stepLabel + ". Gaps are spells when nothing was served.";
+  }
+
+  // ---- requests ----
+  function drawBars() {
+    const p = state.periods[key];
+    const bars = $("bars");
+    const axis = $("axis");
+    const axis2 = $("axis2");
+    bars.textContent = "";
+    axis.textContent = "";
+    axis2.textContent = "";
+
+    const names = labels(p);
+    const top = Math.max(1, ...p.points.map(pt => pt.requests));
+
+    p.points.forEach((pt, i) => {
+      const bar = el("div", "bar");
+      if (pt.requests === 0) {
+        bar.classList.add("none");
+        bar.style.height = "1px";
+        bar.dataset.label = names[i] + ": nothing served";
+      } else {
+        bar.style.height = Math.max(3, Math.round((pt.requests / top) * 100)) + "%";
+        bar.dataset.label = names[i] + ": " + pt.requests + " requests, half under " + pt.p50 + " ms";
+      }
+      bar.title = bar.dataset.label;
+      bars.appendChild(bar);
+
+      const every = names.length <= 7 ? 1 : names.length <= 12 ? 2 : 4;
+      const show = i === 0 || i === names.length - 1 || (i + 1) % every === 0;
+      axis.appendChild(el("span", null, show ? names[i] : ""));
+      axis2.appendChild(el("span", null, show ? names[i] : ""));
+    });
+
+    $("reqHint").textContent = "In " + p.label + ", by " + p.stepLabel + ". " + p.requests + " in total.";
+  }
+
+  // ---- tables ----
+  function drawTables() {
+    const p = state.periods[key];
+
+    const routes = $("routes");
+    routes.textContent = "";
+    for (const r of p.routes) {
+      const row = el("tr");
+      row.appendChild(el("td", "mono", r.route));
+      row.appendChild(el("td", "num", String(r.requests)));
+      row.appendChild(el("td", "num", r.requests ? ms(r.p50) : "none"));
+      row.appendChild(el("td", "num", r.requests ? ms(r.p95) : "none"));
+      row.appendChild(el("td", "num", r.requests ? ms(r.p99) : "none"));
+      row.appendChild(el("td", "num", r.failures ? String(r.failures) : "0"));
+      routes.appendChild(row);
+    }
+
+    const codes = $("codes");
+    codes.textContent = "";
+    const total = p.codes.reduce((a, c) => a + c.count, 0) || 1;
+    for (const c of p.codes) {
+      const row = el("tr");
+      const cell = el("td");
+      cell.appendChild(el("span", "chip " + (c.code === "5xx" && c.count ? "amber" : c.count ? "phosphor" : "neutral"), c.code));
+      row.appendChild(cell);
+      row.appendChild(el("td", "notice", c.what));
+      row.appendChild(el("td", "num", String(c.count)));
+      row.appendChild(el("td", "num", c.count ? (Math.round((c.count / total) * 1000) / 10) + "%" : "0%"));
+      codes.appendChild(row);
+    }
+
+    $("coldHint").textContent = p.coldStarts === 0
+      ? "None yet. The platform started the app when it deployed, so no caller has waited for a start."
+      : p.coldStarts + " in " + p.label + ", the slowest " + p.slowestCold + " ms.";
+    $("warmLine").textContent = "half under " + state.warm.p50 + " ms, slowest " + state.warm.p95 + " ms";
+    $("coldLine").textContent = state.cold
+      ? "half under " + state.cold.p50 + " ms, slowest " + state.cold.p95 + " ms"
+      : "none yet, and the app's own start took " + state.appStart + " ms";
+  }
+
+  // ---- slowest, stamped from the clock like the logs ----
+  const ago = seconds => {
+    if (seconds < 90) return Math.round(seconds) + "s ago";
+    if (seconds < 5400) return Math.round(seconds / 60) + "m ago";
+    if (seconds < 172800) return Math.round(seconds / 3600) + "h ago";
+    return Math.round(seconds / 86400) + "d ago";
+  };
+
+  const slowest = $("slowest");
+  for (const s of state.slowest) {
+    const row = el("tr");
+    row.appendChild(el("td", null, ago(s.ago)));
+    row.appendChild(el("td", "mono", s.route));
+    row.appendChild(el("td", "num", ms(s.ms)));
+    row.appendChild(el("td", "notice", s.cold ? "waited for the app to start" : "nothing unusual"));
+    const cell = el("td");
+    const link = el("a", "mono", s.req);
+    link.href = "logs.html?app=" + encodeURIComponent(app);
+    cell.appendChild(link);
+    row.appendChild(cell);
+    slowest.appendChild(row);
+  }
+
+  function draw() {
+    drawStats();
+    drawLine();
+    drawBars();
+    drawTables();
+    $("chartTitle").textContent = "Response time";
+  }
+
+  for (const button of $("period").querySelectorAll("button")) {
+    button.addEventListener("click", () => {
+      key = button.dataset.period;
+      for (const b of $("period").querySelectorAll("button")) b.setAttribute("aria-pressed", b === button ? "true" : "false");
+      draw();
+    });
+  }
+
+  let resize = null;
+  window.addEventListener("resize", () => { clearTimeout(resize); resize = setTimeout(drawLine, 120); });
+
+  draw();
+</script>
+</body>
+</html>
