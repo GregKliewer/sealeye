@@ -416,6 +416,12 @@ export async function runInterview({
       questions++;
       stopWaiting();   // a question owns the line, and the developer owns the wait
       const answer = await ask(question, lead);
+
+      // What the platform does next is write the plan, which takes half a minute. The
+      // label was still naming the last file it read, so the spinner sat there saying
+      // "Reading README.md 29s" long after it had finished reading anything.
+      lastLine = "Writing your plan";
+
       messages.push({ role: "user", content: answer || "(no answer)" });
       continue;
     }

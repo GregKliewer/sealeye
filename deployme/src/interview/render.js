@@ -421,12 +421,14 @@ function previousContent(previous, catalog) {
   };
 }
 
-// dim for what stays, phosphor for what arrives, amber for what moves or goes.
+// What moved gets a word; what stayed gets silence and the dim colour. Seven rows
+// labelled "unchanged" is a column of noise that buries the one row that did change,
+// and a reader who sees three labels in a card of ten knows what to look at.
 const MARKS = {
-  unchanged: { word: "unchanged", paint: s => c.dim(s) },
-  changed: { word: "changed", paint: s => c.prompt(s) },
+  unchanged: { word: "", paint: s => c.dim(s) },
+  changed: { word: "changed", paint: s => c.accent(s) },
   new: { word: "new", paint: s => c.accent(s) },
-  removed: { word: "removed", paint: s => c.prompt(s) }
+  removed: { word: "removed", paint: s => c.accent(s) }
 };
 
 const NOTHING_CHANGES = {
@@ -484,10 +486,14 @@ function renderRow(row, { room, markWidth, idWidth }) {
     ? `${mark ? mark.paint(mark.word.padEnd(markWidth)) : " ".repeat(markWidth)}  `
     : "";
 
+  // A row that did not move recedes: no label, and the whole line dim, so the rows
+  // that did move are the only thing with any colour in them.
+  const quiet = row.mark === "unchanged" || row.mark === "removed";
+
   if (row.id) {
     const textRoom = Math.max(24, room - markPad - idWidth - 2);
     const hang = " ".repeat(markPad + idWidth + 2);
-    const id = row.mark === "removed" ? c.dim(row.id.padEnd(idWidth)) : c.fg(row.id.padEnd(idWidth));
+    const id = quiet ? c.dim(row.id.padEnd(idWidth)) : c.fg(row.id.padEnd(idWidth));
 
     return wrapText(row.text, textRoom).map((line, i) =>
       i === 0 ? `${markCell}${id}  ${c.dim(line)}` : `${hang}${c.dim(line)}`
@@ -497,7 +503,7 @@ function renderRow(row, { room, markWidth, idWidth }) {
   const textRoom = Math.max(24, room - markPad);
   const hang = " ".repeat(markPad);
   const paint = line =>
-    row.tone === "dim" || row.mark === "removed" ? c.dim(line) : paintValues(line, row.values || []);
+    row.tone === "dim" || quiet ? c.dim(line) : paintValues(line, row.values || []);
 
   return wrapText(row.text, textRoom).map((line, i) => `${i === 0 ? markCell : hang}${paint(line)}`);
 }
