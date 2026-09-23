@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Catalog, seaLeye.online</title>
+
+<!-- Everything this page shows. An available module carries the version seaLeye.run
+     builds today, what changed in it, and how long the older ones have left. A planned
+     or requested one has no version, because there is nothing to version yet. -->
+<script type="application/json" id="state">
+{
+  "org": "Northline Bank",
+  "user": {
+    "name": "Greg K.",
+    "initial": "G"
+  },
+  "page": {
+    "title": "Catalog",
+    "subtitle": "Every module in Northline Bank's Platform Library, what seaLeye.run can build today, and what it cannot build yet."
+  },
+  "states": [
+    {
+      "id": "available",
+      "label": "Available",
+      "line": "seaLeye.run builds this today. It has a version, and it is supported."
+    },
+    {
+      "id": "planned",
+      "label": "Planned",
+      "line": "In the library and in the plan, but this version of seaLeye.run does not build it."
+    },
+    {
+      "id": "requested",
+      "label": "Requested",
+      "line": "Somebody has asked for it. It is not in the library yet."
+    }
+  ],
+  "catalog": [
+    {
+      "id": "static_site_edge",
+      "line": "Serves your HTML, CSS, images and other files straight to visitors over HTTPS",
+      "state": "available",
+      "versions": {
+        "current": "2.4.0",
+        "released": "2026 Sep 15",
+        "using": 0,
+        "notes": [
+          "Files are served with a content hash, so a changed file is picked up without waiting for a cache to expire.",
+          "The bucket is emptied before the environment is torn down, so a tear down no longer stops half way.",
+          "Index and error documents can be set in the plan rather than assumed."
+        ],
+        "older": [
+          {
+            "version": "2.3.4",
+            "released": "2026 Aug 28",
+            "support": "supported",
+            "until": "2027 Feb 28",
+            "line": "The last of the 2.3 line. Security fixes only."
+          },
+          {
+            "version": "2.2.1",
+            "released": "2026 Jun 02",
+            "support": "ending",
+            "until": "2026 Nov 30",
+            "line": "Move off this one. It does not empty the bucket on tear down."
+          },
+          {
+            "version": "2.1.0",
+            "released": "2026 Mar 11",
+            "support": "unsupported",
+            "until": "2026 Sep 01",
+            "line": "No longer patched. Deploys with it are refused."
+          },
+          {
+            "version": "1.9.3",
+            "released": "2025 Nov 19",
+            "support": "unsupported",
+            "until": "2026 Mar 31",
+            "line": "No longer patched. Deploys with it are refused."
+          }
+        ]
+      }
+    },
+    {
+      "id": "http_api_serverless",
+      "line": "Runs your code on demand behind an HTTPS endpoint",
+      "state": "available",
+      "versions": {
+        "current": "3.1.0",
+        "released": "2026 Sep 18",
+        "using": 1,
+        "notes": [
+          "Your app runs unchanged behind the endpoint. Nothing is injected into your folder.",
+          "Memory and timeout are settable per environment instead of fixed by the platform.",
+          "A failed deploy now reports the first real reason rather than the rollback that followed it.",
+          "Logs are created before the app is, so the first start is never lost."
+        ],
+        "older": [
+          {
+            "version": "3.0.2",
+            "released": "2026 Aug 12",
+            "support": "supported",
+            "until": "2027 Feb 28",
+            "line": "Memory and timeout are fixed at 512 MB and 30 s."
+          },
+          {
+            "version": "2.8.0",
+            "released": "2026 May 07",
+            "support": "ending",
+            "until": "2026 Dec 31",
+            "line": "Loses the first start's logs. Move off it when you next deploy."
+          },
+          {
+            "version": "2.4.1",
+            "released": "2026 Jan 22",
+            "support": "unsupported",
+            "until": "2026 Jul 31",
+            "line": "No longer patched. Deploys with it are refused."
+          }
+        ]
+      }
+    },
+    {
+      "id": "observability_basic",
+      "line": "Collects your app's logs and tracks requests, errors and response times",
+      "state": "available",
+      "versions": {
+        "current": "1.8.2",
+        "released": "2026 Sep 09",
+        "using": 1,
+        "notes": [
+          "Retention is set per environment, from one day to a year.",
+          "Request tracking writes one line per request: method, path, status and time.",
+          "An error alert can be set without anyone opening a dashboard."
+        ],
+        "older": [
+          {
+            "version": "1.8.0",
+            "released": "2026 Aug 21",
+            "support": "supported",
+            "until": "2027 Feb 28",
+            "line": "Alerts are set by hand after the environment is built."
+          },
+          {
+            "version": "1.6.5",
+            "released": "2026 Apr 30",
+            "support": "ending",
+            "until": "2026 Dec 31",
+            "line": "Retention is fixed at 30 days."
+          },
+          {
+            "version": "1.4.0",
+            "released": "2025 Dec 03",
+            "support": "unsupported",
+            "until": "2026 Jun 30",
+            "line": "No longer patched. Deploys with it are refused."
+          }
+        ]
+      }
+    },
+    {
+      "id": "config_basic",
+      "line": "Passes the settings your app reads from its environment through to it when it runs",
+      "state": "available",
+      "versions": {
+        "current": "1.2.0",
+        "released": "2026 Sep 20",
+        "using": 1,
+        "notes": [
+          "Values are written once and never read back, by anyone, including an admin.",
+          "Names are shown everywhere; values appear in no file, no log line and no stack event.",
+          "A value can be replaced without a redeploy of your code."
+        ],
+        "older": [
+          {
+            "version": "1.1.0",
+            "released": "2026 Jul 15",
+            "support": "supported",
+            "until": "2027 Feb 28",
+            "line": "Replacing a value needs a redeploy."
+          },
+          {
+            "version": "1.0.0",
+            "released": "2026 Apr 02",
+            "support": "ending",
+            "until": "2026 Nov 30",
+            "line": "Values are visible to an admin. Move off it."
+          }
+        ]
+      }
+    },
+    {
+      "id": "domain_public",
+      "line": "a custom domain you already own",
+      "state": "planned"
+    },
+    {
+      "id": "data_relational",
+      "line": "a managed relational database your app connects to",
+      "state": "planned"
+    },
+    {
+      "id": "data_cache",
+      "line": "a fast in-memory cache",
+      "state": "planned"
+    },
+    {
+      "id": "events_stream",
+      "line": "a stream your services publish to and read from",
+      "state": "planned"
+    },
+    {
+      "id": "queue_basic",
+      "line": "a work queue between services",
+      "state": "planned"
+    },
+    {
+      "id": "secrets_basic",
+      "line": "secrets your app reads at runtime, never stored in code",
+      "state": "planned"
+    },
+    {
+      "id": "identity_service",
+      "line": "sign-in and tokens for your app's users",
+      "state": "planned"
+    },
+    {
+      "id": "network_private",
+      "line": "your app is not reachable from the public internet",
+      "state": "planned"
+    },
+    {
+      "id": "compute_container",
+      "line": "a service that runs continuously rather than on demand",
+      "state": "planned"
+    },
+    {
+      "id": "scheduled_job",
+      "line": "something that runs on a schedule",
+      "state": "planned"
+    },
+    {
+      "id": "storage_object",
+      "line": "files your app stores and reads, distinct from serving a site",
+      "state": "planned"
+    }
+  ]
+}
+</script>
+
+<link rel="stylesheet" href="console.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="inner">
+    <span class="wordmark"><img src="sealeye-online-wordmark-light.svg" alt="seaLeye.online"></span>
+    <nav id="nav"></nav>
+    <div class="who"><span id="org"></span><span class="disc" id="userDisc"></span><span id="userName"></span></div>
+  </div>
+</div>
+
+<main>
+
+  <div class="title">
+    <div>
+      <h1 id="pageTitle"></h1>
+      <p class="sub" id="pageSub"></p>
+    </div>
+    <div class="spacer"></div>
+    <button type="button" class="ghost" id="request">Request a module</button>
+  </div>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="panel">
+    <div class="toolbar">
+      <input id="search" class="search" type="search" placeholder="Search modules" aria-label="Search modules" spellcheck="false" autocomplete="off">
+      <button type="button" class="toggle live" id="toggleAvailable" aria-pressed="true">Available</button>
+      <button type="button" class="toggle planned" id="togglePlanned" aria-pressed="true">Planned</button>
+      <button type="button" class="toggle destroyed" id="toggleRequested" aria-pressed="true">Requested</button>
+      <span class="count" id="count" aria-live="polite"></span>
+    </div>
+    <div class="modules" id="modules"></div>
+    <div class="empty" id="empty" hidden>Nothing matches.</div>
+  </div>
+
+  <h2>What the three words mean</h2>
+  <div class="cards" id="states"></div>
+
+  <footer id="footer"></footer>
+</main>
+
+<script src="console.js"></script>
+<script>
+  const state = JSON.parse(document.getElementById("state").textContent);
+  const { el, chip } = Console;
+
+  Console.chrome(state, "Catalog");
+  document.getElementById("pageTitle").textContent = state.page.title;
+  document.getElementById("pageSub").textContent = state.page.subtitle;
+
+  const $ = id => document.getElementById(id);
+  const TONE = { available: "phosphor", planned: "amber", requested: "neutral" };
+  const WORD = { available: "Available", planned: "Planned", requested: "Requested" };
+
+  // ---- tiles ----
+  const counts = id => state.catalog.filter(m => m.state === id).length;
+  const stats = $("stats");
+  for (const [n, label, detail] of [
+    [state.catalog.length, "Modules in the library", "everything Northline Bank has named"],
+    [counts("available"), "Available", "seaLeye.run builds these today"],
+    [counts("planned"), "Planned", "in a plan, refused at deploy"],
+    [counts("requested"), "Requested", "asked for, not in the library yet"]
+  ]) {
+    const box = el("div", "stat");
+    box.appendChild(el("div", "n", String(n)));
+    box.appendChild(el("div", "l", label));
+    box.appendChild(el("div", "d", detail));
+    stats.appendChild(box);
+  }
+
+  // ---- one module ----
+  const listed = [];
+
+  function support(entry) {
+    if (entry.support === "supported") return chip("Supported", "phosphor");
+    if (entry.support === "ending") return chip("Ends " + entry.until, "amber");
+    return chip("Unsupported", "neutral");
+  }
+
+  function detail(module) {
+    const v = module.versions;
+    const box = el("div", "cardbox");
+
+    const head = el("div", "group");
+    head.appendChild(el("h3", null, "Current version"));
+    const now = el("div", "version");
+    now.appendChild(el("span", "big mono", v.current));
+    now.appendChild(el("span", "notice", "released " + v.released));
+    now.appendChild(el("span", "notice", v.using === 0
+      ? "no environment here is on it"
+      : v.using === 1 ? "1 environment here is on it" : v.using + " environments here are on it"));
+    head.appendChild(now);
+    box.appendChild(head);
+
+    const notes = el("div", "group");
+    notes.appendChild(el("h3", null, "What changed in " + v.current));
+    const list = el("ul", "plainlist");
+    for (const line of v.notes) list.appendChild(el("li", null, line));
+    notes.appendChild(list);
+    box.appendChild(notes);
+
+    const older = el("div", "group");
+    older.appendChild(el("h3", null, "Older versions"));
+    const table = el("table");
+    const thead = el("thead");
+    const hrow = el("tr");
+    for (const h of ["Version", "Released", "Support", "What is different about it"]) hrow.appendChild(el("th", null, h));
+    thead.appendChild(hrow);
+    table.appendChild(thead);
+    const tbody = el("tbody");
+    for (const entry of v.older) {
+      const row = el("tr");
+      row.appendChild(el("td", "mono", entry.version));
+      row.appendChild(el("td", "mono notice", entry.released));
+      const cell = el("td");
+      cell.appendChild(support(entry));
+      row.appendChild(cell);
+      row.appendChild(el("td", "notice", entry.line));
+      tbody.appendChild(row);
+    }
+    table.appendChild(tbody);
+    older.appendChild(table);
+    box.appendChild(older);
+
+    return box;
+  }
+
+  const modules = $("modules");
+  for (const module of state.catalog) {
+    const card = el("div", "modrow");
+    const openable = module.state === "available";
+
+    const head = el(openable ? "button" : "div", "modhead");
+    if (openable) {
+      head.type = "button";
+      head.setAttribute("aria-expanded", "false");
+    }
+
+    const text = el("div", "body");
+    const idline = el("div", "id");
+    idline.appendChild(document.createTextNode(module.id));
+    if (openable) idline.appendChild(el("span", "mono ver", module.versions.current));
+    text.appendChild(idline);
+    text.appendChild(el("div", "what", module.line));
+    head.appendChild(text);
+    head.appendChild(chip(WORD[module.state], TONE[module.state]));
+    if (openable) head.appendChild(el("span", "chev", "\u203A"));
+    card.appendChild(head);
+
+    let panel = null;
+    if (openable) {
+      panel = el("div", "modbody");
+      panel.hidden = true;
+      panel.appendChild(detail(module));
+      card.appendChild(panel);
+      head.addEventListener("click", () => {
+        panel.hidden = !panel.hidden;
+        head.setAttribute("aria-expanded", panel.hidden ? "false" : "true");
+        card.classList.toggle("open", !panel.hidden);
+      });
+    }
+
+    modules.appendChild(card);
+    listed.push({ module, card, panel });
+  }
+
+  // ---- filtering ----
+  const toggles = {
+    available: $("toggleAvailable"),
+    planned: $("togglePlanned"),
+    requested: $("toggleRequested")
+  };
+
+  function filter() {
+    const term = $("search").value.trim().toLowerCase();
+    let shown = 0;
+    for (const item of listed) {
+      const m = item.module;
+      const keep = (!term || (m.id + " " + m.line).toLowerCase().includes(term)) &&
+        toggles[m.state].getAttribute("aria-pressed") === "true";
+      item.card.hidden = !keep;
+      if (!keep && item.panel) {
+        item.panel.hidden = true;
+        item.card.classList.remove("open");
+        item.card.querySelector(".modhead").setAttribute("aria-expanded", "false");
+      }
+      if (keep) shown += 1;
+    }
+    $("empty").hidden = shown > 0;
+    const count = $("count");
+    count.textContent = "";
+    count.appendChild(el("span", "n", String(shown)));
+    count.appendChild(document.createTextNode(" of "));
+    count.appendChild(el("span", "n", String(listed.length)));
+  }
+
+  $("search").addEventListener("input", filter);
+  for (const toggle of Object.values(toggles)) {
+    toggle.addEventListener("click", () => {
+      toggle.setAttribute("aria-pressed", toggle.getAttribute("aria-pressed") === "true" ? "false" : "true");
+      filter();
+    });
+  }
+  filter();
+
+  // Requesting a module is a conversation with the platform team, not a form the
+  // console can settle, so the button says where that conversation happens.
+  $("request").addEventListener("click", () => {
+    const note = $("request");
+    note.textContent = "Ask your platform team; a request becomes a Requested module here";
+    note.disabled = true;
+  });
+
+  // ---- what the three words mean ----
+  const words = $("states");
+  for (const s of state.states) {
+    const box = el("div", "modcard");
+    const inner = el("div", "body");
+    inner.appendChild(el("div", "id", s.label));
+    inner.appendChild(el("div", "what", s.line));
+    box.appendChild(inner);
+    box.appendChild(chip(String(counts(s.id)), TONE[s.id]));
+    words.appendChild(box);
+  }
+</script>
+</body>
+</html>

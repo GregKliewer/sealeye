@@ -316,7 +316,7 @@
   }
   .subnav a[aria-current="page"] { color: var(--ink); border-bottom-color: var(--phosphor); }
   .subnav a:hover { color: var(--ink); }
-  .subnav a[aria-disabled="true"] { color: var(--rule); pointer-events: none; }
+  .subnav a[aria-disabled="true"] { color: var(--rule); cursor: default; }
 
   .title .meta { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
   .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
@@ -467,3 +467,52 @@
   .section.danger > header .hint { color: var(--amber); }
 
   .field input.mono { font-family: var(--mono); width: 28ch; }
+
+  /* ---- team ---- */
+  .inviteform {
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    padding: 12px 16px; border-bottom: 1px solid var(--rule); background: var(--ground);
+  }
+  .inviteform[hidden] { display: none; }
+  .inviteform .search { flex: 0 1 220px; }
+  .owner .notice { font-size: 12px; line-height: 1.2; }
+
+  /* ---- catalog: a list that opens ---- */
+  .modules { display: block; }
+  .modrow { border-bottom: 1px solid var(--rule); }
+  .modrow:last-child { border-bottom: 0; }
+  .modrow[hidden] { display: none; }
+  .modrow.open { background: var(--ground); }
+
+  .modhead {
+    font: inherit;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: 0;
+    padding: 14px 16px;
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    color: var(--ink);
+  }
+  button.modhead { cursor: pointer; }
+  button.modhead:hover { background: var(--ground); }
+  button.modhead:focus-visible { outline: 2px solid var(--phosphor); outline-offset: -2px; }
+  .modhead .body { flex: 1 1 auto; }
+  .modhead .id { font-family: var(--mono); font-weight: 700; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+  .modhead .id .ver { font-weight: 400; font-size: 12px; color: var(--dim); }
+  .modhead .what { color: var(--dim); }
+  .modhead .chev { color: var(--dim); font-size: 18px; line-height: 1; transition: transform 0.12s ease; }
+  .modrow.open .modhead .chev { transform: rotate(90deg); }
+
+  .modbody { padding: 0 16px 18px; }
+  .modbody[hidden] { display: none; }
+  .modbody .cardbox { background: var(--surface); }
+  .modbody table { margin-top: 4px; }
+  .modbody thead th { padding: 8px 0; }
+  .modbody tbody td { height: 38px; padding: 6px 16px 6px 0; border-bottom: 1px solid var(--rule); }
+  .modbody tbody tr:last-child td { border-bottom: 0; }
+
+  .version { display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; }
+  .version .big { font-size: 22px; font-weight: 600; }

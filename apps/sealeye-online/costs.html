@@ -5,92 +5,130 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Costs, seaLeye.online</title>
 
-<!-- Everything this page shows. The environment was deployed today and has served the
-     six requests the logs list, so every line rounds to nothing and today is the only
-     day on the chart. The dates come from the clock, not from this file, so the page is
-     never stale. Amounts are CAD before tax. -->
+<!-- Everything this page shows, for every environment this app has had. Days are
+     offsets from today, not fixed dates, so the page is right whenever it is opened:
+     0 is the environment deployed this morning, -1 is yesterday's test run, and so on.
+     Billing outlives the environment, which is why a torn down run still has a page.
+     Amounts are CAD before tax. -->
 <script type="application/json" id="state">
 {
   "org": "Northline Bank",
-  "user": {
-    "name": "Greg K.",
-    "initial": "G"
-  },
-  "env": {
-    "app": "beneficiary-lookup-api",
-    "status": "live",
-    "profile": "dev",
-    "region": "ca-central-1",
-    "deployedAgo": "7m ago"
-  },
+  "user": { "name": "Greg K.", "initial": "G" },
   "currency": "CAD",
-  "todayCost": 0.002,
-  "forecastPerDay": 0.01,
-  "requests": {
-    "total": 6
-  },
-  "lines": [
+  "app": "beneficiary-lookup-api",
+  "environments": [
     {
-      "module": "http_api_serverless",
-      "what": "Runs your code on demand behind an HTTPS endpoint.",
-      "items": [
-        {
-          "name": "Requests",
-          "usage": "6 requests",
-          "cost": 0.0
-        },
-        {
-          "name": "Compute time",
-          "usage": "0.4 s at 512 MB",
-          "cost": 0.0
-        },
-        {
-          "name": "Endpoint",
-          "usage": "6 requests",
-          "cost": 0.0
-        }
+      "id": "dep_9c31e07a44f2",
+      "status": "live",
+      "profile": "dev",
+      "region": "ca-central-1",
+      "startedAgo": "20m ago",
+      "when": "today",
+      "ran": "20m so far",
+      "hours": 0.33,
+      "deploys": 1,
+      "requests": 3,
+      "days": { "0": 0.004 },
+      "forecastPerDay": 0.2,
+      "lines": [
+        { "module": "http_api_serverless", "what": "Runs your code on demand behind an HTTPS endpoint.", "items": [
+          { "name": "Requests", "usage": "3 requests", "cost": 0.0 },
+          { "name": "Compute time", "usage": "0.2 s at 512 MB", "cost": 0.0 },
+          { "name": "Endpoint", "usage": "3 requests", "cost": 0.0 }
+        ]},
+        { "module": "observability_basic", "what": "Collects your app's logs and tracks requests, errors and response times.", "items": [
+          { "name": "Log ingestion", "usage": "3 KB", "cost": 0.0 },
+          { "name": "Log storage", "usage": "3 KB, 30 days", "cost": 0.0 },
+          { "name": "Request metrics", "usage": "4 metrics", "cost": 0.003 }
+        ]},
+        { "module": "platform", "what": "Packages kept so a deploy can be rolled back.", "items": [
+          { "name": "Package storage", "usage": "1 package, 2.6 MB", "cost": 0.001 }
+        ]}
       ]
     },
     {
-      "module": "observability_basic",
-      "what": "Collects your app's logs and tracks requests, errors and response times.",
-      "items": [
-        {
-          "name": "Log ingestion",
-          "usage": "4 KB",
-          "cost": 0.001
-        },
-        {
-          "name": "Log storage",
-          "usage": "4 KB, 30 days",
-          "cost": 0.0
-        },
-        {
-          "name": "Request metrics",
-          "usage": "4 metrics",
-          "cost": 0.001
-        }
+      "id": "dep_5e14b8c07d31",
+      "status": "destroyed",
+      "profile": "dev",
+      "region": "ca-central-1",
+      "when": "yesterday",
+      "ran": "2h 10m",
+      "hours": 2.17,
+      "deploys": 12,
+      "requests": 64,
+      "days": { "-1": 0.02 },
+      "lines": [
+        { "module": "http_api_serverless", "what": "Runs your code on demand behind an HTTPS endpoint.", "items": [
+          { "name": "Requests", "usage": "64 requests", "cost": 0.0 },
+          { "name": "Compute time", "usage": "1.4 s at 512 MB", "cost": 0.0 },
+          { "name": "Endpoint", "usage": "64 requests", "cost": 0.001 }
+        ]},
+        { "module": "observability_basic", "what": "Collects your app's logs and tracks requests, errors and response times.", "items": [
+          { "name": "Log ingestion", "usage": "61 KB", "cost": 0.004 },
+          { "name": "Log storage", "usage": "61 KB, 30 days", "cost": 0.001 },
+          { "name": "Request metrics", "usage": "4 metrics", "cost": 0.012 }
+        ]},
+        { "module": "platform", "what": "Packages kept so a deploy can be rolled back.", "items": [
+          { "name": "Package storage", "usage": "12 packages, 31 MB", "cost": 0.002 }
+        ]}
       ]
     },
     {
-      "module": "platform",
-      "what": "Packages kept so a deploy can be rolled back.",
-      "items": [
-        {
-          "name": "Package storage",
-          "usage": "1 package, 2.6 MB",
-          "cost": 0.0
-        }
+      "id": "dep_b2907fa13c64",
+      "status": "destroyed",
+      "profile": "dev",
+      "region": "ca-central-1",
+      "when": "on the 29th",
+      "ran": "1h 55m",
+      "hours": 1.92,
+      "deploys": 9,
+      "requests": 47,
+      "days": { "-3": 0.017 },
+      "lines": [
+        { "module": "http_api_serverless", "what": "Runs your code on demand behind an HTTPS endpoint.", "items": [
+          { "name": "Requests", "usage": "47 requests", "cost": 0.0 },
+          { "name": "Compute time", "usage": "1.0 s at 512 MB", "cost": 0.0 },
+          { "name": "Endpoint", "usage": "47 requests", "cost": 0.001 }
+        ]},
+        { "module": "observability_basic", "what": "Collects your app's logs and tracks requests, errors and response times.", "items": [
+          { "name": "Log ingestion", "usage": "44 KB", "cost": 0.003 },
+          { "name": "Log storage", "usage": "44 KB, 30 days", "cost": 0.001 },
+          { "name": "Request metrics", "usage": "4 metrics", "cost": 0.011 }
+        ]},
+        { "module": "platform", "what": "Packages kept so a deploy can be rolled back.", "items": [
+          { "name": "Package storage", "usage": "9 packages, 23 MB", "cost": 0.001 }
+        ]}
+      ]
+    },
+    {
+      "id": "dep_7a3c05e2d918",
+      "status": "destroyed",
+      "profile": "dev",
+      "region": "ca-central-1",
+      "when": "on the 28th",
+      "ran": "2h 40m",
+      "hours": 2.67,
+      "deploys": 4,
+      "requests": 38,
+      "days": { "-4": 0.028 },
+      "lines": [
+        { "module": "http_api_serverless", "what": "Runs your code on demand behind an HTTPS endpoint.", "items": [
+          { "name": "Requests", "usage": "38 requests", "cost": 0.0 },
+          { "name": "Compute time", "usage": "0.8 s at 512 MB", "cost": 0.0 },
+          { "name": "Endpoint", "usage": "38 requests", "cost": 0.001 }
+        ]},
+        { "module": "observability_basic", "what": "Collects your app's logs and tracks requests, errors and response times.", "items": [
+          { "name": "Log ingestion", "usage": "36 KB", "cost": 0.003 },
+          { "name": "Log storage", "usage": "36 KB, 30 days", "cost": 0.001 },
+          { "name": "Request metrics", "usage": "4 metrics", "cost": 0.021 }
+        ]},
+        { "module": "platform", "what": "Packages kept so a deploy can be rolled back.", "items": [
+          { "name": "Package storage", "usage": "4 packages, 10 MB", "cost": 0.002 }
+        ]}
       ]
     }
   ],
-  "previous": {
-    "month": 0.0
-  },
-  "budget": {
-    "amount": 10.0,
-    "notifyAt": 80
-  }
+  "budget": { "amount": 10.0, "notifyAt": 80 }
 }
 </script>
 
@@ -112,7 +150,7 @@
   <div class="title">
     <div>
       <h1>Costs</h1>
-      <p class="sub">What this environment costs, by resource and by day. Amounts are CAD before tax and arrive up to a day late.</p>
+      <p class="sub" id="sub"></p>
       <div class="meta" id="meta"></div>
     </div>
     <div class="spacer"></div>
@@ -127,7 +165,8 @@
 
   <section class="section">
     <header>
-      <h2 id="chartTitle">By day</h2><span class="hint" id="chartHint"></span>
+      <h2 id="chartTitle">By day</h2>
+      <span class="hint" id="chartHint"></span>
       <div class="period count" id="period" role="group" aria-label="Period">
         <button type="button" data-period="month" aria-pressed="true">This month</button>
         <button type="button" data-period="7" aria-pressed="false">Last 7 days</button>
@@ -137,7 +176,7 @@
     <div class="chart">
       <div class="bars" id="bars"></div>
       <div class="axis" id="axis"></div>
-      <p class="legend"><span><i></i>Billed</span><span><i class="forecast"></i>Forecast, at the current rate</span></p>
+      <p class="legend" id="legend"></p>
     </div>
   </section>
 
@@ -145,17 +184,25 @@
     <header>
       <h2>By resource</h2>
       <span class="hint" id="tableHint"></span>
-      <span class="count"><label><input type="checkbox" id="compare"> Compare with the previous period</label></span>
     </header>
-    <table id="table">
-      <thead>
-        <tr><th>Resource</th><th>Usage</th><th class="num prev" hidden>Previous</th><th class="num">Cost</th></tr>
-      </thead>
+    <table>
+      <thead><tr><th>Resource</th><th>Usage</th><th class="num">Cost</th></tr></thead>
       <tbody id="rows"></tbody>
     </table>
   </section>
 
   <section class="section">
+    <header>
+      <h2>Every environment this app has had</h2>
+      <span class="hint">Each test run was built, used and torn down. Billing outlives the environment, so the runs are still here.</span>
+    </header>
+    <table>
+      <thead><tr><th>When</th><th>Deployment</th><th>Status</th><th class="num">Up for</th><th class="num">Requests</th><th class="num">Deploys</th><th class="num">Cost</th></tr></thead>
+      <tbody id="siblings"></tbody>
+    </table>
+  </section>
+
+  <section class="section" id="budgetSection">
     <header><h2>Budget</h2><span class="hint">A monthly amount for this environment. The owner is told when it is close, and again when it is passed. Nothing is switched off.</span></header>
     <div class="field">
       <label for="budget">Monthly budget</label>
@@ -182,19 +229,29 @@
 <script>
   const state = JSON.parse(document.getElementById("state").textContent);
   const { el, chip, money, flash } = Console;
-  const app = state.env.app;
+  const app = state.app;
   const cur = state.currency;
+
+  // Which environment this page is about: the one named in the link, or the live one.
+  const wanted = Console.query("env");
+  const env = state.environments.find(e => e.id === wanted) || state.environments[0];
+  const live = env.status === "live";
 
   Console.chrome(state, "Environments");
   Console.crumbs(app, "Costs");
-  Console.subnav(app, "Costs");
-
-  const meta = document.getElementById("meta");
-  meta.appendChild(chip("Live", "phosphor"));
-  meta.appendChild(chip(state.env.profile));
-  meta.appendChild(el("span", "mono notice", state.env.region));
+  Console.subnav(app, "Costs", { env: env.id, live });
 
   const $ = id => document.getElementById(id);
+
+  $("sub").textContent = live
+    ? "What this environment costs, by resource and by day. Amounts are CAD before tax and arrive up to a day late."
+    : "What this environment cost while it was up. It was torn down, and the bill for it is final.";
+
+  const meta = $("meta");
+  meta.appendChild(chip(live ? "Live" : "Destroyed", live ? "phosphor" : "neutral"));
+  meta.appendChild(chip(env.profile));
+  meta.appendChild(el("span", "mono notice", env.region));
+  meta.appendChild(el("span", "mono notice", env.id));
 
   // ---- dates ----
   const day = 24 * 60 * 60 * 1000;
@@ -202,6 +259,7 @@
   const today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
   const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const short = d => MONTHS[d.getUTCMonth()] + " " + d.getUTCDate();
+  const offsetOf = d => Math.round((d - today) / day);
 
   function range(period) {
     if (period === "month") {
@@ -213,18 +271,21 @@
     return { from: new Date(today - (n - 1) * day), to: today, label: "the last " + n + " days" };
   }
 
-  // Today is the only day this environment has been alive for. Earlier days in the
-  // month are not zero, they are days it did not exist, and the chart says so.
-  const sameDay = (a, b) => a.getTime() === b.getTime();
-  const billed = d => (sameDay(d, today) ? state.todayCost : null);
-  const existed = d => sameDay(d, today);
+  // What this environment was billed on a given day, or null on a day it was not up.
+  const billed = d => {
+    const v = env.days[String(offsetOf(d))];
+    return v === undefined ? null : v;
+  };
 
-  // ---- the numbers ----
-  const monthToDate = state.todayCost;
+  const total = e => Object.values(e.days).reduce((a, b) => a + b, 0);
+  const spent = total(env);
+  const appTotal = state.environments.reduce((a, e) => a + total(e), 0);
+
   const monthEnd = range("month").to;
   const daysLeft = Math.round((monthEnd - today) / day);
-  const forecast = monthToDate + daysLeft * state.forecastPerDay;
+  const forecast = live ? spent + daysLeft * env.forecastPerDay : spent;
 
+  // ---- tiles ----
   const stats = $("stats");
   function tile(n, label, detail) {
     const box = el("div", "stat");
@@ -240,13 +301,24 @@
     if (detail) box.appendChild(el("div", "d", detail));
     stats.appendChild(box);
   }
-  tile(cur + " " + money(monthToDate), "Month to date", "deployed " + state.env.deployedAgo + ", and it has cost almost nothing since");
-  tile(cur + " " + money(forecast), "Forecast for the month", "at the current rate, for what is switched on");
-  tile("None", "Last full day", "this environment has not been alive for one yet");
-  tile(String(state.requests.total), "Requests", "every one this environment has served");
+
+  if (live) {
+    tile(cur + " " + money(spent), "Month to date", "deployed " + env.startedAgo + ", and it has cost almost nothing since");
+    tile(cur + " " + money(forecast), "Forecast for the month", "if it stays up, at " + cur + " " + money(env.forecastPerDay) + " a day");
+    tile(cur + " " + money(appTotal), "This app, every environment", "every run of it, this one included");
+    tile(String(env.requests), "Requests", "every one this environment has served");
+  } else {
+    tile(cur + " " + money(spent), "Total for this run", "final, and it will not change");
+    tile(env.ran, "It was up for", env.deploys + " deploys while it was");
+    tile(cur + " " + money(spent / env.hours), "An hour of it", "what the same stack costs while it is up");
+    tile(String(env.requests), "Requests", "every one it served");
+  }
 
   // ---- chart ----
-  let period = "month";
+  let period = live ? "month" : "7";
+  for (const b of $("period").querySelectorAll("button")) {
+    b.setAttribute("aria-pressed", b.dataset.period === period ? "true" : "false");
+  }
 
   function drawChart() {
     const r = range(period);
@@ -257,49 +329,61 @@
 
     const values = [];
     for (let d = new Date(r.from); d <= r.to; d = new Date(d.getTime() + day)) values.push({ d: new Date(d), v: billed(d) });
-    const top = Math.max(state.forecastPerDay, ...values.map(x => x.v || 0)) || 1;
+    const top = Math.max(live ? env.forecastPerDay : 0, ...values.map(x => x.v || 0)) || 1;
+    let seen = 0;
 
     const count = values.length;
     values.forEach(({ d, v }, i) => {
       const bar = el("div", "bar");
-      const isForecast = d > today;
-      const amount = isForecast ? state.forecastPerDay : v;
-      if (!existed(d) && !isForecast) {
+      const ahead = d > today;
+      const isForecast = ahead && live;
+      const amount = isForecast ? env.forecastPerDay : v;
+
+      if (amount === null || amount === undefined) {
         bar.classList.add("none");
         bar.style.height = "1px";
-        bar.dataset.label = short(d) + ": this environment did not exist yet";
+        bar.dataset.label = short(d) + ": " + (ahead ? "not billed yet" : "this environment was not up");
       } else {
         if (isForecast) bar.classList.add("forecast");
-        bar.style.height = Math.max(2, Math.round((amount / top) * 100)) + "%";
+        else seen += 1;
+        bar.style.height = Math.max(3, Math.round((amount / top) * 100)) + "%";
         bar.dataset.label = short(d) + ": " + cur + " " + money(amount) + (isForecast ? " forecast" : "");
       }
-      bar.setAttribute("title", bar.dataset.label);
+      bar.title = bar.dataset.label;
       bars.appendChild(bar);
 
-      // Labels: every day for a week, every few days otherwise, always the ends.
       const every = count <= 7 ? 1 : count <= 14 ? 2 : 5;
-      const label = el("span", null, (i === 0 || i === count - 1 || (i + 1) % every === 0) ? String(d.getUTCDate()) : "");
-      axis.appendChild(label);
+      axis.appendChild(el("span", null, (i === 0 || i === count - 1 || (i + 1) % every === 0) ? String(d.getUTCDate()) : ""));
     });
 
     $("chartTitle").textContent = "By day, " + r.label;
-    $("chartHint").textContent = period === "month"
-      ? "Solid is billed. Striped is the rest of the month at the current rate. The days before today are days this environment did not exist."
-      : "One day old, so there is one day to show, and it is not over.";
-    $("tableHint").textContent = "For " + r.label + ". Every line here is under " + cur + " 0.005, so every line shows as 0.00.";
+    $("chartHint").textContent = seen === 0
+      ? "Nothing in " + r.label + ". This environment was up " + env.when + "."
+      : live
+        ? "Solid is billed. Striped is the rest of the month at the current rate. The rest are days this environment did not exist."
+        : "One bar, because it was built, used and torn down inside a single day.";
+
+    const legend = $("legend");
+    legend.textContent = "";
+    const item = (cls, text) => {
+      const span = el("span");
+      span.appendChild(el("i", cls));
+      span.appendChild(document.createTextNode(text));
+      legend.appendChild(span);
+    };
+    item(null, "Billed");
+    if (live) item("forecast", "Forecast, at the current rate");
   }
 
-  // ---- table ----
+  // ---- by resource ----
   function drawTable() {
     const rows = $("rows");
     rows.textContent = "";
-    const compare = $("compare").checked;
-    for (const th of document.querySelectorAll("th.prev")) th.hidden = !compare;
+    let sum = 0;
 
-    let total = 0;
-    for (const group of state.lines) {
-      const sum = group.items.reduce((a, b) => a + b.cost, 0);
-      total += sum;
+    for (const group of env.lines) {
+      const groupSum = group.items.reduce((a, b) => a + b.cost, 0);
+      sum += groupSum;
 
       const head = el("tr");
       const name = el("td");
@@ -307,15 +391,13 @@
       name.appendChild(el("div", "notice", group.what));
       head.appendChild(name);
       head.appendChild(el("td"));
-      if (compare) head.appendChild(el("td", "num", "none"));
-      head.appendChild(el("td", "num", money(sum)));
+      head.appendChild(el("td", "num", money(groupSum)));
       rows.appendChild(head);
 
       for (const item of group.items) {
         const row = el("tr", "sub");
         row.appendChild(el("td", null, item.name));
         row.appendChild(el("td", "mono notice", item.usage));
-        if (compare) row.appendChild(el("td", "num notice", "none"));
         row.appendChild(el("td", "num", money(item.cost)));
         rows.appendChild(row);
       }
@@ -324,52 +406,108 @@
     const foot = el("tr", "sum");
     foot.appendChild(el("td", null, "Total"));
     foot.appendChild(el("td"));
-    if (compare) foot.appendChild(el("td", "num", "none"));
     const cell = el("td", "num");
     cell.appendChild(el("span", "cur", cur + " "));
-    cell.appendChild(document.createTextNode(money(total)));
+    cell.appendChild(document.createTextNode(money(sum)));
     foot.appendChild(cell);
     rows.appendChild(foot);
+
+    $("tableHint").textContent = live
+      ? "This month so far. Most lines are under " + cur + " 0.005 and show as 0.00."
+      : "Everything this run was billed for, over its " + env.ran + ".";
   }
 
-  $("compare").addEventListener("change", drawTable);
+  // ---- every environment of this app ----
+  function drawSiblings() {
+    const body = $("siblings");
+    body.textContent = "";
+
+    for (const e of state.environments) {
+      const row = el("tr");
+      const isThis = e.id === env.id;
+
+      const when = el("td");
+      const at = new Date(today.getTime() + Number(Object.keys(e.days)[0]) * day);
+      when.textContent = short(at);
+      if (isThis) when.appendChild(el("span", "notice", " this one"));
+      row.appendChild(when);
+
+      const idCell = el("td");
+      if (isThis) {
+        idCell.appendChild(el("span", "mono", e.id));
+      } else {
+        const link = el("a", "mono", e.id);
+        link.href = "costs.html?app=" + encodeURIComponent(app) + "&env=" + e.id;
+        idCell.appendChild(link);
+      }
+      row.appendChild(idCell);
+
+      const status = el("td");
+      status.appendChild(chip(e.status, e.status === "live" ? "phosphor" : "neutral"));
+      row.appendChild(status);
+
+      row.appendChild(el("td", "num mono", e.ran));
+      row.appendChild(el("td", "num mono", String(e.requests)));
+      row.appendChild(el("td", "num mono", String(e.deploys)));
+      row.appendChild(el("td", "num", money(total(e))));
+      body.appendChild(row);
+    }
+
+    const foot = el("tr", "sum");
+    foot.appendChild(el("td", null, "Everything this app has cost"));
+    foot.appendChild(el("td"));
+    foot.appendChild(el("td"));
+    foot.appendChild(el("td"));
+    foot.appendChild(el("td", "num", String(state.environments.reduce((a, e) => a + e.requests, 0))));
+    foot.appendChild(el("td"));
+    const cell = el("td", "num");
+    cell.appendChild(el("span", "cur", cur + " "));
+    cell.appendChild(document.createTextNode(money(appTotal)));
+    foot.appendChild(cell);
+    body.appendChild(foot);
+  }
 
   for (const button of $("period").querySelectorAll("button")) {
     button.addEventListener("click", () => {
       period = button.dataset.period;
       for (const b of $("period").querySelectorAll("button")) b.setAttribute("aria-pressed", b === button ? "true" : "false");
       drawChart();
-      drawTable();
     });
   }
 
-  // ---- budget ----
-  $("budget").value = state.budget.amount.toFixed(2);
-  $("notifyAt").value = state.budget.notifyAt;
+  // ---- budget, for something that still has a future ----
+  if (live) {
+    $("budget").value = state.budget.amount.toFixed(2);
+    $("notifyAt").value = state.budget.notifyAt;
 
-  function drawBudget() {
-    const amount = Number($("budget").value) || 0;
-    const used = amount ? (monthToDate / amount) * 100 : 0;
-    $("meterFill").style.width = Math.min(100, Math.max(0.5, used)) + "%";
-    $("budgetLine").textContent = amount
-      ? cur + " " + money(monthToDate) + " of " + cur + " " + money(amount) + " used, " + (Math.round(used * 10) / 10) + "%. At the current rate this month ends at " + cur + " " + money(forecast) + "."
-      : "No budget set.";
+    const drawBudget = () => {
+      const amount = Number($("budget").value) || 0;
+      const used = amount ? (spent / amount) * 100 : 0;
+      $("meterFill").style.width = Math.min(100, Math.max(0.5, used)) + "%";
+      $("budgetLine").textContent = amount
+        ? cur + " " + money(spent) + " of " + cur + " " + money(amount) + " used. At the current rate this month ends at " + cur + " " + money(forecast) + "."
+        : "No budget set.";
+    };
+    $("budget").addEventListener("input", drawBudget);
+    $("saveBudget").addEventListener("click", () => { drawBudget(); flash($("budgetSaved"), "Saved"); });
+    drawBudget();
+  } else {
+    $("budgetSection").remove();
   }
-  $("budget").addEventListener("input", drawBudget);
-  $("saveBudget").addEventListener("click", () => { drawBudget(); flash($("budgetSaved"), "Saved"); });
 
-  // ---- download ----
   $("download").addEventListener("click", () => {
-    const lines = ["app,module,resource,usage,cost_" + cur.toLowerCase()];
-    for (const group of state.lines) {
-      for (const item of group.items) lines.push([app, group.module, item.name, JSON.stringify(item.usage), item.cost.toFixed(3)].join(","));
+    const lines = ["app,deployment,module,resource,usage,cost_" + cur.toLowerCase()];
+    for (const group of env.lines) {
+      for (const item of group.items) {
+        lines.push([app, env.id, group.module, item.name, JSON.stringify(item.usage), item.cost.toFixed(3)].join(","));
+      }
     }
-    Console.download(app + "-costs-" + today.toISOString().slice(0, 10) + ".csv", lines.join("\n") + "\n", "text/csv");
+    Console.download(app + "-" + env.id + "-costs.csv", lines.join("\n") + "\n", "text/csv");
   });
 
   drawChart();
   drawTable();
-  drawBudget();
+  drawSiblings();
 </script>
 </body>
 </html>

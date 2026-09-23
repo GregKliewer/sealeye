@@ -35,7 +35,7 @@
     },
     {
       "label": "Modules in the library",
-      "value": "11"
+      "value": "15"
     }
   ],
   "environments": [
@@ -49,8 +49,8 @@
       "chip": "phosphor",
       "url": "https://znys54b61c.execute-api.ca-central-1.amazonaws.com",
       "profile": "dev",
-      "deploys": 13,
-      "last": "7m ago",
+      "deploys": 1,
+      "last": "20m ago",
       "card": {
         "app": "beneficiary-lookup-api, a Node.js API that starts with index.js",
         "modules": [
@@ -73,7 +73,8 @@
           "A public HTTPS address, as soon as it is live",
           "Your logs and basic metrics, kept for 30 days"
         ]
-      }
+      },
+      "deploymentId": "dep_9c31e07a44f2"
     },
     {
       "app": "payment-events-processor",
@@ -260,7 +261,10 @@
           "Your logs and basic metrics, kept for 30 days"
         ]
       },
-      "note": "torn down"
+      "note": "torn down",
+      "deploymentId": "dep_5e14b8c07d31",
+      "ran": "2h 10m",
+      "requests": 64
     },
     {
       "app": "beneficiary-lookup-api",
@@ -297,7 +301,10 @@
           "Your logs and basic metrics, kept for 30 days"
         ]
       },
-      "note": "torn down"
+      "note": "torn down",
+      "deploymentId": "dep_b2907fa13c64",
+      "ran": "1h 55m",
+      "requests": 47
     },
     {
       "app": "beneficiary-lookup-api",
@@ -334,84 +341,10 @@
           "Your logs and basic metrics, kept for 30 days"
         ]
       },
-      "note": "torn down"
-    }
-  ],
-  "catalog": [
-    {
-      "id": "static_site_edge",
-      "line": "Serves your HTML, CSS, images and other files straight to visitors over HTTPS",
-      "state": "available"
-    },
-    {
-      "id": "http_api_serverless",
-      "line": "Runs your code on demand behind an HTTPS endpoint",
-      "state": "available"
-    },
-    {
-      "id": "observability_basic",
-      "line": "Collects your app's logs and tracks requests, errors and response times",
-      "state": "available"
-    },
-    {
-      "id": "config_basic",
-      "line": "Passes the settings your app reads from its environment through to it when it runs",
-      "state": "available"
-    },
-    {
-      "id": "domain_public",
-      "line": "a custom domain you already own",
-      "state": "planned"
-    },
-    {
-      "id": "data_relational",
-      "line": "a managed relational database your app connects to",
-      "state": "planned"
-    },
-    {
-      "id": "data_cache",
-      "line": "a fast in-memory cache",
-      "state": "planned"
-    },
-    {
-      "id": "events_stream",
-      "line": "a stream your services publish to and read from",
-      "state": "planned"
-    },
-    {
-      "id": "queue_basic",
-      "line": "a work queue between services",
-      "state": "planned"
-    },
-    {
-      "id": "secrets_basic",
-      "line": "secrets your app reads at runtime, never stored in code",
-      "state": "planned"
-    },
-    {
-      "id": "identity_service",
-      "line": "sign-in and tokens for your app's users",
-      "state": "planned"
-    },
-    {
-      "id": "network_private",
-      "line": "your app is not reachable from the public internet",
-      "state": "planned"
-    },
-    {
-      "id": "compute_container",
-      "line": "a service that runs continuously rather than on demand",
-      "state": "planned"
-    },
-    {
-      "id": "scheduled_job",
-      "line": "something that runs on a schedule",
-      "state": "planned"
-    },
-    {
-      "id": "storage_object",
-      "line": "files your app stores and reads, distinct from serving a site",
-      "state": "planned"
+      "note": "torn down",
+      "deploymentId": "dep_7a3c05e2d918",
+      "ran": "2h 40m",
+      "requests": 38
     }
   ]
 }
@@ -466,9 +399,6 @@
     </div>
     <div class="empty" id="empty" hidden>No environments match what you are looking for.</div>
   </div>
-
-  <h2>Catalog</h2>
-  <div class="cards" id="catalog"></div>
 
   <footer id="footer"></footer>
 
@@ -666,7 +596,10 @@
     // Only a live environment has pages behind these. A plan that was never built has
     // a plan to look at and nothing else, and the menu says so rather than hiding it.
     const live = env.status === "live";
-    const page = name => name + ".html?app=" + encodeURIComponent(env.app);
+    const page = name => name + ".html?app=" + encodeURIComponent(env.app) +
+      (env.deploymentId ? "&env=" + env.deploymentId : "");
+    // What is left of an environment once it is gone: what it cost, and its plan.
+    const billed = live || env.status === "destroyed";
 
     const actions = el("td", "menucol");
     actions.appendChild(kebab(env, "Actions", [
@@ -678,7 +611,7 @@
 
     const info = el("td", "menucol");
     info.appendChild(kebab(env, "Info", [
-      { label: "Costs", href: page("costs"), disabled: !live },
+      { label: "Costs", href: page("costs"), disabled: !billed },
       { label: "Logs", href: page("logs"), disabled: !live },
       { label: "Performance", href: page("performance"), disabled: !live }
     ]));
@@ -770,20 +703,6 @@
 
   filter();
 
-  const catalog = document.getElementById("catalog");
-  for (const module of state.catalog) {
-    const box = el("div", "modcard");
-    const body_ = el("div", "body");
-    body_.appendChild(el("div", "id", module.id));
-    body_.appendChild(el("div", "what", module.line));
-    box.appendChild(body_);
-    // Available is good news, planned is agreed and waiting, requested is waiting on a
-    // person. Phosphor, amber, neutral, which is the whole palette and no more of it.
-    const tone = { available: "phosphor", planned: "amber", requested: "neutral" };
-    box.appendChild(el("span", "chip " + (tone[module.state] || "neutral"),
-      module.state.charAt(0).toUpperCase() + module.state.slice(1)));
-    catalog.appendChild(box);
-  }
 </script>
 </body>
 </html>

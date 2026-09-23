@@ -12,7 +12,10 @@
 <script type="application/json" id="state">
 {
   "org": "Northline Bank",
-  "user": { "name": "Greg K.", "initial": "G" },
+  "user": {
+    "name": "Greg K.",
+    "initial": "G"
+  },
   "env": {
     "app": "beneficiary-lookup-api",
     "status": "live",
@@ -21,13 +24,40 @@
     "url": "https://znys54b61c.execute-api.ca-central-1.amazonaws.com",
     "deploymentId": "dep_9c31e07a44f2",
     "stack": "sealeye-beneficiary-lookup-api",
-    "since": "7m ago",
-    "deploys": 13
+    "since": "20m ago",
+    "deploys": 1
   },
   "history": [
-    { "ago": "7m ago", "what": "Deployed", "who": "Greg", "detail": "dep_9c31e07a44f2, from the terminal" },
-    { "ago": "Yesterday", "what": "Destroyed", "who": "Greg", "detail": "the environment before this one" },
-    { "ago": "Yesterday", "what": "Paused", "who": "Greg", "detail": "for 40 minutes, while the branch data was reloaded" }
+    {
+      "ago": "20m ago",
+      "what": "Deployed",
+      "who": "Greg",
+      "detail": "dep_9c31e07a44f2, from the terminal"
+    },
+    {
+      "ago": "Yesterday",
+      "what": "Destroyed",
+      "who": "Greg",
+      "detail": "dep_5e14b8c07d31, after a 2h 10m test run"
+    },
+    {
+      "ago": "Yesterday",
+      "what": "Deployed",
+      "who": "Greg",
+      "detail": "12 deploys into that environment while it was up"
+    },
+    {
+      "ago": "2026 Sep 29",
+      "what": "Destroyed",
+      "who": "Greg",
+      "detail": "dep_b2907fa13c64, after a 1h 55m test run"
+    },
+    {
+      "ago": "2026 Sep 28",
+      "what": "Destroyed",
+      "who": "Greg",
+      "detail": "dep_7a3c05e2d918, after a 2h 40m test run"
+    }
   ]
 }
 </script>
@@ -142,7 +172,7 @@
 
   Console.chrome(state, "Environments");
   Console.crumbs(app, "Control");
-  Console.subnav(app, "Control");
+  Console.subnav(app, "Control", { env: state.env.deploymentId });
 
   const meta = document.getElementById("meta");
   meta.appendChild(chip(state.env.profile));
@@ -212,7 +242,9 @@
     }
 
     $("depId").textContent = state.env.deploymentId;
-    $("depCount").textContent = "the " + state.env.deploys + "th deploy of this app";
+    $("depCount").textContent = state.env.deploys === 1
+      ? "the first deploy into this environment"
+      : state.env.deploys + " deploys into this environment";
 
     drawPause();
     drawDestroy();

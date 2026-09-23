@@ -17,9 +17,10 @@
     "status": "live",
     "profile": "dev",
     "region": "ca-central-1",
+    "deploymentId": "dep_9c31e07a44f2",
     "stack": "sealeye-beneficiary-lookup-api",
     "planVersion": "0.3",
-    "lastDeploy": "7m ago"
+    "lastDeploy": "20m ago"
   },
   "resources": {
     "memoryMb": 512,
@@ -221,7 +222,7 @@
 
   Console.chrome(state, "Environments");
   Console.crumbs(app, "Configure");
-  Console.subnav(app, "Configure");
+  Console.subnav(app, "Configure", { env: state.env.deploymentId });
 
   const meta = document.getElementById("meta");
   meta.appendChild(chip("Live", "phosphor"));

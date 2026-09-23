@@ -54,9 +54,10 @@ colour it is. A page that uses mono only for identifiers reads as a product.
 seaLeye.run has no navigation because there is nowhere to go. seaLeye.online has:
 
 - A top bar on the surface colour: the mark and `seaLeye.online` wordmark left, then a
-  navigation row (Environments, Catalog, Activity, Team) with the current section underlined
+  navigation row (Environments, Catalog, Team) with the current section underlined
   in phosphor, then the org name and a user chip right ("Greg K." with a phosphor initial
-  disc). The rest of the nav is inert in this version; it exists because a console has it.
+  disc). All three are pages. Activity was a fourth, inert because a console has one, and
+  it was dropped on Sept 23: a nav item that goes nowhere is a question asked in the demo.
 - A page title with a one-line subtitle in Dim, and a right-aligned primary action button
   (phosphor fill, white text): "New environment". Inert. It is there because management means
   you can do things here.

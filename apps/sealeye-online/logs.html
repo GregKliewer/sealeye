@@ -12,7 +12,10 @@
 <script type="application/json" id="state">
 {
   "org": "Northline Bank",
-  "user": { "name": "Greg K.", "initial": "G" },
+  "user": {
+    "name": "Greg K.",
+    "initial": "G"
+  },
   "env": {
     "app": "beneficiary-lookup-api",
     "status": "live",
@@ -22,17 +25,54 @@
     "deploymentId": "dep_9c31e07a44f2"
   },
   "lines": [
-    { "ago": 214.882, "level": "platform", "req": "", "text": "Deploy dep_9c31e07a44f2 is live. Package 2.6 MB, 512 MB memory, 30 s timeout." },
-    { "ago": 213.611, "level": "platform", "req": "", "text": "Starting run.sh, entry point index.js" },
-    { "ago": 212.207, "level": "info", "req": "", "text": "beneficiary-lookup-api listening on port 8080" },
-    { "ago": 212.093, "level": "platform", "req": "", "text": "App answered on port 8080 after 412 ms" },
-    { "ago": 187.418, "level": "info", "req": "a41f2c", "text": "GET / 200 5 ms" },
-    { "ago": 171.771, "level": "info", "req": "b0d9e1", "text": "GET /beneficiaries/BEN-4417-2290 200 12 ms" },
-    { "ago": 158.256, "level": "info", "req": "b7a3c8", "text": "GET /beneficiaries/ben-4417-2290 200 8 ms" },
-    { "ago": 133.934, "level": "info", "req": "c25d10", "text": "GET /beneficiaries/BEN-0000-0001 404 4 ms" },
-    { "ago": 133.930, "level": "info", "req": "c25d10", "text": "No beneficiary is on file for that reference. accountReference=BEN-0000-0001" },
-    { "ago": 96.145,  "level": "info", "req": "d81e77", "text": "GET /favicon.ico 404 2 ms" },
-    { "ago": 41.502,  "level": "info", "req": "e3f0a2", "text": "GET /beneficiaries/BEN-4417-2290 200 7 ms" }
+    {
+      "ago": 1218.412,
+      "level": "platform",
+      "req": "",
+      "text": "Deploy dep_9c31e07a44f2 is live. Package 2.6 MB, 512 MB memory, 30 s timeout."
+    },
+    {
+      "ago": 1217.104,
+      "level": "platform",
+      "req": "",
+      "text": "Starting run.sh, entry point index.js"
+    },
+    {
+      "ago": 1215.736,
+      "level": "info",
+      "req": "",
+      "text": "beneficiary-lookup-api listening on port 8080"
+    },
+    {
+      "ago": 1215.324,
+      "level": "platform",
+      "req": "",
+      "text": "App answered on port 8080 after 412 ms"
+    },
+    {
+      "ago": 1141.918,
+      "level": "info",
+      "req": "a41f2c",
+      "text": "GET / 200 5 ms"
+    },
+    {
+      "ago": 1024.637,
+      "level": "info",
+      "req": "b0d9e1",
+      "text": "GET /beneficiaries/BEN-4417-2290 200 12 ms"
+    },
+    {
+      "ago": 188.245,
+      "level": "info",
+      "req": "c25d10",
+      "text": "GET /beneficiaries/BEN-0000-0001 404 4 ms"
+    },
+    {
+      "ago": 188.106,
+      "level": "info",
+      "req": "c25d10",
+      "text": "No beneficiary is on file for that reference. accountReference=BEN-0000-0001"
+    }
   ],
   "tail": [
     "GET / 200 4 ms",
@@ -123,7 +163,7 @@
 
   Console.chrome(state, "Environments");
   Console.crumbs(app, "Logs");
-  Console.subnav(app, "Logs");
+  Console.subnav(app, "Logs", { env: state.env.deploymentId });
 
   const meta = document.getElementById("meta");
   meta.appendChild(chip("Live", "phosphor"));

@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Team, seaLeye.online</title>
+
+<!-- Everything this page shows. Greg is an admin, so the admin actions are here; a
+     member without admin sees the same list and no menus. Access is what seaLeye lets
+     someone do, and it is separate from what they do for a living, which is the job
+     column. Nobody can suspend themselves. -->
+<script type="application/json" id="state">
+{
+  "org": "Northline Bank",
+  "user": { "name": "Greg K.", "initial": "G", "id": "greg.kliewer" },
+  "team": {
+    "name": "Money Movement",
+    "line": "The team that moves money at Northline Bank, and the people seaLeye.run answers to."
+  },
+  "access": [
+    { "id": "admin", "label": "Admin", "line": "Everything below, and can add, configure and suspend people." },
+    { "id": "deploy", "label": "Deploy", "line": "Can plan, deploy and tear down their own environments." },
+    { "id": "plan", "label": "Plan only", "line": "Can plan and read, and someone with Deploy builds it." },
+    { "id": "read", "label": "Read only", "line": "Can see every environment and change nothing." }
+  ],
+  "members": [
+    { "id": "greg.kliewer", "name": "Greg Kliewer", "initial": "G", "job": "Product Manager", "access": "admin", "status": "active", "owns": 5, "last": "now", "joined": "2026 Sep 24", "destroy": true },
+    { "id": "cindy.marks", "name": "Cindy Marks", "initial": "C", "job": "Tech Lead", "access": "admin", "status": "active", "owns": 1, "last": "1h ago", "joined": "2026 Sep 24", "destroy": true },
+    { "id": "pavel.dyeyev", "name": "Pavel Dyeyev", "initial": "P", "job": "Designer", "access": "read", "status": "active", "owns": 0, "last": "Yesterday", "joined": "2026 Sep 25", "destroy": false },
+    { "id": "mashashi.kobayashi", "name": "Mashashi Kobayashi", "initial": "M", "job": "Developer", "access": "deploy", "status": "active", "owns": 0, "last": "2h ago", "joined": "2026 Sep 25", "destroy": true },
+    { "id": "yiyin.lee", "name": "Yiyin Lee", "initial": "Y", "job": "Developer", "access": "deploy", "status": "active", "owns": 0, "last": "3h ago", "joined": "2026 Sep 25", "destroy": true },
+    { "id": "preksha.mccarty", "name": "Preksha McCarty", "initial": "P", "job": "Developer", "access": "deploy", "status": "active", "owns": 0, "last": "Yesterday", "joined": "2026 Sep 28", "destroy": false },
+    { "id": "guy.lefarge", "name": "Guy Lefarge", "initial": "G", "job": "Developer", "access": "plan", "status": "active", "owns": 0, "last": "Yesterday", "joined": "2026 Oct 01", "destroy": false }
+  ]
+}
+</script>
+
+<link rel="stylesheet" href="console.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="inner">
+    <span class="wordmark"><img src="sealeye-online-wordmark-light.svg" alt="seaLeye.online"></span>
+    <nav id="nav"></nav>
+    <div class="who"><span id="org"></span><span class="disc" id="userDisc"></span><span id="userName"></span></div>
+  </div>
+</div>
+
+<main>
+
+  <div class="title">
+    <div>
+      <h1 id="teamName"></h1>
+      <p class="sub" id="teamLine"></p>
+    </div>
+    <div class="spacer"></div>
+    <button type="button" class="primary" id="invite">Invite someone</button>
+  </div>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="panel">
+    <div class="toolbar">
+      <input id="search" class="search" type="search" placeholder="Search people" aria-label="Search people" spellcheck="false" autocomplete="off">
+      <label class="filterlabel" for="access">Access</label>
+      <select id="access" class="profile"></select>
+      <button type="button" class="toggle destroyed" id="toggleSuspended" aria-pressed="true">Show suspended</button>
+      <span class="count" id="count" aria-live="polite"></span>
+    </div>
+
+    <div class="inviteform" id="inviteForm" hidden>
+      <input type="text" id="inviteName" class="search" placeholder="Name" aria-label="Name" autocomplete="off">
+      <label class="filterlabel" for="inviteJob">Job</label>
+      <input type="text" id="inviteJob" class="search" placeholder="Developer" aria-label="Job" autocomplete="off">
+      <label class="filterlabel" for="inviteAccess">Access</label>
+      <select id="inviteAccess" class="profile"></select>
+      <button type="button" class="primary" id="sendInvite">Send the invitation</button>
+      <button type="button" class="ghost" id="cancelInvite">Cancel</button>
+    </div>
+
+    <div class="tablewrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th><th>Job</th><th>Access</th><th class="num">Environments</th>
+          <th>Last active</th><th>Status</th><th class="menucol">Manage</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+    </div>
+    <div class="empty" id="empty" hidden>Nobody matches.</div>
+  </div>
+
+  <h2>What the access levels mean</h2>
+  <div class="cards" id="levels"></div>
+
+  <footer id="footer"></footer>
+</main>
+
+<script src="console.js"></script>
+<script>
+  const state = JSON.parse(document.getElementById("state").textContent);
+  const { el, chip, flash } = Console;
+
+  Console.chrome(state, "Team");
+  document.getElementById("teamName").textContent = state.team.name;
+  document.getElementById("teamLine").textContent = state.team.line;
+
+  const $ = id => document.getElementById(id);
+  const me = state.user.id;
+  const accessById = Object.fromEntries(state.access.map(a => [a.id, a]));
+  const label = id => (accessById[id] || { label: id }).label;
+
+  // ---- tiles ----
+  function drawStats() {
+    const stats = $("stats");
+    stats.textContent = "";
+    const tile = (n, l, d) => {
+      const box = el("div", "stat");
+      box.appendChild(el("div", "n", String(n)));
+      box.appendChild(el("div", "l", l));
+      if (d) box.appendChild(el("div", "d", d));
+      stats.appendChild(box);
+    };
+    const active = state.members.filter(m => m.status === "active");
+    tile(state.members.length, "Members",
+      active.length === state.members.length ? "all of them active" : (state.members.length - active.length) + " suspended");
+    tile(active.filter(m => m.access === "admin").length, "Admins", "they can add and suspend people");
+    tile(active.filter(m => m.access === "admin" || m.access === "deploy").length, "Can deploy", "the rest plan, or read");
+    tile(state.members.reduce((a, m) => a + m.owns, 0), "Environments owned", "1 live, 2 planned, 3 torn down");
+  }
+
+  // ---- the list ----
+  const body = $("rows");
+  const listed = [];
+  let openMenu = null;
+
+  function closeMenu() {
+    if (!openMenu) return;
+    openMenu.menu.hidden = true;
+    openMenu.button.setAttribute("aria-expanded", "false");
+    openMenu = null;
+  }
+  document.addEventListener("click", closeMenu);
+  document.addEventListener("keydown", event => { if (event.key === "Escape") closeMenu(); });
+
+  function kebab(member, items) {
+    const holder = el("span");
+    const button = el("button", "kebab", "⋮");
+    button.type = "button";
+    button.setAttribute("aria-haspopup", "menu");
+    button.setAttribute("aria-expanded", "false");
+    button.setAttribute("aria-label", "Manage " + member.name);
+
+    const menu = el("div", "menu");
+    menu.setAttribute("role", "menu");
+    menu.setAttribute("aria-label", "Manage " + member.name);
+    menu.hidden = true;
+    const title = el("h4", null, "Manage");
+    title.setAttribute("aria-hidden", "true");
+    menu.appendChild(title);
+
+    let first = null;
+    for (const spec of items) {
+      const item = el("button", null, spec.label);
+      item.type = "button";
+      item.setAttribute("role", "menuitem");
+      if (spec.disabled) {
+        item.setAttribute("aria-disabled", "true");
+        if (spec.why) item.title = spec.why;
+      }
+      item.addEventListener("click", event => {
+        event.stopPropagation();
+        if (spec.disabled) return;
+        closeMenu();
+        spec.run();
+      });
+      menu.appendChild(item);
+      if (!first && !spec.disabled) first = item;
+    }
+
+    button.addEventListener("click", event => {
+      event.stopPropagation();
+      const wasOpen = openMenu && openMenu.menu === menu;
+      closeMenu();
+      if (wasOpen) return;
+      const box = button.getBoundingClientRect();
+      menu.hidden = false;
+      menu.style.top = box.bottom + 6 + "px";
+      menu.style.left = Math.max(8, box.right - menu.offsetWidth) + "px";
+      button.setAttribute("aria-expanded", "true");
+      openMenu = { menu, button };
+      if (first) first.focus();
+    });
+
+    holder.appendChild(button);
+    holder.appendChild(menu);
+    return holder;
+  }
+
+  function drawRow(member) {
+    const row = el("tr", "env");
+
+    const name = el("td");
+    const who = el("div", "owner");
+    who.appendChild(el("span", "disc", member.initial));
+    const stack = el("div");
+    const line = el("div", null, member.name);
+    stack.appendChild(line);
+    if (member.id === me) stack.appendChild(el("div", "notice", "you"));
+    who.appendChild(stack);
+    name.appendChild(who);
+    row.appendChild(name);
+
+    row.appendChild(el("td", null, member.job));
+    row.appendChild(el("td", null, label(member.access)));
+    row.appendChild(el("td", "num mono", String(member.owns)));
+    row.appendChild(el("td", "mono last", member.last));
+
+    const status = el("td");
+    const tone = member.status === "active" ? "phosphor" : "amber";
+    status.appendChild(chip(member.status === "active" ? "active" : "suspended", tone));
+    row.appendChild(status);
+
+    const manage = el("td", "menucol");
+    manage.appendChild(kebab(member, [
+      { label: "Configure", run: () => open(member, "configure") },
+      member.status === "active"
+        ? { label: "Suspend", run: () => open(member, "suspend"), disabled: member.id === me, why: "You cannot suspend yourself." }
+        : { label: "Reinstate", run: () => open(member, "reinstate") },
+      { label: "Remove from the team", run: () => open(member, "remove"), disabled: member.id === me, why: "You cannot remove yourself." }
+    ]));
+    row.appendChild(manage);
+
+    const holder = el("tr", "card");
+    holder.hidden = true;
+    const cell = el("td");
+    cell.colSpan = 7;
+    holder.appendChild(cell);
+
+    body.appendChild(row);
+    body.appendChild(holder);
+    listed.push({ member, row, holder, cell });
+  }
+
+  // ---- the panel that opens under a person ----
+  function open(member, mode) {
+    const item = listed.find(i => i.member.id === member.id);
+    for (const other of listed) if (other !== item) other.holder.hidden = true;
+
+    item.cell.textContent = "";
+    item.cell.appendChild(mode === "configure" ? configurePanel(item) : confirmPanel(item, mode));
+    item.holder.hidden = false;
+    const focusable = item.cell.querySelector("input, select, button");
+    if (focusable) focusable.focus();
+  }
+
+  function close(item) {
+    item.holder.hidden = true;
+    item.cell.textContent = "";
+  }
+
+  function configurePanel(item) {
+    const member = item.member;
+    const box = el("div", "cardbox");
+
+    const group = el("div", "group");
+    group.appendChild(el("h3", null, "What " + member.name.split(" ")[0] + " can do"));
+
+    const job = el("input");
+    job.type = "text";
+    job.value = member.job;
+    job.id = "job-" + member.id;
+
+    const access = el("select");
+    for (const a of state.access) {
+      const option = el("option", null, a.label);
+      option.value = a.id;
+      access.appendChild(option);
+    }
+    access.value = member.access;
+
+    const destroy = el("input");
+    destroy.type = "checkbox";
+    destroy.checked = member.destroy;
+
+    const field = (labelText, control, help) => {
+      const wrap = el("div", "field");
+      const l = el("label", null, labelText);
+      if (control.id) l.htmlFor = control.id;
+      wrap.appendChild(l);
+      const value = el("div", "value");
+      value.appendChild(control);
+      wrap.appendChild(value);
+      if (help) {
+        const h = el("p", "help", help);
+        wrap.appendChild(h);
+      }
+      return wrap;
+    };
+
+    group.appendChild(field("Job", job, "What they do on this team. It changes nothing about their access."));
+    group.appendChild(field("Access", access, "What seaLeye lets them do. The levels are explained below this list."));
+
+    const destroyWrap = el("div", "value");
+    destroyWrap.appendChild(destroy);
+    destroyWrap.appendChild(el("span", "unit", "May tear down environments, including ones they did not build."));
+    const destroyField = el("div", "field");
+    destroyField.appendChild(el("span", "name", "Tearing down"));
+    destroyField.appendChild(destroyWrap);
+    group.appendChild(destroyField);
+
+    const actions = el("div", "field");
+    actions.appendChild(el("span", "name", "Action"));
+    const bar = el("div", "actions");
+    const save = el("button", "primary", "Save changes");
+    save.type = "button";
+    save.addEventListener("click", () => {
+      member.job = job.value.trim() || member.job;
+      member.access = access.value;
+      member.destroy = destroy.checked;
+      close(item);
+      redraw();
+      flash($("saved"), "Saved");
+    });
+    const cancel = el("button", "ghost", "Cancel");
+    cancel.type = "button";
+    cancel.addEventListener("click", () => close(item));
+    bar.appendChild(save);
+    bar.appendChild(cancel);
+    actions.appendChild(bar);
+    group.appendChild(actions);
+
+    box.appendChild(group);
+    return box;
+  }
+
+  function confirmPanel(item, mode) {
+    const member = item.member;
+    const first = member.name.split(" ")[0];
+    const words = {
+      suspend: {
+        heading: "Suspend " + member.name,
+        lines: [
+          first + " stays on the team and keeps everything they own.",
+          "They cannot sign in, plan, deploy or tear anything down.",
+          "Environments they built keep running. Suspending a person does not touch them.",
+          "Reinstating puts everything back, with the same access."
+        ],
+        yes: "Suspend " + first,
+        tone: "ghost amber"
+      },
+      reinstate: {
+        heading: "Reinstate " + member.name,
+        lines: [
+          first + " can sign in again, with the access they had before.",
+          "Nothing they own changed while they were suspended."
+        ],
+        yes: "Reinstate " + first,
+        tone: "primary"
+      },
+      remove: {
+        heading: "Remove " + member.name + " from the team",
+        lines: [
+          "They lose access to every environment this team owns.",
+          "Environments they built keep running, and this team keeps them.",
+          "They can be invited back, and would start with no access."
+        ],
+        yes: "Remove " + first,
+        tone: "ghost amber"
+      }
+    }[mode];
+
+    const box = el("div", "cardbox");
+    const group = el("div", "group");
+    group.appendChild(el("h3", null, words.heading));
+    const list = el("ul", "plainlist");
+    for (const line of words.lines) list.appendChild(el("li", null, line));
+    group.appendChild(list);
+
+    const bar = el("div", "actions");
+    bar.style.marginTop = "12px";
+    const yes = el("button", words.tone, words.yes);
+    yes.type = "button";
+    yes.addEventListener("click", () => {
+      if (mode === "suspend") member.status = "suspended";
+      if (mode === "reinstate") member.status = "active";
+      if (mode === "remove") state.members.splice(state.members.indexOf(member), 1);
+      close(item);
+      redraw();
+    });
+    const no = el("button", "ghost", "Cancel");
+    no.type = "button";
+    no.addEventListener("click", () => close(item));
+    bar.appendChild(yes);
+    bar.appendChild(no);
+    group.appendChild(bar);
+
+    box.appendChild(group);
+    return box;
+  }
+
+  // ---- filtering ----
+  function matches(member) {
+    const term = $("search").value.trim().toLowerCase();
+    if (term && !(member.name + " " + member.job).toLowerCase().includes(term)) return false;
+    if ($("access").value && member.access !== $("access").value) return false;
+    if (member.status === "suspended" && $("toggleSuspended").getAttribute("aria-pressed") === "false") return false;
+    return true;
+  }
+
+  function filter() {
+    closeMenu();
+    let shown = 0;
+    for (const item of listed) {
+      const keep = matches(item.member);
+      item.row.hidden = !keep;
+      if (!keep) close(item);
+      if (keep) shown += 1;
+    }
+    $("empty").hidden = shown > 0;
+    const count = $("count");
+    count.textContent = "";
+    count.appendChild(el("span", "n", String(shown)));
+    count.appendChild(document.createTextNode(" of "));
+    count.appendChild(el("span", "n", String(listed.length)));
+  }
+
+  function redraw() {
+    body.textContent = "";
+    listed.length = 0;
+    for (const member of state.members) drawRow(member);
+    drawStats();
+    filter();
+  }
+
+  // ---- access dropdowns ----
+  for (const select of [$("access"), $("inviteAccess")]) {
+    if (select === $("access")) select.appendChild(new Option("All access", ""));
+    for (const a of state.access) select.appendChild(new Option(a.label, a.id));
+  }
+  $("inviteAccess").value = "deploy";
+
+  $("search").addEventListener("input", filter);
+  $("access").addEventListener("change", filter);
+  $("toggleSuspended").addEventListener("click", () => {
+    const on = $("toggleSuspended").getAttribute("aria-pressed") === "true";
+    $("toggleSuspended").setAttribute("aria-pressed", on ? "false" : "true");
+    filter();
+  });
+
+  // ---- invitations ----
+  $("invite").addEventListener("click", () => {
+    const form = $("inviteForm");
+    form.hidden = !form.hidden;
+    if (!form.hidden) $("inviteName").focus();
+  });
+  $("cancelInvite").addEventListener("click", () => { $("inviteForm").hidden = true; });
+  $("sendInvite").addEventListener("click", () => {
+    const name = $("inviteName").value.trim();
+    if (!name) { $("inviteName").focus(); return; }
+    state.members.push({
+      id: name.toLowerCase().replace(/[^a-z]+/g, "."),
+      name,
+      initial: name[0].toUpperCase(),
+      job: $("inviteJob").value.trim() || "Developer",
+      access: $("inviteAccess").value,
+      status: "active",
+      owns: 0,
+      last: "not yet",
+      joined: "Just now",
+      destroy: false
+    });
+    $("inviteName").value = "";
+    $("inviteJob").value = "";
+    $("inviteForm").hidden = true;
+    redraw();
+  });
+
+  // ---- what the levels mean ----
+  const levels = $("levels");
+  for (const a of state.access) {
+    const box = el("div", "modcard");
+    const inner = el("div", "body");
+    inner.appendChild(el("div", "id", a.label));
+    inner.appendChild(el("div", "what", a.line));
+    box.appendChild(inner);
+    const count = state.members.filter(m => m.access === a.id).length;
+    box.appendChild(chip(String(count), count ? "phosphor" : "neutral"));
+    levels.appendChild(box);
+  }
+
+  const saved = el("span", "saved");
+  saved.id = "saved";
+  saved.hidden = true;
+  document.querySelector(".title .spacer").before(saved);
+
+  redraw();
+</script>
+</body>
+</html>

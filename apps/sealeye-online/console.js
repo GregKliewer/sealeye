@@ -8,7 +8,11 @@ const Console = (() => {
     return node;
   };
 
-  const NAV = ["Environments", "Catalog", "Activity", "Team"];
+  const NAV = [
+    ["Environments", "index.html"],
+    ["Catalog", "catalog.html"],
+    ["Team", "team.html"]
+  ];
 
   /** Fill the top bar and the footer. `current` is the section this page belongs to. */
   function chrome(state, current) {
@@ -23,12 +27,12 @@ const Console = (() => {
 
     const nav = document.getElementById("nav");
     if (nav) {
-      for (const label of NAV) {
+      for (const [label, href] of NAV) {
         const link = el("a", null, label);
-        // Environments is a real page. The rest are here because a console has them.
-        link.href = label === "Environments" ? "index.html" : "#";
+        // Some of these are real pages. The rest are here because a console has them.
+        link.href = href || "#";
         if (label === current) link.setAttribute("aria-current", "page");
-        if (label !== "Environments") link.addEventListener("click", event => event.preventDefault());
+        if (!href) link.addEventListener("click", event => event.preventDefault());
         nav.appendChild(link);
       }
     }
@@ -87,23 +91,36 @@ const Console = (() => {
 })();
 
 // The strip of pages one environment has. Plan is the card on the list page; the
-// rest are pages of their own.
-Console.subnav = function (app, current) {
+// rest are pages of their own. A torn down environment keeps only the two that
+// outlive it: what it planned, and what it cost.
+Console.subnav = function (app, current, opts) {
   const box = document.getElementById("subnav");
   if (!box) return;
   const { el } = Console;
-  const page = name => name + ".html?app=" + encodeURIComponent(app);
+  const o = opts || {};
+  const live = o.live !== false;
+  const query = "?app=" + encodeURIComponent(app) + (o.env ? "&env=" + encodeURIComponent(o.env) : "");
+  const page = name => name + ".html" + query;
+
   const pages = [
-    ["Plan", "index.html#" + encodeURIComponent(app)],
-    ["Configure", page("configure")],
-    ["Costs", page("costs")],
-    ["Logs", page("logs")],
-    ["Performance", page("performance")],
-    ["Control", page("control")]
+    ["Plan", "index.html#" + encodeURIComponent(app), true],
+    ["Configure", page("configure"), live],
+    ["Costs", page("costs"), true],
+    ["Logs", page("logs"), live],
+    ["Performance", page("performance"), live],
+    ["Control", page("control"), live]
   ];
-  for (const [label, href] of pages) {
+
+  for (const [label, href, enabled] of pages) {
     const link = el("a", null, label);
-    if (href) link.href = href; else { link.href = "#"; link.addEventListener("click", event => event.preventDefault()); }
+    if (enabled) {
+      link.href = href;
+    } else {
+      link.href = "#";
+      link.setAttribute("aria-disabled", "true");
+      link.title = "This environment was torn down. " + label + " went with it.";
+      link.addEventListener("click", event => event.preventDefault());
+    }
     if (label === current) link.setAttribute("aria-current", "page");
     box.appendChild(link);
   }

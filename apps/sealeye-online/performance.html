@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Performance, seaLeye.online</title>
 
-<!-- Everything this page shows. The environment is seven minutes old and has served the
-     six requests the logs list, so every period holds the same six and the longer two are
+<!-- Everything this page shows. The environment is twenty minutes old and has served the
+     three calls the logs list, so every period holds the same six and the longer two are
      empty until their last bucket. Times are relative to when the page is opened, so
      nothing here goes stale between demos. Latencies are milliseconds; a 404 for a
      reference nobody has on file is an ordinary answer and is not counted as a failure. -->
@@ -22,7 +22,8 @@
     "status": "live",
     "profile": "dev",
     "region": "ca-central-1",
-    "lastDeploy": "7m ago"
+    "lastDeploy": "20m ago",
+    "deploymentId": "dep_9c31e07a44f2"
   },
   "periods": {
     "1h": {
@@ -55,24 +56,24 @@
           "requests": 0
         },
         {
-          "requests": 0
-        },
-        {
-          "requests": 0
-        },
-        {
-          "requests": 4,
+          "requests": 2,
           "p50": 8,
           "p95": 12
         },
         {
-          "requests": 2,
-          "p50": 6,
-          "p95": 7
+          "requests": 0
+        },
+        {
+          "requests": 0
+        },
+        {
+          "requests": 1,
+          "p50": 4,
+          "p95": 4
         }
       ],
-      "requests": 6,
-      "p50": 7,
+      "requests": 3,
+      "p50": 5,
       "p95": 12,
       "p99": 12,
       "failures": 0,
@@ -81,7 +82,7 @@
       "routes": [
         {
           "route": "GET /beneficiaries/{reference}",
-          "requests": 4,
+          "requests": 2,
           "p50": 8,
           "p95": 12,
           "p99": 12,
@@ -97,10 +98,10 @@
         },
         {
           "route": "Everything else",
-          "requests": 1,
-          "p50": 2,
-          "p95": 2,
-          "p99": 2,
+          "requests": 0,
+          "p50": null,
+          "p95": null,
+          "p99": null,
           "failures": 0
         }
       ],
@@ -108,12 +109,12 @@
         {
           "code": "200",
           "what": "Answered",
-          "count": 4
+          "count": 2
         },
         {
           "code": "404",
           "what": "No beneficiary on file for that reference",
-          "count": 2
+          "count": 1
         },
         {
           "code": "5xx",
@@ -197,13 +198,13 @@
           "requests": 0
         },
         {
-          "requests": 6,
-          "p50": 7,
+          "requests": 3,
+          "p50": 5,
           "p95": 12
         }
       ],
-      "requests": 6,
-      "p50": 7,
+      "requests": 3,
+      "p50": 5,
       "p95": 12,
       "p99": 12,
       "failures": 0,
@@ -212,7 +213,7 @@
       "routes": [
         {
           "route": "GET /beneficiaries/{reference}",
-          "requests": 4,
+          "requests": 2,
           "p50": 8,
           "p95": 12,
           "p99": 12,
@@ -228,10 +229,10 @@
         },
         {
           "route": "Everything else",
-          "requests": 1,
-          "p50": 2,
-          "p95": 2,
-          "p99": 2,
+          "requests": 0,
+          "p50": null,
+          "p95": null,
+          "p99": null,
           "failures": 0
         }
       ],
@@ -239,12 +240,12 @@
         {
           "code": "200",
           "what": "Answered",
-          "count": 4
+          "count": 2
         },
         {
           "code": "404",
           "what": "No beneficiary on file for that reference",
-          "count": 2
+          "count": 1
         },
         {
           "code": "5xx",
@@ -277,13 +278,13 @@
           "requests": 0
         },
         {
-          "requests": 6,
-          "p50": 7,
+          "requests": 3,
+          "p50": 5,
           "p95": 12
         }
       ],
-      "requests": 6,
-      "p50": 7,
+      "requests": 3,
+      "p50": 5,
       "p95": 12,
       "p99": 12,
       "failures": 0,
@@ -292,7 +293,7 @@
       "routes": [
         {
           "route": "GET /beneficiaries/{reference}",
-          "requests": 4,
+          "requests": 2,
           "p50": 8,
           "p95": 12,
           "p99": 12,
@@ -308,10 +309,10 @@
         },
         {
           "route": "Everything else",
-          "requests": 1,
-          "p50": 2,
-          "p95": 2,
-          "p99": 2,
+          "requests": 0,
+          "p50": null,
+          "p95": null,
+          "p99": null,
           "failures": 0
         }
       ],
@@ -319,12 +320,12 @@
         {
           "code": "200",
           "what": "Answered",
-          "count": 4
+          "count": 2
         },
         {
           "code": "404",
           "what": "No beneficiary on file for that reference",
-          "count": 2
+          "count": 1
         },
         {
           "code": "5xx",
@@ -335,41 +336,27 @@
     }
   },
   "warm": {
-    "p50": 7,
+    "p50": 5,
     "p95": 12
   },
   "cold": null,
   "slowest": [
     {
-      "ago": 171,
+      "ago": 1024,
       "route": "GET /beneficiaries/{reference}",
       "ms": 12,
       "cold": false,
       "req": "b0d9e1"
     },
     {
-      "ago": 158,
-      "route": "GET /beneficiaries/{reference}",
-      "ms": 8,
-      "cold": false,
-      "req": "b7a3c8"
-    },
-    {
-      "ago": 41,
-      "route": "GET /beneficiaries/{reference}",
-      "ms": 7,
-      "cold": false,
-      "req": "e3f0a2"
-    },
-    {
-      "ago": 187,
+      "ago": 1142,
       "route": "GET /",
       "ms": 5,
       "cold": false,
       "req": "a41f2c"
     },
     {
-      "ago": 133,
+      "ago": 188,
       "route": "GET /beneficiaries/{reference}",
       "ms": 4,
       "cold": false,
@@ -471,7 +458,7 @@
   </section>
 
   <section class="section">
-    <header><h2>Slowest requests</h2><span class="hint">The five slowest seen, whenever they happened.</span></header>
+    <header><h2>Slowest requests</h2><span class="hint">Slowest first. There are three, because three is all there have been.</span></header>
     <table>
       <thead><tr><th>When</th><th>Route</th><th class="num">Took</th><th>Why</th><th>Request</th></tr></thead>
       <tbody id="slowest"></tbody>
@@ -489,7 +476,7 @@
 
   Console.chrome(state, "Environments");
   Console.crumbs(app, "Performance");
-  Console.subnav(app, "Performance");
+  Console.subnav(app, "Performance", { env: state.env.deploymentId });
 
   const meta = document.getElementById("meta");
   meta.appendChild(chip("Live", "phosphor"));
