@@ -366,7 +366,15 @@ function cardContent(plan, catalog) {
   ].filter(Boolean);
 
   const back = [];
-  if (outputs.includes("public_url")) {
+  // An app that asked not to be reachable from the public internet is never told it is
+  // getting a public address, whatever the plan's outputs say. A plan can be wrong
+  // about this; the card cannot be, because the card is what the developer approves.
+  if (isEnabled(plan, "network_private")) {
+    back.push({
+      key: "out:url",
+      text: "A private address inside your organization's network, as soon as it is live"
+    });
+  } else if (outputs.includes("public_url")) {
     back.push({ key: "out:url", text: "A public HTTPS address, as soon as it is live" });
   }
   if (collected.length) {
@@ -579,6 +587,15 @@ export function decisionCard(plan, {
     ...[...app, ...middle, ...back].map(row => (row.mark ? MARKS[row.mark].word.length : 0))
   );
 
+  // Which environment these patterns describe. A dev plan gets its patterns now,
+  // because the dev environment is the one being built; everything else is describing
+  // an environment the pipeline builds later, so it says so.
+  const PATTERN_HEADINGS = {
+    dev: "Patterns your dev environment applies:",
+    perf: "Patterns your perf environment will apply:",
+    prod: "Patterns your production environment will apply:"
+  };
+
   // A profile is a set of patterns, so a card that names one says what it chose. The
   // words are the catalog's, and there is not a number among them.
   const patterns = normalizeProfile(plan.profile) === "poc"
@@ -593,7 +610,7 @@ export function decisionCard(plan, {
     },
     ...(patterns.length
       ? [{
-          heading: "Patterns your production environment will apply:",
+          heading: PATTERN_HEADINGS[normalizeProfile(plan.profile)] || PATTERN_HEADINGS.prod,
           rows: renderRows(patterns, room, markWidth)
         }]
       : []),

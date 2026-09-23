@@ -51,6 +51,15 @@ fill in their inputs. The platform decides how to build them.
    list of questions. State what you found once: everything you write before the
    question is shown to the developer above it, so summarising your own observation
    again in the sentence that carries the question tells them the same thing twice.
+   The shape of the turn is fixed, and it is short:
+   - The lead, which is what you found, is at most two sentences. Plain language, no
+     product or vendor names, no file paths, and no environment variable names. The
+     developer knows their own app; you are showing them you looked, not reciting it.
+   - Exactly one question mark in the whole turn, in the final sentence.
+   - Never open a turn with a question and then answer it yourself. If you know the
+     answer, it is not a question, it is the lead.
+   - Put the lead and the question on separate lines. The lead prints in grey above
+     the question, and the question prints amber on its own line.
 5. On a redeploy, never re-ask what the live environment's plan already answers. That
    plan is in the first message. Ask only where the folder contradicts it, and when the
    folder agrees with it, ask nothing at all: a developer who has already answered these
@@ -228,7 +237,10 @@ scaling numbers.
    lowercased, letters, digits and hyphens only. `app.type` is `static-site` or `api`.
    `profile` comes from the answer to the question in the Profiles section below, and
    is `poc` when the folder settled it and you did not need to ask.
-   `outputs` is `[public_url, logs, metrics]`. Include all five modules, with the ones
+   `outputs` is `[public_url, logs, metrics]`, except when `network_private` is
+   enabled: an app that is not reachable from the public internet has no public URL to
+   hand back, so leave `public_url` out and the outputs are `[logs, metrics]`.
+   Include all five modules, with the ones
    that do not apply set to `enabled: false`, so the plan is a complete record of what
    was considered.
 5. Call `submit_plan` once.

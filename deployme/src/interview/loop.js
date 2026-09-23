@@ -102,17 +102,45 @@ function isQuestion(text) {
 /**
  * Split an assistant turn into the line to ask and whatever it said first, so the
  * question can be printed as one amber prompt line with its context above it.
+ *
+ * A turn that came back as one paragraph used to go entirely into the amber, because
+ * there was no line to split on: seven lines of prompt colour, most of it not a
+ * question. So a paragraph is split at its last sentence instead, and the lead prints
+ * in grey where it belongs.
  */
 function splitQuestion(text) {
   const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
 
-  // The question is the last line that has the question mark in it; anything above it
-  // is what the platform found, and anything below is part of the same ask.
-  const last = lines.reduce((found, line, index) => (line.includes("?") ? index : found), lines.length - 1);
+  if (lines.length > 1) {
+    // The question is the last line that has the question mark in it; anything above it
+    // is what the platform found, and anything below is part of the same ask.
+    const last = lines.reduce((found, line, index) => (line.includes("?") ? index : found), lines.length - 1);
+
+    return {
+      question: lines.slice(last).join(" ") || text,
+      lead: lines.slice(0, last)
+    };
+  }
+
+  const whole = lines[0] || text.trim();
+  // The FIRST question mark, not the last. The prompt allows one per turn, and when
+  // the model sends two anyway, splitting at the last one would leave a question
+  // sitting in the grey lead, which is the thing this is here to prevent. With one
+  // question mark the two choices are the same split.
+  const mark = whole.indexOf("?");
+  if (mark === -1) return { question: whole || text, lead: [] };
+
+  // Where the sentence carrying that question mark begins. Anything after the mark
+  // belongs to it too: "...from the environment? (Not counting the port.)" is one ask.
+  const before = whole.slice(0, mark);
+  const boundary = Math.max(before.lastIndexOf(". "), before.lastIndexOf("? "), before.lastIndexOf("! "));
+  const start = boundary === -1 ? 0 : boundary + 2;
+
+  const lead = whole.slice(0, start).trim();
 
   return {
-    question: lines.slice(last).join(" ") || text,
-    lead: lines.slice(0, last)
+    question: whole.slice(start).trim() || whole,
+    lead: lead ? [lead] : []
   };
 }
 
