@@ -163,7 +163,8 @@
           "Your logs and basic metrics, kept for 30 days"
         ]
       },
-      "path": []
+      "path": [],
+      "ticket": "PLAT-1042"
     },
     {
       "app": "payment-events-processor",
@@ -229,7 +230,8 @@
           "Your logs and basic metrics, kept for 30 days"
         ]
       },
-      "path": []
+      "path": [],
+      "ticket": "PLAT-1042"
     },
     {
       "app": "beneficiary-lookup-api",
@@ -368,7 +370,29 @@
     "staging",
     "perf",
     "prod"
-  ]
+  ],
+  "teamContext": {
+    "app": "payment-events-processor",
+    "priorAttempt": {
+      "by": "Cindy R.",
+      "team": "Money Movement",
+      "when": "2 days ago",
+      "modules": [
+        "compute_container",
+        "data_relational",
+        "events_stream",
+        "secrets_basic",
+        "network_private"
+      ]
+    },
+    "ticket": {
+      "id": "PLAT-1042",
+      "url": "https://northline.atlassian.net/browse/PLAT-1042",
+      "status": "Open",
+      "subject": "Catalog gap: 5 modules for payment-events-processor (Money Movement)",
+      "description": "Opened by seaLeye.run from a refused plan.\nApp: payment-events-processor, team Money Movement, requested by Cindy R.\nProfile: dev, designed for production.\nModules not in the catalog: compute_container, data_relational, events_stream, secrets_basic, network_private.\nThe plan is attached from the developer's repo (DEPLOYMENT_PLAN.md).\nThis is the second team to hit this boundary this month."
+    }
+  }
 }
 </script>
 
@@ -570,6 +594,39 @@
     return holder;
   }
 
+  /**
+   * The ticket seaLeye.run opened when it refused this plan. Every word of it comes
+   * from the same fixture the CLI reads, so the console and the terminal cannot tell
+   * the room two different stories about the same ticket.
+   */
+  function ticketPanel(env) {
+    const context = state.teamContext;
+    const ticket = context.ticket;
+    const box = el("div", "cardbox");
+
+    const head = el("div", "group tickethead");
+    const line = el("div", "ticketline");
+    line.appendChild(el("span", "mono id", ticket.id));
+    line.appendChild(chip(ticket.status, ticket.status === "Open" ? "amber" : "neutral"));
+    head.appendChild(line);
+    head.appendChild(el("p", "subject", ticket.subject));
+    box.appendChild(head);
+
+    const body_ = el("div", "group");
+    // The description arrives with its line breaks and keeps them: it is a ticket
+    // body, and a ticket body reflowed into a paragraph stops being readable.
+    body_.appendChild(el("pre", "ticketbody", ticket.description));
+    box.appendChild(body_);
+
+    const foot = el("div", "group");
+    foot.appendChild(el("p", "notice", `Opened from ${context.priorAttempt.by}'s refused plan, ${context.priorAttempt.when}`));
+    box.appendChild(foot);
+
+    return box;
+  }
+
+  const chip = Console.chip;
+
   const body = document.getElementById("rows");
   const listed = [];
 
@@ -616,6 +673,21 @@
       const none = el("span", "none", env.note || "none");
       none.title = env.note || "none";
       url.appendChild(none);
+
+      // A refusal that opened a ticket says so where the address would have been, and
+      // the ticket opens in the row rather than in another tab.
+      if (env.ticket) {
+        url.appendChild(document.createTextNode("  \u00B7  "));
+        const link = el("a", "mono ticket", env.ticket);
+        link.href = "#";
+        link.title = "Show the ticket seaLeye.run opened";
+        link.addEventListener("click", event => {
+          event.preventDefault();
+          event.stopPropagation();
+          showTicket(env);
+        });
+        url.appendChild(link);
+      }
     }
     row.appendChild(url);
 
@@ -627,13 +699,25 @@
     holder.hidden = true;
     const cell = el("td");
     cell.colSpan = 10;
-    cell.appendChild(card(env));
     holder.appendChild(cell);
 
-    const toggle = () => {
-      holder.hidden = !holder.hidden;
-      row.setAttribute("aria-expanded", holder.hidden ? "false" : "true");
+    const toggle = (what) => {
+      const wanted = what || "plan";
+      // Clicking the row after opening a ticket shows the plan, and the other way
+      // round, rather than closing something the reader did not mean to close.
+      if (!holder.hidden && holder.dataset.showing === wanted) {
+        holder.hidden = true;
+        row.setAttribute("aria-expanded", "false");
+        return;
+      }
+      cell.textContent = "";
+      cell.appendChild(wanted === "ticket" ? ticketPanel(env) : card(env));
+      holder.dataset.showing = wanted;
+      holder.hidden = false;
+      row.setAttribute("aria-expanded", "true");
     };
+
+    const showTicket = () => toggle("ticket");
 
     // Only a live environment has pages behind these. A plan that was never built has
     // a plan to look at and nothing else, and the menu says so rather than hiding it.
@@ -659,9 +743,9 @@
     ]));
     row.appendChild(info);
 
-    row.addEventListener("click", toggle);
+    row.addEventListener("click", () => toggle("plan"));
     row.addEventListener("keydown", event => {
-      if (event.key === "Enter" || event.key === " ") { event.preventDefault(); toggle(); }
+      if (event.key === "Enter" || event.key === " ") { event.preventDefault(); toggle("plan"); }
     });
 
     body.appendChild(row);

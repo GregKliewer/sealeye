@@ -1,0 +1,16 @@
+{
+  "app": "payment-events-processor",
+  "priorAttempt": {
+    "by": "Cindy R.",
+    "team": "Money Movement",
+    "when": "2 days ago",
+    "modules": ["compute_container", "data_relational", "events_stream", "secrets_basic", "network_private"]
+  },
+  "ticket": {
+    "id": "PLAT-1042",
+    "url": "https://northline.atlassian.net/browse/PLAT-1042",
+    "status": "Open",
+    "subject": "Catalog gap: 5 modules for payment-events-processor (Money Movement)",
+    "description": "Opened by seaLeye.run from a refused plan.\nApp: payment-events-processor, team Money Movement, requested by Cindy R.\nProfile: dev, designed for production.\nModules not in the catalog: compute_container, data_relational, events_stream, secrets_basic, network_private.\nThe plan is attached from the developer's repo (DEPLOYMENT_PLAN.md).\nThis is the second team to hit this boundary this month."
+  }
+}

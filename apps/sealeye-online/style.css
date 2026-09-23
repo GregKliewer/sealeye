@@ -573,3 +573,29 @@
   @media (max-width: 720px) {
     .jobs { grid-template-columns: 1fr; }
   }
+
+  /* ---- the ticket a refusal opened ---- */
+  /* The note and the ticket share one line: the note gives up width and truncates,
+     the ticket never does, because the ticket id is the part worth reading. */
+  td.url:has(a.ticket) { max-width: 34ch; }
+  td.url:has(a.ticket) .none { display: inline-block; max-width: 20ch; vertical-align: bottom; }
+  td.url a.ticket {
+    display: inline;
+    text-decoration: none;
+    border-bottom: 1px solid var(--rule);
+  }
+  td.url a.ticket:hover { border-bottom-color: var(--phosphor); }
+
+  .tickethead { padding-bottom: 10px; }
+  .ticketline { display: flex; gap: 10px; align-items: center; }
+  .ticketline .id { font-weight: 700; }
+  .tickethead .subject { margin: 6px 0 0; font-weight: 500; }
+  .ticketbody {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: var(--dim);
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
