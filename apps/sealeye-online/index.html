@@ -376,7 +376,7 @@
     "priorAttempt": {
       "by": "Cindy R.",
       "team": "Money Movement",
-      "when": "2 days ago",
+      "when": "1 hour ago",
       "modules": [
         "compute_container",
         "data_relational",
@@ -669,25 +669,23 @@
       link.title = env.url;
       link.addEventListener("click", event => event.stopPropagation());
       url.appendChild(link);
+    } else if (env.ticket) {
+      // A refusal that opened a ticket shows the ticket where the address would have
+      // been. The note said what the plan was waiting on; the ticket is that, with
+      // somebody's name on it, so the note would only be saying it twice.
+      const link = el("a", "mono ticket", env.ticket);
+      link.href = "#";
+      link.title = "Show the ticket seaLeye.run opened";
+      link.addEventListener("click", event => {
+        event.preventDefault();
+        event.stopPropagation();
+        showTicket(env);
+      });
+      url.appendChild(link);
     } else {
       const none = el("span", "none", env.note || "none");
       none.title = env.note || "none";
       url.appendChild(none);
-
-      // A refusal that opened a ticket says so where the address would have been, and
-      // the ticket opens in the row rather than in another tab.
-      if (env.ticket) {
-        url.appendChild(document.createTextNode("  \u00B7  "));
-        const link = el("a", "mono ticket", env.ticket);
-        link.href = "#";
-        link.title = "Show the ticket seaLeye.run opened";
-        link.addEventListener("click", event => {
-          event.preventDefault();
-          event.stopPropagation();
-          showTicket(env);
-        });
-        url.appendChild(link);
-      }
     }
     row.appendChild(url);
 

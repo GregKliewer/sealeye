@@ -575,12 +575,8 @@
   }
 
   /* ---- the ticket a refusal opened ---- */
-  /* The note and the ticket share one line: the note gives up width and truncates,
-     the ticket never does, because the ticket id is the part worth reading. */
-  td.url:has(a.ticket) { max-width: 34ch; }
-  td.url:has(a.ticket) .none { display: inline-block; max-width: 20ch; vertical-align: bottom; }
   td.url a.ticket {
-    display: inline;
+    display: inline-block;
     text-decoration: none;
     border-bottom: 1px solid var(--rule);
   }
