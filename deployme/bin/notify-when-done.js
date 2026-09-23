@@ -76,13 +76,15 @@ function appleScriptString(value) {
 }
 
 /**
- * Fire the notification with terminal-notifier, not raw osascript. `display
- * notification` via osascript gets its permission attributed to whatever process ran
- * the AppleScript, in practice Script Editor rather than Terminal, so Terminal never
- * appears in System Settings > Notifications or in a Focus mode's allowed-apps list,
- * and the notification is silently dropped under Focus or Do Not Disturb.
- * terminal-notifier is a real signed binary with its own identity, so it registers
- * itself correctly in both places the first time it runs.
+ * Fire the notification with terminal-notifier first, because it registers its own
+ * identity with the OS rather than having the permission attributed to whatever ran
+ * the AppleScript (in practice Script Editor, not Terminal), so it can survive a
+ * Focus mode's allowed-apps list in a way osascript cannot. But a Homebrew install of
+ * it is commonly only ad hoc signed and not notarized, and Gatekeeper can refuse it
+ * notification permission outright on a current macOS, which fails as a normal exit
+ * code, not a missing binary. So the fallback to osascript is not narrowed to "not
+ * found": it is anything terminal-notifier did not actually deliver, found or not,
+ * permitted or not.
  *
  * Every argument goes through spawn's own argument array, never a shell string, so a
  * URL or a failure reason already in the message is never read as shell syntax.
@@ -100,20 +102,16 @@ function notify({ title, subtitle, message, sound }) {
       resolve(ok);
     };
 
+    const fallback = () => notifyWithOsascript({ title, subtitle, message, sound }).then(finish);
+
     const child = spawn(
       "terminal-notifier",
       ["-title", title, "-subtitle", subtitle, "-message", message, "-sound", sound],
       { stdio: "ignore" }
     );
 
-    child.on("error", err => {
-      // Not on PATH is the one failure worth a fallback; anything else spawn could
-      // throw here is not something osascript would fix either.
-      if (err?.code === "ENOENT") notifyWithOsascript({ title, subtitle, message, sound }).then(finish);
-      else finish(false);
-    });
-
-    child.on("exit", code => finish(code === 0));
+    child.on("error", fallback);
+    child.on("exit", code => (code === 0 ? finish(true) : fallback()));
   });
 }
 
