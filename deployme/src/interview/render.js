@@ -1,5 +1,5 @@
 // src/interview/render.js
-// The two files `sealeye init` writes into the developer's folder, and nothing else
+// The two files `sealeye run` writes into the developer's folder, and nothing else
 // writes there: DEPLOYMENT_PLAN.md (the plan in their language) and deployme.yaml
 // (the plan exactly as the model submitted it).
 //

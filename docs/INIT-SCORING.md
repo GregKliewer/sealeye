@@ -1,4 +1,4 @@
-# sealeye init scoring (POC1 criteria A to F, 1 to 5)
+# sealeye run scoring (POC1 criteria A to F, 1 to 5)
 
 | Criterion | api-1 | api-2 | static-1 | Notes |
 |---|---|---|---|---|

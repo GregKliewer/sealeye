@@ -1,5 +1,5 @@
 # Scope freeze (code freeze Sun Sept 27)
-IN: sealeye init (introspect, interview, DEPLOYMENT_PLAN.md + deployme.yaml, confirm,
+IN: sealeye run (introspect, interview, DEPLOYMENT_PLAN.md + deployme.yaml, confirm,
 hand off to deploy); real CloudFormation executor for http_api_serverless (Lambda +
 HTTP API + logs) and static_site_edge (S3 website); observability_basic (log group,
 small dashboard); config_basic (Lambda env vars); DEPLOYMENT_REPORT.md; deployme

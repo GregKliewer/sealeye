@@ -6,7 +6,7 @@ Chosen September 20, 2026. Everything the developer sees comes from this file.
 - Written: **seaLeye.run**. The capital L is the only typographic trick; keep it everywhere the name is written in prose.
 - Command: `sealeye`. Lowercase, one word, always in code font.
 - Spoken: "C-L-I dot run".
-- Tagline: `cd your-app && sealeye init`
+- Tagline: `cd your-app && sealeye run`
 
 ## Type
 - One face everywhere: **JetBrains Mono** (Google Fonts; fallback: IBM Plex Mono, Menlo, monospace).

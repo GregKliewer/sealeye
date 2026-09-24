@@ -1,5 +1,5 @@
 # deployme: platform CLI + API demo (Blitzy panel, Oct 2)
-Purpose: a developer runs `deployme init` in their app folder; the CLI interviews them
+Purpose: a developer runs `deployme run` in their app folder; the CLI interviews them
 (Claude Messages API), writes DEPLOYMENT_PLAN.md + deployme.yaml (planVersion 0.2),
 and on confirmation the deployme API creates a real AWS environment via CloudFormation
 and returns DEPLOYMENT_REPORT.md.
@@ -15,7 +15,7 @@ Hard rules
   run.sh) is injected into the packaged artifact, not the source folder.
 - Status must be real: mirror CloudFormation stack status. Never fake success.
 - Every CLI step prints one plain-language line of what the platform is doing.
-- Keep the existing endpoints and CLI commands working; add init and destroy.
+- Keep the existing endpoints and CLI commands working; add run and destroy.
 - Secrets: ANTHROPIC_API_KEY and AWS creds from env or ~/.deployme/config; never in
   the repo.
 
@@ -26,13 +26,17 @@ contract, report template), apps/ (sample apps), plans/ (test plans), docs/ (May
 material, read-only reference).
 
 Definition of done for the demo: from a clean copy of apps/sample-expressjs (later
-renamed), `deployme init` -> y -> URL in under 5 minutes; `deployme destroy` cleans up.
+renamed), `deployme run` -> y -> URL in under 5 minutes; `deployme destroy` cleans up.
 
 Product and command (decided Sept 20)
 - The product is seaLeye.run. The developer-facing command is `sealeye`, a bin alias
   for bin/deployme (the `deployme` alias stays until Day 6). Internal names (deployme
   API, folders, repo, .env variables, deployme.yaml) stay as they are and never appear
   in anything the developer sees.
+- The subcommand that interviews and deploys is `run`, so the line a developer types
+  echoes the domain: `cd your-app && sealeye run`. `init` is still accepted and does
+  exactly the same thing, so rehearsal habits and older fixtures keep working, but it
+  is not in the help text and it never prints a deprecation notice.
 - CloudFormation stacks are named sealeye-<app>.
 - Fiction: seaLeye.run is the vendor; Greg is its SE; the developer and the platform
   team are at the bank. Copy the developer sees says seaLeye.run or sealeye, never
@@ -66,7 +70,7 @@ Executor rules (decided Day 3)
 - Static destroy empties the bucket (aws s3 rm --recursive) before delete-stack.
 
 Interview rules (decided Day 4)
-- `sealeye init` runs in the app folder. Model: the Sonnet id from the Day 1 curl test,
+- `sealeye run` runs in the app folder. Model: the Sonnet id from the Day 1 curl test,
   via @anthropic-ai/sdk, temperature 0.2. ANTHROPIC_API_KEY from env; a clear message
   and exit 1 if missing.
 - Tools: list_files(path) and read_file(path), read-only, resolved inside the app folder
@@ -82,7 +86,7 @@ Interview rules (decided Day 4)
   submission, and writes deployme.yaml (the plan as submitted). Both into the app
   folder. Nothing else is written there before the developer says yes.
 - Confirmation boundary: print the summary and the files, then "Deploy this? [y/N]".
-  Only y proceeds. Then call the existing deploy + watch code paths; init has no
+  Only y proceeds. Then call the existing deploy + watch code paths; run has no
   deployment logic of its own.
 - Every prompt line is amber ask(); every echoed answer phosphor answer(); every
   platform action a dim step() line. No em dash in anything the developer sees.

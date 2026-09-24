@@ -30,18 +30,18 @@ deploys without one.
 ## The commands
 
 ```
-sealeye init [--api <url>]
+sealeye run [--api <url>]
 ```
 
-That is the whole of the new surface. `init` takes no `--file` and no `--app`: it runs in the
+That is the whole of the new surface. `run` takes no `--file` and no `--app`: it runs in the
 current folder, and that folder is the only one it ever touches. It has no `--json` either,
 because it is a conversation.
 
 The flags that matter around it, unchanged from Day 3:
 
 ```
-sealeye validate -f deployme.yaml            # the plan init wrote
-sealeye deploy   -f deployme.yaml            # what init does for you on y
+sealeye validate -f deployme.yaml            # the plan run wrote
+sealeye deploy   -f deployme.yaml            # what run does for you on y
 sealeye watch    dep_<id>
 sealeye destroy  dep_<id>
 sealeye list [--all]
@@ -127,7 +127,7 @@ Across every run of the day the developer types the same short set:
 | `static-1` | `/tmp/try-static` | 1 | `y`, then `y` |
 | definition of done | `/tmp/dod` | 1 | `y`, then `y` |
 
-So the demo is: `sealeye init`, one `y` to confirm what the platform already worked out, one `y`
+So the demo is: `sealeye run`, one `y` to confirm what the platform already worked out, one `y`
 to spend money. Everything before the second `y` is a conversation and costs nothing.
 
 The three scored runs are in `docs/transcripts/` with the questions verbatim, and the scores are

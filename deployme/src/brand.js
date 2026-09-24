@@ -28,7 +28,7 @@ export const c = {
 export const product = {
   name: "seaLeye.run",
   command: "sealeye",
-  tagline: "cd your-app && sealeye init",
+  tagline: "cd your-app && sealeye run",
   spoken: "C-L-I dot run",
 };
 

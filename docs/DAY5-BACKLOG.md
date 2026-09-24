@@ -1,6 +1,6 @@
 # Day 5 polish backlog
 
-Items noticed while building and while scoring `sealeye init` (see INIT-SCORING.md), parked so
+Items noticed while building and while scoring `sealeye run` (see INIT-SCORING.md), parked so
 they do not interrupt the day they came up. Each one is demo-visible; none is a refactor.
 Ordered by what the panel would notice. Cut from the bottom if Day 5 runs long.
 
@@ -50,8 +50,8 @@ index.js` / `Reading package.json` arriving one at a time is the most persuasive
 whole demo, because the panel watches the agent read the folder rather than taking our word for
 it. The spinner fills the gaps between those lines. It does not replace them.
 
-**Done when.** A full `sealeye init` run has no stretch longer than about a second with a static
-screen, `sealeye init --json` output is byte-identical to today's, and piping to a file produces
+**Done when.** A full `sealeye run` run has no stretch longer than about a second with a static
+screen, `sealeye run --json` output is byte-identical to today's, and piping to a file produces
 no escape sequences.
 
 ---
@@ -151,7 +151,7 @@ It matters on Oct 2, because without it the live demo depends on typing `y` at t
 with three people watching, and on the insurance recording being re-shot end to end every time
 one line of copy changes.
 
-**What.** `sealeye init --answers rehearsal.txt` feeds one line per question in order, still
+**What.** `sealeye run --answers rehearsal.txt` feeds one line per question in order, still
 printing questions and answers exactly as a live run does, so a rehearsal recording is
 indistinguishable from a hand-typed one. Falls back to the terminal if the file runs out of
 lines. Never usable for the `Deploy this?` boundary: that one stays a human keystroke, because
@@ -223,15 +223,15 @@ your address is stable across deploys, and here is the environment view that say
 platform answer to a platform question, and it is the question the infrastructure person on the
 panel is most likely to ask.
 
-## 7. `sealeye init` on an app that already has a live environment
+## 7. `sealeye run` on an app that already has a live environment
 
 **Effort.** Three separable pieces, in order. Estimates are at the recalibrated rate (about a
 quarter of the original novice estimates, per Sept 21): 7a about 15 min, 7b about 30 min, 7c
 about 15 min. Stop after any of them and the tool is still better than it was.
 
-**Why.** Right now `sealeye init` on an app with a live environment silently modifies a running
+**Why.** Right now `sealeye run` on an app with a live environment silently modifies a running
 service. A developer who believes they are creating something and is in fact changing what is
-live is the worst failure mode a platform has. Item 6 made `list` honest about this; `init` is
+live is the worst failure mode a platform has. Item 6 made `list` honest about this; `run` is
 where it actually costs something, so leaving it silent there would be strange.
 
 **7a. The notice, before the interview starts.** Right after the banner, before "Reading your
@@ -287,13 +287,13 @@ propose a module the folder does not justify.
 
 **Known gap, and the answer to it.** The only place seaLeye knows what is deployed is the local
 store, which is the developer's own record. If a colleague deployed the environment, or the
-store was cleared, `init` sees nothing and goes back to modifying a live stack silently. The
+store was cleared, `run` sees nothing and goes back to modifying a live stack silently. The
 truthful source is the stack itself. Fine for the demo; the answer if asked is that the shipping
 version reads environment state from the environment, not from the developer's machine, and it
 is a better answer for being one already thought about. This is the "Cindy on her laptop"
 question, and it belongs in the simulated segment of the demo, not the live one.
 
-**Done when.** `sealeye init` on an app with a live environment prints the notice and waits;
+**Done when.** `sealeye run` on an app with a live environment prints the notice and waits;
 N writes nothing; y runs the interview with zero questions on an unchanged folder; the card
 says "Nothing changes"; changing the app so it reads an environment variable produces a card
 with `config_basic` marked new and one grounded line saying why; and a fresh app with no

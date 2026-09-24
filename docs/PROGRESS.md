@@ -35,7 +35,7 @@ Commits `3af5348`, `bffceea`, `c06dae4`, `48508ea`, `7bc07e5`, `d372814`, `aa1f5
   interview the developer just had, and every command before it, stay on the screen and in the
   scrollback. Clearing was throwing all of it away at the exact moment the demo became
   interesting.
-- **The decision card.** `sealeye init` prints a card rendered from the validated plan rather
+- **The decision card.** `sealeye run` prints a card rendered from the validated plan rather
   than the model's prose: what the app is, what will be provisioned, what comes back, in a box,
   with the values the developer gave or confirmed in the phosphor accent. The prose moved to the
   Notes section of `DEPLOYMENT_PLAN.md`. That is the E=3 score and the other half of C.
@@ -58,7 +58,7 @@ Commits `3af5348`, `bffceea`, `c06dae4`, `48508ea`, `7bc07e5`, `d372814`, `aa1f5
   to "Nothing changes" when the environment already matches. The interview gets the deployed plan
   as context and asks nothing at all when the folder has not moved.
 - **Smaller.** `GET /health` returns `{ ok, version, deployments }` with the version read from
-  the package and the count read from the store. `sealeye init --answers <file>` feeds a
+  the package and the count read from the store. `sealeye run --answers <file>` feeds a
   rehearsal one line per question, never the `Deploy this?` boundary. Three em dashes left
   developer-facing copy.
 
@@ -81,7 +81,7 @@ exist yet; when it does, these four should be what it records.
 
 ### The interview. Commits `c8d8d0a`, `4f03e89`, `35337ae`.
 
-- **`sealeye init`** — runs in the app folder, reads it with two read-only tools, asks at most
+- **`sealeye run`** — runs in the app folder, reads it with two read-only tools, asks at most
   four questions, submits a planVersion 0.2 plan, writes `DEPLOYMENT_PLAN.md` and `deployme.yaml`,
   and stops at `Deploy this? [y/N]`. On `y` it calls the existing deploy and watch paths and has
   no deployment logic of its own.
@@ -245,7 +245,7 @@ Most of today is visible in the diff. These are the ones that are not.
 
 From `CLAUDE.md` "Interview rules", all now implemented:
 
-- **`sealeye init` runs in the app folder**, with the Sonnet id from the Day 1 curl test via
+- **`sealeye run` runs in the app folder**, with the Sonnet id from the Day 1 curl test via
   `@anthropic-ai/sdk`. `ANTHROPIC_API_KEY` from the environment, the repo `.env` or
   `~/.deployme/config`; a clear message and exit 1 if it is missing.
 - **Two read-only tools**, `list_files` and `read_file`, resolved inside the app folder only,

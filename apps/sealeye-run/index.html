@@ -134,7 +134,7 @@
 
   <header>
     <img src="sealeye-wordmark.svg" alt="seaLeye.run">
-    <p class="tagline">cd your-app &amp;&amp; sealeye init</p>
+    <p class="tagline">cd your-app &amp;&amp; sealeye run</p>
   </header>
 
   <p class="lede">
@@ -165,7 +165,7 @@
 
     <div class="result" id="result" hidden>
       <div class="block">
-        <code><span class="prompt">$</span> <span class="cmd">cd <input id="parent" class="parent" value="~/" size="3" spellcheck="false" autocapitalize="off" autocorrect="off" aria-label="the folder your app sits in"><span class="folder" id="folderName">your-app</span> &amp;&amp; sealeye init</span></code>
+        <code><span class="prompt">$</span> <span class="cmd">cd <input id="parent" class="parent" value="~/" size="3" spellcheck="false" autocapitalize="off" autocorrect="off" aria-label="the folder your app sits in"><span class="folder" id="folderName">your-app</span> &amp;&amp; sealeye run</span></code>
         <button type="button" id="copyLine">copy</button>
       </div>
       <p class="note">Your browser does not tell this page where the folder lives, so set the path in front of the name if it is not right. Open Terminal and paste.</p>
@@ -238,7 +238,7 @@
     const prefix = parent.value.trim().replace(/\/+$/, "");
     const path = prefix ? prefix + "/" + folderName.textContent : folderName.textContent;
 
-    return "cd " + path + " && sealeye init";
+    return "cd " + path + " && sealeye run";
   }
 
   folder.addEventListener("change", () => {

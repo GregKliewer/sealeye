@@ -1,5 +1,5 @@
 // src/interview/loop.js
-// The `sealeye init` interview: the model looks at the developer's folder, asks at
+// The `sealeye run` interview: the model looks at the developer's folder, asks at
 // most four questions, and submits a planVersion 0.2 plan.
 //
 // The loop is written by hand rather than handed to the SDK tool runner because two
@@ -165,14 +165,14 @@ function asUserFacing(err) {
   // sentences.
   if (err instanceof Anthropic.APIConnectionTimeoutError) {
     return userFacing(
-      `The model did not answer in time twice, so seaLeye.run stopped. Run ${product.command} init again.`,
+      `The model did not answer in time twice, so seaLeye.run stopped. Run ${product.command} run again.`,
       err
     );
   }
 
   if (err instanceof Anthropic.APIConnectionError) {
     return userFacing(
-      `seaLeye.run could not reach the model that does the interview. Check your connection, then run ${product.command} init again.`,
+      `seaLeye.run could not reach the model that does the interview. Check your connection, then run ${product.command} run again.`,
       err
     );
   }
@@ -182,7 +182,7 @@ function asUserFacing(err) {
   }
 
   if (err?.status === 429) {
-    return userFacing(`That account is being rate limited. Wait a moment, then run ${product.command} init again.`, err);
+    return userFacing(`That account is being rate limited. Wait a moment, then run ${product.command} run again.`, err);
   }
 
   // An APIError's own message is the whole JSON body, which is not a sentence. The
@@ -250,7 +250,7 @@ export async function runInterview({
   const apiKey = resolveApiKey();
   if (!apiKey) {
     throw userFacing(
-      `ANTHROPIC_API_KEY is not set, so put it in your environment or in ~/.deployme/config and run ${product.command} init again.`
+      `ANTHROPIC_API_KEY is not set, so put it in your environment or in ~/.deployme/config and run ${product.command} run again.`
     );
   }
 
@@ -433,7 +433,7 @@ export async function runInterview({
 
   return {
     status: "stopped",
-    message: "The interview did not reach a plan. Run sealeye init again, or write the plan yourself.",
+    message: `The interview did not reach a plan. Run ${product.command} run again, or write the plan yourself.`,
     questions
   };
 }

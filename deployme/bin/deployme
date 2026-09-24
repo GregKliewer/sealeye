@@ -68,7 +68,7 @@ function usage() {
 ${product.command} - deploy your app to a real AWS environment
 
 Usage:
-  ${product.command} init [--answers <file>] [--team-context] [--watch] [--api <url>]
+  ${product.command} run [--answers <file>] [--team-context] [--watch] [--api <url>]
   ${product.command} deploy --file <plan.yaml> [--app <path>] [--api <url>] [--json] [--watch]
   ${product.command} validate --file <plan.yaml> [--api <url>] [--json]
   ${product.command} status <deploymentId> [--api <url>] [--json]
@@ -80,12 +80,12 @@ Options:
   -f, --file      path to your plan YAML
       --app       folder to deploy (default: the current folder)
   -b, --backend   cloudformation (default: cloudformation)
-      --answers   with init: answer the interview from a file, one line per question,
+      --answers   with run: answer the interview from a file, one line per question,
                   for rehearsals. Never answers "Deploy this?": that stays yours
       --team-context
-                  with init: after a refusal, say whether another team has hit the
+                  with run: after a refusal, say whether another team has hit the
                   same boundary (reads a local fixture)
-      --watch     with init or deploy: stay on the live panel until the deployment
+      --watch     with run or deploy: stay on the live panel until the deployment
                   finishes, instead of watching in the background and notifying you
       --all       with list: include environments you have torn down
       --deployments
@@ -95,7 +95,7 @@ Options:
   -h, --help      show help
 
 Examples:
-  ${product.command} init
+  ${product.command} run
   ${product.command} validate -f plan.yaml
   ${product.command} deploy -f plan.yaml
   ${product.command} watch dep_1a2b3c4d5e6f
@@ -128,15 +128,18 @@ async function main() {
 
   const apiBaseUrl = getArg("--api") || "http://localhost:3000";
 
-  if (command === "init") {
-    // init runs in the app folder, and that folder is the only one it ever touches.
+  // "run" is the documented name; "init" is a hidden alias so rehearsal habits,
+  // --answers fixtures and older muscle memory keep working, with no deprecation
+  // notice, since a demo is not the moment to lecture someone about a rename.
+  if (command === "run" || command === "init") {
+    // This is the only place the developer's own folder is ever touched.
     const appPath = process.cwd();
     const planPath = path.join(appPath, "DEPLOYMENT_PLAN.md");
     const configPath = path.join(appPath, "deployme.yaml");
 
-    // init is a conversation, so it needs somebody at a terminal to have it with.
+    // A run is a conversation, so it needs somebody at a terminal to have it with.
     if (!process.stdin.isTTY) {
-      console.error(c.fail(`${product.command} init asks you questions, so it needs a terminal.`));
+      console.error(c.fail(`${product.command} run asks you questions, so it needs a terminal.`));
       console.error(`  Run it yourself in your app folder, or deploy an existing plan with ${product.command} deploy -f deployme.yaml.`);
       process.exit(1);
     }
@@ -219,7 +222,7 @@ async function main() {
             console.log(c.fail("The plan in your folder cannot be deployed as it stands:"));
             for (const line of plainValidationErrors(check.errors)) console.log(`  ${line}`);
             console.log("");
-            say(`Fix ${configPath}, or run ${product.command} init again and start over.`);
+            say(`Fix ${configPath}, or run ${product.command} run again and start over.`);
             process.exitCode = 1;
             return;
           }
@@ -238,7 +241,7 @@ async function main() {
         if (!resolveApiKey()) {
           console.error(
             c.fail(
-              `ANTHROPIC_API_KEY is not set, so put it in your environment or in ${path.join("~", ".deployme", "config")} and run ${product.command} init again.`
+              `ANTHROPIC_API_KEY is not set, so put it in your environment or in ${path.join("~", ".deployme", "config")} and run ${product.command} run again.`
             )
           );
           process.exit(1);
@@ -789,8 +792,8 @@ function reuseSummary(plan, planPath) {
     .join("\n");
 }
 
-// Hand a plan and a folder to the platform. `deploy` and `init` both come through
-// here: init has no deployment logic of its own.
+// Hand a plan and a folder to the platform. `deploy` and `run` both come through
+// here: run has no deployment logic of its own.
 async function runDeploy({ apiBaseUrl, backend, plan, appPath }) {
   say(`Handing ${appPath} to seaLeye.run to build your environment`);
 
