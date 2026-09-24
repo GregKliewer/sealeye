@@ -201,17 +201,12 @@
   .owner .disc { width: 22px; height: 22px; font-size: 11px; background: var(--chip-neutral-bg); color: var(--dim); }
 
   td.app, td.last { white-space: nowrap; }
-  td.url { max-width: 18ch; }
-  td.url a, td.url span {
-    font-family: var(--mono);
-    color: var(--phosphor);
-    display: block;
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  td.url span.none { color: var(--dim); }
+  /* This column is for a request against the Platform Library, not for traffic the
+     app has served: a ticket link when a refusal opened one, "none" in dim when it
+     has not. main a is already phosphor, so only the "none" state needs a rule. */
+  td.requests { max-width: 18ch; }
+  td.requests a { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  td.requests .none { color: var(--dim); }
 
   /* Each menu gets its own narrow column so its heading sits over its own dots
      rather than over the row's right edge. */
@@ -575,12 +570,12 @@
   }
 
   /* ---- the ticket a refusal opened ---- */
-  td.url a.ticket {
+  td.requests a.ticket {
     display: inline-block;
     text-decoration: none;
     border-bottom: 1px solid var(--rule);
   }
-  td.url a.ticket:hover { border-bottom-color: var(--phosphor); }
+  td.requests a.ticket:hover { border-bottom-color: var(--phosphor); }
 
   .tickethead { padding-bottom: 10px; }
   .ticketline { display: flex; gap: 10px; align-items: center; }
@@ -594,4 +589,117 @@
     margin: 0;
     white-space: pre-wrap;
     word-break: break-word;
+  }
+
+  /* ---- a destroyed environment reads as history ---- */
+  /* The whole row takes on the same grey its own status chip already uses, rather than
+     leaving the app name and the lit "dev" stage in full strength while only the one
+     label says the environment is gone. */
+  tr.env.destroyed td { color: var(--dim); }
+  tr.env.destroyed .chip.stage.phosphor {
+    background: var(--chip-neutral-bg);
+    color: var(--dim);
+  }
+
+  /* ---- report a problem ---- */
+  .cardbox .foot { padding: 14px 18px; border-top: 1px solid var(--rule); display: flex; justify-content: flex-end; }
+
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: rgba(19, 24, 29, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .modal {
+    background: var(--surface);
+    border-radius: 10px;
+    border: 1px solid var(--rule);
+    width: 100%;
+    max-width: 480px;
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
+    box-shadow: 0 20px 50px rgba(19, 24, 29, 0.28);
+  }
+  .modal-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .modal-head h2 { margin: 0; font-size: 16px; font-weight: 600; }
+  .modal-head .modal-sub { color: var(--dim); font-size: 12px; font-family: var(--mono); margin: 4px 0 0; }
+  .modal-close {
+    font: inherit;
+    font-size: 15px;
+    line-height: 1;
+    color: var(--dim);
+    background: none;
+    border: 0;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 6px;
+    flex: 0 0 auto;
+  }
+  .modal-close:hover { color: var(--ink); background: var(--ground); }
+
+  .modal-form { padding: 18px 20px 20px; }
+  .modal-field { margin-bottom: 14px; }
+  .modal-field label { display: block; font-weight: 500; font-size: 13px; margin-bottom: 6px; }
+  .modal-field input[type="text"], .modal-field textarea, .modal-field select {
+    font: inherit;
+    font-size: 13px;
+    color: var(--ink);
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 8px 10px;
+    width: 100%;
+  }
+  .modal-field textarea { min-height: 90px; resize: vertical; font-family: var(--sans); line-height: 1.5; }
+  .modal-field input:focus, .modal-field textarea:focus, .modal-field select:focus {
+    outline: none;
+    border-color: var(--phosphor);
+  }
+  .modal-field .help { color: var(--dim); font-size: 12px; margin-top: 5px; }
+
+  .modal-context {
+    color: var(--dim);
+    font-size: 12px;
+    margin: 0 0 16px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--rule);
+    display: flex;
+    gap: 6px 16px;
+    flex-wrap: wrap;
+  }
+  .modal-context strong { color: var(--ink); font-weight: 500; }
+
+  .modal-actions { display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-top: 6px; }
+  .modal-error { color: var(--amber); font-size: 12px; margin: -6px 0 14px; }
+  .modal-error[hidden] { display: none; }
+
+  .spin {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--chip-phosphor-bg);
+    border-top-color: var(--phosphor);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: -2px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .modal-wait { display: flex; align-items: center; gap: 8px; color: var(--dim); font-size: 13px; }
+
+  .modal-result .tickethead { padding: 0 0 4px; }
+  .modal-result .notice { margin-top: 12px; }
+
+  @media (max-width: 480px) {
+    .modal-overlay { padding: 12px; }
   }

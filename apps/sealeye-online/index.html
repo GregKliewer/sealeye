@@ -47,7 +47,7 @@
       },
       "status": "live",
       "chip": "phosphor",
-      "url": "https://znys54b61c.execute-api.ca-central-1.amazonaws.com",
+      "url": null,
       "profile": "dev",
       "deploys": 1,
       "last": "20m ago",
@@ -163,8 +163,7 @@
           "Your logs and basic metrics, kept for 30 days"
         ]
       },
-      "path": [],
-      "ticket": "PLAT-1042"
+      "path": []
     },
     {
       "app": "payment-events-processor",
@@ -268,10 +267,8 @@
           "Your logs and basic metrics, kept for 30 days"
         ]
       },
-      "note": "torn down",
       "deploymentId": "dep_5e14b8c07d31",
       "ran": "2h 10m",
-      "requests": 64,
       "path": [
         "dev"
       ]
@@ -311,10 +308,8 @@
           "Your logs and basic metrics, kept for 30 days"
         ]
       },
-      "note": "torn down",
       "deploymentId": "dep_b2907fa13c64",
       "ran": "1h 55m",
-      "requests": 47,
       "path": [
         "dev"
       ]
@@ -354,10 +349,8 @@
           "Your logs and basic metrics, kept for 30 days"
         ]
       },
-      "note": "torn down",
       "deploymentId": "dep_7a3c05e2d918",
       "ran": "2h 40m",
-      "requests": 38,
       "path": [
         "dev"
       ]
@@ -396,7 +389,7 @@
 }
 </script>
 
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
 
@@ -436,8 +429,8 @@
     <table>
       <thead>
         <tr>
-          <th>App</th><th>Owner</th><th>Status</th><th>Path</th><th>URL</th><th>Profile</th>
-          <th>Deploys</th><th>Last</th><th class="menucol">Actions</th><th class="menucol">Info</th>
+          <th>App</th><th>Owner</th><th>Status</th><th>Path</th><th>Reqs</th>
+          <th class="menucol">Actions</th><th class="menucol">Info</th>
         </tr>
       </thead>
       <tbody id="rows"></tbody>
@@ -498,7 +491,14 @@
     return box;
   }
 
-  function card(env) {
+  /**
+   * @param {object}   env
+   * @param {function} [onReport]  called right after a ticket is created, so the row
+   *                               that opened the modal can redraw itself with the
+   *                               new row in it without the developer closing and
+   *                               reopening the card to see it.
+   */
+  function card(env, onReport) {
     const box = el("div", "cardbox");
     box.appendChild(group("Your app:", [env.card.app]));
     box.appendChild(group("We will provision this infrastructure to run it:", env.card.modules));
@@ -506,7 +506,237 @@
       box.appendChild(group("Patterns the " + env.profile + " profile applies:", env.card.patterns));
     }
     box.appendChild(group("You will get back:", env.card.back));
+
+    // Something can only be going wrong with an environment that is actually up.
+    if (env.status === "live") {
+      const foot = el("div", "foot");
+      const report = el("button", "ghost amber", "Report a problem");
+      report.type = "button";
+      report.addEventListener("click", event => {
+        event.stopPropagation();
+        openReportModal(env, onReport);
+      });
+      foot.appendChild(report);
+      box.appendChild(foot);
+    }
+
+    // What has been reported this session. Its own markup rather than group(): a
+    // ticket needs a status between its id and its subject, which group() has no
+    // shape for, since modules and patterns never carry one.
+    if (env.reportedTickets && env.reportedTickets.length) {
+      const reported = el("div", "group");
+      reported.appendChild(el("h3", null, "Issues reported"));
+
+      for (const ticket of env.reportedTickets) {
+        const line = el("div", "row");
+
+        const link = el("a", "id mono", ticket.id);
+        link.href = "#";
+        // Nothing behind it yet to open: it reads as a real ticket link, the same
+        // phosphor and underline as any other link on this page, without pretending
+        // there is a detail view here that this mock does not have.
+        link.addEventListener("click", event => {
+          event.preventDefault();
+          event.stopPropagation();
+        });
+        line.appendChild(link);
+
+        line.appendChild(chip(ticket.status, ticket.status === "Open" ? "amber" : "neutral"));
+        line.appendChild(el("span", "what", ticket.subject));
+
+        reported.appendChild(line);
+      }
+
+      box.appendChild(reported);
+    }
+
     return box;
+  }
+
+  // The next ticket a submitted report would open. In-memory only, like every other
+  // mocked write on this console: nothing here is a real Jira call, and nothing here
+  // survives a reload.
+  let nextTicketNumber = 1043;
+
+  /**
+   * "Report a problem", opened from a live environment's card. Simulates the same
+   * write Cindy's refused plan already makes for real in the fixture: a ticket, with
+   * a subject, a description, and the handful of fields a platform team would need to
+   * action it, none of which this page actually sends anywhere.
+   */
+  function openReportModal(env, onReport) {
+    const overlay = el("div", "modal-overlay");
+
+    const modal = el("div", "modal");
+    modal.setAttribute("role", "dialog");
+    modal.setAttribute("aria-modal", "true");
+
+    const head = el("div", "modal-head");
+    const headText = el("div");
+    const h2 = el("h2", null, "Report a problem");
+    h2.id = "reportTitle";
+    headText.appendChild(h2);
+    headText.appendChild(
+      el("div", "modal-sub", env.app + (env.deploymentId ? "  ·  " + env.deploymentId : ""))
+    );
+    head.appendChild(headText);
+    modal.setAttribute("aria-labelledby", "reportTitle");
+
+    const closeBtn = el("button", "modal-close", "✕");
+    closeBtn.type = "button";
+    closeBtn.setAttribute("aria-label", "Close");
+    head.appendChild(closeBtn);
+    modal.appendChild(head);
+
+    const form = el("form", "modal-form");
+
+    // What the platform team would need to action the ticket, filled in from what
+    // the console already knows, so the developer only ever types the two things
+    // only they know: what happened, and what they expected instead.
+    const context = el("div", "modal-context");
+    const fact = (label, value) => {
+      const span = el("span");
+      span.appendChild(document.createTextNode(label + ": "));
+      span.appendChild(el("strong", null, value));
+      return span;
+    };
+    context.appendChild(fact("Reporter", state.user.name));
+    context.appendChild(fact("Project", "PLAT"));
+    context.appendChild(fact("Issue type", "Bug"));
+    form.appendChild(context);
+
+    const error = el("p", "modal-error", "Add a subject and a description before you submit.");
+    error.hidden = true;
+    form.appendChild(error);
+
+    const subjectField = el("div", "modal-field");
+    const subjectLabel = el("label", null, "Subject");
+    subjectLabel.htmlFor = "reportSubject";
+    const subjectInput = el("input");
+    subjectInput.type = "text";
+    subjectInput.id = "reportSubject";
+    subjectInput.placeholder = "One line describing what is wrong";
+    subjectInput.maxLength = 120;
+    subjectField.appendChild(subjectLabel);
+    subjectField.appendChild(subjectInput);
+    form.appendChild(subjectField);
+
+    const descField = el("div", "modal-field");
+    const descLabel = el("label", null, "Description");
+    descLabel.htmlFor = "reportDescription";
+    const descInput = el("textarea");
+    descInput.id = "reportDescription";
+    descInput.placeholder =
+      "What happened, what you expected instead, and anything the platform team would need to reproduce it";
+    descField.appendChild(descLabel);
+    descField.appendChild(descInput);
+    form.appendChild(descField);
+
+    const priorityField = el("div", "modal-field");
+    const priorityLabel = el("label", null, "Priority");
+    priorityLabel.htmlFor = "reportPriority";
+    const prioritySelect = el("select");
+    prioritySelect.id = "reportPriority";
+    for (const level of ["Low", "Medium", "High"]) {
+      const option = el("option", null, level);
+      option.value = level;
+      if (level === "Medium") option.selected = true;
+      prioritySelect.appendChild(option);
+    }
+    priorityField.appendChild(priorityLabel);
+    priorityField.appendChild(prioritySelect);
+    form.appendChild(priorityField);
+
+    const actions = el("div", "modal-actions");
+    const cancelBtn = el("button", "ghost", "Cancel");
+    cancelBtn.type = "button";
+    const submitBtn = el("button", "primary", "Submit");
+    submitBtn.type = "submit";
+    actions.appendChild(cancelBtn);
+    actions.appendChild(submitBtn);
+    form.appendChild(actions);
+
+    modal.appendChild(form);
+    overlay.appendChild(modal);
+
+    function closeModal() {
+      overlay.remove();
+      document.removeEventListener("keydown", onKey);
+    }
+
+    function onKey(event) {
+      if (event.key === "Escape") closeModal();
+    }
+
+    overlay.addEventListener("click", event => {
+      if (event.target === overlay) closeModal();
+    });
+    closeBtn.addEventListener("click", closeModal);
+    cancelBtn.addEventListener("click", closeModal);
+    document.addEventListener("keydown", onKey);
+
+    form.addEventListener("submit", event => {
+      event.preventDefault();
+      const subject = subjectInput.value.trim();
+      const description = descInput.value.trim();
+
+      if (!subject || !description) {
+        error.hidden = false;
+        (subject ? descInput : subjectInput).focus();
+        return;
+      }
+      error.hidden = true;
+
+      // A short wait, the same shape as any other platform action: something is
+      // happening out there, and then it is done. Nothing here is stored; a real
+      // Jira call is the thing this stands in for.
+      actions.replaceChildren();
+      const wait = el("span", "modal-wait");
+      wait.appendChild(el("span", "spin"));
+      wait.appendChild(document.createTextNode("Creating the ticket"));
+      actions.appendChild(wait);
+
+      setTimeout(() => {
+        const ticketId = "PLAT-" + nextTicketNumber++;
+        // "Open" is the initial status of a newly filed bug in this Jira project,
+        // matching PLAT-1042: the one already on this page.
+        const status = "Open";
+
+        // Kept on the environment itself, not on the modal: the modal is thrown away
+        // when it closes, and the card is rebuilt from env every time it opens, so
+        // this is the one place a new ticket can actually live.
+        env.reportedTickets = env.reportedTickets || [];
+        env.reportedTickets.push({ id: ticketId, subject, status });
+        if (onReport) onReport();
+
+        form.textContent = "";
+        form.classList.add("modal-result");
+
+        const resultHead = el("div", "tickethead");
+        const line = el("div", "ticketline");
+        line.appendChild(el("span", "mono id", ticketId));
+        line.appendChild(chip(status, "amber"));
+        resultHead.appendChild(line);
+        resultHead.appendChild(el("p", "subject", subject));
+        form.appendChild(resultHead);
+
+        form.appendChild(
+          el("p", "notice", "Opened with your platform team. They will follow up in " + ticketId + ".")
+        );
+
+        const doneActions = el("div", "modal-actions");
+        const doneBtn = el("button", "primary", "Done");
+        doneBtn.type = "button";
+        doneBtn.addEventListener("click", closeModal);
+        doneActions.appendChild(doneBtn);
+        form.appendChild(doneActions);
+
+        doneBtn.focus();
+      }, 900);
+    });
+
+    document.body.appendChild(overlay);
+    subjectInput.focus();
   }
 
   let openMenu = null;
@@ -631,7 +861,10 @@
   const listed = [];
 
   for (const env of state.environments) {
-    const row = el("tr", "env");
+    // A destroyed environment is history, not something still running: the whole row
+    // reads in the same grey as its own status chip, rather than staying full strength
+    // everywhere except the one label that says so.
+    const row = el("tr", env.status === "destroyed" ? "env destroyed" : "env");
     row.tabIndex = 0;
     row.setAttribute("role", "button");
     row.setAttribute("aria-expanded", "false");
@@ -662,17 +895,10 @@
     path.appendChild(strip);
     row.appendChild(path);
 
-    const url = el("td", "url");
-    if (env.url) {
-      const link = el("a", null, env.url);
-      link.href = env.url;
-      link.title = env.url;
-      link.addEventListener("click", event => event.stopPropagation());
-      url.appendChild(link);
-    } else if (env.ticket) {
-      // A refusal that opened a ticket shows the ticket where the address would have
-      // been. The note said what the plan was waiting on; the ticket is that, with
-      // somebody's name on it, so the note would only be saying it twice.
+    // A request against the Platform Library, not traffic the app has served: the
+    // ticket a refusal opened, or none, because most plans never hit that boundary.
+    const requests = el("td", "requests");
+    if (env.ticket) {
       const link = el("a", "mono ticket", env.ticket);
       link.href = "#";
       link.title = "Show the ticket seaLeye.run opened";
@@ -681,23 +907,31 @@
         event.stopPropagation();
         showTicket(env);
       });
-      url.appendChild(link);
+      requests.appendChild(link);
     } else {
-      const none = el("span", "none", env.note || "none");
-      none.title = env.note || "none";
-      url.appendChild(none);
+      requests.appendChild(el("span", "none", "none"));
     }
-    row.appendChild(url);
-
-    row.appendChild(el("td", "mono", env.profile));
-    row.appendChild(el("td", "mono", String(env.deploys)));
-    row.appendChild(el("td", "mono last", env.last));
+    row.appendChild(requests);
 
     const holder = el("tr", "card");
     holder.hidden = true;
     const cell = el("td");
-    cell.colSpan = 10;
+    cell.colSpan = 7;
     holder.appendChild(cell);
+
+    // Draws whichever of the plan or the ticket into the cell, without touching
+    // whether the row is open. Shared by toggle(), which opens or closes the row,
+    // and refreshCard(), which redraws it in place while it is already open, so a
+    // ticket just reported shows up without the developer closing and reopening it.
+    const draw = wanted => {
+      cell.textContent = "";
+      cell.appendChild(wanted === "ticket" ? ticketPanel(env) : card(env, refreshCard));
+      holder.dataset.showing = wanted;
+    };
+
+    const refreshCard = () => {
+      if (!holder.hidden && holder.dataset.showing === "plan") draw("plan");
+    };
 
     const toggle = (what) => {
       const wanted = what || "plan";
@@ -708,9 +942,7 @@
         row.setAttribute("aria-expanded", "false");
         return;
       }
-      cell.textContent = "";
-      cell.appendChild(wanted === "ticket" ? ticketPanel(env) : card(env));
-      holder.dataset.showing = wanted;
+      draw(wanted);
       holder.hidden = false;
       row.setAttribute("aria-expanded", "true");
     };
