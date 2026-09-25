@@ -38,44 +38,48 @@
   <p class="note">Most of it is in the CLI too, for the power users and the agents out there.</p>
 
   <h2>The name</h2>
-  <p>Say it out loud: C-L-I dot run. The capital L is the only trick.</p>
+  <p>Say it out loud: C-L-I dot run.</p>
 
   <h2>The Founders</h2>
 
+  <div class="story">
+
   <p>
-    Dana Whitlock and Sam Okafor ran the developer platform group at Atlantic Seaboard
-    Bancorp, one of the biggest banks on the East Coast. Eleven hundred developers, a DevOps
-    shop of forty, and a catalog of pipelines, templates and golden paths that almost nobody
-    used unless they were made to.
+    <span class="lift">Dana Whitlock</span> and <span class="lift">Sam Okafor</span> ran the developer platform group at
+    <span class="lift">Atlantic Seaboard Bancorp</span>, one of the biggest banks on the East Coast. Eleven hundred
+    developers, a DevOps shop of forty, and a catalog of pipelines, templates and golden paths
+    that almost nobody used unless they were made to.
   </p>
 
   <p>
     They spent two years trying to fix that with better documentation, roadshows and a portal.
     Adoption moved when a mandate moved it and stopped when the mandate did. The thing they
-    eventually admitted to each other, over a bad coffee, was that they had been asking
-    developers to come to the platform. Developers live in a terminal, in a folder, with an
-    app that is not running yet. So they went there instead.
+    eventually admitted to each other, over a bad coffee, was that
+    <span class="lift">they had been asking developers to come to the platform</span>. Developers live in a terminal,
+    in a folder, with an app that is not running yet. <span class="lift">So they went there instead.</span>
   </p>
 
   <p>
-    Sam wrote a command over a weekend. It did one thing: from inside your folder, it built
+    <span class="lift">Sam wrote a command over a weekend.</span> It did one thing: from inside your folder, it built
     you a dev environment and put your code in it. No form, no ticket, no reading.
-    <code>cd your-app</code>, one command, a URL. It was meant to be a wedge. It turned out to be the crack
-    that burst the dam. Within a quarter more than half the bank's teams had run it, and then
-    they came back asking for the rest: a change to what it built, a look at what was running,
-    a way to move a build through the test stages, a service nobody at the bank had used
-    before. And, and, and.
+    <code>cd your-app</code>, one command, a URL. It was meant to be a wedge. It turned out to be
+    <span class="lift">the crack that burst the dam</span>. Within a quarter more than half the bank's teams had run it,
+    and then they came back asking for the rest: a change to what it built, a look at what was
+    running, a way to move a build through the test stages, a service nobody at the bank had used
+    before. And so on. The flood of requests kept coming.
   </p>
 
   <p>
-    That was the product, hiding inside an adoption problem. When agentic build became real,
+    <span class="lift">That was the product, hiding inside an adoption problem.</span> When agentic build became real,
     the two friends and partners decided it was time to bring it out of the bank and to
-    everyone else. seaLeye.run is the front door: developers get started in one command, with
+    everyone else. <span class="lift">seaLeye.run is the front door</span>: developers get started in one command, with
     agents getting them exactly the infrastructure they need exactly when they need it.
-    seaLeye.online is the rest of that infrastructure's life: usage, costs, optimization,
+    <span class="lift">seaLeye.online is the rest of that infrastructure's life</span>: usage, costs, optimization,
     quiescing and decommissioning, in one place. Most of it is in the CLI too, for the power
     users and the agents out there.
   </p>
+
+  </div>
 
   <div class="people">
     <div class="person">
@@ -96,17 +100,19 @@
 
   <h2>For platform teams</h2>
 
+  <div class="story">
+
   <p>
-    Publish the CLI to your internal registry, so the line your developers run is your own:
+    <span class="lift">Publish the CLI to your internal registry</span>, so the line your developers run is your own:
     <code>npm install -g @northline/sealeye</code>. Nothing else changes for them. seaLeye uses the
-    cloud credentials the developer already has, and the environment it builds is in your account.
+    cloud credentials the developer already has, and <span class="lift">the environment it builds is in your account</span>.
   </p>
 
   <p>
-    Then connect your Platform Library. Every module seaLeye knows about carries an availability.
-    <span class="out">available</span> means seaLeye builds it today.
-    <span class="out">planned</span> means your platform team has agreed to support it and it has not
-    shipped. <span class="out">requested</span> means an app has turned out to need it and nobody has
+    <span class="lift">Then connect your Platform Library.</span> Every module seaLeye knows about carries an availability.
+    <span class="lift">available</span> means seaLeye builds it today.
+    <span class="lift">planned</span> means your platform team has agreed to support it and it has not
+    shipped. <span class="lift">requested</span> means an app has turned out to need it and nobody has
     agreed to it yet. The interview may select any of them, and the plan records what the app
     actually needs rather than only what can be built this afternoon.
   </p>
@@ -114,15 +120,17 @@
   <p>
     When a plan names a module that is not in the catalog, the platform declines to deploy it and
     says which parts it cannot build. The plan is still valid and still saved next to the code.
-    That refusal is the signal you want: it names, in your developers' own words, what your
-    Platform Library is missing and who is waiting for it. Connect the library and the same plan
-    deploys as written, with nothing for the developer to redo.
+    <span class="lift">That refusal is the signal you want</span>: it names, in your developers' own words,
+    <span class="lift">what your Platform Library is missing and who is waiting for it</span>. Connect the library and the
+    same plan deploys as written, with nothing for the developer to redo.
   </p>
 
   <p>
-    Every environment seaLeye builds shows up in
+    <span class="lift">Every environment seaLeye builds</span> shows up in
     <a href="online.html">seaLeye.online</a>, with what it costs, what it is doing and who owns it.
   </p>
+
+  </div>
 
 </main>
 

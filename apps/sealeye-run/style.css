@@ -249,6 +249,15 @@ pre.term .f  { color: var(--fg); }         /* typed commands and module names */
 .release ul { margin-top: 8px; }
 .release li { color: var(--fg); }
 
+/* ---- The founders story ---- */
+
+/* Four paragraphs is a lot of high contrast text to hand somebody at once. The story
+   sits at Dim and reads as background, with the names and the turns of the argument
+   lifted to Foreground so the eye has somewhere to land. Colour carries the emphasis,
+   not weight: this is the terminal direction, where nothing is bold for effect. */
+.story p { color: var(--dim); }
+.story .lift, .story code { color: var(--fg); }
+
 /* ---- People ---- */
 
 .people { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 20px; }
