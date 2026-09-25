@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>seaLeye.run docs</title>
+<meta name="description" content="Install seaLeye, the commands, four walkthroughs with real terminal output, and what leaves your machine.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="site-head">
+  <a class="home" href="index.html"><img src="sealeye-wordmark.svg" alt="seaLeye.run"></a>
+  <nav class="site-nav">
+    <a href="docs.html" aria-current="page">Docs</a>
+    <a href="about.html">About</a>
+    <a href="contact.html">Contact</a>
+    <a class="go" href="online.html">Go Online</a>
+  </nav>
+</header>
+
+<main>
+
+  <h1>Docs</h1>
+
+  <h2>Install</h2>
+  <div class="block">
+    <code><span class="line"><span class="prompt">$</span> <span class="cmd">npm install -g sealeye</span></span><span class="line"><span class="prompt">$</span> <span class="cmd">sealeye</span></span><span class="line out">seaLeye.run  ·  cd your-app &amp;&amp; sealeye run   v2.14.2</span></code>
+  </div>
+
+  <p class="note">Nothing else to set up. seaLeye uses the cloud credentials you already have.</p>
+
+  <p class="note aside">At Northline Bank: your platform team publishes seaLeye to your internal registry, so the line is</p>
+  <div class="block">
+    <code><span class="prompt">$</span> <span class="cmd">npm install -g @northline/sealeye</span></code>
+  </div>
+
+  <h2>Commands</h2>
+  <p class="note">This is <code>sealeye --help</code>, reproduced. It carries no per-command description, so none is written here.</p>
+
+  <div class="ref">
+    <div class="row"><code class="syn">sealeye run [--answers &lt;file&gt;] [--team-context] [--watch] [--api &lt;url&gt;]</code></div>
+    <div class="row"><code class="syn">sealeye deploy --file &lt;plan.yaml&gt; [--app &lt;path&gt;] [--api &lt;url&gt;] [--json] [--watch]</code></div>
+    <div class="row"><code class="syn">sealeye validate --file &lt;plan.yaml&gt; [--api &lt;url&gt;] [--json]</code></div>
+    <div class="row"><code class="syn">sealeye status &lt;deploymentId&gt; [--api &lt;url&gt;] [--json]</code></div>
+    <div class="row"><code class="syn">sealeye watch &lt;deploymentId&gt; [--api &lt;url&gt;]</code></div>
+    <div class="row"><code class="syn">sealeye destroy &lt;app | deploymentId&gt; [--api &lt;url&gt;]</code></div>
+    <div class="row"><code class="syn">sealeye list [--deployments] [--all] [--api &lt;url&gt;] [--json]</code></div>
+  </div>
+
+  <h3>Options</h3>
+  <div class="opts">
+    <div class="row"><span class="flag">-f, --file</span><span class="what">path to your plan YAML</span></div>
+    <div class="row"><span class="flag">--app</span><span class="what">folder to deploy (default: the current folder)</span></div>
+    <div class="row"><span class="flag">-b, --backend</span><span class="what">cloudformation (default: cloudformation)</span></div>
+    <div class="row"><span class="flag">--answers</span><span class="what">with run: answer the interview from a file, one line per question, for rehearsals. Never answers "Deploy this?": that stays yours</span></div>
+    <div class="row"><span class="flag">--team-context</span><span class="what">with run: after a refusal, say whether another team has hit the same boundary (reads a local fixture)</span></div>
+    <div class="row"><span class="flag">--watch</span><span class="what">with run or deploy: stay on the live panel until the deployment finishes, instead of watching in the background and notifying you</span></div>
+    <div class="row"><span class="flag">--all</span><span class="what">with list: include environments you have torn down</span></div>
+    <div class="row"><span class="flag">--deployments</span><span class="what">with list: every deploy, instead of one row per environment</span></div>
+    <div class="row"><span class="flag">--api</span><span class="what">platform API base URL (default: http://localhost:3000)</span></div>
+    <div class="row"><span class="flag">--json</span><span class="what">machine-readable output</span></div>
+    <div class="row"><span class="flag">-h, --help</span><span class="what">show help</span></div>
+  </div>
+
+  <h2>Walkthroughs</h2>
+
+  <h3>Your first environment</h3>
+  <p>
+    You are standing in a folder with an app in it and nothing else. seaLeye reads the folder,
+    asks what the app is for, shows you what it is going to build, and waits. Only <code>y</code>
+    goes any further. The live panel below is trimmed where it redraws itself in place.
+  </p>
+  <pre class="term"><span class="a">                __</span>
+<span class="a">  ___ ___ ___ _/ /  ___ __ _____</span>
+<span class="a"> (_-&lt;/ -_) _ `/ /__/ -_) // / -_)</span>
+<span class="a">/___/\__/\_,_/____/\__/\_, /\__/</span>
+<span class="a">                      /___/</span>
+<span class="d">seaLeye.run  ·  cd your-app &amp;&amp; sealeye run   v2.14.2</span>
+
+<span class="d">  Reading your app</span>
+<span class="d">  Reading index.js</span>
+<span class="d">  Reading README.md</span>
+<span class="d">  Looking at .</span>
+
+<span class="d">  This looks like a small HTTP service, an Express app with one lookup route, no database or environment settings beyond the port.</span>
+<span class="p">? What is this for? Are you trying something out, or is this headed for the pipeline to production? If it is neither, tell me what you are trying to do. </span><span class="a">It's headed for the pipeline to production.</span>
+<span class="d">  Checking the plan against the seaLeye.run plan contract</span>
+
+<span class="d">  ┌────────────────────────────────────────────────────────────────────────────┐</span>
+<span class="d">  │ Your app:                                                                  │</span>
+<span class="d">  │   beneficiary-lookup-api, a Node.js API that starts with index.js          │</span>
+<span class="d">  ├────────────────────────────────────────────────────────────────────────────┤</span>
+<span class="d">  │ We will build your dev environment with:                                   │</span>
+<span class="d">  │   </span><span class="f">http_api_serverless</span><span class="d">  Runs your code on demand behind an HTTPS endpoint.  │</span>
+<span class="d">  │   </span><span class="f">observability_basic</span><span class="d">  Collects your app's logs and tracks requests,       │</span>
+<span class="d">  │                        errors and response times.                          │</span>
+<span class="d">  ├────────────────────────────────────────────────────────────────────────────┤</span>
+<span class="d">  │ You will get back:                                                         │</span>
+<span class="d">  │   A public HTTPS address, as soon as it is live                            │</span>
+<span class="d">  │   Your logs and basic metrics, kept for 30 days                            │</span>
+<span class="d">  │   A plan your later environments are built from                            │</span>
+<span class="d">  └────────────────────────────────────────────────────────────────────────────┘</span>
+
+<span class="d">  Full plan, and every assumption seaLeye.run made: DEPLOYMENT_PLAN.md</span>
+<span class="d">  Wrote ~/code/beneficiary-lookup-api/DEPLOYMENT_PLAN.md</span>
+<span class="d">  Wrote ~/code/beneficiary-lookup-api/deployme.yaml</span>
+
+<span class="p">? Deploy this? [y/N] </span><span class="a">y</span>
+<span class="d">  Handing ~/code/beneficiary-lookup-api to seaLeye.run to build your environment</span>
+
+<span class="d">Deployment: </span><span class="f">dep_824dce107b24</span>
+<span class="d">Status:     </span><span class="f">packaging</span>
+<span class="d">App:        </span><span class="f">beneficiary-lookup-api (api)</span>
+<span class="d">Stack:      </span><span class="f">sealeye-beneficiary-lookup-api</span>
+<span class="d">Started:    </span><span class="f">2026-09-25T18:18:36.137Z</span>
+<span class="f">You asked for:</span>
+<span class="d">  http_api_serverless</span>
+<span class="d">  observability_basic</span>
+
+<span class="d">Status: </span><span class="f">packaging.</span>
+
+<span class="d">  [ ... the watch redraws in place; frames omitted ... ]</span>
+
+<span class="d">Deployment: </span><span class="f">dep_824dce107b24</span>
+<span class="d">Status:     </span><span class="f">succeeded</span>
+<span class="d">App:        </span><span class="f">beneficiary-lookup-api (api)</span>
+<span class="d">Stack:      </span><span class="f">sealeye-beneficiary-lookup-api (CREATE_COMPLETE)</span>
+<span class="d">URL:        </span><span class="f">https://oyobbr4ii2.execute-api.ca-central-1.amazonaws.com</span>
+<span class="d">Logs:       </span><span class="f">/aws/lambda/beneficiary-lookup-api</span>
+<span class="d">Started:    </span><span class="f">2026-09-25T18:18:36.137Z</span>
+<span class="d">Finished:   </span><span class="f">2026-09-25T18:19:42.528Z</span>
+<span class="f">You asked for:</span>
+<span class="d">  http_api_serverless</span>
+<span class="d">  observability_basic</span>
+
+<span class="d">Status: </span><span class="f">succeeded..</span>
+
+<span class="a">✓ Your app is live at https://oyobbr4ii2.execute-api.ca-central-1.amazonaws.com</span>
+<span class="d">  Wrote ~/code/beneficiary-lookup-api/DEPLOYMENT_REPORT.md</span></pre>
+
+  <h3>Running it again</h3>
+  <p>
+    The app changed: it now reads two settings from its environment. Nothing else about the
+    folder moved. Running seaLeye again offers you the plan you already have, and
+    <code>s</code> starts over so it looks at the app as it is now. It finds the two settings and
+    adds the module that passes them through, and this time it asks nothing at all, because the
+    folder answered everything.
+  </p>
+  <pre class="term"><span class="a">                __</span>
+<span class="a">  ___ ___ ___ _/ /  ___ __ _____</span>
+<span class="a"> (_-&lt;/ -_) _ `/ /__/ -_) // / -_)</span>
+<span class="a">/___/\__/\_,_/____/\__/\_, /\__/</span>
+<span class="a">                      /___/</span>
+<span class="d">seaLeye.run  ·  cd your-app &amp;&amp; sealeye run   v2.14.2</span>
+
+<span class="f">beneficiary-lookup-api already has a live environment.</span>
+<span class="d">  https://oyobbr4ii2.execute-api.ca-central-1.amazonaws.com</span>
+<span class="d">  deployed 1 minute ago, running http_api_serverless and observability_basic</span>
+<span class="f">This run will update that environment. It will not create a second one.</span>
+
+<span class="p">? Continue? [y/N] </span><span class="a">y</span>
+
+<span class="p">? A plan already exists. Reuse it (r), start over (s)? </span><span class="a">s</span>
+<span class="d">  Reading your app</span>
+<span class="d">  Reading index.js</span>
+<span class="d">  Reading .env</span>
+<span class="d">  Reading README.md</span>
+<span class="d">  Reading deployme.yaml</span>
+<span class="d">  Reading DEPLOYMENT_PLAN.md</span>
+<span class="d">  Reading DEPLOYMENT_REPORT.md</span>
+<span class="d">  Checking the plan against the seaLeye.run plan contract</span>
+
+<span class="d">  ┌────────────────────────────────────────────────────────────────────────────┐</span>
+<span class="d">  │ Your app:                                                                  │</span>
+<span class="d">  │        beneficiary-lookup-api, a Node.js API that starts with index.js     │</span>
+<span class="d">  ├────────────────────────────────────────────────────────────────────────────┤</span>
+<span class="d">  │ We will change this environment:                                           │</span>
+<span class="d">  │        </span><span class="f">http_api_serverless</span><span class="d">  Runs your code on demand behind an HTTPS       │</span>
+<span class="d">  │                             endpoint.                                      │</span>
+<span class="d">  │        </span><span class="f">observability_basic</span><span class="d">  Collects your app's logs and tracks requests,  │</span>
+<span class="d">  │                             errors and response times.                     │</span>
+<span class="d">  │   </span><span class="f">new</span><span class="d">  config_basic         Passes the settings your app reads from its    │</span>
+<span class="d">  │                             environment through to it when it runs.        │</span>
+<span class="d">  │   </span><span class="f">new</span><span class="d">  the settings it passes through: PAYMENTS_SOR_URL,                   │</span>
+<span class="d">  │        CACHE_MAX_AGE_MINUTES                                               │</span>
+<span class="d">  ├────────────────────────────────────────────────────────────────────────────┤</span>
+<span class="d">  │ You will get back:                                                         │</span>
+<span class="d">  │        A public HTTPS address, as soon as it is live                       │</span>
+<span class="d">  │        Your logs and basic metrics, kept for 30 days                       │</span>
+<span class="d">  │        A plan your later environments are built from                       │</span>
+<span class="d">  └────────────────────────────────────────────────────────────────────────────┘</span>
+
+<span class="d">  Full plan, and every assumption seaLeye.run made: DEPLOYMENT_PLAN.md</span>
+<span class="d">  Wrote ~/code/beneficiary-lookup-api/DEPLOYMENT_PLAN.md</span>
+<span class="d">  Wrote ~/code/beneficiary-lookup-api/deployme.yaml</span>
+
+<span class="p">? Deploy this? [y/N] </span><span class="a">y</span>
+<span class="d">  Handing ~/code/beneficiary-lookup-api to seaLeye.run to build your environment</span>
+
+<span class="d">Deployment: </span><span class="f">dep_f83c7499e779</span>
+<span class="d">Status:     </span><span class="f">packaging</span>
+<span class="d">App:        </span><span class="f">beneficiary-lookup-api (api)</span>
+<span class="d">Stack:      </span><span class="f">sealeye-beneficiary-lookup-api</span>
+<span class="d">Started:    </span><span class="f">2026-09-25T18:20:40.893Z</span>
+<span class="f">You asked for:</span>
+<span class="d">  http_api_serverless</span>
+<span class="d">  observability_basic</span>
+<span class="d">  config_basic</span>
+
+<span class="d">Status: </span><span class="f">packaging.</span>
+
+<span class="d">  [ ... the watch redraws in place; frames omitted ... ]</span>
+
+<span class="d">Deployment: </span><span class="f">dep_f83c7499e779</span>
+<span class="d">Status:     </span><span class="f">succeeded</span>
+<span class="d">App:        </span><span class="f">beneficiary-lookup-api (api)</span>
+<span class="d">Stack:      </span><span class="f">sealeye-beneficiary-lookup-api (UPDATE_COMPLETE)</span>
+<span class="d">URL:        </span><span class="f">https://oyobbr4ii2.execute-api.ca-central-1.amazonaws.com</span>
+<span class="d">Logs:       </span><span class="f">/aws/lambda/beneficiary-lookup-api</span>
+<span class="d">Started:    </span><span class="f">2026-09-25T18:20:40.893Z</span>
+<span class="d">Finished:   </span><span class="f">2026-09-25T18:21:10.035Z</span>
+<span class="f">You asked for:</span>
+<span class="d">  http_api_serverless</span>
+<span class="d">  observability_basic</span>
+<span class="d">  config_basic</span>
+
+<span class="d">Status: </span><span class="f">succeeded...</span>
+
+<span class="a">✓ Your app is live at https://oyobbr4ii2.execute-api.ca-central-1.amazonaws.com</span>
+<span class="d">  Wrote ~/code/beneficiary-lookup-api/DEPLOYMENT_REPORT.md</span></pre>
+
+  <h3>When it says no</h3>
+  <p>
+    Not every app fits what the catalog can build today. This one reads a stream, keeps a
+    database connection open and must not be reachable from the internet. seaLeye writes the plan
+    the app actually needs, says plainly which parts it cannot build, and saves the plan anyway.
+    With <code>--team-context</code> it also tells you that somebody else has already been here.
+  </p>
+  <pre class="term"><span class="a">                __</span>
+<span class="a">  ___ ___ ___ _/ /  ___ __ _____</span>
+<span class="a"> (_-&lt;/ -_) _ `/ /__/ -_) // / -_)</span>
+<span class="a">/___/\__/\_,_/____/\__/\_, /\__/</span>
+<span class="a">                      /___/</span>
+<span class="d">seaLeye.run  ·  cd your-app &amp;&amp; sealeye run   v2.14.2</span>
+
+<span class="d">  Reading your app</span>
+<span class="d">  Reading index.js</span>
+<span class="d">  Reading README.md</span>
+<span class="d">  Looking at .</span>
+
+<span class="d">  This reads events from a payment stream continuously, checks each payment's payee, and writes signed outcomes to a database, with a health check but no public-facing API. It also says plainly it must stay off the public internet.</span>
+<span class="p">? What is this for? Are you trying something out, or is this headed for the pipeline to production? If it is neither, tell me what you are trying to do. </span><span class="a">production</span>
+<span class="d">  Checking the plan against the seaLeye.run plan contract</span>
+
+<span class="d">  ┌────────────────────────────────────────────────────────────────────────────┐</span>
+<span class="d">  │ Your app:                                                                  │</span>
+<span class="d">  │   payment-events-processor, a service that runs continuously               │</span>
+<span class="d">  ├────────────────────────────────────────────────────────────────────────────┤</span>
+<span class="d">  │ We will build your dev environment with:                                   │</span>
+<span class="d">  │   </span><span class="f">observability_basic</span><span class="d">  Collects your app's logs and tracks requests,       │</span>
+<span class="d">  │                        errors and response times.                          │</span>
+<span class="d">  │   </span><span class="f">config_basic</span><span class="d">         Passes the settings your app reads from its         │</span>
+<span class="d">  │                        environment through to it when it runs.             │</span>
+<span class="d">  │   </span><span class="f">compute_container</span><span class="d">    A service that runs continuously, for an app that   │</span>
+<span class="d">  │                        cannot start fresh on every request. (planned)      │</span>
+<span class="d">  │   </span><span class="f">data_relational</span><span class="d">      A managed relational database your app connects to, │</span>
+<span class="d">  │                        kept patched and backed up for you. (planned)       │</span>
+<span class="d">  │   </span><span class="f">events_stream</span><span class="d">        A stream your services publish events to and read   │</span>
+<span class="d">  │                        events from, in the order they happened. (planned)  │</span>
+<span class="d">  │   </span><span class="f">secrets_basic</span><span class="d">        Secrets your app reads while it runs, kept out of   │</span>
+<span class="d">  │                        your code and out of your plan. (planned)           │</span>
+<span class="d">  │   </span><span class="f">network_private</span><span class="d">      Your app is reachable from inside your organization │</span>
+<span class="d">  │                        only. (planned)                                     │</span>
+<span class="d">  │   the settings it passes through: KAFKA_BROKERS, BENEFICIARY_API_URL       │</span>
+<span class="d">  ├────────────────────────────────────────────────────────────────────────────┤</span>
+<span class="d">  │ Patterns your dev environment applies:                                     │</span>
+<span class="d">  │   </span><span class="f">data_relational</span><span class="d">    A single zone, with backups kept and restorable.      │</span>
+<span class="d">  │   </span><span class="f">compute_container</span><span class="d">  Runs continuously in a single zone, replaced when it  │</span>
+<span class="d">  │                      stops being well.                                     │</span>
+<span class="d">  ├────────────────────────────────────────────────────────────────────────────┤</span>
+<span class="d">  │ You will get back:                                                         │</span>
+<span class="d">  │   A private address inside your organization's network, as soon as it is   │</span>
+<span class="d">  │   </span><span class="f">live</span><span class="d">                                                                     │</span>
+<span class="d">  │   Your logs and basic metrics, kept for 30 days                            │</span>
+<span class="d">  │   A plan your later environments are built from                            │</span>
+<span class="d">  └────────────────────────────────────────────────────────────────────────────┘</span>
+
+<span class="d">  Full plan, and every assumption seaLeye.run made: DEPLOYMENT_PLAN.md</span>
+<span class="d">  Wrote ~/code/payment-events-processor/DEPLOYMENT_PLAN.md</span>
+<span class="d">  Wrote ~/code/payment-events-processor/deployme.yaml</span>
+
+<span class="d">  5 of these modules are not in the catalog yet. seaLeye.run will save this plan and tell you what would make it deployable.</span>
+
+<span class="p">? Deploy this? [y/N] </span><span class="a">y</span>
+<span class="d">  Handing ~/code/payment-events-processor to seaLeye.run to build your environment</span>
+
+<span class="p">✗ seaLeye.run cannot build this environment yet.</span>
+
+<span class="d">  Your plan is valid and saved in DEPLOYMENT_PLAN.md. Five of its modules are</span>
+<span class="d">  not in the seaLeye catalog:</span>
+
+<span class="f">    compute_container  a service that runs continuously rather than on demand</span>
+<span class="f">    data_relational    a managed relational database your app connects to</span>
+<span class="f">    events_stream      a stream your services publish to and read from</span>
+<span class="f">    secrets_basic      secrets your app reads at runtime, never stored in code</span>
+<span class="f">    network_private    your app is not reachable from the public internet</span>
+
+<span class="d">  These modules come from your organization's Platform Library. Once seaLeye.run is</span>
+<span class="d">  connected to Northline Bank's, this plan deploys as written.</span>
+
+<span class="d">  This app has hit the catalog boundary before.</span>
+<span class="f">    Cindy R. (Money Movement)  ·  1 hour ago  ·  the same 5 modules</span>
+<span class="f">    Ticket PLAT-1042 is open with your platform team.</span>
+
+<span class="p">? Show the ticket here, open it in Jira, or skip? [here/open/skip] </span><span class="a">here</span>
+
+<span class="d">  PLAT-1042  Open</span>
+<span class="d">  Catalog gap: 5 modules for payment-events-processor (Money Movement)</span>
+
+<span class="d">  Opened by seaLeye.run from a refused plan.</span>
+<span class="d">  App: payment-events-processor, team Money Movement, requested by Cindy R.</span>
+<span class="d">  Profile: dev, designed for production.</span>
+<span class="d">  Modules not in the catalog: compute_container, data_relational, events_stream, secrets_basic, network_private.</span>
+<span class="d">  The plan is attached from the developer's repo (DEPLOYMENT_PLAN.md).</span>
+<span class="d">  This is the second team to hit this boundary this month.</span></pre>
+
+  <h3>The rest</h3>
+  <p>
+    <code>list</code> is one row per environment, with <code>--deployments</code> for every deploy
+    and <code>--all</code> to include the ones you have torn down. Every command prints the banner first; it is shown once above and marked where it was trimmed below.
+  </p>
+  <pre class="term"><span class="p">$</span> <span class="f">sealeye list</span>
+<span class="d">  [ ... the banner every command prints is trimmed here ... ]</span>
+<span class="f">APP             STATUS     URL                                                                       DEPLOYS  LAST</span>
+<span class="f">sealeye-run     succeeded  http://sealeye-run-682542496821.s3-website.ca-central-1.amazonaws.com     5        7m ago</span>
+<span class="f">sealeye-online  succeeded  http://sealeye-online-682542496821.s3-website.ca-central-1.amazonaws.com  21       1d ago</span>
+<span class="d">  11 torn down and hidden, see --all</span>
+<span class="d">  One row per environment. sealeye list --deployments shows every deploy.</span></pre>
+
+  <p class="note aside"><code>status</code> takes a deployment id and answers in one panel.</p>
+  <pre class="term"><span class="p">$</span> <span class="f">sealeye status dep_5fe5857404e5</span>
+<span class="d">  [ ... the banner every command prints is trimmed here ... ]</span>
+<span class="d">Deployment: </span><span class="f">dep_5fe5857404e5</span>
+<span class="d">Status:     </span><span class="f">succeeded</span>
+<span class="d">App:        </span><span class="f">sealeye-run (static-site)</span>
+<span class="d">Stack:      </span><span class="f">sealeye-sealeye-run (CREATE_COMPLETE)</span>
+<span class="d">URL:        </span><span class="f">http://sealeye-run-682542496821.s3-website.ca-central-1.amazonaws.com</span>
+<span class="d">Bucket:     </span><span class="f">sealeye-run-682542496821</span>
+<span class="d">Started:    </span><span class="f">2026-09-24T19:01:42.400Z</span>
+<span class="d">Finished:   </span><span class="f">2026-09-24T19:01:48.317Z</span>
+<span class="f">You asked for:</span>
+<span class="d">  static_site_edge</span>
+<span class="d">  observability_basic</span></pre>
+
+  <p class="note aside"><code>validate</code> checks a plan against the contract without building anything.</p>
+  <pre class="term"><span class="p">$</span> <span class="f">sealeye validate -f deployme.yaml</span>
+<span class="d">  [ ... the banner every command prints is trimmed here ... ]</span>
+<span class="d">  Reading your plan from deployme.yaml</span>
+<span class="d">  Checking it against the seaLeye.run plan contract</span>
+<span class="a">✓ Your plan is valid</span></pre>
+
+  <p class="note aside"><code>watch</code> follows a deployment, and writes the report next to your code when it lands.</p>
+  <pre class="term"><span class="p">$</span> <span class="f">sealeye watch dep_5fe5857404e5</span>
+<span class="d">  [ ... the banner every command prints is trimmed here ... ]</span>
+<span class="d">Deployment: </span><span class="f">dep_5fe5857404e5</span>
+<span class="d">Status:     </span><span class="f">succeeded</span>
+<span class="d">App:        </span><span class="f">sealeye-run (static-site)</span>
+<span class="d">Stack:      </span><span class="f">sealeye-sealeye-run (CREATE_COMPLETE)</span>
+<span class="d">URL:        </span><span class="f">http://sealeye-run-682542496821.s3-website.ca-central-1.amazonaws.com</span>
+<span class="d">Bucket:     </span><span class="f">sealeye-run-682542496821</span>
+<span class="d">Started:    </span><span class="f">2026-09-24T19:01:42.400Z</span>
+<span class="d">Finished:   </span><span class="f">2026-09-24T19:01:48.317Z</span>
+<span class="f">You asked for:</span>
+<span class="d">  static_site_edge</span>
+<span class="d">  observability_basic</span>
+
+<span class="d">Status: </span><span class="f">succeeded</span>
+
+<span class="a">✓ Your app is live at http://sealeye-run-682542496821.s3-website.ca-central-1.amazonaws.com</span>
+<span class="d">  Wrote ~/code/sealeye-run/DEPLOYMENT_REPORT.md</span></pre>
+
+  <p class="note aside"><code>destroy</code> takes the app name and deletes the environment.</p>
+  <pre class="term"><span class="p">$</span> <span class="f">sealeye destroy beneficiary-lookup-api</span>
+<span class="d">  [ ... the banner every command prints is trimmed here ... ]</span>
+<span class="d">  Asking seaLeye.run to tear down beneficiary-lookup-api (dep_f83c7499e779)</span>
+<span class="d">  Checking what is still there</span>
+<span class="d">  Deleting the stack sealeye-beneficiary-lookup-api</span>
+
+<span class="a">✓ Everything seaLeye.run created for beneficiary-lookup-api is gone</span>
+<span class="d">  Removed 3 local build file(s)</span></pre>
+
+  <h2>What leaves your machine</h2>
+
+  <p>
+    <strong>The interview reads your folder, and what it reads goes to the model that writes the
+    plan.</strong> It has two read-only tools: one lists the names in a folder, one reads a text
+    file. Both are resolved inside the folder you ran it in, symlinks included, and refused if
+    they land outside it or inside <code>node_modules</code>, <code>.git</code> or seaLeye's own
+    directory. A listing returns at most 40 entries and a file is truncated at 20 KB. The
+    contents of the files it reads are sent to the model, along with your answers, because that
+    is what the plan is written from.
+  </p>
+
+  <p>
+    <strong>What is handed to the executor is a copy of your folder.</strong> Your folder itself
+    is never written to except for the two plan files and the report. The copy excludes
+    <code>node_modules</code>, <code>.git</code> and your environment file, dependencies are
+    installed into the copy, and the copy is what is zipped and uploaded to your own storage.
+    Your environment file is deliberately left out of it: its values are passed to your app as
+    real environment variables instead, so shipping the file as well would put your secrets
+    inside the artifact for no gain. Those values travel as parameters marked so that they are not
+    shown in the cloud console, in the stack's event log, or when the template is read back.
+  </p>
+
+  <p>
+    <strong>The record of what is deployed is kept on your machine</strong>, in seaLeye's own
+    directory under your home directory. That file is how <code>list</code>, <code>status</code>
+    and <code>destroy</code> know what exists.
+  </p>
+
+  <p>
+    <strong>The cloud credentials are your own and are not sent to seaLeye.</strong> Every cloud
+    call is made by shelling out to the cloud CLI already installed on your machine, so the
+    credentials that CLI uses are the credentials seaLeye uses. If you keep them in seaLeye's own
+    config file rather than in your shell, seaLeye loads them into the environment it hands to
+    that CLI, and nowhere else. They are never transmitted anywhere, never written into your plan
+    or your report, and never put inside the artifact.
+  </p>
+
+  <p>
+    <strong>The plan and the report are written next to your code and are yours.</strong> The
+    plan file and the human readable plan are written into your folder before you are asked to
+    confirm, and the report is written there when the environment is live. Nothing else writes
+    into your folder. A plan already there is offered back to you rather than overwritten,
+    because you may have edited it.
+  </p>
+
+  <h2>FAQ</h2>
+
+  <h3>What is a profile?</h3>
+  <p>
+    A profile says what your plan is designed for, not where this run goes. Every run builds a dev
+    environment. <code>poc</code> is a single zone, started on demand, nothing kept warm.
+    <code>dev</code> is a team using it every day, with backups kept and failed work held onto.
+    <code>prod</code> is data across more than one zone, capacity warm on the request path, a
+    queue in front of anything that bursts, and alarms on errors and latency. The profile is
+    recorded in your plan and applied by the pipeline to the environments it builds later.
+  </p>
+
+  <h3>What happens the second time I run it?</h3>
+  <p>
+    seaLeye tells you the app already has a live environment, shows you its URL and waits for a
+    <code>y</code> before going on. If a plan is already in your folder it offers to reuse it or
+    to start over. Start over and it looks at your app as it is now, and the card becomes a diff
+    against what is deployed: unchanged, changed, new or removed. When nothing has moved, it says
+    so.
+  </p>
+
+  <h3>What if seaLeye says it cannot build my plan?</h3>
+  <p>
+    Your plan is valid and it is saved. The modules it names that are not in your catalog come
+    from your organization's Platform Library, and the refusal lists them in plain words. Once
+    seaLeye is connected to your organization's library, that same plan deploys as written, with
+    nothing for you to redo.
+  </p>
+
+  <h3>How do I tear an environment down?</h3>
+  <p>
+    <code>sealeye destroy &lt;app&gt;</code>, with the name of the app or a deployment id. That
+    deletes the environment and everything in it. A static site has its storage emptied first,
+    because an environment holding files will not delete. Nothing outside that environment is
+    touched.
+  </p>
+
+  <h3>Does it work outside AWS?</h3>
+  <p>
+    Not yet. One backend is supported, CloudFormation, in <code>ca-central-1</code>. The plan
+    contract does not name a cloud anywhere in it, so the plan you approve is not the thing that
+    would have to change.
+  </p>
+
+  <h3>Where does my plan live, and can I edit it?</h3>
+  <p>
+    Two files, both written into your own folder next to your code: the plan file seaLeye runs,
+    and a human readable version of it with every assumption spelled out. They are yours. Edit
+    them, commit them, and deploy an edited plan directly with <code>sealeye deploy -f</code>.
+    It is checked against the contract before anything is built, and a plan seaLeye finds already
+    in your folder is offered back to you rather than overwritten.
+  </p>
+
+</main>
+
+<!-- The version is written out by hand here and in every other page's footer. There is no
+     build step, so the next bump is a find and replace on 2.14.2 across apps/sealeye-run/. -->
+<footer>
+  seaLeye.run · sealeye <a href="changelog.html" class="version">v2.14.2</a> · <a href="changelog.html">changelog</a> · <a href="http://sealeye-online-682542496821.s3-website.ca-central-1.amazonaws.com">sealeye.online</a>
+</footer>
+
+</body>
+</html>

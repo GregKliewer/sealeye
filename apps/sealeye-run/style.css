@@ -1,0 +1,321 @@
+/* seaLeye.run site styles.
+   One stylesheet for every page. Colours come from brand/BRAND.md and nowhere else.
+   Terminal direction: Ground behind everything, Phosphor for the product and for good
+   news, Amber for anything that asks the developer something, Dim for what the
+   platform is doing. */
+
+:root {
+  --ground: #13181D;
+  --panel: #0E1216;
+  --edge: #2A333C;
+  --fg: #D9E0E6;
+  --phosphor: #7FD8C2;
+  --amber: #E8B04B;
+  --dim: #8A96A3;
+  --mono: "JetBrains Mono", "IBM Plex Mono", Menlo, monospace;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 28px 20px 64px;
+  background: var(--ground);
+  color: var(--fg);
+  font-family: var(--mono);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+main { max-width: 66ch; margin: 0 auto; }
+
+a { color: var(--phosphor); }
+
+/* ---- Site header, the same on every page ---- */
+
+.site-head {
+  max-width: 66ch;
+  margin: 0 auto 36px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px 20px;
+  flex-wrap: wrap;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--edge);
+}
+
+.site-head .home { display: block; line-height: 0; }
+.site-head .home img { width: 180px; max-width: 46vw; height: auto; display: block; }
+
+.site-nav { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+
+.site-nav a {
+  color: var(--dim);
+  text-decoration: none;
+}
+.site-nav a:hover, .site-nav a:focus-visible { color: var(--phosphor); }
+
+/* The page you are on names itself rather than pretending to be a way to leave. */
+.site-nav a[aria-current="page"] { color: var(--phosphor); }
+
+/* The one button on the site. */
+.site-nav a.go {
+  color: var(--phosphor);
+  border: 1px solid var(--phosphor);
+  border-radius: 6px;
+  padding: 5px 14px;
+}
+.site-nav a.go:hover, .site-nav a.go:focus-visible {
+  background: var(--phosphor);
+  color: var(--ground);
+}
+
+/* ---- Headings ---- */
+
+h1 {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--phosphor);
+  margin: 0 0 28px;
+}
+
+h2 {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 40px 0 12px;
+}
+
+h3 {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--dim);
+  margin: 28px 0 10px;
+}
+
+/* ---- Home page pieces, kept as they were ---- */
+
+header img { width: 100%; max-width: 420px; height: auto; display: block; }
+
+.tagline { color: var(--dim); margin: 12px 0 40px; }
+
+p.lede { margin: 0 0 32px; }
+p.lede .aside { color: var(--dim); }
+
+.block {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--panel);
+  border: 1px solid var(--edge);
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+
+.block code { flex: 1 1 22ch; word-break: break-all; }
+.block .line { display: block; }
+.out { color: var(--dim); }            /* what the terminal answered, not what you type */
+.aside { margin-top: 28px; }           /* the internal line sits apart from the public one */
+
+/* The browser will not tell a page where a folder lives, so the path in front of the
+   folder name is the developer's to set, and it looks editable because it is. */
+.parent {
+  font: inherit;
+  color: var(--dim);
+  background: transparent;
+  border: none;
+  border-bottom: 1px dashed var(--edge);
+  padding: 0 1px;
+  min-width: 2ch;
+}
+.parent:focus { outline: none; color: var(--fg); border-bottom-color: var(--phosphor); }
+.prompt { color: var(--amber); }
+.cmd { color: var(--fg); }
+.folder { color: var(--phosphor); }
+
+button {
+  font: inherit;
+  color: var(--dim);
+  background: transparent;
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+button:hover, button:focus-visible { color: var(--phosphor); border-color: var(--phosphor); }
+button[data-copied="yes"] { color: var(--phosphor); border-color: var(--phosphor); }
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--edge);
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.picker { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.picker label { color: var(--dim); }
+input[type="file"] { font: inherit; color: var(--dim); max-width: 100%; }
+input[type="file"]::file-selector-button {
+  font: inherit;
+  color: var(--dim);
+  background: transparent;
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  padding: 6px 12px;
+  margin-right: 12px;
+  cursor: pointer;
+}
+input[type="file"]::file-selector-button:hover { color: var(--phosphor); border-color: var(--phosphor); }
+
+.result { margin-top: 16px; }
+.result[hidden] { display: none; }
+.note { color: var(--dim); margin: 10px 0 0; }
+
+ul { list-style: none; padding: 0; margin: 0; }
+li { padding: 6px 0 6px 20px; position: relative; }
+li::before { content: "\2713"; position: absolute; left: 0; color: var(--phosphor); }
+li span { color: var(--dim); }
+
+/* A list that is prose rather than a promise gets no check mark. */
+ul.plain li { padding-left: 0; }
+ul.plain li::before { content: none; }
+
+/* ---- Terminal blocks ---- */
+
+/* A transcript is wider than the measure and must never widen the page, so it scrolls
+   inside its own box. Box drawing only lines up when nothing wraps. */
+pre.term {
+  background: var(--panel);
+  border: 1px solid var(--edge);
+  border-radius: 8px;
+  padding: 16px;
+  margin: 16px 0 0;
+  overflow-x: auto;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre;
+  tab-size: 2;
+}
+
+pre.term .p  { color: var(--amber); }      /* the $ prompt and every ? question */
+pre.term .a  { color: var(--phosphor); }   /* the developer's answers, and every check */
+pre.term .d  { color: var(--dim); }        /* step lines, the card frame, trimmed marks */
+pre.term .f  { color: var(--fg); }         /* typed commands and module names */
+
+/* ---- Reference tables ---- */
+
+.ref { margin: 16px 0 0; }
+
+.ref .row {
+  padding: 12px 0;
+  border-top: 1px solid var(--edge);
+}
+.ref .row:last-child { padding-bottom: 0; }
+
+.ref .syn {
+  display: block;
+  color: var(--fg);
+  overflow-x: auto;
+  white-space: pre;
+  padding-bottom: 2px;
+}
+.ref .what { display: block; color: var(--dim); }
+
+/* The options list keeps --help's own two column shape wherever there is room. */
+.opts { margin: 16px 0 0; }
+.opts .row { display: flex; gap: 16px; flex-wrap: wrap; padding: 8px 0; border-top: 1px solid var(--edge); }
+.opts .flag { flex: 0 0 15ch; color: var(--fg); }
+.opts .what { flex: 1 1 28ch; color: var(--dim); }
+
+/* ---- Changelog ---- */
+
+.release { padding: 18px 0; border-top: 1px solid var(--edge); }
+.release:first-of-type { border-top: none; }
+
+.release h3 {
+  color: var(--phosphor);
+  margin: 0 0 4px;
+  display: flex;
+  gap: 14px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+.release h3 .when { color: var(--dim); font-weight: 400; }
+
+.release ul { margin-top: 8px; }
+.release li { color: var(--fg); }
+
+/* ---- People ---- */
+
+.people { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 20px; }
+
+.person {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--panel);
+  border: 1px solid var(--edge);
+  border-radius: 8px;
+  padding: 12px 16px;
+  flex: 1 1 22ch;
+}
+
+.disc {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--phosphor);
+  color: var(--phosphor);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.person .who { display: block; }
+.person .role { display: block; color: var(--dim); font-size: 13px; }
+
+/* ---- Contact ---- */
+
+.map {
+  margin-top: 16px;
+  border: 1px solid var(--edge);
+  border-radius: 8px;
+  overflow: hidden;
+  line-height: 0;
+}
+.map iframe { width: 100%; height: 320px; border: 0; display: block; }
+
+.contact-line { margin: 0; }
+.contact-line .label { color: var(--dim); }
+
+/* ---- The one big call to action on the Go Online page ---- */
+
+.cta { margin-top: 32px; }
+
+.cta a {
+  display: inline-block;
+  color: var(--phosphor);
+  border: 1px solid var(--phosphor);
+  border-radius: 8px;
+  padding: 12px 28px;
+  text-decoration: none;
+}
+.cta a:hover, .cta a:focus-visible { background: var(--phosphor); color: var(--ground); }
+
+/* ---- Footer, the same on every page ---- */
+
+footer {
+  max-width: 66ch;
+  margin: 56px auto 0;
+  padding-top: 20px;
+  border-top: 1px solid var(--edge);
+  color: var(--dim);
+}
+footer a { color: var(--phosphor); }

@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>About seaLeye.run</title>
+<meta name="description" content="Two products, one front door, and the adoption problem the founders were actually solving.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="site-head">
+  <a class="home" href="index.html"><img src="sealeye-wordmark.svg" alt="seaLeye.run"></a>
+  <nav class="site-nav">
+    <a href="docs.html">Docs</a>
+    <a href="about.html" aria-current="page">About</a>
+    <a href="contact.html">Contact</a>
+    <a class="go" href="online.html">Go Online</a>
+  </nav>
+</header>
+
+<main>
+
+  <h1>About</h1>
+
+  <h2>What seaLeye is</h2>
+  <p>
+    seaLeye.run is the CLI front door: <code>cd your-app &amp;&amp; sealeye run</code>, assisted by agents
+    that get the right infrastructure provisioned when it is needed.
+  </p>
+  <p>
+    seaLeye.online is where that infrastructure lives afterwards: usage, costs, optimization,
+    quiescing and decommissioning, in one place.
+  </p>
+  <p class="note">Most of it is in the CLI too, for the power users and the agents out there.</p>
+
+  <h2>The name</h2>
+  <p>Say it out loud: C-L-I dot run. The capital L is the only trick.</p>
+
+  <h2>The Founders</h2>
+
+  <p>
+    Dana Whitlock and Sam Okafor ran the developer platform group at Atlantic Seaboard
+    Bancorp, one of the biggest banks on the East Coast. Eleven hundred developers, a DevOps
+    shop of forty, and a catalog of pipelines, templates and golden paths that almost nobody
+    used unless they were made to.
+  </p>
+
+  <p>
+    They spent two years trying to fix that with better documentation, roadshows and a portal.
+    Adoption moved when a mandate moved it and stopped when the mandate did. The thing they
+    eventually admitted to each other, over a bad coffee, was that they had been asking
+    developers to come to the platform. Developers live in a terminal, in a folder, with an
+    app that is not running yet. So they went there instead.
+  </p>
+
+  <p>
+    Sam wrote a command over a weekend. It did one thing: from inside your folder, it built
+    you a dev environment and put your code in it. No form, no ticket, no reading.
+    <code>cd your-app</code>, one command, a URL. It was meant to be a wedge. It turned out to be the crack
+    that burst the dam. Within a quarter more than half the bank's teams had run it, and then
+    they came back asking for the rest: a change to what it built, a look at what was running,
+    a way to move a build through the test stages, a service nobody at the bank had used
+    before. And, and, and.
+  </p>
+
+  <p>
+    That was the product, hiding inside an adoption problem. When agentic build became real,
+    the two friends and partners decided it was time to bring it out of the bank and to
+    everyone else. seaLeye.run is the front door: developers get started in one command, with
+    agents getting them exactly the infrastructure they need exactly when they need it.
+    seaLeye.online is the rest of that infrastructure's life: usage, costs, optimization,
+    quiescing and decommissioning, in one place. Most of it is in the CLI too, for the power
+    users and the agents out there.
+  </p>
+
+  <div class="people">
+    <div class="person">
+      <span class="disc" aria-hidden="true">DW</span>
+      <span>
+        <span class="who">Dana Whitlock</span>
+        <span class="role">Co-founder</span>
+      </span>
+    </div>
+    <div class="person">
+      <span class="disc" aria-hidden="true">SO</span>
+      <span>
+        <span class="who">Sam Okafor</span>
+        <span class="role">Co-founder</span>
+      </span>
+    </div>
+  </div>
+
+  <h2>For platform teams</h2>
+
+  <p>
+    Publish the CLI to your internal registry, so the line your developers run is your own:
+    <code>npm install -g @northline/sealeye</code>. Nothing else changes for them. seaLeye uses the
+    cloud credentials the developer already has, and the environment it builds is in your account.
+  </p>
+
+  <p>
+    Then connect your Platform Library. Every module seaLeye knows about carries an availability.
+    <span class="out">available</span> means seaLeye builds it today.
+    <span class="out">planned</span> means your platform team has agreed to support it and it has not
+    shipped. <span class="out">requested</span> means an app has turned out to need it and nobody has
+    agreed to it yet. The interview may select any of them, and the plan records what the app
+    actually needs rather than only what can be built this afternoon.
+  </p>
+
+  <p>
+    When a plan names a module that is not in the catalog, the platform declines to deploy it and
+    says which parts it cannot build. The plan is still valid and still saved next to the code.
+    That refusal is the signal you want: it names, in your developers' own words, what your
+    Platform Library is missing and who is waiting for it. Connect the library and the same plan
+    deploys as written, with nothing for the developer to redo.
+  </p>
+
+  <p>
+    Every environment seaLeye builds shows up in
+    <a href="online.html">seaLeye.online</a>, with what it costs, what it is doing and who owns it.
+  </p>
+
+</main>
+
+<!-- The version is written out by hand here and in every other page's footer. There is no
+     build step, so the next bump is a find and replace on 2.14.2 across apps/sealeye-run/. -->
+<footer>
+  seaLeye.run · sealeye <a href="changelog.html" class="version">v2.14.2</a> · <a href="changelog.html">changelog</a> · <a href="http://sealeye-online-682542496821.s3-website.ca-central-1.amazonaws.com">sealeye.online</a>
+</footer>
+
+</body>
+</html>

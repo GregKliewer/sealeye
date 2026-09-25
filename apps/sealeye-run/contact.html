@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contact seaLeye.run</title>
+<meta name="description" content="Where seaLeye.run is, and how to reach it.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="site-head">
+  <a class="home" href="index.html"><img src="sealeye-wordmark.svg" alt="seaLeye.run"></a>
+  <nav class="site-nav">
+    <a href="docs.html">Docs</a>
+    <a href="about.html">About</a>
+    <a href="contact.html" aria-current="page">Contact</a>
+    <a class="go" href="online.html">Go Online</a>
+  </nav>
+</header>
+
+<main>
+
+  <h1>Contact</h1>
+
+  <h2>Corporate Headquarters</h2>
+  <p>In the beautiful Simcoe Muskoka region north of Toronto, Ontario.</p>
+  <p class="note">Ramblewood Drive, Barrie, Ontario, Canada</p>
+
+  <!-- Centred on Ramblewood Drive, Holly, Barrie (44.34116, -79.69711), geocoded with
+       Nominatim. The bbox is widened from the street itself so the neighbourhood around
+       it fills the frame. No marker: the street is the address. The iframe is https
+       inside an http page, which browsers allow. -->
+  <div class="map">
+    <iframe
+      title="Map of Ramblewood Drive, Barrie, Ontario"
+      loading="lazy"
+      src="https://www.openstreetmap.org/export/embed.html?bbox=-79.7060%2C44.3370%2C-79.6880%2C44.3455&amp;layer=mapnik"></iframe>
+  </div>
+  <p class="note"><a href="https://www.openstreetmap.org/#map=16/44.34116/-79.69711">view larger map</a></p>
+
+  <h2>Reception</h2>
+  <p class="contact-line"><span class="label">Phone</span> +1 (705) 555-0142</p>
+  <p class="contact-line"><span class="label">Email</span> <a href="mailto:hello@sealeye.run">hello@sealeye.run</a></p>
+  <p class="contact-line"><span class="label">Hours</span> 9 to 5 Eastern, Monday to Friday</p>
+
+  <h2>Support</h2>
+  <p>Start with the <a href="docs.html">Docs</a>. Most questions are answered there.</p>
+  <p class="note">Or reply to the report seaLeye wrote next to your code. It has everything we need.</p>
+
+</main>
+
+<!-- The version is written out by hand here and in every other page's footer. There is no
+     build step, so the next bump is a find and replace on 2.14.2 across apps/sealeye-run/. -->
+<footer>
+  seaLeye.run · sealeye <a href="changelog.html" class="version">v2.14.2</a> · <a href="changelog.html">changelog</a> · <a href="http://sealeye-online-682542496821.s3-website.ca-central-1.amazonaws.com">sealeye.online</a>
+</footer>
+
+</body>
+</html>

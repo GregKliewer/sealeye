@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>seaLeye.online</title>
+<meta name="description" content="Every environment seaLeye.run has built for your organization, and the rest of its life.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="site-head">
+  <a class="home" href="index.html"><img src="sealeye-wordmark.svg" alt="seaLeye.run"></a>
+  <nav class="site-nav">
+    <a href="docs.html">Docs</a>
+    <a href="about.html">About</a>
+    <a href="contact.html">Contact</a>
+    <!-- Becomes https://sealeye.online once that domain points at the bucket. -->
+    <a class="go" href="http://sealeye-online-682542496821.s3-website.ca-central-1.amazonaws.com">Go Online</a>
+  </nav>
+</header>
+
+<main>
+
+  <h1>seaLeye.online</h1>
+
+  <p class="lede">
+    seaLeye.run gets your app running. seaLeye.online is the rest of that environment's life.
+    Every environment seaLeye.run has built for your organization is here: what it is doing,
+    what it costs, what could be smaller, what could be put to sleep, what should be
+    decommissioned, and who owns it.
+  </p>
+
+  <h2>What you will find</h2>
+  <ul>
+    <li>Every environment, in one list <span>with its status and the app it belongs to, however many teams built them.</span></li>
+    <li>What it costs <span>by day and by resource, against the budget you set for it.</span></li>
+    <li>Pause or decommission <span>an environment you are not using, with a record of what was done to it and when.</span></li>
+    <li>Who owns it <span>and who else has access, with what each level of access can do.</span></li>
+  </ul>
+
+  <p class="note">Logs and performance for each app are here too, next to the environment they came from.</p>
+
+  <div class="cta">
+    <!-- Becomes https://sealeye.online once that domain points at the bucket. -->
+    <a href="http://sealeye-online-682542496821.s3-website.ca-central-1.amazonaws.com">Go Online</a>
+  </div>
+
+</main>
+
+<!-- The version is written out by hand here and in every other page's footer. There is no
+     build step, so the next bump is a find and replace on 2.14.2 across apps/sealeye-run/. -->
+<footer>
+  seaLeye.run · sealeye <a href="changelog.html" class="version">v2.14.2</a> · <a href="changelog.html">changelog</a> · <a href="http://sealeye-online-682542496821.s3-website.ca-central-1.amazonaws.com">sealeye.online</a>
+</footer>
+
+</body>
+</html>

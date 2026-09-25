@@ -5,131 +5,23 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>seaLeye.run</title>
 <meta name="description" content="Point seaLeye.run at the app you already have and it gives you back a URL.">
-<style>
-  :root {
-    --ground: #13181D;
-    --panel: #0E1216;
-    --edge: #2A333C;
-    --fg: #D9E0E6;
-    --phosphor: #7FD8C2;
-    --amber: #E8B04B;
-    --dim: #8A96A3;
-    --mono: "JetBrains Mono", "IBM Plex Mono", Menlo, monospace;
-  }
-
-  * { box-sizing: border-box; }
-
-  body {
-    margin: 0;
-    padding: 48px 20px 64px;
-    background: var(--ground);
-    color: var(--fg);
-    font-family: var(--mono);
-    font-size: 15px;
-    line-height: 1.6;
-  }
-
-  main { max-width: 66ch; margin: 0 auto; }
-
-  header img { width: 100%; max-width: 420px; height: auto; display: block; }
-
-  .tagline { color: var(--dim); margin: 12px 0 40px; }
-
-  p.lede { margin: 0 0 32px; }
-  p.lede .aside { color: var(--dim); }
-
-  h2 {
-    font-size: 15px;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    margin: 40px 0 12px;
-  }
-
-  .block {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
-    background: var(--panel);
-    border: 1px solid var(--edge);
-    border-radius: 8px;
-    padding: 14px 16px;
-  }
-
-  .block code { flex: 1 1 22ch; word-break: break-all; }
-  .block .line { display: block; }
-  .out { color: var(--dim); }            /* what the terminal answered, not what you type */
-  .aside { margin-top: 28px; }           /* the internal line sits apart from the public one */
-
-  /* The browser will not tell a page where a folder lives, so the path in front of the
-     folder name is the developer's to set, and it looks editable because it is. */
-  .parent {
-    font: inherit;
-    color: var(--dim);
-    background: transparent;
-    border: none;
-    border-bottom: 1px dashed var(--edge);
-    padding: 0 1px;
-    min-width: 2ch;
-  }
-  .parent:focus { outline: none; color: var(--fg); border-bottom-color: var(--phosphor); }
-  .prompt { color: var(--amber); }
-  .cmd { color: var(--fg); }
-  .folder { color: var(--phosphor); }
-
-  button {
-    font: inherit;
-    color: var(--dim);
-    background: transparent;
-    border: 1px solid var(--edge);
-    border-radius: 6px;
-    padding: 6px 12px;
-    cursor: pointer;
-  }
-  button:hover, button:focus-visible { color: var(--phosphor); border-color: var(--phosphor); }
-  button[data-copied="yes"] { color: var(--phosphor); border-color: var(--phosphor); }
-
-  .panel {
-    background: var(--panel);
-    border: 1px solid var(--edge);
-    border-radius: 8px;
-    padding: 20px;
-  }
-
-  .picker { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-  .picker label { color: var(--dim); }
-  input[type="file"] { font: inherit; color: var(--dim); max-width: 100%; }
-  input[type="file"]::file-selector-button {
-    font: inherit;
-    color: var(--dim);
-    background: transparent;
-    border: 1px solid var(--edge);
-    border-radius: 6px;
-    padding: 6px 12px;
-    margin-right: 12px;
-    cursor: pointer;
-  }
-  input[type="file"]::file-selector-button:hover { color: var(--phosphor); border-color: var(--phosphor); }
-
-  .result { margin-top: 16px; }
-  .result[hidden] { display: none; }
-  .note { color: var(--dim); margin: 10px 0 0; }
-
-  ul { list-style: none; padding: 0; margin: 0; }
-  li { padding: 6px 0 6px 20px; position: relative; }
-  li::before { content: "\2713"; position: absolute; left: 0; color: var(--phosphor); }
-  li span { color: var(--dim); }
-
-  footer {
-    margin-top: 56px;
-    padding-top: 20px;
-    border-top: 1px solid var(--edge);
-    color: var(--dim);
-  }
-  a { color: var(--phosphor); }
-</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
+
+<header class="site-head">
+  <a class="home" href="index.html"><img src="sealeye-wordmark.svg" alt="seaLeye.run"></a>
+  <nav class="site-nav">
+    <a href="docs.html">Docs</a>
+    <a href="about.html">About</a>
+    <a href="contact.html">Contact</a>
+    <a class="go" href="online.html">Go Online</a>
+  </nav>
+</header>
+
 <main>
 
   <header>
@@ -144,8 +36,8 @@
 
   <h2>Install</h2>
   <div class="block">
-    <code><span class="line"><span class="prompt">$</span> <span class="cmd">npm install -g sealeye</span></span><span class="line"><span class="prompt">$</span> <span class="cmd">sealeye --version</span></span><span class="line out">sealeye 1.0.0</span></code>
-    <button type="button" data-copy="npm install -g sealeye&#10;sealeye --version">copy</button>
+    <code><span class="line"><span class="prompt">$</span> <span class="cmd">npm install -g sealeye</span></span><span class="line"><span class="prompt">$</span> <span class="cmd">sealeye</span></span><span class="line out">seaLeye.run  ·  cd your-app &amp;&amp; sealeye run   v2.14.2</span></code>
+    <button type="button" data-copy="npm install -g sealeye&#10;sealeye">copy</button>
   </div>
 
   <p class="note">Nothing else to set up. seaLeye uses the cloud credentials you already have.</p>
@@ -181,11 +73,14 @@
     <li>A plan in your folder <span>saying what was built and what was assumed, yours to keep and to edit.</span></li>
   </ul>
 
-  <footer>
-    seaLeye.run · <a href="https://sealeye.online">sealeye.online</a>
-  </footer>
-
 </main>
+
+<!-- The version is written out by hand in four places on this site: here, the footer of
+     every page, and the banner lines in the docs walkthroughs. There is no build step,
+     so the next bump is a find and replace on 2.14.2 across apps/sealeye-run/. -->
+<footer>
+  seaLeye.run · sealeye <a href="changelog.html" class="version">v2.14.2</a> · <a href="changelog.html">changelog</a> · <a href="http://sealeye-online-682542496821.s3-website.ca-central-1.amazonaws.com">sealeye.online</a>
+</footer>
 
 <script>
   function copy(text, button) {

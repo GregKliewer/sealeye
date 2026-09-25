@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>seaLeye.run changelog</title>
+<meta name="description" content="What has changed in sealeye, newest first.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="site-head">
+  <a class="home" href="index.html"><img src="sealeye-wordmark.svg" alt="seaLeye.run"></a>
+  <nav class="site-nav">
+    <a href="docs.html">Docs</a>
+    <a href="about.html">About</a>
+    <a href="contact.html">Contact</a>
+    <a class="go" href="online.html">Go Online</a>
+  </nav>
+</header>
+
+<main>
+
+  <h1>Changelog</h1>
+  <p class="lede">What has changed in <code>sealeye</code>, newest first.</p>
+
+  <div class="release">
+    <h3>2.14.2 <span class="when">September 24, 2026</span></h3>
+    <ul class="plain">
+      <li>The spinner no longer sits on the name of the last file it read. Once the reading has stopped it says what is actually happening, which is that seaLeye is working out what your app needs.</li>
+    </ul>
+  </div>
+
+  <div class="release">
+    <h3>2.14.1 <span class="when">September 22, 2026</span></h3>
+    <ul class="plain">
+      <li><code>sealeye init</code> is now <code>sealeye run</code>. <code>init</code> still works.</li>
+    </ul>
+  </div>
+
+  <div class="release">
+    <h3>2.14.0 <span class="when">September 17, 2026</span></h3>
+    <ul class="plain">
+      <li>Deploying hands the terminal back. After a few seconds you get your prompt, the deploy finishes in the background, and a notification tells you when your environment is live.</li>
+      <li><code>--watch</code> on <code>run</code> or <code>deploy</code> keeps you on the live panel instead, for a rehearsal or a recording.</li>
+    </ul>
+  </div>
+
+  <div class="release">
+    <h3>2.13.0 <span class="when">September 10, 2026</span></h3>
+    <ul class="plain">
+      <li><code>sealeye run --team-context</code> tells you whether another team has already hit the same boundary, and offers you the ticket that is open with your platform team.</li>
+    </ul>
+  </div>
+
+  <div class="release">
+    <h3>2.12.0 <span class="when">September 1, 2026</span></h3>
+    <ul class="plain">
+      <li>The settings your app reads from its environment are passed through to it when it runs. Values come from your own environment file when you have one, and from the plan when you do not.</li>
+      <li>Integrations in the console, grouped by the job you are trying to do rather than by vendor.</li>
+    </ul>
+  </div>
+
+  <div class="release">
+    <h3>2.11.0 <span class="when">August 21, 2026</span></h3>
+    <ul class="plain">
+      <li>A plan that names something your catalog does not have is declined, in a sentence that says what is missing and what would make it deployable. The plan is still valid, still saved, and still yours.</li>
+    </ul>
+  </div>
+
+  <div class="release">
+    <h3>2.10.0 <span class="when">August 11, 2026</span></h3>
+    <ul class="plain">
+      <li>The Platform Library. Every module now says whether seaLeye builds it today, whether your platform team has agreed to support it, or whether somebody has asked for it and nobody has agreed yet. The interview may choose any of them, so your plan records what your app actually needs.</li>
+      <li>Catalog and Team pages in the console.</li>
+    </ul>
+  </div>
+
+  <div class="release">
+    <h3>2.9.0 <span class="when">July 29, 2026</span></h3>
+    <ul class="plain">
+      <li>Profiles. One question decides what your plan is designed for: something you are trying out, a team using it every day, or production. Your later environments are built from that plan, so the answer outlives this run.</li>
+    </ul>
+  </div>
+
+  <div class="release">
+    <h3>2.8.0 <span class="when">July 16, 2026</span></h3>
+    <ul class="plain">
+      <li><code>sealeye run</code> says so when your app already has a live environment, and shows you its URL, before it asks you anything.</li>
+      <li>On a second run the card becomes a diff: what is unchanged, what changed, what is new, what is gone. When nothing moved, it says so.</li>
+      <li>Performance and Control pages in the console, and a history of the environments you have torn down.</li>
+    </ul>
+  </div>
+
+  <div class="release">
+    <h3>2.7.0 <span class="when">July 2, 2026</span></h3>
+    <ul class="plain">
+      <li><code>sealeye run --answers &lt;file&gt;</code> answers the interview from a file, one line per question, for rehearsals. It never answers "Deploy this?". That one stays yours.</li>
+    </ul>
+  </div>
+
+  <div class="release">
+    <h3>2.6.0 <span class="when">June 22, 2026</span></h3>
+    <ul class="plain">
+      <li>Something moves during every wait. Every pause the CLI used to sit silently through now says what it is doing and how long it has been doing it.</li>
+      <li><code>watch</code> redraws in place instead of clearing the screen, so the run you just had is still above it.</li>
+      <li>A Configure page in the console.</li>
+    </ul>
+  </div>
+
+  <div class="release">
+    <h3>2.5.0 <span class="when">June 9, 2026</span></h3>
+    <ul class="plain">
+      <li>Your app starts from the file your plan names, not always <code>index.js</code>.</li>
+      <li>A plan naming a file your folder does not have is refused before anything is built. A working environment serving errors is worse than a sentence.</li>
+    </ul>
+  </div>
+
+  <div class="release">
+    <h3>2.4.0 <span class="when">May 28, 2026</span></h3>
+    <ul class="plain">
+      <li><code>sealeye destroy</code> takes the name of the app, not only a deployment id.</li>
+      <li>A static environment has its storage emptied before the environment is deleted, so tear down no longer stops half way through.</li>
+      <li>Logs in the console, next to the environment they came from.</li>
+    </ul>
+  </div>
+
+  <div class="release">
+    <h3>2.3.0 <span class="when">May 15, 2026</span></h3>
+    <ul class="plain">
+      <li><code>sealeye list</code> shows one row per environment instead of one per deploy. <code>--deployments</code> gives you every deploy, and <code>--all</code> includes the environments you have torn down.</li>
+    </ul>
+  </div>
+
+  <div class="release">
+    <h3>2.2.0 <span class="when">May 4, 2026</span></h3>
+    <ul class="plain">
+      <li>The plan card. Before you say yes you see what seaLeye thinks your app is, what it will build, and what you get back, rendered from the plan itself rather than from anything written about it.</li>
+      <li>Costs in the console, by day and by resource.</li>
+    </ul>
+  </div>
+
+  <div class="release">
+    <h3>2.1.0 <span class="when">April 21, 2026</span></h3>
+    <ul class="plain">
+      <li>The interview. <code>sealeye run</code> reads the folder you are standing in, asks at most four questions in your own words, and writes the plan next to your code. Nothing reaches your cloud account before you say yes.</li>
+    </ul>
+  </div>
+
+  <div class="release">
+    <h3>2.0.0 <span class="when">April 7, 2026</span></h3>
+    <ul class="plain">
+      <li>seaLeye.online. Every environment seaLeye has built for your organization in one place, with what it is doing, what it costs and who owns it.</li>
+    </ul>
+  </div>
+
+  <div class="release">
+    <h3>1.0.0 <span class="when">January 14, 2026</span></h3>
+    <ul class="plain">
+      <li>The CLI. A plan goes in and a real environment comes out, in your own cloud account, with a URL you can open.</li>
+      <li><code>deploy</code>, <code>status</code>, <code>watch</code>, <code>list</code> and <code>destroy</code>, and a report written next to your code saying what was built and how to take it down.</li>
+    </ul>
+  </div>
+
+</main>
+
+<!-- The version is written out by hand here and in every other page's footer. There is no
+     build step, so the next bump is a find and replace on 2.14.2 across apps/sealeye-run/. -->
+<footer>
+  seaLeye.run · sealeye <a href="changelog.html" class="version">v2.14.2</a> · <a href="changelog.html">changelog</a> · <a href="http://sealeye-online-682542496821.s3-website.ca-central-1.amazonaws.com">sealeye.online</a>
+</footer>
+
+</body>
+</html>
