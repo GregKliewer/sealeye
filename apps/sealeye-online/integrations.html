@@ -20,6 +20,34 @@
   "notice": "Signed in as Greg K., Money Movement. Connecting or changing an integration is a Site Admin action. Request sends a note to yours.",
   "groups": [
     {
+      "job": "Build what the plan describes",
+      "why": "So an approved plan becomes real infrastructure in your own cloud account. seaLeye composes the template and hands it to this, which is what creates, updates and deletes every environment. Nothing reaches your account any other way.",
+      "providers": [
+        { "name": "AWS CloudFormation", "connected": true, "detail": "ca-central-1  \u00b7  one stack per environment, named sealeye-<app>" },
+        { "name": "HashiCorp Terraform" },
+        { "name": "OpenTofu" },
+        { "name": "Pulumi" },
+        { "name": "AWS CDK" },
+        { "name": "Azure Resource Manager" },
+        { "name": "Google Cloud Infrastructure Manager" },
+        { "name": "Crossplane" }
+      ]
+    },
+    {
+      "job": "Promote a plan through your pipeline",
+      "why": "So the plan a developer approves is the design your later environments are built from, in order: SIT, UAT, staging, perf, production. Developers only ever deploy to a dev environment. This is what builds the rest.",
+      "providers": [
+        { "name": "GitHub Actions" },
+        { "name": "GitLab CI/CD" },
+        { "name": "Azure Pipelines" },
+        { "name": "Google Cloud Build" },
+        { "name": "AWS CodePipeline" },
+        { "name": "Jenkins" },
+        { "name": "Argo CD" },
+        { "name": "Harness" }
+      ]
+    },
+    {
       "job": "Sign people in",
       "why": "So sealeye knows who is running it, and seaLeye.online shows each team only its own environments. Your team mapping comes from here.",
       "providers": [
