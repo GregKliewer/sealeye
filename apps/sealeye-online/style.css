@@ -569,6 +569,8 @@
     .jobs { grid-template-columns: 1fr; }
   }
 
+  .adminline { color: var(--dim); margin: 20px 0 0; }
+
   /* ---- the ticket a refusal opened ---- */
   td.requests a.ticket {
     display: inline-block;

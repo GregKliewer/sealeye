@@ -5,10 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Integrations, seaLeye.online</title>
 
-<!-- Everything this page shows. Edit here; nothing else holds state. Grouped by the job
-     the integration does rather than by vendor, because a developer arrives knowing what
-     they want to happen and not who sells it. Within a group the providers are
-     competitors, so at most one of them is ever connected. -->
+<!-- Everything this page shows. Edit here; nothing else holds state. This page is a
+     report, not a picker: it answers what is wired in at Northline Bank today and what
+     that means for a developer. Connecting or changing an integration is a Site Admin
+     action and happens in the admin area, so there is nothing to press here.
+     `catalog_of_providers` is every vendor the admin area offers per job. This page does
+     not render it; it is kept so the lists survive for that screen. -->
 <script type="application/json" id="state">
 {
   "org": "Northline Bank",
@@ -18,35 +20,23 @@
     "subtitle": "What seaLeye reads from, writes to and hands off to at Northline Bank."
   },
   "notice": "Signed in as Greg K., Money Movement. Connecting or changing an integration is a Site Admin action. Request sends a note to yours.",
+  "lead": [
+    {
+      "job": "Infrastructure as code",
+      "connected": true,
+      "inPlace": [
+        { "name": "AWS CloudFormation", "says": "seaLeye composes the template and CloudFormation builds it.", "data": "ca-central-1  ·  one stack per environment, named sealeye-<app>" }
+      ],
+      "note": "Your platform library is not connected, so seaLeye.run builds only from its five base modules."
+    },
+    {
+      "job": "CI/CD",
+      "connected": false,
+      "inPlace": [],
+      "nothing": "Developers deploy to a dev environment only. Promotion to SIT and beyond is not connected yet."
+    }
+  ],
   "groups": [
-    {
-      "job": "Build what the plan describes",
-      "why": "So an approved plan becomes real infrastructure in your own cloud account. seaLeye composes the template and hands it to this, which is what creates, updates and deletes every environment. Nothing reaches your account any other way.",
-      "providers": [
-        { "name": "AWS CloudFormation", "connected": true, "detail": "ca-central-1  \u00b7  one stack per environment, named sealeye-<app>" },
-        { "name": "HashiCorp Terraform" },
-        { "name": "OpenTofu" },
-        { "name": "Pulumi" },
-        { "name": "AWS CDK" },
-        { "name": "Azure Resource Manager" },
-        { "name": "Google Cloud Infrastructure Manager" },
-        { "name": "Crossplane" }
-      ]
-    },
-    {
-      "job": "Promote a plan through your pipeline",
-      "why": "So the plan a developer approves is the design your later environments are built from, in order: SIT, UAT, staging, perf, production. Developers only ever deploy to a dev environment. This is what builds the rest.",
-      "providers": [
-        { "name": "GitHub Actions" },
-        { "name": "GitLab CI/CD" },
-        { "name": "Azure Pipelines" },
-        { "name": "Google Cloud Build" },
-        { "name": "AWS CodePipeline" },
-        { "name": "Jenkins" },
-        { "name": "Argo CD" },
-        { "name": "Harness" }
-      ]
-    },
     {
       "job": "Sign people in",
       "why": "So sealeye knows who is running it, and seaLeye.online shows each team only its own environments. Your team mapping comes from here.",
@@ -161,11 +151,16 @@
         { "name": "Slack" }
       ]
     }
-  ]
+  ],
+  "adminLine": "Connecting or changing an integration is done by a Site Admin in seaLeye.online admin.",
+  "catalog_of_providers": {
+    "Build what the plan describes": ["AWS CloudFormation", "HashiCorp Terraform", "OpenTofu", "Pulumi", "AWS CDK", "Azure Resource Manager", "Google Cloud Infrastructure Manager", "Crossplane"],
+    "Promote a plan through your pipeline": ["GitHub Actions", "GitLab CI/CD", "Azure Pipelines", "Google Cloud Build", "AWS CodePipeline", "Jenkins", "Argo CD", "Harness"]
+  }
 }
 </script>
 
-<link rel="stylesheet" href="style.css?v=2">
+<link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
 
@@ -205,6 +200,54 @@
 
   const jobs = document.getElementById("jobs");
 
+  /** A row in a lead card: the thing, what it is, and a chip saying where it stands. */
+  function leadRow(name, tone, chipText, lines) {
+    const r = el("div", "provider");
+    const left = el("div", "who2");
+    left.appendChild(el("div", "name", name));
+    for (const [cls, text] of lines) left.appendChild(el("div", cls, text));
+    r.appendChild(left);
+    const action = el("div", "action");
+    action.appendChild(chip(chipText, tone));
+    r.appendChild(action);
+    return r;
+  }
+
+  // Infrastructure as code and CI/CD are not integrations you shop for. Until they are
+  // connected and the library is ingested, seaLeye cannot do the thing it exists to do,
+  // so these two state what is in place and offer nothing to press.
+  for (const lead of state.lead) {
+    const card = el("div", "job" + (lead.connected ? " connected" : ""));
+    card.appendChild(el("h3", null, lead.job));
+
+    const list = el("div", "providers");
+
+    for (const item of lead.inPlace) {
+      list.appendChild(leadRow(item.name, "phosphor", "Connected", [
+        ["detail", item.says],
+        ["detail mono", item.data]
+      ]));
+    }
+
+    if (!lead.inPlace.length && lead.nothing) {
+      const none = el("div", "provider");
+      const left = el("div", "who2");
+      left.appendChild(el("div", "inplace none", "Nothing connected"));
+      left.appendChild(el("div", "detail", lead.nothing));
+      none.appendChild(left);
+      none.appendChild(el("div", "action"));
+      list.appendChild(none);
+    }
+
+    card.appendChild(list);
+    if (lead.note) card.appendChild(el("p", "note", lead.note));
+    jobs.appendChild(card);
+  }
+
+  // Everything else is ancillary: useful, not load bearing, and picked one vendor at a
+  // time. Grouped by the job rather than by the vendor, because a developer arrives
+  // knowing what they want to happen and not who sells it. Within a group the providers
+  // are competitors, so at most one of them is ever connected.
   for (const group of state.groups) {
     const connected = group.providers.some(p => p.connected);
     const card = el("div", "job" + (connected ? " connected" : ""));
@@ -254,6 +297,9 @@
     card.appendChild(list);
     jobs.appendChild(card);
   }
+
+  const admin = el("p", "adminline", state.adminLine);
+  document.querySelector("main").insertBefore(admin, document.getElementById("footer"));
 </script>
 </body>
 </html>
