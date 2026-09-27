@@ -5,6 +5,7 @@ node_modules/
 .DS_Store
 dist/
 DEPLOYMENT_REPORT.md
+DEPLOYMENT_EVIDENCE.md
 DEPLOYMENT_PLAN.md
 deployme.yaml
 .claude/

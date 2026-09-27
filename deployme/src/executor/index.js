@@ -2,7 +2,7 @@
 // The deployment lifecycle: compose -> package -> deploy -> poll until CloudFormation
 // says it is done. Status is never invented; it mirrors the stack.
 import { compose } from "./compose.js";
-import { stage, cleanStage } from "./package.js";
+import { stage, cleanStage, stagePaths, sha256File, sha256Template } from "./package.js";
 import { deploy, describe, firstFailure, deleteStack, emptyBucket, syncSite } from "./cfn.js";
 import { renderReport } from "./report.js";
 import { putDeployment, listDeployments } from "../store.js";
@@ -56,6 +56,25 @@ export async function startDeployment(record, plan, appPath) {
       set(record.status, { step: line })
     );
     if (artifactKey) record.artifactKey = artifactKey;
+
+    // Two checksums on the way past, for the change record: the template this stack is
+    // built from and the artifact that went to S3. Read after they exist, never written
+    // to anything, and a file that cannot be read is said so rather than guessed.
+    try {
+      record.templateSha256 = sha256Template(composed.templatePath);
+    } catch (err) {
+      record.templateSha256 = null;
+      record.templateSha256Error = err.message;
+    }
+    if (artifactKey) {
+      try {
+        record.artifactSha256 = sha256File(stagePaths(record.deploymentId).zipPath);
+      } catch (err) {
+        record.artifactSha256 = null;
+        record.artifactSha256Error = err.message;
+      }
+    }
+    putDeployment(record);
 
     set("running", { step: `Creating your AWS environment (stack ${composed.stackName})` });
   } catch (err) {

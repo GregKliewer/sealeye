@@ -4,6 +4,7 @@
 import { spawn } from "node:child_process";
 
 import { loadEnv } from "./env.js";
+import { normalizeTemplate } from "./package.js";
 
 /** Hard rule: ca-central-1. DEPLOYME_REGION is an explicit opt-out, nothing else. */
 export function region() {
@@ -134,4 +135,94 @@ export async function firstFailure(stackName, statuses = ["CREATE_FAILED", "UPDA
 
   const cause = failures.find(e => !/cancelled/i.test(e.ResourceStatusReason)) || failures[0];
   return cause.ResourceStatusReason;
+}
+
+// ---------------------------------------------------------------------------
+// Read-only, for the change record. Same style as describe() and firstFailure():
+// a stack that does not answer is reported, never thrown.
+// ---------------------------------------------------------------------------
+
+/**
+ * Every event on the stack, oldest first.
+ * @returns {Promise<{ok: boolean, events: Array<{at: string, logicalId: string, type: string, status: string, reason: string|null}>, error: string|null}>}
+ */
+export async function stackEvents(stackName) {
+  const r = await runAws([
+    "cloudformation", "describe-stack-events",
+    "--stack-name", stackName,
+    "--region", region(),
+    "--output", "json"
+  ]);
+  if (!r.ok) return { ok: false, events: [], error: r.stderr.trim() || `describe-stack-events exited ${r.code}` };
+
+  let parsed;
+  try {
+    parsed = JSON.parse(r.stdout);
+  } catch (err) {
+    return { ok: false, events: [], error: `describe-stack-events returned something that is not JSON: ${err.message}` };
+  }
+
+  const events = (parsed.StackEvents || [])
+    .map(e => ({
+      at: e.Timestamp,
+      logicalId: e.LogicalResourceId,
+      type: e.ResourceType,
+      status: e.ResourceStatus,
+      reason: e.ResourceStatusReason || null
+    }))
+    .sort((a, b) => String(a.at).localeCompare(String(b.at)));
+
+  return { ok: true, events, error: null };
+}
+
+/**
+ * The template the stack was built from, as CloudFormation kept it, normalized the
+ * same way the executor normalizes before hashing so the two hashes compare.
+ * @returns {Promise<{ok: boolean, template: string|null, error: string|null}>}
+ */
+export async function stackTemplate(stackName) {
+  const r = await runAws([
+    "cloudformation", "get-template",
+    "--stack-name", stackName,
+    "--template-stage", "Original",
+    "--region", region(),
+    "--output", "json"
+  ]);
+  if (!r.ok) return { ok: false, template: null, error: r.stderr.trim() || `get-template exited ${r.code}` };
+
+  let body;
+  try {
+    body = JSON.parse(r.stdout).TemplateBody;
+  } catch (err) {
+    return { ok: false, template: null, error: `get-template returned something that is not JSON: ${err.message}` };
+  }
+
+  // YAML comes back as the original string; a JSON template comes back parsed.
+  const text = typeof body === "string" ? body : JSON.stringify(body, null, 2);
+  return { ok: true, template: normalizeTemplate(text), error: null };
+}
+
+/**
+ * The parameter keys the stack was given. Keys only: a NoEcho value is **** and is
+ * not something the change record keeps anyway.
+ * @returns {Promise<{ok: boolean, keys: string[], error: string|null}>}
+ */
+export async function stackParameters(stackName) {
+  const r = await runAws([
+    "cloudformation", "describe-stacks",
+    "--stack-name", stackName,
+    "--region", region(),
+    "--output", "json"
+  ]);
+  if (!r.ok) return { ok: false, keys: [], error: r.stderr.trim() || `describe-stacks exited ${r.code}` };
+
+  let stack;
+  try {
+    stack = JSON.parse(r.stdout).Stacks?.[0];
+  } catch (err) {
+    return { ok: false, keys: [], error: `describe-stacks returned something that is not JSON: ${err.message}` };
+  }
+  if (!stack) return { ok: false, keys: [], error: "the stack does not exist" };
+
+  return { ok: true, keys: (stack.Parameters || []).map(p => p.ParameterKey).sort(), error: null };
 }

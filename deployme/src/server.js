@@ -10,6 +10,8 @@ import { backendMappings } from "./mappings.js";
 import { putDeployment, getDeployment, listDeployments, storeFile, count } from "./store.js";
 import { startDeployment, startDestroy } from "./executor/index.js";
 import { unsupportedNeeds } from "./catalog.js";
+import { assembleEvidence, renderEvidence } from "./executor/evidence.js";
+import { rollupNeeds } from "./needs.js";
 
 const app = express();
 app.use(express.json({ limit: "1mb" }));
@@ -52,6 +54,17 @@ app.post("/plans/validate", (req, res) => {
 app.post("/deployments", (req, res) => {
   const { backend, appPath } = req.body || {};
   const plan = upgradePlan(req.body?.plan);
+
+  // Who asked and how the plan came to be, exactly as the command line sent them, for
+  // the change record. Optional, unverified, and said to be so wherever they are read.
+  const requestedBy = req.body?.requestedBy && typeof req.body.requestedBy === "object" ? req.body.requestedBy : undefined;
+  const origin = req.body?.origin && typeof req.body.origin === "object" ? req.body.origin : undefined;
+  const planSha256 = plan ? crypto.createHash("sha256").update(JSON.stringify(plan), "utf8").digest("hex") : undefined;
+  const provenance = {
+    ...(requestedBy ? { requestedBy } : {}),
+    ...(origin ? { origin } : {}),
+    ...(planSha256 ? { planSha256 } : {})
+  };
 
   if (!backend || !["cloudformation"].includes(backend)) {
     return res.status(400).json({
@@ -130,6 +143,7 @@ app.post("/deployments", (req, res) => {
       resolvedModules,
       plan,
       needs,
+      ...provenance,
       outputs: {},
       failureReason: null,
       startedAt: new Date().toISOString(),
@@ -156,6 +170,7 @@ app.post("/deployments", (req, res) => {
     // The whole plan, so a later run can say what it is about to change. Additive:
     // records written before this exist without it and are read as before.
     plan,
+    ...provenance,
     outputs: {},
     failureReason: null,
     startedAt: new Date().toISOString(),
@@ -202,6 +217,37 @@ app.get("/deployments/:deploymentId", (req, res) => {
     });
   }
   return res.status(200).json(dep);
+});
+
+// GET /deployments/{deploymentId}/evidence — the change record: the evidence object
+// and its markdown. Reads the record and asks CloudFormation what it says now. Creates
+// nothing and changes nothing; the one outbound request is a GET of the app's own URL.
+app.get("/deployments/:deploymentId/evidence", async (req, res) => {
+  const dep = getDeployment(req.params.deploymentId);
+  if (!dep) {
+    return res.status(404).json({
+      error: { code: "NOT_FOUND", message: "deploymentId not found" }
+    });
+  }
+
+  try {
+    const evidence = await assembleEvidence(dep);
+    return res.status(200).json({ evidence, markdown: renderEvidence(evidence) });
+  } catch (err) {
+    return res.status(500).json({
+      error: { code: "EVIDENCE_FAILED", message: err.message }
+    });
+  }
+});
+
+// GET /needs — what the drafted plans are waiting on, rolled up by need across apps.
+// Store only; no AWS call.
+app.get("/needs", (_req, res) => {
+  try {
+    return res.status(200).json(rollupNeeds());
+  } catch (err) {
+    return res.status(500).json({ error: { code: "NEEDS_FAILED", message: err.message } });
+  }
 });
 
 // DELETE /deployments/{deploymentId} — tears the environment down in the background.

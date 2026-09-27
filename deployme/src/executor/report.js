@@ -136,6 +136,18 @@ function tearDown(record) {
   ].join("\n");
 }
 
+/**
+ * Where the fuller record lives. Two sentences: the report is what the developer got,
+ * the evidence is what a change board asks for, and the evidence never carries a value.
+ */
+function changeRecord(record) {
+  return [
+    "## Change record",
+    "",
+    `When someone asks what was built and why, \`sealeye evidence ${record.app?.name}\` writes DEPLOYMENT_EVIDENCE.md in this folder from seaLeye.run's records and from CloudFormation: who asked, what they answered, what was approved, what was built, and what AWS says about it now. It never contains a setting's value.`
+  ].join("\n");
+}
+
 function assumptions(record, plan) {
   const lines = [
     "## Assumptions carried from the plan",
@@ -193,6 +205,7 @@ export function renderReport(record, plan) {
     settings(record),
     redeploy(record),
     tearDown(record),
+    changeRecord(record),
     assumptions(record, plan)
   ].filter(Boolean);   // a deployment with no settings has no Settings section
 

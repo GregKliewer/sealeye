@@ -4,6 +4,7 @@ import path from "node:path";
 import readline from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
+import os from "node:os";
 
 import {
   loadPlanFromYaml,
@@ -11,11 +12,13 @@ import {
   validatePlan,
   getDeployment,
   listDeployments,
-  destroyDeployment
+  destroyDeployment,
+  getEvidence,
+  getNeeds
 } from "../lib/run.js";
 import { banner, step, ask, answer, c, product, spinner, stopSpinner, animations } from "../src/brand.js";
 import { safeName } from "../src/executor/compose.js";
-import { unsupportedNeeds, refusalClosing } from "../src/catalog.js";
+import { unsupportedNeeds, refusalClosing, orgName } from "../src/catalog.js";
 import { runInterview, resolveApiKey } from "../src/interview/loop.js";
 import { writeInterviewFiles, decisionCard } from "../src/interview/render.js";
 import { plainValidationErrors } from "../src/interview/explain.js";
@@ -47,6 +50,14 @@ function version() {
   }
 }
 
+// Who ran the command, on which machine, as the operating system reports it. The API
+// stores it exactly as sent and the evidence says it came from the developer's machine.
+function requestedBy() {
+  let user = null;
+  try { user = os.userInfo().username; } catch { /* no account name available */ }
+  return { user: user || process.env.USER || "unknown", host: os.hostname() };
+}
+
 // One plain-language line of what the platform is doing. Silent in --json mode, which
 // must stay parseable.
 function say(line) {
@@ -54,8 +65,14 @@ function say(line) {
 }
 
 // Printed once at the top of every command.
+// A module request is text somebody pastes into a ticket. Piped or redirected, it is
+// the whole of the output and the banner would be the first thing pasted, so it is
+// left off. On a terminal the banner stays, because every command prints it there.
+const pastingARequest =
+  process.argv[2] === "needs" && process.argv.includes("--request") && !process.stdout.isTTY;
+
 function printBanner() {
-  if (jsonOut) return;
+  if (jsonOut || pastingARequest) return;
   try {
     console.log(banner(fs.readFileSync(path.join(repoRoot, "prompts", "banner.txt"), "utf8"), version()));
   } catch {
@@ -75,6 +92,8 @@ Usage:
   ${product.command} watch <deploymentId> [--api <url>]
   ${product.command} destroy <app | deploymentId> [--api <url>]
   ${product.command} list [--deployments] [--all] [--api <url>] [--json]
+  ${product.command} evidence <app | deploymentId> [--json] [--out <file>] [--api <url>]
+  ${product.command} needs [--json] [--request <kind>] [--api <url>]
 
 Options:
   -f, --file      path to your plan YAML
@@ -90,6 +109,10 @@ Options:
       --all       with list: include environments you have torn down
       --deployments
                   with list: every deploy, instead of one row per environment
+      --out       with evidence: where to write DEPLOYMENT_EVIDENCE.md (default: the
+                  current folder)
+      --request   with needs: print a module request for one need, ready to paste
+                  into a ticket. Takes the kind, or part of the need's own line
       --api       platform API base URL (default: http://localhost:3000)
       --json      machine-readable output
   -h, --help      show help
@@ -102,6 +125,8 @@ Examples:
   ${product.command} list
   ${product.command} destroy my-app
   ${product.command} destroy dep_1a2b3c4d5e6f
+  ${product.command} evidence my-app
+  ${product.command} needs --request relational_database
 `);
 }
 
@@ -147,6 +172,9 @@ async function main() {
     // A rehearsal answers the interview from a file so a recording can be re-shot
     // without typing it again. It never answers the confirmation.
     const scripted = loadAnswers(getArg("--answers"));
+    // Every question and answer, for the change record. Captured beside the ask, never
+    // printed here.
+    const answersGiven = [];
 
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
@@ -261,7 +289,10 @@ async function main() {
             for (const line of lead) console.log(step(line));
 
             // Out of lines, or no file at all: the terminal, as usual.
-            return scripted.length ? scriptedLine(question, scripted.shift()) : askLine(rl, question);
+            const fromFile = scripted.length > 0;
+            const reply = fromFile ? await scriptedLine(question, scripted.shift()) : await askLine(rl, question);
+            answersGiven.push({ question, answer: reply, scripted: fromFile });
+            return reply;
           }
         });
 
@@ -342,7 +373,11 @@ async function main() {
       apiBaseUrl,
       backend: "cloudformation",
       plan: submission.plan,
-      appPath
+      appPath,
+      requestedBy: requestedBy(),
+      origin: submission.reused
+        ? { command: "run", planSource: "reused", file: path.basename(configPath) }
+        : { command: "run", planSource: "interview", answers: answersGiven }
     });
 
     // Declined: it has already said so, and there is nothing to watch. With
@@ -401,7 +436,14 @@ async function main() {
     say(`Reading your plan from ${file}`);
     const plan = loadPlanFromYaml(file);
 
-    const deployment = await runDeploy({ apiBaseUrl, backend, plan, appPath });
+    const deployment = await runDeploy({
+      apiBaseUrl,
+      backend,
+      plan,
+      appPath,
+      requestedBy: requestedBy(),
+      origin: { command: "deploy", planSource: "file", file }
+    });
 
     // Declined, or --json already printed the object and there is nothing left to
     // watch: either way runDeploy has said everything there is to say.
@@ -429,6 +471,62 @@ async function main() {
     if (jsonOut) console.log(JSON.stringify(result, null, 2));
     else printDeploymentSummary(result);
 
+    return;
+  }
+
+  if (command === "evidence") {
+    const target = process.argv[3];
+    if (!target || target.startsWith("--")) {
+      console.error(c.fail(`Missing name: ${product.command} evidence <app | deploymentId>`));
+      process.exit(1);
+    }
+
+    const resolved = await resolveEvidenceTarget({ apiBaseUrl, target });
+    if (!resolved) return;
+
+    say(`Reading the record for ${resolved.label}`);
+    if (resolved.stackName) say(`Asking AWS what it says about ${resolved.stackName} now`);
+
+    const { evidence, markdown } = await getEvidence({ apiBaseUrl, deploymentId: resolved.deploymentId });
+
+    if (jsonOut) {
+      console.log(JSON.stringify(evidence, null, 2));
+      return;
+    }
+
+    const outFile = path.resolve(getArg("--out") || path.join(process.cwd(), "DEPLOYMENT_EVIDENCE.md"));
+    fs.writeFileSync(outFile, markdown);
+
+    console.log("");
+    for (const line of evidenceSummaryLines(evidence)) console.log(line);
+    console.log("");
+    say(`Wrote ${outFile}`);
+    return;
+  }
+
+  if (command === "needs") {
+    const ledger = await getNeeds({ apiBaseUrl });
+    const request = getArg("--request");
+
+    if (request) {
+      const kind = matchNeedKind(ledger, request);
+      if (!kind) return;
+      process.stdout.write(moduleRequest(ledger, kind));
+      return;
+    }
+
+    if (jsonOut) {
+      console.log(JSON.stringify(ledger, null, 2));
+      return;
+    }
+
+    if (!ledger.needs.length) {
+      say("No drafted plans yet, so nothing has been asked for that a module does not support.");
+      return;
+    }
+
+    printNeedsTable(ledger);
+    say(`${product.command} needs --request <kind> writes a module request the platform team can paste into a ticket.`);
     return;
   }
 
@@ -791,7 +889,7 @@ function reuseSummary(plan, planPath) {
 
 // Hand a plan and a folder to the platform. `deploy` and `run` both come through
 // here: run has no deployment logic of its own.
-async function runDeploy({ apiBaseUrl, backend, plan, appPath }) {
+async function runDeploy({ apiBaseUrl, backend, plan, appPath, requestedBy: who, origin }) {
   say(`Handing ${appPath} to seaLeye.run to build your environment`);
 
   // Packaging, installing dependencies and the upload all happen inside this one call.
@@ -799,7 +897,7 @@ async function runDeploy({ apiBaseUrl, backend, plan, appPath }) {
   let result;
 
   try {
-    result = await createDeployment({ apiBaseUrl, backend, plan, appPath });
+    result = await createDeployment({ apiBaseUrl, backend, plan, appPath, requestedBy: who, origin });
   } catch (err) {
     const refusal = err?.details?.error;
 
@@ -1155,6 +1253,256 @@ function writeReport(dep) {
   const reportPath = path.join(process.cwd(), "DEPLOYMENT_REPORT.md");
   fs.writeFileSync(reportPath, dep.report);
   say(`Wrote ${reportPath}`);
+}
+
+/**
+ * Which record `sealeye evidence` is about. An exact id first; otherwise the newest
+ * record answering to the name, drafted, destroyed and failed included, because the
+ * record of a refusal or a tear-down is still evidence. Two live environments answering
+ * to one name is not something to guess at, so it says so the way destroy does.
+ */
+async function resolveEvidenceTarget({ apiBaseUrl, target }) {
+  const everything = await listDeployments({ apiBaseUrl });
+
+  const byId = everything.find(dep => dep.deploymentId === target);
+  if (byId) return { deploymentId: target, label: byId.app?.name || target, stackName: byId.stackName || null };
+
+  const named = dep =>
+    dep.stackName === `sealeye-${target}` || dep.stackName === target || dep.app?.name === target;
+
+  const environments = groupEnvironments(everything).filter(env => !PAST.has(env.rawStatus));
+  const live = environments.filter(env => env.stackName === `sealeye-${target}` || env.stackName === target || env.app === target);
+
+  if (live.length > 1) {
+    console.error(c.fail(`More than one environment answers to ${target}:`));
+    printEnvironmentTable(live);
+    console.log("");
+    say(`Name one by its deployment id: ${product.command} list --deployments`);
+    process.exitCode = 1;
+    return null;
+  }
+
+  // listDeployments() is newest first, so the first match is the newest record.
+  const newest = everything.find(named);
+  if (newest) {
+    return { deploymentId: newest.deploymentId, label: newest.app?.name || target, stackName: newest.stackName || null };
+  }
+
+  console.error(c.fail(`There is nothing called ${target} on record.`));
+  process.exitCode = 1;
+  return null;
+}
+
+/** The first six and last four characters, for a terminal; the file has the whole hash. */
+function shortHash(hash) {
+  const h = String(hash || "");
+  return /^[0-9a-f]{64}$/.test(h) ? `${h.slice(0, 6)}...${h.slice(-4)}` : h;
+}
+
+/** "Sep 27 2026 10:41", local time, for the terminal. The file keeps the ISO string. */
+function localTime(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
+  const month = d.toLocaleDateString("en-US", { month: "short" });
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${month} ${d.getDate()} ${d.getFullYear()} ${hh}:${mm}`;
+}
+
+/** "2 min 48 s", or "48 s". */
+function humanDuration(seconds) {
+  if (typeof seconds !== "number") return String(seconds);
+  const m = Math.floor(seconds / 60);
+  const sec = seconds % 60;
+  return m ? `${m} min ${sec} s` : `${sec} s`;
+}
+
+const plural = (n, word) => `${countWord(n).toLowerCase()} ${word}${n === 1 ? "" : "s"}`;
+
+/**
+ * The evidence, in six lines. Labels in fg, values dim, and the one line that needs a
+ * person in amber, the way statusColour treats failed and drafted.
+ */
+function evidenceSummaryLines(ev) {
+  const s = ev.subject;
+  const r = ev.requested;
+  const a = ev.approved;
+  const b = ev.built;
+  const n = ev.checkedNow;
+
+  const row = (label, text, tone = c.dim) => `  ${c.fg(label.padEnd(15))}${tone(text)}`;
+  const lines = [];
+
+  const env = s.stackName ? `stack ${s.stackName}, profile ${s.profile}` : `no stack, profile ${s.profile}`;
+  lines.push(c.fg(`Change record for ${s.app?.name || s.deploymentId} (${env})`));
+  lines.push("");
+
+  // Requested
+  const who = typeof r.requestedBy === "string" ? r.requestedBy : `${r.requestedBy.user} on ${r.requestedBy.host}`;
+  const when = typeof r.startedAt === "string" && !/not recorded/.test(r.startedAt) ? `, ${localTime(r.startedAt)}` : "";
+  let via = "origin not recorded before 2.16.0";
+  if (typeof r.origin !== "string") {
+    if (r.origin.planSource === "interview") {
+      const count = (r.origin.answers || []).length;
+      via = `via ${product.command} run, ${count ? plural(count, "question") + " answered" : "no questions asked"}`;
+    } else if (r.origin.planSource === "reused") via = `via ${product.command} run, plan reused from ${r.origin.file}`;
+    else if (r.origin.planSource === "file") via = `via ${product.command} deploy -f ${r.origin.file}`;
+  }
+  lines.push(row("Requested by", `${who}${when}, ${via}`));
+  lines.push("");
+
+  // Approved
+  const modules = Array.isArray(a.modules) ? plural(a.modules.length, "module") : `modules ${a.modules}`;
+  const needs = a.needs.length ? plural(a.needs.length, "need") : "no needs";
+  lines.push(row("Approved plan", `sha256 ${shortHash(a.planSha256)}, ${modules}, ${needs}`));
+  lines.push("");
+
+  // Built
+  if (b.none) {
+    lines.push(row("Built", `nothing. ${b.sentence.replace(/^Nothing was built\. /, "")}`));
+  } else {
+    // Which module's template this stack is built from. The file on disk may be the
+    // dist copy with the plan's setting names written into it, so the name comes from
+    // the kind rather than from the path.
+    const tmpl =
+      s.kind === "api" ? "http_api_serverless template"
+      : s.kind === "static" ? "static_site_edge template"
+      : `template ${b.templatePath}`;
+    const art = /^none:/.test(String(b.artifactKey)) ? "no artifact" : `artifact ${b.artifactKey}`;
+    const events = Array.isArray(b.events) ? plural(b.events.length, "CloudFormation event") : "events not checked";
+    const took = typeof r.durationSeconds === "number" ? `, ${humanDuration(r.durationSeconds)}` : "";
+    lines.push(row("Built", `${tmpl}, ${art}, ${events}${took}`));
+  }
+  lines.push("");
+
+  // Checked now
+  if (n.none) {
+    lines.push(row("Checked now", "nothing to check"));
+  } else {
+    const parts = [];
+    let alarm = false;
+    if (!n.stack.exists) { parts.push("the stack is gone"); alarm = true; }
+    if (n.answered.error) { parts.push(`did not answer (${n.answered.error})`); alarm = true; }
+    else parts.push(`answered ${n.answered.status} in ${(n.answered.ms / 1000).toFixed(1)} s`);
+    if (n.template.result === "matches") parts.push("the stack runs the template that was approved");
+    else if (n.template.result === "differs") { parts.push("the stack runs a different template from the one approved"); alarm = true; }
+    else parts.push(`template not compared (${n.template.reason})`);
+    if (typeof n.changesOutside === "string") parts.push(`changes outside ${product.name} ${n.changesOutside}`);
+    else if (!n.changesOutside.length) parts.push(`no changes outside ${product.name}`);
+    else { parts.push(`${plural(n.changesOutside.length, "change")} outside ${product.name}`); alarm = true; }
+    lines.push(row("Checked now", parts.join("; "), alarm ? c.prompt : c.dim));
+  }
+  lines.push("");
+
+  // History
+  const first = ev.history[0];
+  const firstOn = first?.startedAt && !/not recorded/.test(first.startedAt) ? `, the first on ${localTime(first.startedAt).replace(/ \d\d:\d\d$/, "")}` : "";
+  const what = s.stackName ? "to this environment" : "for this app";
+  lines.push(row("History", `${plural(ev.history.length, "deployment")} ${what}${firstOn}`));
+
+  return lines;
+}
+
+// ---------------------------------------------------------------------------
+// The ledger: sealeye needs
+// ---------------------------------------------------------------------------
+
+function printNeedsTable(ledger) {
+  const rows = ledger.needs.map(n => ({
+    need: n.line,
+    kind: `[${n.kind}]`,
+    apps: String(n.count),
+    first: relativeTime(n.firstSeen),
+    last: relativeTime(n.lastSeen),
+    n
+  }));
+
+  const widthOf = key => Math.max(...rows.map(r => r[key].length));
+  const w = {
+    need: Math.max("NEED".length, widthOf("need") + 1 + widthOf("kind")),
+    apps: Math.max("APPS".length, widthOf("apps")),
+    first: Math.max("FIRST SEEN".length, widthOf("first"))
+  };
+
+  console.log(c.dim(`${pad("NEED", w.need)}  ${pad("APPS", w.apps)}  ${pad("FIRST SEEN", w.first)}  LAST SEEN`));
+
+  for (const r of rows) {
+    const needCell = pad(`${r.need} ${r.kind}`, w.need);
+    // The kind is for the reader who does not know the keys: dim, in brackets, after
+    // the line itself.
+    const painted = needCell.replace(r.kind, c.dim(r.kind));
+    console.log(`${painted}  ${c.dim(pad(r.apps, w.apps))}  ${c.dim(pad(r.first, w.first))}  ${c.dim(r.last)}`);
+    for (const app of r.n.apps) {
+      const shows = app.evidence.map(e => (e.file ? `${e.shows} (${e.file})` : e.shows)).join("; ");
+      console.log(c.dim(`    ${app.name}  ${shows}${app.profile ? `  \u00B7  ${app.profile}` : ""}`));
+    }
+  }
+}
+
+/** The kind a --request names: the key, or a substring of exactly one need's line. */
+function matchNeedKind(ledger, wanted) {
+  const byKey = ledger.needs.find(n => n.kind === wanted);
+  if (byKey) return byKey.kind;
+
+  const term = String(wanted).toLowerCase();
+  const hits = ledger.needs.filter(n => n.line.toLowerCase().includes(term));
+
+  if (hits.length === 1) return hits[0].kind;
+
+  if (hits.length > 1) {
+    console.error(c.fail(`"${wanted}" matches more than one need:`));
+    for (const h of hits) console.error(`  ${h.line}  ${c.dim(`[${h.kind}]`)}`);
+    say(`Say which one: ${product.command} needs --request <kind>`);
+    process.exitCode = 1;
+    return null;
+  }
+
+  console.error(c.fail(`No need matches "${wanted}".`));
+  say(`${product.command} needs shows the needs on record and their kinds.`);
+  process.exitCode = 1;
+  return null;
+}
+
+/**
+ * A module request, plain text, ready to paste. No colour and no banner: this is for a
+ * ticket, and the platform team reads it there. No vendor, no date, no promise.
+ */
+function moduleRequest(ledger, kind) {
+  const need = ledger.needs.find(n => n.kind === kind);
+  const org = ledger.org || orgName();
+  const apps = need.apps;
+
+  const out = [];
+  out.push(`No module yet for: ${need.line}`);
+  out.push("");
+  out.push(`Apps waiting: ${countWord(apps.length).toLowerCase()} (${apps.map(a => a.name).join(", ")})`);
+  out.push("");
+  out.push("What the apps need, and what in their code shows it");
+  out.push("");
+  for (const app of apps) {
+    out.push(`  ${app.name}`);
+    for (const e of app.evidence) out.push(`    ${e.shows}${e.file ? ` (${e.file})` : ""}`);
+    if (app.profile) out.push(`    designed for ${app.profile}`);
+    out.push("");
+  }
+
+  // Only the profiles the waiting apps designed for, and only what the catalog says.
+  const expectations = new Map();
+  for (const app of apps) {
+    if (app.profile && app.profile_expects && !expectations.has(app.profile)) expectations.set(app.profile, app.profile_expects);
+  }
+  if (expectations.size) {
+    out.push("What a module supporting this will be expected to provide");
+    out.push("");
+    for (const [profile, text] of expectations) out.push(`  ${profile}: ${text}`);
+    out.push("");
+  }
+
+  out.push(`When a module supporting this is in ${org}'s Platform Library, each app above runs`);
+  out.push(`${product.command} run again and ${product.name} finishes its plan.`);
+  out.push("");
+
+  return out.join("\n");
 }
 
 function statusColour(status, text = status) {

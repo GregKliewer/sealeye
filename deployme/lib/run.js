@@ -56,9 +56,26 @@ export function loadPlanFromYaml(planPath) {
 
 /**
  * Create a deployment by calling deployme API.
+ *
+ * `requestedBy` and `origin` are optional and stored on the record exactly as sent. They
+ * are what the change record reads later: who ran the command, on which machine, and
+ * how the plan came to be. The API does not verify them; the evidence says so.
  */
-export async function createDeployment({ apiBaseUrl, backend, plan, appPath }) {
-  return platformFetch(apiBaseUrl, "/deployments", asJson({ backend, plan, appPath }));
+export async function createDeployment({ apiBaseUrl, backend, plan, appPath, requestedBy, origin }) {
+  const body = { backend, plan, appPath };
+  if (requestedBy) body.requestedBy = requestedBy;
+  if (origin) body.origin = origin;
+  return platformFetch(apiBaseUrl, "/deployments", asJson(body));
+}
+
+/** The change record for one deployment: the evidence object and its markdown. */
+export async function getEvidence({ apiBaseUrl, deploymentId }) {
+  return platformFetch(apiBaseUrl, `/deployments/${deploymentId}/evidence`, { method: "GET" });
+}
+
+/** What the drafted plans are waiting on, rolled up across apps. */
+export async function getNeeds({ apiBaseUrl }) {
+  return platformFetch(apiBaseUrl, "/needs", { method: "GET" });
 }
 
 /**

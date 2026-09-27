@@ -4,6 +4,7 @@
 // This is the sequence in docs/DAY2-COMMANDS.md, transcribed.
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
 import { spawn } from "node:child_process";
 
 import { repoRoot, loadEnv, requireEnv } from "./env.js";
@@ -144,4 +145,38 @@ export function cleanStage(deploymentId) {
   }
 
   return removed;
+}
+
+// ---------------------------------------------------------------------------
+// Checksums, for the change record
+// ---------------------------------------------------------------------------
+
+/**
+ * A template as text, the same way whatever wrote it: CRLF to LF, trailing whitespace
+ * off every line, one newline at the end. CloudFormation hands the original back with
+ * small differences of that kind, and a hash that changed because of a line ending is a
+ * hash that lied about the template.
+ */
+export function normalizeTemplate(text) {
+  return String(text ?? "")
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map(line => line.replace(/[ \t]+$/, ""))
+    .join("\n")
+    .replace(/\n*$/, "\n");
+}
+
+/** sha256 hex of a string. */
+export function sha256Text(text) {
+  return crypto.createHash("sha256").update(String(text), "utf8").digest("hex");
+}
+
+/** sha256 hex of a file's bytes. Throws when the file is not there; callers decide. */
+export function sha256File(filePath) {
+  return crypto.createHash("sha256").update(fs.readFileSync(filePath)).digest("hex");
+}
+
+/** sha256 of a template file after normalizeTemplate, so it compares with get-template. */
+export function sha256Template(filePath) {
+  return sha256Text(normalizeTemplate(fs.readFileSync(filePath, "utf8")));
 }
