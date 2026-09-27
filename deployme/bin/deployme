@@ -20,6 +20,7 @@ import { banner, step, ask, answer, c, product, spinner, stopSpinner, animations
 import { safeName } from "../src/executor/compose.js";
 import { unsupportedNeeds, refusalClosing, orgName } from "../src/catalog.js";
 import { runInterview, resolveApiKey } from "../src/interview/loop.js";
+import { runDoctor } from "../src/doctor.js";
 import { writeInterviewFiles, decisionCard } from "../src/interview/render.js";
 import { plainValidationErrors } from "../src/interview/explain.js";
 
@@ -94,6 +95,7 @@ Usage:
   ${product.command} list [--deployments] [--all] [--api <url>] [--json]
   ${product.command} evidence <app | deploymentId> [--json] [--out <file>] [--api <url>]
   ${product.command} needs [--json] [--request <kind>] [--api <url>]
+  ${product.command} doctor [--json] [--api <url>]
 
 Options:
   -f, --file      path to your plan YAML
@@ -127,6 +129,7 @@ Examples:
   ${product.command} destroy dep_1a2b3c4d5e6f
   ${product.command} evidence my-app
   ${product.command} needs --request relational_database
+  ${product.command} doctor
 `);
 }
 
@@ -527,6 +530,36 @@ async function main() {
 
     printNeedsTable(ledger);
     say(`${product.command} needs --request <kind> writes a module request the platform team can paste into a ticket.`);
+    return;
+  }
+
+  if (command === "doctor") {
+    const result = await runDoctor({ apiBaseUrl });
+
+    if (jsonOut) {
+      console.log(JSON.stringify(result, null, 2));
+      if (!result.ok) process.exitCode = 1;
+      return;
+    }
+
+    const width = Math.max(...result.checks.map(ch => ch.name.length));
+
+    console.log("");
+    for (const check of result.checks) {
+      // ok in phosphor, fail in amber, the two colours this brand has.
+      const mark = check.ok ? c.accent("ok  ") : c.prompt("fail");
+      console.log(`  ${mark}  ${c.fg(pad(check.name, width))}  ${c.dim(check.detail)}`);
+      if (!check.ok && check.fix) console.log(`        ${" ".repeat(width)}  ${c.prompt(check.fix)}`);
+    }
+    console.log("");
+
+    if (result.ok) {
+      say(`Everything this machine needs for a demo is here.`);
+      return;
+    }
+
+    say(`Fix what is marked above, then run ${product.command} doctor again.`);
+    process.exitCode = 1;
     return;
   }
 
