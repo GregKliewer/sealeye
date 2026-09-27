@@ -1,7 +1,7 @@
 # Progress — deployme demo
 
 Panel: Fri Oct 2, 2026. Code freeze: Sun Sept 27, 2026.
-Last updated: Mon Sept 21, 2026 (end of Day 5).
+Last updated: Sun Sept 27, 2026.
 
 Day 4 turned the "Interview rules" in `CLAUDE.md` into `deployme/src/interview/`. A developer
 now runs one command in their own folder and the plan writes itself. The commands, the timings
@@ -9,6 +9,78 @@ and the file layout are in `docs/DAY4-COMMANDS.md`.
 
 Day 5 was the polish the scoring asked for, plus the two real bugs the polish uncovered. Nothing
 about the plan contract changed, and the executor changed in one place only.
+
+## Sept 27: seaLeye writes it down
+
+2.16.0. Two new commands, both read-only, both things Greg can run live on Oct 2 in the
+environment the recording built. Neither changes what `run`, `deploy`, `list`, `status` or
+`destroy` print, so the three recordings stay true; the refusal was diffed byte for byte
+against a capture taken before any code changed, and `list` and `status` against theirs.
+
+### What was built
+
+**`sealeye evidence <app | deploymentId>`** writes DEPLOYMENT_EVIDENCE.md, the change record
+for one environment: who asked and from which machine, the questions and answers or the file
+the plan came from, the checksum of the approved plan with its modules and patterns, what was
+built with the template and artifact checksums and the CloudFormation events from that
+deployment's window, what AWS says right now (stack status, whether the live template still
+matches the approved one, whether the parameter names match, one GET of the app's own URL, and
+any stack-level completion that does not sit within five minutes of a deployment seaLeye
+recorded), the history of every deployment to that stack, and a checksum of all of it. Also
+`GET /deployments/{id}/evidence`, which returns the object and the markdown.
+
+**`sealeye needs`** rolls the drafted plans up by need across apps, newest plan per app so an
+app that drafted three times counts once, each need's line read from
+`prompts/module-catalog.yaml` so a need reads one way everywhere. `--request <kind>` writes a
+module request ready to paste into a ticket. Also `GET /needs`, store only, no AWS call.
+
+**`sealeye doctor`** checks a demo machine: the API, Node 20+, `aws`/`zip`/`rsync`, credentials
+and whether the account matches `DEPLOYME_ACCOUNT`, the region, the artifact bucket, the adapter
+layer version in this region, whether the model key is present, and `terminal-notifier`.
+
+The executor changed in one place: two checksums recorded on the way past, the composed template
+and the artifact zip. `compose.js`, `stage()`, `templates/` and the deploy path in `cfn.js` were
+not touched. Three read-only CloudFormation helpers were added (`stackEvents`, `stackTemplate`,
+`stackParameters`), none of which create anything.
+
+### Choices made where the prompt was silent
+
+- **The two new commands sit between `status` and `list`** in `usage()` and in the dispatch,
+  which is where the prompt places them in its own command list.
+- **`sealeye evidence` resolves a name to the newest record answering to it**, drafted,
+  destroyed and failed included. Two *live* environments answering to one name is the only
+  ambiguity it refuses, using the message and table `destroy` already prints. A name that
+  matches only history resolves rather than erroring, because the record of a refusal or a
+  tear-down is the evidence somebody is asking for.
+- **The terminal summary names the module template, not the file on disk.** The path is often
+  the `dist/` copy with the plan's setting names written into it, so the name comes from the
+  record's `kind`. The file itself carries the real path.
+- **The banner is suppressed for `needs --request` only when stdout is not a TTY.** The prompt
+  asked for no banner when piped; on a terminal every command prints it, so it stays there.
+- **`history` for a drafted record groups by app name**, since a draft has no stack to group on.
+  The summary line says "for this app" rather than "to this environment" in that case.
+- **A plan with no `public_url` output is not promised an address** in the evidence, the same
+  rule the plan file already follows.
+- **Evidence paths under the repo are written relative to it**, so the file does not carry a
+  home directory into a ticket.
+- **The `--request` profile expectations come only from the profiles the waiting apps designed
+  for**, taken from `need_kinds.profile_expects`, and are omitted entirely when none of the
+  waiting apps has one.
+
+### Not done, and why
+
+- **Part 2's code shipped inside the part 1 commit.** `sealeye evidence` and `sealeye needs`
+  both touch `deployme/lib/run.js`, `deployme/src/server.js` and `deployme/bin/deployme`, and
+  splitting one file's changes across two commits would have meant editing those three files
+  twice on a machine where part 1 was already verified. Part 2's commit carries its CLAUDE.md
+  rules and this note. Reverting `needs` alone therefore means removing `deployme/src/needs.js`,
+  the `/needs` route, and the `needs` command block and its three helpers by hand.
+- **`sealeye evidence` makes one HTTP request and no more.** It does not follow redirects and
+  does not probe a second path, so a site that answers only on a sub-path reads as the status
+  its root returned.
+- **CloudFormation events are retained for ninety days.** "No changes outside seaLeye.run" is
+  true as far as the event history goes, and the file says so in those words rather than
+  claiming more.
 
 ## The definition of done is met
 

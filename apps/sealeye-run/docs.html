@@ -43,6 +43,9 @@
     <div class="row"><code class="syn">sealeye watch &lt;deploymentId&gt; [--api &lt;url&gt;]</code></div>
     <div class="row"><code class="syn">sealeye destroy &lt;app | deploymentId&gt; [--api &lt;url&gt;]</code></div>
     <div class="row"><code class="syn">sealeye list [--deployments] [--all] [--api &lt;url&gt;] [--json]</code></div>
+    <div class="row"><code class="syn">sealeye evidence &lt;app | deploymentId&gt; [--json] [--out &lt;file&gt;] [--api &lt;url&gt;]</code></div>
+    <div class="row"><code class="syn">sealeye needs [--json] [--request &lt;kind&gt;] [--api &lt;url&gt;]</code></div>
+    <div class="row"><code class="syn">sealeye doctor [--json] [--api &lt;url&gt;]</code></div>
   </div>
 
   <h3>Options</h3>
@@ -55,6 +58,8 @@
     <div class="row"><span class="flag">--watch</span><span class="what">with run or deploy: stay on the live panel until the deployment finishes, instead of watching in the background and notifying you</span></div>
     <div class="row"><span class="flag">--all</span><span class="what">with list: include environments you have torn down</span></div>
     <div class="row"><span class="flag">--deployments</span><span class="what">with list: every deploy, instead of one row per environment</span></div>
+    <div class="row"><span class="flag">--out</span><span class="what">with evidence: where to write DEPLOYMENT_EVIDENCE.md (default: the current folder)</span></div>
+    <div class="row"><span class="flag">--request</span><span class="what">with needs: print a module request for one need, ready to paste into a ticket. Takes the kind, or part of the need's own line</span></div>
     <div class="row"><span class="flag">--api</span><span class="what">platform API base URL (default: http://localhost:3000)</span></div>
     <div class="row"><span class="flag">--json</span><span class="what">machine-readable output</span></div>
     <div class="row"><span class="flag">-h, --help</span><span class="what">show help</span></div>
@@ -73,7 +78,7 @@
 <span class="a"> (_-&lt;/ -_) _ `/ /__/ -_) // / -_)</span>
 <span class="a">/___/\__/\_,_/____/\__/\_, /\__/</span>
 <span class="a">                      /___/</span>
-<span class="d">seaLeye.run  ·  cd your-app &amp;&amp; sealeye run   v2.15.0</span>
+<span class="d">seaLeye.run  ·  cd your-app &amp;&amp; sealeye run   v2.16.0</span>
 
 <span class="d">  Reading your app</span>
 <span class="d">  Reading index.js</span>
@@ -149,7 +154,7 @@
 <span class="a"> (_-&lt;/ -_) _ `/ /__/ -_) // / -_)</span>
 <span class="a">/___/\__/\_,_/____/\__/\_, /\__/</span>
 <span class="a">                      /___/</span>
-<span class="d">seaLeye.run  ·  cd your-app &amp;&amp; sealeye run   v2.15.0</span>
+<span class="d">seaLeye.run  ·  cd your-app &amp;&amp; sealeye run   v2.16.0</span>
 
 <span class="f">beneficiary-lookup-api already has a live environment.</span>
 <span class="d">  https://oyobbr4ii2.execute-api.ca-central-1.amazonaws.com</span>
@@ -240,7 +245,7 @@
 <span class="a"> (_-&lt;/ -_) _ `/ /__/ -_) // / -_)</span>
 <span class="a">/___/\__/\_,_/____/\__/\_, /\__/</span>
 <span class="a">                      /___/</span>
-<span class="d">seaLeye.run  ·  cd your-app &amp;&amp; sealeye run   v2.15.0</span>
+<span class="d">seaLeye.run  ·  cd your-app &amp;&amp; sealeye run   v2.16.0</span>
 
 <span class="d">  Reading your app</span>
 <span class="d">  Reading index.js</span>
@@ -347,6 +352,57 @@
 <span class="f">    to be reachable from inside your organization only  the README says it must never be public (README.md)</span>
 <span class="d">  The drafted plan is attached from the developer's repo (DEPLOYMENT_PLAN.md).</span>
 <span class="d">  This is the second team to hit this boundary this month.</span></pre>
+
+  <h3>The change record</h3>
+  <p>
+    A bank does not ask for a URL. It asks who requested this, what they approved, what was
+    built and whether the thing running now is still that. <code>sealeye evidence</code> writes
+    it into your folder as DEPLOYMENT_EVIDENCE.md. Every value is read from seaLeye's own
+    records and from CloudFormation at that moment, nothing is typed in, and no setting's value
+    is ever in it.
+  </p>
+<pre class="term"><span class="p">$</span> <span class="f">sealeye evidence beneficiary-lookup-api</span>
+<span class="d">  [ ... the banner every command prints is trimmed here ... ]</span>
+
+<span class="d">  Reading the record for beneficiary-lookup-api</span>
+<span class="d">  Asking AWS what it says about sealeye-beneficiary-lookup-api now</span>
+
+<span class="f">Change record for beneficiary-lookup-api (stack sealeye-beneficiary-lookup-api, profile prod)</span>
+
+<span class="f">  Requested by   </span><span class="d">gregkliewer on MacBook-Air-2.local, Sep 27 2026 12:43, via sealeye deploy -f deployme.yaml</span>
+
+<span class="f">  Approved plan  </span><span class="d">sha256 1f0019...4dfe, three modules, no needs</span>
+
+<span class="f">  Built          </span><span class="d">http_api_serverless template, artifact beneficiary-lookup-api/dep_f2032e6be5e3.zip, six CloudFormation events, 46 s</span>
+
+<span class="f">  Checked now    </span><span class="d">answered 200 in 0.2 s; the stack runs the template that was approved; no changes outside seaLeye.run</span>
+
+<span class="f">  History        </span><span class="d">63 deployments to this environment, the first on Sep 21 2026</span>
+
+<span class="f">  Wrote ~/code/beneficiary-lookup-api/DEPLOYMENT_EVIDENCE.md</span></pre>
+
+  <h3>What the platform team sees</h3>
+  <p>
+    A drafted plan is not a dead end, it is a request with evidence attached.
+    <code>sealeye needs</code> rolls every drafted plan up by what it is waiting on, across
+    apps. <code>sealeye needs --request &lt;kind&gt;</code> turns one row into a module request
+    ready to paste into a ticket.
+  </p>
+<pre class="term"><span class="p">$</span> <span class="f">sealeye needs</span>
+<span class="d">  [ ... the banner every command prints is trimmed here ... ]</span>
+
+<span class="d">NEED                                                                      APPS  FIRST SEEN  LAST SEEN</span>
+<span class="p">a service that runs continuously </span><span class="d">[continuous_service]                     1     3m ago      3m ago</span>
+<span class="d">    payment-events-processor  consumer.run loop, no request/response handling (index.js)  ·  prod</span>
+<span class="p">a relational database </span><span class="d">[relational_database]                               1     3m ago      3m ago</span>
+<span class="d">    payment-events-processor  pg Pool using DATABASE_URL, insert queries (index.js)  ·  prod</span>
+<span class="p">a stream of events it publishes or reads </span><span class="d">[event_stream]                   1     3m ago      3m ago</span>
+<span class="d">    payment-events-processor  kafkajs consumer subscribed to payment.events (index.js)  ·  prod</span>
+<span class="p">secrets it reads while it runs </span><span class="d">[runtime_secrets]                          1     3m ago      3m ago</span>
+<span class="d">    payment-events-processor  SIGNING_KEY read from env, used for HMAC signing (index.js)  ·  prod</span>
+<span class="p">to be reachable from inside your organization only </span><span class="d">[internal_only]        1     3m ago      3m ago</span>
+<span class="d">    payment-events-processor  must not be reachable from the public internet (README.md)  ·  prod</span>
+<span class="d">  sealeye needs --request &lt;kind&gt; writes a module request the platform team can paste into a ticket.</span></pre>
 
   <h3>The rest</h3>
   <p>
@@ -506,6 +562,18 @@
     would have to change.
   </p>
 
+  <h3>What is DEPLOYMENT_EVIDENCE.md for?</h3>
+  <p>
+    For whoever asks what this environment is and how it got here: a change board, an auditor,
+    the person who inherits it. It is the change record for one environment, written by
+    <code>sealeye evidence</code>, and it holds who asked, what they answered, the checksum of
+    the plan they approved, what was built with its checksums, the CloudFormation events from
+    that deployment, and what AWS says about the stack right now, including whether it still
+    runs the template that was approved and whether anything changed it outside seaLeye. Every
+    value is read at the moment it is generated, and a value that could not be read says so
+    rather than being guessed. It never contains a setting's value, only its name.
+  </p>
+
   <h3>Where does my plan live, and can I edit it?</h3>
   <p>
     Two files, both written into your own folder next to your code: the plan file seaLeye runs,
@@ -518,9 +586,9 @@
 </main>
 
 <!-- The version is written out by hand here and in every other page's footer. There is no
-     build step, so the next bump is a find and replace on 2.15.0 across apps/sealeye-run/. -->
+     build step, so the next bump is a find and replace on 2.16.0 across apps/sealeye-run/. -->
 <footer>
-  seaLeye.run · sealeye <a href="changelog.html" class="version">v2.15.0</a> · <a href="changelog.html">changelog</a> · <a href="http://sealeye-online-682542496821.s3-website.ca-central-1.amazonaws.com">sealeye.online</a>
+  seaLeye.run · sealeye <a href="changelog.html" class="version">v2.16.0</a> · <a href="changelog.html">changelog</a> · <a href="http://sealeye-online-682542496821.s3-website.ca-central-1.amazonaws.com">sealeye.online</a>
 </footer>
 
 </body>

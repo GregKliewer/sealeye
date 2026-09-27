@@ -485,7 +485,7 @@ the version the CLI prints:
 
 ```
 curl -fsS "$U" | grep -q 'npm install -g @northline/sealeye' && echo "ok   install section is live" || echo "FAIL install section missing"
-curl -fsS "$U" | grep -q 'v2.14.2' && echo "ok   version matches" || echo "FAIL version on the page is not v2.14.2"
+curl -fsS "$U" | grep -q 'v2.16.0' && echo "ok   version matches" || echo "FAIL version on the page is not v2.16.0"
 ```
 
 ### One check that is not curl
