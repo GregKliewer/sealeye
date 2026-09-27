@@ -30,8 +30,13 @@ Hard rules
 - Secrets: ANTHROPIC_API_KEY and AWS creds from env or ~/.deployme/config; never in
   the repo.
 
+Endpoints: POST /plans/validate, POST /deployments, GET /deployments,
+GET /deployments/{id}, GET /deployments/{id}/evidence, DELETE /deployments/{id},
+GET /needs, GET /health.
+
 Layout: deployme/bin/deployme (CLI), deployme/lib/ (client), deployme/src/server.js
-(API), deployme/src/executor/ (cfn composition, packaging, deploy, poll, report),
+(API), deployme/src/executor/ (cfn composition, packaging, deploy, poll, report,
+evidence),
 templates/ (cfn fragments per module), prompts/ (system prompt, plan template,
 contract, report template), apps/ (sample apps), plans/ (test plans), docs/ (May POC
 material, read-only reference).
@@ -76,7 +81,9 @@ Executor rules (decided Day 3)
   CREATE_FAILED reason from describe-stack-events; DELETE_IN_PROGRESS -> destroying;
   stack gone -> destroyed. Never fake a transition.
 - The API returns outputs, failureReason and a rendered markdown report in the record.
-  The CLI writes DEPLOYMENT_REPORT.md into the app folder on succeeded. Nothing else
+  The files seaLeye.run writes into the developer's folder are DEPLOYMENT_PLAN.md and
+  deployme.yaml before the developer says yes, DEPLOYMENT_REPORT.md on succeeded, and
+  DEPLOYMENT_EVIDENCE.md only when the developer runs `sealeye evidence`. Nothing else
   writes there.
 - Static destroy empties the bucket (aws s3 rm --recursive) before delete-stack.
 
@@ -101,6 +108,22 @@ Interview rules (decided Day 4)
   deployment logic of its own.
 - Every prompt line is amber ask(); every echoed answer phosphor answer(); every
   platform action a dim step() line. No em dash in anything the developer sees.
+
+Evidence rules (Sept 27)
+- Nothing in an evidence file or the ledger is typed in. Every value is read from a
+  record, from a file seaLeye.run wrote, or from AWS at the moment of generation. A
+  value that could not be read says so in words ("not recorded before 2.16.0", "not
+  checked: describe-stacks failed") and is never guessed or left as a dash.
+- No secrets, anywhere. Setting values, ConfigValue parameters and .env contents never
+  appear in the evidence JSON, the markdown, the terminal or the ledger. Names only,
+  with "value redacted" where a value would be, the shape compose.js already uses.
+- `sealeye evidence` creates nothing in AWS and changes no deploy. Its CloudFormation
+  calls are read only, and its one outbound request is a single GET of the app's own
+  URL, recorded with its status and how long it took.
+- The ledger (`sealeye needs`) is the platform team's view of drafted plans. It counts
+  an app once however many times it drafted, it reads each need's line from
+  prompts/module-catalog.yaml rather than from the plan so a need reads one way
+  everywhere, and it never names a vendor or a date.
 
 Platform Library rules (revised Sept 26)
 - planVersion 0.4. Four modules, all of them buildable. Everything else an app needs is
