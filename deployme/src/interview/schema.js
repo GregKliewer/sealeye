@@ -15,9 +15,11 @@ export const submitPlanInputSchema = {
     plan: {
       ...planSchema,
       description:
-        "The planVersion 0.2 deployment plan. Exactly one of static_site_edge and " +
-        "http_api_serverless enabled, observability_basic always enabled, " +
-        "domain_public always disabled."
+        "The planVersion 0.4 deployment plan. Exactly one of static_site_edge and " +
+        "http_api_serverless enabled, observability_basic always enabled. Modules are " +
+        "only ever those four: never name a module seaLeye.run cannot build. Anything " +
+        "else the app needs goes in needs, each with the code that shows it. status is " +
+        "drafted when needs is not empty, ready when it is."
     },
     summary: {
       type: "string",
@@ -25,7 +27,9 @@ export const submitPlanInputSchema = {
       description:
         "A few sentences in the developer's own language: what their app is, how it " +
         "will run, what they get back. Names the enabled modules and explains each " +
-        "in plain language. No cloud vendor terms, no invented URL, no em dash."
+        "in plain language. When the plan carries needs, one sentence saying the plan " +
+        "is drafted and which needs have no module yet, never when they might. No " +
+        "cloud vendor terms, no invented URL, no em dash."
     },
     assumptions: {
       type: "array",

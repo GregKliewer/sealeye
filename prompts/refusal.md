@@ -1,2 +1,2 @@
-These {{what}} come from your organization's Platform Library. Once seaLeye.run is
-connected to {{org}}'s, this plan deploys as written.
+When {{org}}'s Platform Library has modules that support these, run sealeye run again.
+seaLeye.run will pick them up and finish the plan.

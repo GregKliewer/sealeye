@@ -1,0 +1,44 @@
+                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/
+seaLeye.run  ·  cd your-app && sealeye run   v2.14.2
+
+? A plan already exists. Reuse it (r), start over (s)? s
+  Reading your app
+  Reading index.js
+  Reading .env
+  Reading README.md
+  Reading DEPLOYMENT_PLAN.md
+  Reading deployme.yaml
+  Looking at .
+  Checking the plan against the seaLeye.run plan contract
+
+  ┌────────────────────────────────────────────────────────────────────────────┐
+  │ Your app:                                                                  │
+  │   beneficiary-lookup-api, a Node.js API that starts with index.js          │
+  ├────────────────────────────────────────────────────────────────────────────┤
+  │ We will build your dev environment with:                                   │
+  │   http_api_serverless  Runs your code on demand behind an HTTPS endpoint.  │
+  │   observability_basic  Collects your app's logs and tracks requests,       │
+  │                        errors and response times.                          │
+  │   config_basic         Passes the settings your app reads from its         │
+  │                        environment through to it when it runs.             │
+  │   the settings it passes through: PAYMENTS_SOR_URL, CACHE_MAX_AGE_MINUTES  │
+  ├────────────────────────────────────────────────────────────────────────────┤
+  │ You will get back:                                                         │
+  │   A public HTTPS address, as soon as it is live                            │
+  │   Your logs and basic metrics, kept for 30 days                            │
+  │   A plan your later environments are built from                            │
+  └────────────────────────────────────────────────────────────────────────────┘
+
+  Full plan, and every assumption seaLeye.run made: DEPLOYMENT_PLAN.md
+  Wrote /Users/gregkliewer/dev/deployme-demo/qa/beneficiary-lookup-api/DEPLOYMENT_PLAN.md
+  Wrote /Users/gregkliewer/dev/deployme-demo/qa/beneficiary-lookup-api/deployme.yaml
+
+? Deploy this? [y/N] n
+
+  Your plan is in /Users/gregkliewer/dev/deployme-demo/qa/beneficiary-lookup-api/DEPLOYMENT_PLAN.md
+  The plan seaLeye.run would run is in /Users/gregkliewer/dev/deployme-demo/qa/beneficiary-lookup-api/deployme.yaml
+  When you are ready: sealeye deploy -f deployme.yaml

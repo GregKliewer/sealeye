@@ -1,6 +1,6 @@
 // src/interview/loop.js
 // The `sealeye run` interview: the model looks at the developer's folder, asks at
-// most four questions, and submits a planVersion 0.2 plan.
+// most four questions, and submits a planVersion 0.4 plan.
 //
 // The loop is written by hand rather than handed to the SDK tool runner because two
 // of the three tools are not code: a question goes to a human at a terminal, and
@@ -29,9 +29,22 @@ const MAX_TOKENS = 16000;
 // plan after a correction is the slowest one, so leave room for it: 120 s, retried
 // once, is still inside the five minute budget.
 const TIMEOUT_MS = 120_000;
-// A turn that writes a whole plan takes twenty seconds and is still a normal turn.
-// Past this, the wait is not normal any more and the line the developer reads says so.
+// What the retry calls a long wait. A dropped connection comes back in well under a
+// second, so a retry after this much silence is worth saying out loud.
 const SLOW_MS = 30_000;
+
+// What the spinner calls a long wait, which is a different question. A plan-writing
+// turn measured 25 to 45 seconds on healthy runs, so warning at 30 fired on runs where
+// nothing was wrong and told the room the product was slow. This is past every healthy
+// turn measured and still well inside the 120 second timeout.
+const SPINNER_WARN_MS = 75_000;
+const STILL_WORKING = "Still working on it";
+
+// A line naming a file is true while the file is being read and stops being true a
+// moment later: the model has the contents and is thinking about them. After this
+// long, the spinner says what is happening now instead of what has already finished.
+const THINKING_AFTER_MS = 3_000;
+const NAMES_A_FILE = /^(Reading |Looking at |Nothing to read at )/;
 
 /**
  * Sampling parameters were removed on Sonnet 5 and the rest of the current
@@ -227,6 +240,45 @@ async function createWithOneRetry(client, params, onStep) {
 }
 
 /**
+ * One line per model turn, on stderr so it never reaches a transcript or --json
+ * output. Only with DEPLOYME_DEBUG set: "why did that take 45 seconds" is a question
+ * to answer with the turn's own numbers rather than a guess about them.
+ */
+function debugTurn({ turn, endedIn, ms, usage, textChars }) {
+  if (!process.env.DEPLOYME_DEBUG) return;
+
+  const u = usage || {};
+  const parts = [
+    `turn ${String(turn + 1).padStart(2)}`,
+    String(endedIn).padEnd(14),
+    `${(ms / 1000).toFixed(1)}s`.padStart(6),
+    `in ${String(u.input_tokens ?? 0).padStart(6)}`,
+    `out ${String(u.output_tokens ?? 0).padStart(5)}`
+  ];
+
+  // A turn that ends in a tool call can still write prose first, and prose written
+  // before a tool call is never shown to anyone: the CLI reads the tool input and
+  // drops the text. It is still generated, and generation is what the wait is made of,
+  // so it is worth being able to see how much of a slow turn went into it.
+  if (textChars) parts.push(`text ${textChars}c`);
+
+  if (u.cache_creation_input_tokens) parts.push(`cache write ${u.cache_creation_input_tokens}`);
+  if (u.cache_read_input_tokens) parts.push(`cache read ${u.cache_read_input_tokens}`);
+
+  console.error(`  [debug] ${parts.join("  ")}`);
+}
+
+/** What a turn turned out to be, for the debug line. */
+function turnEndedIn(response) {
+  const toolUses = response.content.filter(b => b.type === "tool_use");
+  if (toolUses.some(u => u.name === "submit_plan")) return "submit_plan";
+  if (toolUses.length) return toolUses.map(u => u.name).join("+");
+
+  const text = textOf(response.content);
+  return text && isQuestion(text) ? "question" : "stop";
+}
+
+/**
  * Run the interview.
  *
  * @param {object}   options
@@ -257,7 +309,12 @@ export async function runInterview({
   // The SDK's own retries are off: one retry, announced, beats three silent ones in
   // front of an audience.
   const client = new Anthropic({ apiKey, timeout: TIMEOUT_MS, maxRetries: 0 });
-  const system = loadSystemPrompt();
+
+  // The system prompt and the tool schemas are the same several thousand tokens on
+  // every turn of a run, and a run is a dozen turns. One cache breakpoint on the
+  // system block covers the tools too, since they sit in front of it in the prompt,
+  // so everything fixed is written once and read back on every turn after.
+  const system = [{ type: "text", text: loadSystemPrompt(), cache_control: { type: "ephemeral" } }];
   const tools = [listFilesTool, readFileTool, submitPlanTool];
 
   // The digest first, then what is already running. A redeploy that re-asks what the
@@ -276,21 +333,39 @@ export async function runInterview({
   let lastLine = "reading your app";   // the first turn, before the platform has said anything
 
   let slowTimer = null;
+  let thinkingTimer = null;
+
+  // A redeploy is working out what moved; a first run is working out what the app
+  // needs at all. Either way it is what the model is actually doing once the reading
+  // has stopped, which is what the line has to be true about.
+  const thinkingLabel = deployed ? "Working out what changed" : "Working out what your app needs";
 
   const startWaiting = () => {
     waiting = spinner(lastLine);
 
+    // A label that names a file goes stale the moment the read finishes. On a redeploy
+    // the model often reads its way to a plan without asking anything, so this was the
+    // line that sat there saying "Reading deployme.yaml 40s" with nothing being read.
+    if (NAMES_A_FILE.test(lastLine)) {
+      thinkingTimer = setTimeout(() => {
+        if (waiting) waiting.label(thinkingLabel, { keepCount: true });
+      }, THINKING_AFTER_MS);
+      thinkingTimer.unref();
+    }
+
     // The words change, the count does not: the developer is owed the whole wait, not
     // the part of it that has been worrying.
     slowTimer = setTimeout(() => {
-      if (waiting) waiting.label("this is taking longer than it should", { keepCount: true });
-    }, SLOW_MS);
+      if (waiting) waiting.label(STILL_WORKING, { keepCount: true });
+    }, SPINNER_WARN_MS);
     slowTimer.unref();
   };
 
   const stopWaiting = () => {
     clearTimeout(slowTimer);
+    clearTimeout(thinkingTimer);
     slowTimer = null;
+    thinkingTimer = null;
     if (waiting) { waiting.stop(); waiting = null; }
   };
 
@@ -309,6 +384,8 @@ export async function runInterview({
     startWaiting();
 
     let response;
+    const turnStartedAt = Date.now();
+
     try {
       response = await createWithOneRetry(
         client,
@@ -327,6 +404,14 @@ export async function runInterview({
       // handed back before anything is printed on it.
       stopWaiting();
     }
+
+    debugTurn({
+      turn,
+      endedIn: turnEndedIn(response),
+      ms: Date.now() - turnStartedAt,
+      usage: response.usage,
+      textChars: textOf(response.content).length
+    });
 
     messages.push({ role: "assistant", content: response.content });
 

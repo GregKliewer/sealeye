@@ -571,6 +571,33 @@
 
   .adminline { color: var(--dim); margin: 20px 0 0; }
 
+  /* ---- a plain report of rows: what is in place, or what is still needed ---- */
+  .report {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    margin: 16px 0 0;
+    padding: 0 18px;
+  }
+  .report .line {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    padding: 14px 0;
+    border-top: 1px solid var(--rule);
+  }
+  .report .line:first-child { border-top: none; }
+  .report .what { flex: 1 1 auto; min-width: 0; }
+  .report .job2 { font-weight: 500; }
+  .report .inplace { margin-top: 3px; word-break: break-word; font-size: 13px; }
+  .report .inplace.none { color: var(--dim); }
+  .report .why { color: var(--dim); font-size: 13px; margin-top: 3px; }
+  .report .action { flex: 0 0 auto; padding-top: 1px; }
+
+  /* A need on a card is the one row asking something of a person, so it takes amber,
+     the same as it does in the terminal. Its evidence stays in the quiet colour. */
+  .group.needs .row .id { color: var(--amber); }
+
   /* ---- the ticket a refusal opened ---- */
   td.requests a.ticket {
     display: inline-block;

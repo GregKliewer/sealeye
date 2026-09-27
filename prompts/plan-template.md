@@ -38,6 +38,17 @@ Inputs:
 
 ---
 
+## What Your App Needs That No Module Supports Yet
+
+### <the need, in the developer's words>
+
+Found in your code:
+- <what in the file shows it> (<file>)
+
+What your <profile> profile will expect of it: <pattern, in plain language>
+
+---
+
 ## What Will Be Created
 
 1. <Plain-language description of outcome 1>
@@ -60,6 +71,12 @@ Inputs:
 - <module>: <reason it was excluded>
 - <module>: <reason it was excluded>
 - <module>: <reason it was excluded>
+
+---
+
+## What Happens Next
+
+<Only on a draft: what to do when the Platform Library has modules for the needs above>
 
 ---
 

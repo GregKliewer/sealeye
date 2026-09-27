@@ -15,14 +15,14 @@ import {
 } from "../lib/run.js";
 import { banner, step, ask, answer, c, product, spinner, stopSpinner, animations } from "../src/brand.js";
 import { safeName } from "../src/executor/compose.js";
-import { notDeployable, refusalClosing } from "../src/catalog.js";
+import { unsupportedNeeds, refusalClosing } from "../src/catalog.js";
 import { runInterview, resolveApiKey } from "../src/interview/loop.js";
 import { writeInterviewFiles, decisionCard } from "../src/interview/render.js";
 import { plainValidationErrors } from "../src/interview/explain.js";
 
 // Statuses that are history rather than something you can still open: one was torn
 // down, the other was never built because the platform said so.
-const PAST = new Set(["destroyed", "planned"]);
+const PAST = new Set(["destroyed", "drafted"]);
 
 // --json is machine output: no banner, no colour, nothing but the object.
 const jsonOut = process.argv.includes("--json");
@@ -305,18 +305,15 @@ async function main() {
       }
 
       // One line, above the boundary, so nobody says yes to a plan expecting a URL.
-      const declined = notDeployable(submission.plan);
+      const needs = unsupportedNeeds(submission.plan);
 
-      if (declined.modules.length) {
-        const count = declined.modules.length;
-        const asks = `${count} of these modules ${count === 1 ? "is" : "are"} not in the catalog yet`;
-
+      if (needs.length) {
         // Amber, like every other line that tells the developer something is not as
-        // they might assume. What follows it is reassurance, so it stays dim.
+        // they might assume. What follows it is what happens next, so it stays dim.
         console.log("");
         console.log(
-          `  ${c.prompt(`${asks[0].toUpperCase()}${asks.slice(1)}.`)} ` +
-            c.dim("seaLeye.run will save this plan and tell you what would make it deployable.")
+          `  ${c.prompt("This plan is drafted.")} ` +
+            c.dim("seaLeye.run can build part of it today, and not the parts above. It will save the draft and tell you what would make it buildable.")
         );
       }
 
@@ -766,7 +763,7 @@ async function resolveTarget({ apiBaseUrl, target }) {
     // A plan the platform declined never had anything built for it, so "torn down" is
     // the wrong word and the developer would be right to wonder what was deleted.
     say(
-      known.rawStatus === "planned"
+      known.rawStatus === "drafted"
         ? `Nothing was built for ${target}, so there is nothing to tear down. ${product.command} list --all shows the plan.`
         : `${target} has already been torn down. ${product.command} list --all shows it.`
     );
@@ -808,7 +805,7 @@ async function runDeploy({ apiBaseUrl, backend, plan, appPath }) {
 
     // The platform decided this, not the CLI. All the CLI does is say it in the
     // developer's language.
-    if (refusal?.code === "PLANNED_MODULES" || refusal?.code === "PLANNED_PROFILE") {
+    if (refusal?.code === "UNSUPPORTED_NEEDS") {
       wait.stop();
       printRefusal(refusal.details);
       process.exitCode = 1;
@@ -858,21 +855,20 @@ function wrapWords(text, room) {
 }
 
 function printRefusal(details = {}) {
-  const modules = details.modules || [];
-  const rows = modules.map(m => ({ id: m.id, line: m.line }));
+  const needs = details.needs || [];
+  const rows = needs.map(n => ({
+    id: n.line,
+    line: (n.evidence || []).map(e => e.shows).join("; ")
+  }));
 
   const width = Math.max(...rows.map(r => r.id.length));
   const columns = process.stdout.columns || 80;
 
-  // Only modules reach here, so the count and the list always agree. "One of its
-  // modules is": the noun stays plural, the verb does the counting.
-  const subject = `${countWord(modules.length)} of its modules`;
-  const verb = modules.length === 1 ? "is" : "are";
-  const what = "modules";
-
+  // The count and the list always agree, because both come from the plan.
+  const many = needs.length === 1 ? "thing" : "things";
   const sentence =
-    `Your plan is valid and saved in DEPLOYMENT_PLAN.md. ` +
-    `${subject.charAt(0).toUpperCase()}${subject.slice(1)} ${verb} not in the seaLeye catalog:`;
+    `Your plan is drafted and saved in DEPLOYMENT_PLAN.md. Your app needs ` +
+    `${countWord(needs.length).toLowerCase()} ${many} that no module in your catalog supports yet:`;
 
   console.log("");
   console.log(c.fail("seaLeye.run cannot build this environment yet."));
@@ -880,18 +876,20 @@ function printRefusal(details = {}) {
   for (const line of wrapWords(sentence, Math.max(32, columns - 4))) console.log(c.dim(`  ${line}`));
   console.log("");
 
-  // A long line wraps under its own id rather than running off the terminal.
+  // A long line wraps under its own need rather than running off the terminal. The
+  // need is amber because it is the thing asking something of a person; the evidence
+  // is dim, like every other detail the platform is reporting.
   const room = Math.max(24, columns - width - 8);
   const hang = " ".repeat(width + 6);
 
   for (const row of rows) {
     wrapWords(row.line, room).forEach((line, i) => {
-      console.log(i === 0 ? `    ${c.fg(row.id.padEnd(width))}  ${c.dim(line)}` : `${hang}${c.dim(line)}`);
+      console.log(i === 0 ? `    ${c.prompt(row.id.padEnd(width))}  ${c.dim(line)}` : `${hang}${c.dim(line)}`);
     });
   }
 
   console.log("");
-  for (const line of refusalClosing(what).split("\n")) console.log(c.dim(`  ${line}`));
+  for (const line of refusalClosing().split("\n")) console.log(c.dim(`  ${line}`));
   console.log("");
 }
 
@@ -925,15 +923,15 @@ async function showTeamContext(plan) {
 
   // "the same" is only said when it is true, so the line cannot become a small lie
   // if the fixture and the plan drift apart.
-  const refused = notDeployable(plan).modules.map(m => m.id).sort();
-  const before = (prior.modules || []).slice().sort();
+  const refused = unsupportedNeeds(plan).map(n => n.kind).sort();
+  const before = (prior.needs || []).slice().sort();
   const same = refused.length === before.length && refused.every((id, i) => id === before[i]);
   const count = before.length;
 
   console.log("");
   console.log(c.fg("  This app has hit the catalog boundary before."));
   console.log(
-    c.dim(`    ${prior.by} (${prior.team})  \u00B7  ${prior.when}  \u00B7  ${same ? "the same " : ""}${count} modules`)
+    c.dim(`    ${prior.by} (${prior.team})  \u00B7  ${prior.when}  \u00B7  ${same ? "the same " : ""}${count} needs`)
   );
   console.log(c.dim(`    Ticket ${ticket.id} is open with your platform team.`));
   console.log("");
@@ -1161,7 +1159,9 @@ function writeReport(dep) {
 
 function statusColour(status, text = status) {
   if (status === "succeeded") return c.accent(text);
-  if (status === "failed") return c.prompt(text);
+  // A failure and a draft both need a person. Amber is the colour for that, and the
+  // brand has no third colour to reach for.
+  if (status === "failed" || status === "drafted") return c.prompt(text);
   return c.dim(text);
 }
 
@@ -1316,6 +1316,13 @@ function deploymentSummaryLines(dep, { step: showStep = true } = {}) {
   if (Array.isArray(dep.resolvedModules) && dep.resolvedModules.length) {
     lines.push("You asked for:");
     for (const m of dep.resolvedModules) lines.push(`  ${c.accent(m.id)}`);
+  }
+
+  // A draft is defined by what it could not build, so that is what it lists. Amber,
+  // because every need is something waiting on a person.
+  if (Array.isArray(dep.needs) && dep.needs.length) {
+    lines.push(`Needs no module supports yet (${dep.needs.length}):`);
+    for (const n of dep.needs) lines.push(`  ${c.prompt(n.line)}`);
   }
 
   // One plain-language line of what the platform is doing right now. `watch` turns

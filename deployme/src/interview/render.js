@@ -13,8 +13,8 @@ import path from "node:path";
 import YAML from "yaml";
 
 import { c } from "../brand.js";
-import { normalizeProfile } from "../schema.js";
-import { loadCatalog, moduleEntry, profileEntry, patternsFor } from "../catalog.js";
+import { normalizeProfile, isBuildable, MODULE_IDS } from "../schema.js";
+import { loadCatalog, moduleEntry, profileEntry, patternsFor, unsupportedNeeds } from "../catalog.js";
 import { repoRoot } from "../executor/env.js";
 
 const PLAN_FILE = "DEPLOYMENT_PLAN.md";
@@ -48,18 +48,30 @@ const disabledModules = plan => (plan.modules || []).filter(m => m.enabled === f
 const moduleById = (plan, id) => (plan.modules || []).find(m => m.id === id);
 const isEnabled = (plan, id) => enabledModules(plan).some(m => m.id === id);
 
-const CORE_MODULES = ["static_site_edge", "http_api_serverless", "compute_container"];
+const CORE_MODULES = ["static_site_edge", "http_api_serverless"];
 
 function coreModule(plan) {
   return enabledModules(plan).find(m => CORE_MODULES.includes(m.id));
 }
 
-/** "Static Website" or "Node.js API", from the plan rather than from a guess. */
+/**
+ * "Static Website" or "Node.js API", from the plan rather than from a guess.
+ *
+ * An app with neither core module is one that cannot start fresh for each request, so
+ * it carries the continuous_service need instead. That is what it is called, and the
+ * name comes from the need rather than from a module nobody can build.
+ */
 function appTypeLabel(plan) {
   const core = coreModule(plan);
-  if (!core) return plan.app?.type === "static-site" ? "Static Website" : "service";
+
+  if (!core) {
+    if ((plan.needs || []).some(n => n.kind === "continuous_service")) {
+      return "service that runs continuously";
+    }
+    return plan.app?.type === "static-site" ? "Static Website" : "service";
+  }
+
   if (core.id === "static_site_edge") return "Static Website";
-  if (core.id === "compute_container") return "service that runs continuously";
 
   const runtime = core.inputs?.runtime;
   return runtime === "python" ? "Python API" : "Node.js API";
@@ -95,7 +107,58 @@ function inputLines(module) {
 // ---------------------------------------------------------------------------
 
 function preamble(ctx) {
-  return `# Deployment Plan\n\n${appTypeLabel(ctx.plan)} • Generated ${longDate(ctx.date)}`;
+  const drafted = unsupportedNeeds(ctx.plan).length > 0;
+  const title = drafted ? "# Deployment Plan (draft)" : "# Deployment Plan";
+  const meta = `${appTypeLabel(ctx.plan)} • Generated ${longDate(ctx.date)}`;
+
+  // A draft says so before anything else. A developer who reads one line of this file
+  // should not come away thinking something was built.
+  const status = drafted
+    ? "\n\nDrafted: seaLeye.run can build part of this today. The sections below say what it cannot build yet, and why."
+    : "";
+
+  return `${title}\n\n${meta}${status}`;
+}
+
+/**
+ * What the app needs that no module supports, with the code that shows it.
+ *
+ * The line is the developer's sentence, the evidence is what was read in their folder,
+ * and profile_expects is what their profile will ask of it once something supports it.
+ * Nothing here is a module id, because nobody has seen the module yet.
+ */
+function whatItNeeds({ plan }) {
+  const needs = unsupportedNeeds(plan);
+  if (!needs.length) return null;
+
+  return needs
+    .map(need => {
+      const lines = [`### ${need.line}`, "", "Found in your code:"];
+      for (const e of need.evidence) lines.push(`- ${e.shows} (${e.file})`);
+      if (need.profile_expects) {
+        lines.push("", `What your ${normalizeProfile(plan.profile)} profile will expect of it: ${need.profile_expects}`);
+      }
+      return lines.join("\n");
+    })
+    .join("\n\n");
+}
+
+/** What a developer does with a draft, which is the only question a draft raises. */
+function whatHappensNext({ plan }) {
+  if (!unsupportedNeeds(plan).length) return null;
+
+  return (
+    "When your Platform Library has modules that support the needs above, run " +
+    "`sealeye run` in this folder. seaLeye.run will read this draft, match the needs " +
+    "to modules, and finish the plan. Until then nothing is deployed."
+  );
+}
+
+/** What runs the app, which is not "on request" when nothing runs it on request. */
+function backendLine(plan, isStatic, core) {
+  if (isStatic) return "none, it runs entirely in the browser";
+  if (core) return "your own code, running on request";
+  return "your own code, running continuously";
 }
 
 function applicationSummary({ plan }) {
@@ -113,23 +176,22 @@ function applicationSummary({ plan }) {
     `Name: ${plan.app?.name || "your app"}`,
     `Structure: ${structure}`,
     `Runtime: ${isStatic ? "browser" : inputs.runtime === "python" ? "python" : "node"}`,
-    `Backend: ${isStatic ? "none, it runs entirely in the browser" : "your own code, running on request"}`,
+    `Backend: ${backendLine(plan, isStatic, core)}`,
     `Build Step: ${isStatic ? "none required" : "none, your dependencies are installed for you"}`,
     `Profile: ${normalizeProfile(plan.profile) || "poc"}`
   ]);
 }
 
 function selectedModules({ plan, catalog }) {
-  const order = ["static_site_edge", "http_api_serverless", "observability_basic", "config_basic", "domain_public"];
+  const order = ["static_site_edge", "http_api_serverless", "observability_basic", "config_basic"];
   const modules = enabledModules(plan).sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
 
   return modules
     .map(module => {
       const entry = catalog.modules.find(m => m.id === module.id);
       const role = entry?.role === "core" ? "Core" : entry?.role === "shared" ? "Observability" : "Optional";
-      const state = entry?.availability && entry.availability !== "available" ? `, ${entry.availability}` : "";
       const line = entry?.line?.trim() || "";
-      return `### ${module.id} - ${role}${state}\n${line}${inputLines(module)}`;
+      return `### ${module.id} - ${role}\n${line}${inputLines(module)}`;
     })
     .join("\n\n");
 }
@@ -165,9 +227,27 @@ function whatWillBeCreated({ plan }) {
     );
   }
 
-  steps.push("You get the address back when it is live, and a report of what was created.");
+  // A plan with no public URL in its outputs has no address to hand back, so it is not
+  // promised one.
+  steps.push(
+    (plan.outputs || []).includes("public_url")
+      ? "You get the address back when it is live, and a report of what was created."
+      : "You get a report of what was created."
+  );
 
-  return steps.map((s, i) => `${i + 1}. ${s}`).join("\n");
+  const numbered = steps.map((s, i) => `${i + 1}. ${s}`).join("\n");
+
+  // A draft describes what would be built, not what will be. Saying otherwise is the
+  // whole failure this file exists to avoid.
+  if (unsupportedNeeds(plan).length) {
+    return (
+      "This plan is a draft, so nothing is created while it stays one. " +
+      "What seaLeye.run would build today, once the needs above are met:\n\n" +
+      numbered
+    );
+  }
+
+  return numbered;
 }
 
 function expectedOutput({ plan }) {
@@ -188,8 +268,10 @@ function expectedOutput({ plan }) {
 }
 
 function modulesNotRequired({ plan, catalog }) {
-  const skipped = disabledModules(plan);
-  if (!skipped.length) return "Every module in the catalog is in use for this app.";
+  // Only modules seaLeye.run builds are ever named here. What the app needs beyond
+  // them has its own section and is not a module that was "not required".
+  const skipped = disabledModules(plan).filter(m => isBuildable(m.id));
+  if (!skipped.length) return "Every module seaLeye.run builds is in use for this app.";
 
   return bullets(
     skipped.map(module => {
@@ -218,7 +300,9 @@ const SECTIONS = {
   "Selected Modules": selectedModules,
   "What Will Be Created": whatWillBeCreated,
   "Expected Output": expectedOutput,
+  "What Your App Needs That No Module Supports Yet": whatItNeeds,
   "Modules Not Required": modulesNotRequired,
+  "What Happens Next": whatHappensNext,
   Notes: notes
 };
 
@@ -235,10 +319,10 @@ const SECTIONS = {
 
 const CARD_INDENT = 4;
 const CARD_MAX_WIDTH = 96;   // a framed card stops widening past this, whatever the window
-const CARD_ORDER = ["static_site_edge", "http_api_serverless", "observability_basic", "config_basic", "domain_public"];
+const CARD_ORDER = MODULE_IDS;
 
-// What runs the app comes first, whatever else the plan asks for: a module the catalog
-// order does not know about is a planned one, and it belongs after the ones that build.
+// What runs the app comes first. Every module in a plan is one the platform builds, so
+// an id this order does not know about is a bug, and it sorts last rather than crashing.
 const cardRank = id => (CARD_ORDER.indexOf(id) === -1 ? CARD_ORDER.length : CARD_ORDER.indexOf(id));
 
 /** Rows that fit the room, broken on word boundaries. */
@@ -316,7 +400,6 @@ function paintValues(text, values) {
 
 function cardContent(plan, catalog) {
   const entryFor = id => moduleEntry(id, catalog) || {};
-  const buildable = id => entryFor(id).availability === "available";
   const core = coreModule(plan);
   const isStatic = core?.id === "static_site_edge";
 
@@ -345,7 +428,7 @@ function cardContent(plan, catalog) {
     .map(m => ({
       key: `module:${m.id}`,
       id: m.id,
-      text: `${shortLine(entryFor(m.id).line)}${buildable(m.id) ? "" : ` (${entryFor(m.id).availability})`}`,
+      text: shortLine(entryFor(m.id).line),
       signature: stableJson(m.inputs || {})
     }));
 
@@ -369,7 +452,8 @@ function cardContent(plan, catalog) {
   // An app that asked not to be reachable from the public internet is never told it is
   // getting a public address, whatever the plan's outputs say. A plan can be wrong
   // about this; the card cannot be, because the card is what the developer approves.
-  if (isEnabled(plan, "network_private")) {
+  const internalOnly = unsupportedNeeds(plan).some(n => n.kind === "internal_only");
+  if (internalOnly) {
     back.push({
       key: "out:url",
       text: "A private address inside your organization's network, as soon as it is live"
@@ -391,7 +475,16 @@ function cardContent(plan, catalog) {
     back.push({ key: "out:design", text: "A plan your later environments are built from" });
   }
 
-  return { app, running, back };
+  // What the app needs that nothing here builds. Its own rows, its own heading, and
+  // the evidence beside each one so the developer can check it against their code.
+  const needs = unsupportedNeeds(plan).map(need => ({
+    key: `need:${need.kind}`,
+    id: need.line,
+    tone: "need",
+    text: (need.evidence || []).map(e => (e.file ? `${e.shows} (${e.file})` : e.shows)).join("; ")
+  }));
+
+  return { app, running, back, needs };
 }
 
 /**
@@ -414,8 +507,7 @@ function previousContent(previous, catalog) {
       .sort((a, b) => cardRank(a) - cardRank(b))
       .map(id => {
         const entry = entryFor(id);
-        const state = entry.availability && entry.availability !== "available" ? ` (${entry.availability})` : "";
-        return { key: `module:${id}`, id, text: `${shortLine(entry.line)}${state}` };
+        return { key: `module:${id}`, id, text: shortLine(entry.line) };
       }),
     partial: true
   };
@@ -493,7 +585,10 @@ function renderRow(row, { room, markWidth, idWidth }) {
   if (row.id) {
     const textRoom = Math.max(24, room - markPad - idWidth - 2);
     const hang = " ".repeat(markPad + idWidth + 2);
-    const id = quiet ? c.dim(row.id.padEnd(idWidth)) : c.fg(row.id.padEnd(idWidth));
+    // A need is the one row on the card that asks something of a person: amber, by the
+    // same rule the prompts follow. Its evidence stays dim, like every other detail.
+    const paintId = quiet ? c.dim : row.tone === "need" ? c.prompt : c.fg;
+    const id = paintId(row.id.padEnd(idWidth));
 
     return wrapText(row.text, textRoom).map((line, i) =>
       i === 0 ? `${markCell}${id}  ${c.dim(line)}` : `${hang}${c.dim(line)}`
@@ -574,6 +669,7 @@ export function decisionCard(plan, {
   const app = markRows(next.app, before?.app, { settings });
   const running = markRows(next.running, before?.running, { settings });
   const back = markRows(next.back, before?.back, { settings });
+  const needs = markRows(next.needs || [], before?.needs, { settings });
 
   // A card that says nothing changes is the strongest thing a second run can say, so
   // it is only said when it is true of every line, not only of the modules.
@@ -590,7 +686,7 @@ export function decisionCard(plan, {
   // to line up, or the eye reads the indent as meaning something.
   const markWidth = Math.max(
     0,
-    ...[...app, ...middle, ...back].map(row => (row.mark ? MARKS[row.mark].word.length : 0))
+    ...[...app, ...middle, ...needs, ...back].map(row => (row.mark ? MARKS[row.mark].word.length : 0))
   );
 
   // Which environment these patterns describe. A dev plan gets its patterns now,
@@ -614,6 +710,14 @@ export function decisionCard(plan, {
       heading: before ? "We will change this environment:" : "We will build your dev environment with:",
       rows: renderRows(middle, room, markWidth)
     },
+    // What no module supports comes straight after what will be built, because the
+    // developer is being asked to approve both halves of the same answer.
+    ...(needs.length
+      ? [{
+          heading: "Your app also needs, and no module in your catalog supports yet:",
+          rows: renderRows(needs, room, markWidth)
+        }]
+      : []),
     ...(patterns.length
       ? [{
           heading: PATTERN_HEADINGS[normalizeProfile(plan.profile)] || PATTERN_HEADINGS.prod,
@@ -652,11 +756,31 @@ export function renderPlanMarkdown(submission, { template = loadTemplate(), cata
     const render = SECTIONS[name];
     if (!render) continue;   // a section the template names and the plan has nothing to say about
 
-    blocks.push(`## ${name}\n\n${render(ctx)}`);
+    const body = render(ctx);
+    if (body === null) continue;   // a section only a draft has, on a plan that is not one
+
+    blocks.push(`## ${name}\n\n${body}`);
   }
 
-  return `${blocks.join("\n\n---\n\n")}\n`;
+  const markdown = `${blocks.join("\n\n---\n\n")}\n`;
+
+  // The one rule this file exists to keep. A module id in here that seaLeye.run cannot
+  // build is a promise to a developer that nobody can keep, so it fails here, loudly,
+  // rather than reaching their folder.
+  const stray = STRAY_MODULE_ID.exec(markdown);
+  if (stray && !isBuildable(stray[0])) {
+    throw new Error(
+      `DEPLOYMENT_PLAN.md names ${stray[0]}, which seaLeye.run does not build. ` +
+        "Only " + MODULE_IDS.join(", ") + " may appear in a plan file."
+    );
+  }
+
+  return markdown;
 }
+
+// Module ids are the one lowercase_snake shape in this file. Anything matching that is
+// checked against the four; prose never does, because prose is written in sentences.
+const STRAY_MODULE_ID = /\b(?:static_site_edge|http_api_serverless|observability_basic|config_basic|domain_public|data_relational|data_cache|events_stream|queue_basic|secrets_basic|identity_service|network_private|compute_container|scheduled_job|storage_object)\b/;
 
 /** deployme.yaml: the plan as submitted, nothing added. */
 export function renderPlanYaml(plan) {

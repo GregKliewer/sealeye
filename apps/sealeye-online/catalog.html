@@ -5,9 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Catalog, seaLeye.online</title>
 
-<!-- Everything this page shows. An available module carries the version seaLeye.run
-     builds today, what changed in it, and how long the older ones have left. A planned
-     or requested one has no version, because there is nothing to version yet. -->
+<!-- Everything this page shows. Edit here; nothing else holds state. Every module in
+     this catalog is one seaLeye.run builds, so every one has a version, a history and
+     a support window. There is no other kind: seaLeye.run has not ingested Northline's
+     Platform Library, so it cannot say what else is in there.
+     `needs` is rolled up from the drafted plans in this organization: what apps turned
+     out to need, in the words seaLeye.run used with the developer, and the ticket each
+     one opened. -->
 <script type="application/json" id="state">
 {
   "org": "Northline Bank",
@@ -17,25 +21,8 @@
   },
   "page": {
     "title": "Catalog",
-    "subtitle": "Every module in Northline Bank's Platform Library, what seaLeye.run can build today, and what it cannot build yet."
+    "subtitle": "What seaLeye.run builds at Northline Bank, and what apps have needed that it cannot."
   },
-  "states": [
-    {
-      "id": "available",
-      "label": "Available",
-      "line": "seaLeye.run builds this today. It has a version, and it is supported."
-    },
-    {
-      "id": "planned",
-      "label": "Planned",
-      "line": "In the library and in the plan, but this version of seaLeye.run does not build it."
-    },
-    {
-      "id": "requested",
-      "label": "Requested",
-      "line": "Somebody has asked for it. It is not in the library yet."
-    }
-  ],
   "catalog": [
     {
       "id": "static_site_edge",
@@ -189,67 +176,40 @@
           }
         ]
       }
-    },
-    {
-      "id": "domain_public",
-      "line": "a custom domain you already own",
-      "state": "planned"
-    },
-    {
-      "id": "data_relational",
-      "line": "a managed relational database your app connects to",
-      "state": "planned"
-    },
-    {
-      "id": "data_cache",
-      "line": "a fast in-memory cache",
-      "state": "planned"
-    },
-    {
-      "id": "events_stream",
-      "line": "a stream your services publish to and read from",
-      "state": "planned"
-    },
-    {
-      "id": "queue_basic",
-      "line": "a work queue between services",
-      "state": "planned"
-    },
-    {
-      "id": "secrets_basic",
-      "line": "secrets your app reads at runtime, never stored in code",
-      "state": "planned"
-    },
-    {
-      "id": "identity_service",
-      "line": "sign-in and tokens for your app's users",
-      "state": "planned"
-    },
-    {
-      "id": "network_private",
-      "line": "your app is not reachable from the public internet",
-      "state": "planned"
-    },
-    {
-      "id": "compute_container",
-      "line": "a service that runs continuously rather than on demand",
-      "state": "planned"
-    },
-    {
-      "id": "scheduled_job",
-      "line": "something that runs on a schedule",
-      "state": "planned"
-    },
-    {
-      "id": "storage_object",
-      "line": "files your app stores and reads, distinct from serving a site",
-      "state": "planned"
     }
-  ]
+  ],
+  "needs": [
+    {
+      "line": "a service that runs continuously",
+      "apps": 1,
+      "ticket": "PLAT-1042"
+    },
+    {
+      "line": "a relational database",
+      "apps": 1,
+      "ticket": "PLAT-1042"
+    },
+    {
+      "line": "a stream of events it publishes or reads",
+      "apps": 1,
+      "ticket": "PLAT-1042"
+    },
+    {
+      "line": "secrets it reads while it runs",
+      "apps": 1,
+      "ticket": "PLAT-1042"
+    },
+    {
+      "line": "to be reachable from inside your organization only",
+      "apps": 1,
+      "ticket": "PLAT-1042"
+    }
+  ],
+  "ticketBase": "https://northline.atlassian.net/browse/"
 }
 </script>
 
-<link rel="stylesheet" href="style.css?v=2">
+<link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
 
@@ -277,17 +237,15 @@
   <div class="panel">
     <div class="toolbar">
       <input id="search" class="search" type="search" placeholder="Search modules" aria-label="Search modules" spellcheck="false" autocomplete="off">
-      <button type="button" class="toggle live" id="toggleAvailable" aria-pressed="true">Available</button>
-      <button type="button" class="toggle planned" id="togglePlanned" aria-pressed="true">Planned</button>
-      <button type="button" class="toggle destroyed" id="toggleRequested" aria-pressed="true">Requested</button>
       <span class="count" id="count" aria-live="polite"></span>
     </div>
     <div class="modules" id="modules"></div>
     <div class="empty" id="empty" hidden>Nothing matches.</div>
   </div>
 
-  <h2>What the three words mean</h2>
-  <div class="cards" id="states"></div>
+  <h2>What apps need that no module supports yet</h2>
+  <p class="sub">Rolled up from every drafted plan at Northline Bank. Each one is what an app turned out to need, in the words seaLeye.run used with the developer.</p>
+  <div class="report" id="needs"></div>
 
   <footer id="footer"></footer>
 </main>
@@ -302,17 +260,14 @@
   document.getElementById("pageSub").textContent = state.page.subtitle;
 
   const $ = id => document.getElementById(id);
-  const TONE = { available: "phosphor", planned: "amber", requested: "neutral" };
-  const WORD = { available: "Available", planned: "Planned", requested: "Requested" };
-
   // ---- tiles ----
-  const counts = id => state.catalog.filter(m => m.state === id).length;
+  const waiting = new Set(state.needs.map(n => n.ticket)).size;
   const stats = $("stats");
   for (const [n, label, detail] of [
-    [state.catalog.length, "Modules in the library", "everything Northline Bank has named"],
-    [counts("available"), "Available", "seaLeye.run builds these today"],
-    [counts("planned"), "Planned", "in a plan, refused at deploy"],
-    [counts("requested"), "Requested", "asked for, not in the library yet"]
+    [state.catalog.length, "Modules", "seaLeye.run builds every one of these"],
+    [state.needs.length, "Needs no module supports yet", "from the drafted plans here"],
+    [Math.max(...state.needs.map(n => n.apps)), "Apps waiting", "on at least one of those needs"],
+    [waiting, "Tickets open", "with your platform team"]
   ]) {
     const box = el("div", "stat");
     box.appendChild(el("div", "n", String(n)));
@@ -381,7 +336,7 @@
   const modules = $("modules");
   for (const module of state.catalog) {
     const card = el("div", "modrow");
-    const openable = module.state === "available";
+    const openable = true;   // every module in this catalog is one seaLeye.run builds
 
     const head = el(openable ? "button" : "div", "modhead");
     if (openable) {
@@ -396,7 +351,7 @@
     text.appendChild(idline);
     text.appendChild(el("div", "what", module.line));
     head.appendChild(text);
-    head.appendChild(chip(WORD[module.state], TONE[module.state]));
+    head.appendChild(chip("Built", "phosphor"));
     if (openable) head.appendChild(el("span", "chev", "\u203A"));
     card.appendChild(head);
 
@@ -418,19 +373,12 @@
   }
 
   // ---- filtering ----
-  const toggles = {
-    available: $("toggleAvailable"),
-    planned: $("togglePlanned"),
-    requested: $("toggleRequested")
-  };
-
   function filter() {
     const term = $("search").value.trim().toLowerCase();
     let shown = 0;
     for (const item of listed) {
       const m = item.module;
-      const keep = (!term || (m.id + " " + m.line).toLowerCase().includes(term)) &&
-        toggles[m.state].getAttribute("aria-pressed") === "true";
+      const keep = !term || (m.id + " " + m.line).toLowerCase().includes(term);
       item.card.hidden = !keep;
       if (!keep && item.panel) {
         item.panel.hidden = true;
@@ -448,32 +396,34 @@
   }
 
   $("search").addEventListener("input", filter);
-  for (const toggle of Object.values(toggles)) {
-    toggle.addEventListener("click", () => {
-      toggle.setAttribute("aria-pressed", toggle.getAttribute("aria-pressed") === "true" ? "false" : "true");
-      filter();
-    });
-  }
   filter();
 
-  // Requesting a module is a conversation with the platform team, not a form the
+  // Asking for something is a conversation with the platform team, not a form the
   // console can settle, so the button says where that conversation happens.
   $("request").addEventListener("click", () => {
     const note = $("request");
-    note.textContent = "Ask your platform team; a request becomes a Requested module here";
+    note.textContent = "Ask your platform team; a drafted plan opens the ticket for you";
     note.disabled = true;
   });
 
-  // ---- what the three words mean ----
-  const words = $("states");
-  for (const s of state.states) {
-    const box = el("div", "modcard");
-    const inner = el("div", "body");
-    inner.appendChild(el("div", "id", s.label));
-    inner.appendChild(el("div", "what", s.line));
-    box.appendChild(inner);
-    box.appendChild(chip(String(counts(s.id)), TONE[s.id]));
-    words.appendChild(box);
+  // ---- what apps have needed and nothing here builds ----
+  const needs = $("needs");
+  for (const need of state.needs) {
+    const line = el("div", "line");
+
+    const what = el("div", "what");
+    what.appendChild(el("div", "job2", need.line));
+    what.appendChild(el("div", "why",
+      need.apps === 1 ? "1 app needs this" : need.apps + " apps need this"));
+    line.appendChild(what);
+
+    const action = el("div", "action");
+    const ticket = el("a", "mono", need.ticket);
+    ticket.href = state.ticketBase + need.ticket;
+    action.appendChild(ticket);
+    line.appendChild(action);
+
+    needs.appendChild(line);
   }
 </script>
 </body>

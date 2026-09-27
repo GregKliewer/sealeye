@@ -1,0 +1,64 @@
+                __
+  ___ ___ ___ _/ /  ___ __ _____
+ (_-</ -_) _ `/ /__/ -_) // / -_)
+/___/\__/\_,_/____/\__/\_, /\__/
+                      /___/
+seaLeye.run  ·  cd your-app && sealeye init   v1.0.0
+
+  Reading your app
+  Reading index.js
+  Reading README.md
+
+  Looking at this, I can see index.js runs a Kafka consumer loop that connects once and keeps consuming, with an express server that only exposes a `/health` check reporting on that loop, not an HTTP API in its own right. It reads from Postgres (`DATABASE_URL`), a payment event stream (`KAFKA_BROKERS`, topic `payment.events`), a beneficiary service URL, and a signing key. The README also states plainly it must not be reachable from the public internet.
+
+? One question before I finalize this: is this something Northline Bank relies on in production, or is it a proof of concept? poc
+  Checking the plan against the seaLeye.run plan contract
+
+  ┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+  │ Your app:                                                                                    │
+  │   payment-events-processor, a service that runs continuously                                 │
+  ├──────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ We will provision this infrastructure to run it:                                             │
+  │   observability_basic  Collects your app's logs and tracks requests, errors and response     │
+  │                        times.                                                                │
+  │   config_basic         Passes the settings your app reads from its environment through to it │
+  │                        when it runs.                                                         │
+  │   compute_container    A service that runs continuously, for an app that cannot start fresh  │
+  │                        on every request. (planned)                                           │
+  │   data_relational      A managed relational database your app connects to, kept patched and  │
+  │                        backed up for you. (planned)                                          │
+  │   events_stream        A stream your services publish events to and read events from, in the │
+  │                        order they happened. (planned)                                        │
+  │   secrets_basic        Secrets your app reads while it runs, kept out of your code and out   │
+  │                        of your plan. (planned)                                               │
+  │   network_private      Your app is reachable from inside your organization only. (planned)   │
+  │   the settings it passes through: KAFKA_BROKERS, BENEFICIARY_API_URL                         │
+  ├──────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ You will get back:                                                                           │
+  │   Your logs and basic metrics, kept for 30 days                                              │
+  └──────────────────────────────────────────────────────────────────────────────────────────────┘
+
+  Full plan, and every assumption seaLeye.run made: DEPLOYMENT_PLAN.md
+  Wrote /Users/gregkliewer/dev/deployme-demo/qa/payment-events-processor/DEPLOYMENT_PLAN.md
+  Wrote /Users/gregkliewer/dev/deployme-demo/qa/payment-events-processor/deployme.yaml
+
+  5 of these modules are not in the catalog yet. seaLeye.run will save this plan and tell you what would make it deployable.
+
+
+? Deploy this? [y/N] y
+  Handing /Users/gregkliewer/dev/deployme-demo/qa/payment-events-processor to seaLeye.run to build your environment
+
+✗ seaLeye.run cannot build this environment yet.
+
+  Your plan is valid and saved in DEPLOYMENT_PLAN.md. Five of its modules are not
+  in the seaLeye catalog:
+
+    compute_container  a service that runs continuously rather than on demand
+    data_relational    a managed relational database your app connects to
+    events_stream      a stream your services publish to and read from
+    secrets_basic      secrets your app reads at runtime, never stored in code
+    network_private    your app is not reachable from the public internet
+
+  These modules come from your organization's Platform Library. Once seaLeye.run is
+  connected to Northline Bank's, this plan deploys as written.
+

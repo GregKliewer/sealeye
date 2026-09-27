@@ -73,7 +73,7 @@
 <span class="a"> (_-&lt;/ -_) _ `/ /__/ -_) // / -_)</span>
 <span class="a">/___/\__/\_,_/____/\__/\_, /\__/</span>
 <span class="a">                      /___/</span>
-<span class="d">seaLeye.run  ·  cd your-app &amp;&amp; sealeye run   v2.14.2</span>
+<span class="d">seaLeye.run  ·  cd your-app &amp;&amp; sealeye run   v2.15.0</span>
 
 <span class="d">  Reading your app</span>
 <span class="d">  Reading index.js</span>
@@ -149,7 +149,7 @@
 <span class="a"> (_-&lt;/ -_) _ `/ /__/ -_) // / -_)</span>
 <span class="a">/___/\__/\_,_/____/\__/\_, /\__/</span>
 <span class="a">                      /___/</span>
-<span class="d">seaLeye.run  ·  cd your-app &amp;&amp; sealeye run   v2.14.2</span>
+<span class="d">seaLeye.run  ·  cd your-app &amp;&amp; sealeye run   v2.15.0</span>
 
 <span class="f">beneficiary-lookup-api already has a live environment.</span>
 <span class="d">  https://oyobbr4ii2.execute-api.ca-central-1.amazonaws.com</span>
@@ -229,57 +229,69 @@
 
   <h3>When it says no</h3>
   <p>
-    Not every app fits what the catalog can build today. This one reads a stream, keeps a
-    database connection open and must not be reachable from the internet. seaLeye writes the plan
-    the app actually needs, says plainly which parts it cannot build, and saves the plan anyway.
-    With <code>--team-context</code> it also tells you that somebody else has already been here.
+    Not every app fits what seaLeye can build today. This one reads a stream, keeps a database
+    connection open and must not be reachable from the internet. seaLeye never names a module it
+    cannot build, so it does not guess at one: it says what your app needs, in plain words, with
+    the code that shows it, and saves the plan as a draft. With <code>--team-context</code> it
+    also tells you that somebody else has already been here.
   </p>
   <pre class="term"><span class="a">                __</span>
 <span class="a">  ___ ___ ___ _/ /  ___ __ _____</span>
 <span class="a"> (_-&lt;/ -_) _ `/ /__/ -_) // / -_)</span>
 <span class="a">/___/\__/\_,_/____/\__/\_, /\__/</span>
 <span class="a">                      /___/</span>
-<span class="d">seaLeye.run  ·  cd your-app &amp;&amp; sealeye run   v2.14.2</span>
+<span class="d">seaLeye.run  ·  cd your-app &amp;&amp; sealeye run   v2.15.0</span>
 
 <span class="d">  Reading your app</span>
 <span class="d">  Reading index.js</span>
 <span class="d">  Reading README.md</span>
-<span class="d">  Looking at .</span>
 
-<span class="d">  This reads events from a payment stream continuously, checks each payment's payee, and writes signed outcomes to a database, with a health check but no public-facing API. It also says plainly it must stay off the public internet.</span>
+<span class="d">  This is a continuous consumer that reads payment events from a stream, confirms payees, and writes signed outcomes to a database, so it needs to keep running rather than answer on demand. The readme also says it must stay inside the bank's network only, not reachable from the public internet.</span>
 <span class="p">? What is this for? Are you trying something out, or is this headed for the pipeline to production? If it is neither, tell me what you are trying to do. </span><span class="a">production</span>
 <span class="d">  Checking the plan against the seaLeye.run plan contract</span>
 
 <span class="d">  ┌────────────────────────────────────────────────────────────────────────────┐</span>
 <span class="d">  │ Your app:                                                                  │</span>
-<span class="d">  │   payment-events-processor, a service that runs continuously               │</span>
+<span class="d">  │   payment-events-processor, a service                                      │</span>
 <span class="d">  ├────────────────────────────────────────────────────────────────────────────┤</span>
 <span class="d">  │ We will build your dev environment with:                                   │</span>
 <span class="d">  │   </span><span class="f">observability_basic</span><span class="d">  Collects your app's logs and tracks requests,       │</span>
 <span class="d">  │                        errors and response times.                          │</span>
 <span class="d">  │   </span><span class="f">config_basic</span><span class="d">         Passes the settings your app reads from its         │</span>
 <span class="d">  │                        environment through to it when it runs.             │</span>
-<span class="d">  │   </span><span class="f">compute_container</span><span class="d">    A service that runs continuously, for an app that   │</span>
-<span class="d">  │                        cannot start fresh on every request. (planned)      │</span>
-<span class="d">  │   </span><span class="f">data_relational</span><span class="d">      A managed relational database your app connects to, │</span>
-<span class="d">  │                        kept patched and backed up for you. (planned)       │</span>
-<span class="d">  │   </span><span class="f">events_stream</span><span class="d">        A stream your services publish events to and read   │</span>
-<span class="d">  │                        events from, in the order they happened. (planned)  │</span>
-<span class="d">  │   </span><span class="f">secrets_basic</span><span class="d">        Secrets your app reads while it runs, kept out of   │</span>
-<span class="d">  │                        your code and out of your plan. (planned)           │</span>
-<span class="d">  │   </span><span class="f">network_private</span><span class="d">      Your app is reachable from inside your organization │</span>
-<span class="d">  │                        only. (planned)                                     │</span>
-<span class="d">  │   the settings it passes through: KAFKA_BROKERS, BENEFICIARY_API_URL       │</span>
+<span class="d">  │   the settings it passes through: KAFKA_BROKERS, BENEFICIARY_API_URL,      │</span>
+<span class="d">  │   DATABASE_URL, SIGNING_KEY                                                │</span>
 <span class="d">  ├────────────────────────────────────────────────────────────────────────────┤</span>
-<span class="d">  │ Patterns your dev environment applies:                                     │</span>
-<span class="d">  │   </span><span class="f">data_relational</span><span class="d">    A single zone, with backups kept and restorable.      │</span>
-<span class="d">  │   </span><span class="f">compute_container</span><span class="d">  Runs continuously in a single zone, replaced when it  │</span>
-<span class="d">  │                      stops being well.                                     │</span>
+<span class="d">  │ Your app also needs, and no module in your catalog supports yet:           │</span>
+<span class="d">  │   a service that runs continuously                    kafka consumer run loop, │</span>
+<span class="d">  │                                                       health endpoint reports │</span>
+<span class="d">  │                                                       consuming (index.js) │</span>
+<span class="d">  │   a relational database                               pg Pool using        │</span>
+<span class="d">  │                                                       DATABASE_URL, SQL insert │</span>
+<span class="d">  │                                                       </span><span class="f">into</span><span class="d">                 │</span>
+<span class="d">  │                                                       payment_event_outcomes │</span>
+<span class="d">  │                                                       (index.js)           │</span>
+<span class="d">  │   a stream of events it publishes or reads            kafkajs consumer     │</span>
+<span class="d">  │                                                       subscribed to topic  │</span>
+<span class="d">  │                                                       payment.events       │</span>
+<span class="d">  │                                                       (index.js)           │</span>
+<span class="d">  │   secrets it reads while it runs                      SIGNING_KEY used to HMAC │</span>
+<span class="d">  │                                                       sign each outcome    │</span>
+<span class="d">  │                                                       (index.js)           │</span>
+<span class="d">  │   to be reachable from inside your organization only  must not be reachable │</span>
+<span class="d">  │                                                       from the public internet │</span>
+<span class="d">  │                                                       (README.md)          │</span>
+<span class="d">  ├────────────────────────────────────────────────────────────────────────────┤</span>
+<span class="d">  │ Patterns your production environment will apply:                           │</span>
+<span class="d">  │   </span><span class="f">observability_basic</span><span class="d">  Alarms on errors and latency, going to whoever is   │</span>
+<span class="d">  │                        on call.                                            │</span>
+<span class="d">  │   </span><span class="f">config_basic</span><span class="d">         Settings from the environment, and anything secret  │</span>
+<span class="d">  │                        kept out of the plan.                               │</span>
 <span class="d">  ├────────────────────────────────────────────────────────────────────────────┤</span>
 <span class="d">  │ You will get back:                                                         │</span>
 <span class="d">  │   A private address inside your organization's network, as soon as it is   │</span>
 <span class="d">  │   </span><span class="f">live</span><span class="d">                                                                     │</span>
-<span class="d">  │   Your logs and basic metrics, kept for 30 days                            │</span>
+<span class="d">  │   Your logs and basic metrics                                              │</span>
 <span class="d">  │   A plan your later environments are built from                            │</span>
 <span class="d">  └────────────────────────────────────────────────────────────────────────────┘</span>
 
@@ -287,39 +299,53 @@
 <span class="d">  Wrote ~/code/payment-events-processor/DEPLOYMENT_PLAN.md</span>
 <span class="d">  Wrote ~/code/payment-events-processor/deployme.yaml</span>
 
-<span class="d">  5 of these modules are not in the catalog yet. seaLeye.run will save this plan and tell you what would make it deployable.</span>
+<span class="d">  This plan is drafted. seaLeye.run can build part of it today, and not the parts above. It will save the draft and tell you what would make it buildable.</span>
 
 <span class="p">? Deploy this? [y/N] </span><span class="a">y</span>
 <span class="d">  Handing ~/code/payment-events-processor to seaLeye.run to build your environment</span>
 
 <span class="p">✗ seaLeye.run cannot build this environment yet.</span>
 
-<span class="d">  Your plan is valid and saved in DEPLOYMENT_PLAN.md. Five of its modules are</span>
-<span class="d">  not in the seaLeye catalog:</span>
+<span class="d">  Your plan is drafted and saved in DEPLOYMENT_PLAN.md. Your app needs five</span>
+<span class="d">  things that no module in your catalog supports yet:</span>
 
-<span class="f">    compute_container  a service that runs continuously rather than on demand</span>
-<span class="f">    data_relational    a managed relational database your app connects to</span>
-<span class="f">    events_stream      a stream your services publish to and read from</span>
-<span class="f">    secrets_basic      secrets your app reads at runtime, never stored in code</span>
-<span class="f">    network_private    your app is not reachable from the public internet</span>
+<span class="f">    a service that runs continuously                    kafka consumer run loop,</span>
+<span class="f">                                                        health endpoint reports</span>
+<span class="f">                                                        consuming</span>
+<span class="f">    a relational database                               pg Pool using</span>
+<span class="f">                                                        DATABASE_URL, SQL insert</span>
+<span class="f">                                                        into</span>
+<span class="f">                                                        payment_event_outcomes</span>
+<span class="f">    a stream of events it publishes or reads            kafkajs consumer</span>
+<span class="f">                                                        subscribed to topic</span>
+<span class="f">                                                        payment.events</span>
+<span class="f">    secrets it reads while it runs                      SIGNING_KEY used to HMAC</span>
+<span class="f">                                                        sign each outcome</span>
+<span class="f">    to be reachable from inside your organization only  must not be reachable</span>
+<span class="f">                                                        from the public internet</span>
 
-<span class="d">  These modules come from your organization's Platform Library. Once seaLeye.run is</span>
-<span class="d">  connected to Northline Bank's, this plan deploys as written.</span>
+<span class="d">  When Northline Bank's Platform Library has modules that support these, run sealeye run again.</span>
+<span class="d">  seaLeye.run will pick them up and finish the plan.</span>
 
 <span class="d">  This app has hit the catalog boundary before.</span>
-<span class="f">    Cindy R. (Money Movement)  ·  1 hour ago  ·  the same 5 modules</span>
+<span class="f">    Cindy R. (Money Movement)  ·  1 hour ago  ·  the same 5 needs</span>
 <span class="f">    Ticket PLAT-1042 is open with your platform team.</span>
 
 <span class="p">? Show the ticket here, open it in Jira, or skip? [here/open/skip] </span><span class="a">here</span>
 
 <span class="d">  PLAT-1042  Open</span>
-<span class="d">  Catalog gap: 5 modules for payment-events-processor (Money Movement)</span>
+<span class="d">  No module yet for 5 needs: payment-events-processor (Money Movement)</span>
 
-<span class="d">  Opened by seaLeye.run from a refused plan.</span>
+<span class="d">  Opened by seaLeye.run from a drafted plan.</span>
 <span class="d">  App: payment-events-processor, team Money Movement, requested by Cindy R.</span>
 <span class="d">  Profile: dev, designed for production.</span>
-<span class="d">  Modules not in the catalog: compute_container, data_relational, events_stream, secrets_basic, network_private.</span>
-<span class="d">  The plan is attached from the developer's repo (DEPLOYMENT_PLAN.md).</span>
+<span class="d">  What the app needs, and what in the code shows it:</span>
+<span class="f">    a service that runs continuously        it reads a payment stream in a loop (index.js)</span>
+<span class="f">    a relational database                   it writes outcomes with pg (index.js)</span>
+<span class="f">    a stream of events it publishes or reads KAFKA_BROKERS and payment.events (index.js)</span>
+<span class="f">    secrets it reads while it runs          SIGNING_KEY (index.js)</span>
+<span class="f">    to be reachable from inside your organization only  the README says it must never be public (README.md)</span>
+<span class="d">  The drafted plan is attached from the developer's repo (DEPLOYMENT_PLAN.md).</span>
 <span class="d">  This is the second team to hit this boundary this month.</span></pre>
 
   <h3>The rest</h3>
@@ -329,10 +355,13 @@
   </p>
   <pre class="term"><span class="p">$</span> <span class="f">sealeye list</span>
 <span class="d">  [ ... the banner every command prints is trimmed here ... ]</span>
-<span class="f">APP             STATUS     URL                                                                       DEPLOYS  LAST</span>
-<span class="f">sealeye-run     succeeded  http://sealeye-run-682542496821.s3-website.ca-central-1.amazonaws.com     5        7m ago</span>
-<span class="f">sealeye-online  succeeded  http://sealeye-online-682542496821.s3-website.ca-central-1.amazonaws.com  21       1d ago</span>
-<span class="d">  11 torn down and hidden, see --all</span>
+<span class="f">APP                     STATUS     URL                                                                       DEPLOYS  LAST</span>
+<span class="f">sealeye-online          succeeded  http://sealeye-online-682542496821.s3-website.ca-central-1.amazonaws.com  28       17h ago</span>
+<span class="f">beneficiary-lookup-api  succeeded  https://0l8r6gsg9h.execute-api.ca-central-1.amazonaws.com                 59       21h ago</span>
+<span class="f">sealeye-run             succeeded  http://sealeye-run-682542496821.s3-website.ca-central-1.amazonaws.com     14       21h ago</span>
+<span class="f">refusal-demo            planned    -                                                                         11       4d ago</span>
+<span class="f">beneficiary-lookup-api  planned    -                                                                         3        4d ago</span>
+<span class="d">  8 torn down and hidden, see --all</span>
 <span class="d">  One row per environment. sealeye list --deployments shows every deploy.</span></pre>
 
   <p class="note aside"><code>status</code> takes a deployment id and answers in one panel.</p>
@@ -456,10 +485,10 @@
 
   <h3>What if seaLeye says it cannot build my plan?</h3>
   <p>
-    Your plan is valid and it is saved. The modules it names that are not in your catalog come
-    from your organization's Platform Library, and the refusal lists them in plain words. Once
-    seaLeye is connected to your organization's library, that same plan deploys as written, with
-    nothing for you to redo.
+    Your plan is drafted and it is saved. seaLeye names only the four modules it can build, so
+    rather than guessing at a module for the rest, it says what your app needs and points at the
+    code that shows it. When your organization's Platform Library has modules that support those
+    needs, run <code>sealeye run</code> again and seaLeye finishes the plan.
   </p>
 
   <h3>How do I tear an environment down?</h3>
@@ -489,9 +518,9 @@
 </main>
 
 <!-- The version is written out by hand here and in every other page's footer. There is no
-     build step, so the next bump is a find and replace on 2.14.2 across apps/sealeye-run/. -->
+     build step, so the next bump is a find and replace on 2.15.0 across apps/sealeye-run/. -->
 <footer>
-  seaLeye.run · sealeye <a href="changelog.html" class="version">v2.14.2</a> · <a href="changelog.html">changelog</a> · <a href="http://sealeye-online-682542496821.s3-website.ca-central-1.amazonaws.com">sealeye.online</a>
+  seaLeye.run · sealeye <a href="changelog.html" class="version">v2.15.0</a> · <a href="changelog.html">changelog</a> · <a href="http://sealeye-online-682542496821.s3-website.ca-central-1.amazonaws.com">sealeye.online</a>
 </footer>
 
 </body>

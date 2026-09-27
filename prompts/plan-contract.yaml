@@ -1,6 +1,14 @@
-planVersion: 0.3
-# 0.3 extends 0.2. Every 0.2 plan is a valid 0.3 plan: the version, the two older
-# profile names and the five original modules are all still accepted.
+planVersion: 0.4
+# 0.4 replaces the planned modules of 0.3 with needs.
+#
+# A plan names only modules seaLeye.run builds today. Until seaLeye.run has ingested an
+# organization's Platform Library it does not know what is in it, so calling anything
+# "planned" would be claiming knowledge it does not have. Anything else the app turns
+# out to need is recorded under `needs` instead: a sentence about the app, and the code
+# that shows it.
+#
+# Every 0.2 and 0.3 plan still loads. A planned module in an old plan is read as the
+# need it was describing, and the plan becomes a draft.
 
 # -------------------------------
 # Application Metadata
@@ -107,95 +115,33 @@ modules:
     # - enabled for APIs
     # - skipped for static sites
 
-  # ---------------------------
-  # PUBLIC DOMAIN (OPTIONAL)
-  # ---------------------------
-  - id: domain_public
-    enabled: false
-    inputs:
-      domain_name: null
-    # Purpose:
-    # - Associates a custom domain (e.g. mysite.com)
-    #
-    # Behavior:
-    # - If disabled → platform generates URL automatically
-    #
-    # Notes:
-    # - Optional for both static and API apps
-
-  # ---------------------------
-  # PLANNED MODULES
-  # ---------------------------
-  # In the library, not yet deployable. The interview may select any of these and the
-  # plan records them exactly like the others. The platform refuses to deploy a plan
-  # that enables one, names which, and says the plan is valid and saved. It does not
-  # deploy something smaller and call it done.
+# -------------------------------
+# What the app needs that no module supports yet
+# -------------------------------
+needs:
+  # Empty for most apps. One entry per thing the app needs that none of the four
+  # modules above provides. `kind` comes from need_kinds in
+  # prompts/module-catalog.yaml and is never shown to the developer. `line` is the
+  # sentence they read. `evidence` is required and must not be empty: a need without
+  # the code that shows it is a guess.
   #
-  # Their descriptions, when to choose them and what their inputs mean are in
-  # prompts/module-catalog.yaml, where availability says whether a module is
-  # available, planned or requested.
+  # - kind: continuous_service
+  #   line: a service that runs continuously
+  #   evidence:
+  #     - file: index.js
+  #       shows: it reads a stream in a loop rather than serving requests
+  #   profile_expects: >-
+  #     Across more than one zone, behind a health check, replaced rather than repaired.
+  []
 
-  - id: data_relational          # a managed relational database your app connects to
-    enabled: false
-    inputs:
-      engine: postgres | mysql
-      database_name: app
-      connection_setting: DATABASE_URL
-
-  - id: data_cache               # a fast in-memory cache
-    enabled: false
-    inputs:
-      connection_setting: CACHE_URL
-      purpose: lookups | sessions | rendered pages
-
-  - id: events_stream            # a stream your services publish to and read from
-    enabled: false
-    inputs:
-      stream_name: events
-      readers: []
-
-  - id: queue_basic              # a work queue between services
-    enabled: false
-    inputs:
-      queue_name: work
-      handled_by: worker
-      keep_failed_work: true
-
-  - id: secrets_basic            # secrets your app reads at runtime, never in code
-    enabled: false
-    inputs:
-      names: []
-      rotation: manual | scheduled
-
-  - id: identity_service         # sign-in and tokens for your app's users
-    enabled: false
-    inputs:
-      sign_in_with: [email]
-      token_audience: your-app
-
-  - id: network_private          # your app is not reachable from the public internet
-    enabled: false
-    inputs:
-      reachable_from: [internal]
-      public_path: closed | open
-
-  - id: compute_container        # a service that runs continuously rather than on demand
-    enabled: false
-    inputs:
-      start_command: npm start
-      health_path: /health
-
-  - id: scheduled_job            # something that runs on a schedule
-    enabled: false
-    inputs:
-      runs: hourly | nightly | weekly
-      command: node job.js
-
-  - id: storage_object           # files your app stores and reads, not a served site
-    enabled: false
-    inputs:
-      store_name: files
-      readable_by: your app only | anyone with the link
+# -------------------------------
+# Status
+# -------------------------------
+status: ready | drafted
+# ready   nothing in `needs`, so the platform can build the whole plan
+# drafted `needs` is not empty. The platform builds nothing and saves the draft. It
+#         never says a drafted plan "deploys as written": nobody has seen the modules
+#         that would support these needs.
 
 # -------------------------------
 # Expected Outputs

@@ -24,20 +24,13 @@ export function orgName() {
 
 /**
  * The fixed closing paragraph of the refusal, so the words can change without code.
- * `what` is the noun the paragraph is about, because a plan can be declined for its
- * modules, for the patterns its profile asks for, or for both, and "these modules" is
- * wrong in two of those three.
+ * It says what would make the plan buildable and never when, because seaLeye.run does
+ * not know when and will not guess in front of a developer.
  */
-export function refusalClosing(what = "modules", org = orgName()) {
+export function refusalClosing(org = orgName()) {
   const file = path.join(repoRoot, "prompts", "refusal.md");
 
-  return fs
-    .readFileSync(file, "utf8")
-    .trim()
-    .split("{{what}}")
-    .join(what)
-    .split("{{org}}")
-    .join(org);
+  return fs.readFileSync(file, "utf8").trim().split("{{org}}").join(org);
 }
 
 export function loadCatalog() {
@@ -59,41 +52,41 @@ export function firstSentence(text) {
 }
 
 /**
- * What a plan asks for that this version does not build: the planned modules it
- * enables, and a profile whose patterns the platform does not apply.
+ * What the app needs that no module supports yet.
  *
- * A plan can be entirely valid and still ask for these. That is the point of a
- * library: the plan is the honest record of what the app needs, and the platform says
- * which parts of it exist today rather than deploying something smaller and reporting
- * success.
+ * A plan can be entirely valid and still carry these. That is the point: the plan is
+ * the honest record of what the app needs, and the platform says which parts of it it
+ * can build rather than deploying something smaller and reporting success.
+ *
+ * A profile is never in here. Whatever a plan is designed for, this run builds a dev
+ * environment, and the patterns a dev or prod profile asks for are what the pipeline
+ * applies to the environments it builds later.
  */
-export function notDeployable(plan, catalog = loadCatalog()) {
-  const buildable = new Set(
-    (catalog.modules || []).filter(m => m.availability === "available").map(m => m.id)
-  );
+export function unsupportedNeeds(plan) {
+  return (plan?.needs || []).map(need => ({
+    kind: need.kind,
+    line: need.line,
+    evidence: need.evidence || [],
+    profile_expects: need.profile_expects || null
+  }));
+}
 
-  const modules = (plan?.modules || [])
-    .filter(m => m && m.enabled !== false && !buildable.has(m.id))
-    .map(m => {
-      const entry = moduleEntry(m.id, catalog);
-      // The refusal reads as a list, so it takes the short form; the long sentence is
-      // what the card and the plan file use.
-      return { id: m.id, line: entry?.short_line || firstSentence(entry?.line) };
-    });
+/** The evidence for a need, as one phrase, for places that show it beside the line. */
+export function evidencePhrase(need) {
+  return (need?.evidence || [])
+    .map(e => (e.file ? `${e.shows} (${e.file})` : e.shows))
+    .join("; ");
+}
 
-  // A profile's first sentence is who it is for; the patterns are what follows. The
-  // refusal lists what is missing, so it takes the patterns and leaves the framing, in
-  // the same voice as the module lines beside it.
-  const asked = normalizeProfile(plan?.profile);
-  const entry = profileEntry(asked, catalog);
-  const whole = String(entry?.line || "").replace(/\s+/g, " ").trim();
-  const patterns = whole.replace(/^[^.]*\.\s*/, "") || whole;
-  const profile =
-    entry && entry.availability !== "available"
-      ? { id: asked, line: patterns.charAt(0).toLowerCase() + patterns.slice(1) }
-      : null;
+/** The fixed need kinds, as the interview and the renderer read them. */
+export function needKinds(catalog = loadCatalog()) {
+  return catalog.need_kinds || [];
+}
 
-  return { modules, profile };
+/** What a profile will expect of a need, in the catalog's own words. */
+export function profileExpectsFor(kind, profile, catalog = loadCatalog()) {
+  const entry = needKinds(catalog).find(n => n.key === kind);
+  return entry?.profile_expects?.[normalizeProfile(profile)] || null;
 }
 
 /** The module's line in one sentence, for places that list many of them at once. */
@@ -108,18 +101,30 @@ const oneLine = text => firstSentence(String(text || "").replace(/\s+/g, " ").tr
  * the copy nobody updated.
  */
 export function catalogForPrompt(catalog = loadCatalog()) {
-  const lines = ["### Modules", ""];
+  const lines = ["### Modules seaLeye.run builds", ""];
 
   for (const m of catalog.modules || []) {
     const inputs = Object.entries(m.inputs || {})
       .map(([name, spec]) => `${name} (${JSON.stringify(spec?.default ?? null)})`)
       .join(", ");
 
-    lines.push(`- **${m.id}**  ${m.availability}  ${m.role}`);
+    lines.push(`- **${m.id}**  ${m.role}`);
     lines.push(`  ${oneLine(m.line)}`);
     if (m.when) lines.push(`  When: ${String(m.when).replace(/\s+/g, " ").trim()}`);
     if (m.signals?.length) lines.push(`  In the folder: ${m.signals.join("; ")}.`);
     if (inputs) lines.push(`  Inputs and defaults: ${inputs}.`);
+    lines.push("");
+  }
+
+  // The need kinds are a fixed list so the same need reads the same way every run.
+  // The key is yours; the line is the developer's.
+  lines.push("### Need kinds, for what no module above supports", "");
+  for (const n of catalog.need_kinds || []) {
+    lines.push(`- **${n.key}**  "${String(n.line).trim()}"`);
+    if (n.signals?.length) lines.push(`  In the folder: ${n.signals.join("; ")}.`);
+    for (const [profile, text] of Object.entries(n.profile_expects || {})) {
+      lines.push(`  ${profile} expects: ${String(text).replace(/\s+/g, " ").trim()}`);
+    }
     lines.push("");
   }
 

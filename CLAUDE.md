@@ -1,14 +1,25 @@
 # deployme: platform CLI + API demo (Blitzy panel, Oct 2)
 Purpose: a developer runs `deployme run` in their app folder; the CLI interviews them
-(Claude Messages API), writes DEPLOYMENT_PLAN.md + deployme.yaml (planVersion 0.2),
+(Claude Messages API), writes DEPLOYMENT_PLAN.md + deployme.yaml (planVersion 0.4),
 and on confirmation the deployme API creates a real AWS environment via CloudFormation
 and returns DEPLOYMENT_REPORT.md.
 
 Hard rules
-- The planVersion 0.2 contract (deployme/src/schema.js, prompts/plan-contract.yaml) is
-  frozen. Do not add modules or fields. Five modules: static_site_edge,
-  http_api_serverless, observability_basic, config_basic, domain_public (ignored by
-  the executor).
+- The planVersion 0.4 contract (deployme/src/schema.js, prompts/plan-contract.yaml).
+  Four modules, and they are the only ones seaLeye.run ever names: static_site_edge,
+  http_api_serverless, observability_basic, config_basic. domain_public is gone; a
+  custom domain is a need like any other.
+- seaLeye.run never names a module it cannot build. It has not ingested anyone's
+  Platform Library, so it cannot know what is in one, and "planned" and "requested"
+  were claims it had no standing to make. What an app needs beyond the four modules is
+  a NEED: a sentence from the fixed list in prompts/module-catalog.yaml, with evidence
+  naming the file and what in it shows the need. Evidence is required.
+- A plan with needs has status `drafted` and is never called valid-and-ready and never
+  said to "deploy as written". The API refuses it with UNSUPPORTED_NEEDS and saves the
+  record. A plan with no needs is `ready`.
+- 0.2 and 0.3 plans still load. A planned module in an old plan is read as the need it
+  was describing and the plan becomes a draft. deployme/src/schema.js is the only file
+  allowed to name the old module ids, and only for that.
 - One backend: cloudformation. No Terraform, no GitHub Actions, no CodePipeline.
 - Region ca-central-1. Runtime nodejs20.x. No CloudFront (too slow to create live).
 - The developer's app is never modified. Anything the platform needs (handler shim,
@@ -53,7 +64,7 @@ Executor rules (decided Day 3)
   `describe-stacks` every 5 s; outputs read fresh from describe-stacks after every deploy.
 - One template per deployment: http_api_serverless -> templates/http_api_serverless.yaml,
   static_site_edge -> templates/static_site_edge.yaml. observability_basic.retention_days
-  -> RetentionDays. config_basic and domain_public are ignored until Day 6.
+  -> RetentionDays. config_basic is written into the template as environment variables.
 - Stack name: sealeye-<app.name> (lowercase, [a-z0-9-] only). Artifact key:
   <app.name>/<deploymentId>.zip so every deploy changes S3Key.
 - POST /deployments takes { plan, appPath }. The plan contract is unchanged.
@@ -76,8 +87,8 @@ Interview rules (decided Day 4)
 - Tools: list_files(path) and read_file(path), read-only, resolved inside the app folder
   only (reject .., symlinks out, node_modules, .git); read_file capped at 20 KB;
   list_files capped at 40 entries. submit_plan(plan, summary, assumptions) ends the
-  interview; its plan input schema is prompts/plan-contract.yaml (planVersion 0.2, five
-  modules, no new fields).
+  interview; its plan input schema is prompts/plan-contract.yaml (planVersion 0.4, four
+  modules, needs with evidence, no new fields).
 - At most four questions, one per assistant turn, developer language, no AWS terms.
   Look at the folder before asking anything the folder can answer.
 - Validation: the submitted plan goes to POST /plans/validate; errors return to the
@@ -91,24 +102,22 @@ Interview rules (decided Day 4)
 - Every prompt line is amber ask(); every echoed answer phosphor answer(); every
   platform action a dim step() line. No em dash in anything the developer sees.
 
-Platform Library rules (decided Day 6)
-- planVersion 0.3 extends 0.2. It adds modules with `availability: planned` and
-  profiles poc | dev | perf | prod. Every 0.2 plan is a valid 0.3 plan. The executor
-  supports 0.2 modules only and refuses anything else honestly.
-- Three tiers, and every feature knows its tier: real (runs on AWS), plan-only (the
-  interview and card work, the executor refuses), mocked (static or recorded).
-- A planned module has: id, role, line, when, skip_line, signals, inputs, and
-  availability: planned. The interview may select it. The card marks it. The API
-  refuses to deploy a plan that enables one, with code PLANNED_MODULES and the list.
-- The refusal is the API's decision, rendered by the CLI. It states what is missing,
-  that the plan is valid and saved, and at most two sentences on what would make it
-  deployable. No mechanism: the mechanism is spoken, not printed.
-  It never pitches, never names a vendor, never says "coming soon".
+Platform Library rules (revised Sept 26)
+- planVersion 0.4. Four modules, all of them buildable. Everything else an app needs is
+  a need, described in plain language with the code that shows it.
+- Three tiers were real, plan-only and mocked. There are two now: what seaLeye.run
+  builds, and what it can only describe. Nothing is ever described as a module.
+- The refusal is the API's decision, rendered by the CLI. It says the plan is drafted
+  and saved, lists the needs with their evidence, and says that when the organization's
+  Platform Library has modules supporting them, running `sealeye run` again finishes the
+  plan. No mechanism, no vendor, no date, and never "coming soon".
 - No sizes, counts or capacity numbers in any plan, card, file or prompt output.
   Profiles select patterns (multi-zone, warm capacity, a queue in front of a burst,
-  perf provisioned from prod's plan). Capacity is "set by a load test", always.
+  perf provisioned from prod's plan). Capacity is "set by a load test", always. A
+  pattern attaches to a module in the plan; what a profile expects of a need lives on
+  the need.
 - Developers only ever deploy to a dev environment. The profile describes what the plan
   is designed for; the pipeline builds the later stages from it.
-- A prod profile never refuses on its own. Only planned modules refuse.
+- A profile never refuses on its own. Only needs refuse.
 - The org name for messages comes from ~/.deployme/config ORG=..., default "your
   organization". Never hard-code a bank.

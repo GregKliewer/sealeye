@@ -4,13 +4,13 @@
     "by": "Cindy R.",
     "team": "Money Movement",
     "when": "1 hour ago",
-    "modules": ["compute_container", "data_relational", "events_stream", "secrets_basic", "network_private"]
+    "needs": ["continuous_service", "relational_database", "event_stream", "runtime_secrets", "internal_only"]
   },
   "ticket": {
     "id": "PLAT-1042",
     "url": "https://northline.atlassian.net/browse/PLAT-1042",
     "status": "Open",
-    "subject": "Catalog gap: 5 modules for payment-events-processor (Money Movement)",
-    "description": "Opened by seaLeye.run from a refused plan.\nApp: payment-events-processor, team Money Movement, requested by Cindy R.\nProfile: dev, designed for production.\nModules not in the catalog: compute_container, data_relational, events_stream, secrets_basic, network_private.\nThe plan is attached from the developer's repo (DEPLOYMENT_PLAN.md).\nThis is the second team to hit this boundary this month."
+    "subject": "No module yet for 5 needs: payment-events-processor (Money Movement)",
+    "description": "Opened by seaLeye.run from a drafted plan.\nApp: payment-events-processor, team Money Movement, requested by Cindy R.\nProfile: dev, designed for production.\nWhat the app needs, and what in the code shows it:\n  a service that runs continuously        it reads a payment stream in a loop (index.js)\n  a relational database                   it writes outcomes with pg (index.js)\n  a stream of events it publishes or reads KAFKA_BROKERS and payment.events (index.js)\n  secrets it reads while it runs          SIGNING_KEY (index.js)\n  to be reachable from inside your organization only  the README says it must never be public (README.md)\nThe drafted plan is attached from the developer's repo (DEPLOYMENT_PLAN.md).\nThis is the second team to hit this boundary this month."
   }
 }

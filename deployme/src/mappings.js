@@ -9,7 +9,7 @@ export const backendMappings = {
 };
 
 // observability_basic contributes a parameter (retention_days -> RetentionDays) to
-// whichever core template is used. config_basic and domain_public are ignored by the
-// executor until Day 6. None of the three map to a template of their own.
+// whichever core template is used. config_basic is written into the template as
+// environment variables by compose(), so it maps to no template of its own either.
 export const parameterOnlyModules = ["observability_basic"];
-export const ignoredModules = ["config_basic", "domain_public"];
+export const ignoredModules = [];

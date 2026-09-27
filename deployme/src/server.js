@@ -5,11 +5,11 @@ import crypto from "crypto";
 import fs from "node:fs";
 import path from "node:path";
 
-import { planSchema } from "./schema.js";
+import { planSchema, upgradePlan } from "./schema.js";
 import { backendMappings } from "./mappings.js";
 import { putDeployment, getDeployment, listDeployments, storeFile, count } from "./store.js";
 import { startDeployment, startDestroy } from "./executor/index.js";
-import { notDeployable } from "./catalog.js";
+import { unsupportedNeeds } from "./catalog.js";
 
 const app = express();
 app.use(express.json({ limit: "1mb" }));
@@ -40,7 +40,8 @@ app.get("/health", (_req, res) => {
 
 // POST /plans/validate
 app.post("/plans/validate", (req, res) => {
-  const ok = validatePlan(req.body);
+  // A plan written against an older contract is read as what it meant, then checked.
+  const ok = validatePlan(upgradePlan(req.body));
   return res.status(200).json({
     valid: !!ok,
     errors: ok ? [] : formatAjvErrors(validatePlan.errors)
@@ -49,7 +50,8 @@ app.post("/plans/validate", (req, res) => {
 
 // POST /deployments
 app.post("/deployments", (req, res) => {
-  const { backend, plan, appPath } = req.body || {};
+  const { backend, appPath } = req.body || {};
+  const plan = upgradePlan(req.body?.plan);
 
   if (!backend || !["cloudformation"].includes(backend)) {
     return res.status(400).json({
@@ -115,19 +117,19 @@ app.post("/deployments", (req, res) => {
   // builds a dev environment, and a dev environment is built from the standard modules.
   // The patterns a prod or dev profile asks for are what the pipeline applies to the
   // environments it builds later, and they are recorded in the plan for it.
-  const missing = notDeployable(plan);
+  const needs = unsupportedNeeds(plan);
 
-  if (missing.modules.length) {
-    const planned = putDeployment({
+  if (needs.length) {
+    const drafted = putDeployment({
       deploymentId,
-      status: "planned",
+      status: "drafted",
       backend,
       planVersion: plan.planVersion,
       app: plan.app,
       appPath: resolvedAppPath,
       resolvedModules,
       plan,
-      notDeployable: missing,
+      needs,
       outputs: {},
       failureReason: null,
       startedAt: new Date().toISOString(),
@@ -136,9 +138,9 @@ app.post("/deployments", (req, res) => {
 
     return res.status(422).json({
       error: {
-        code: "PLANNED_MODULES",
-        message: "this version of the platform does not build everything this plan asks for",
-        details: { ...missing, deploymentId: planned.deploymentId }
+        code: "UNSUPPORTED_NEEDS",
+        message: "this app needs things no module in the catalog supports yet",
+        details: { needs, deploymentId: drafted.deploymentId }
       }
     });
   }

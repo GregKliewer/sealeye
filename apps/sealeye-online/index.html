@@ -26,7 +26,7 @@
       "value": "1"
     },
     {
-      "label": "Planned",
+      "label": "Drafted",
       "value": "2"
     },
     {
@@ -34,8 +34,8 @@
       "value": "20"
     },
     {
-      "label": "Modules in the library",
-      "value": "15"
+      "label": "Modules seaLeye.run builds",
+      "value": "4"
     }
   ],
   "environments": [
@@ -63,12 +63,7 @@
             "line": "Collects your app's logs and tracks requests, errors and response times."
           }
         ],
-        "patterns": [
-          {
-            "id": "dev",
-            "line": "A single zone and on demand, like a proof of concept, but nothing is thrown away: data is backed up and failed work is kept."
-          }
-        ],
+        "patterns": [],
         "back": [
           "A public HTTPS address, as soon as it is live",
           "Your logs and basic metrics, kept for 30 days"
@@ -85,10 +80,10 @@
         "name": "Greg",
         "initial": "G"
       },
-      "status": "planned",
+      "status": "drafted",
       "chip": "amber",
       "url": null,
-      "note": "waiting on 5 catalog modules",
+      "note": "waiting on 5 needs no module supports yet",
       "profile": "prod",
       "deploys": 0,
       "last": "3m ago",
@@ -96,71 +91,48 @@
         "app": "payment-events-processor, a service that runs continuously",
         "modules": [
           {
-            "id": "compute_container",
-            "line": "A service that runs continuously, for an app that cannot start fresh on every request.",
-            "planned": "planned"
-          },
-          {
             "id": "observability_basic",
             "line": "Collects your app's logs and tracks requests, errors and response times."
           },
           {
             "id": "config_basic",
             "line": "Passes the settings your app reads from its environment through to it when it runs."
-          },
-          {
-            "id": "data_relational",
-            "line": "A managed relational database your app connects to, kept patched and backed up for you.",
-            "planned": "planned"
-          },
-          {
-            "id": "events_stream",
-            "line": "A stream your services publish events to and read events from, in the order they happened.",
-            "planned": "planned"
-          },
-          {
-            "id": "secrets_basic",
-            "line": "Secrets your app reads while it runs, kept out of your code and out of your plan.",
-            "planned": "planned"
-          },
-          {
-            "id": "network_private",
-            "line": "Your app is reachable from inside your organization only.",
-            "planned": "planned"
           }
         ],
         "patterns": [
-          {
-            "id": "compute_container",
-            "line": "Across more than one zone, behind a health check, replaced rather than repaired."
-          },
           {
             "id": "observability_basic",
             "line": "Alarms on errors and latency, going to whoever is on call."
           },
           {
             "id": "config_basic",
-            "line": "Settings from the environment, and anything secret from secrets_basic rather than from a setting."
-          },
-          {
-            "id": "data_relational",
-            "line": "Across more than one zone, with a standby ready to take over and backups kept."
-          },
-          {
-            "id": "events_stream",
-            "line": "Readers keep their place, so a reader that falls behind catches up instead of losing events."
-          },
-          {
-            "id": "secrets_basic",
-            "line": "Replaced on a schedule, and read while the app runs rather than baked into anything."
-          },
-          {
-            "id": "network_private",
-            "line": "Reachable from your organization only, with the public way in closed."
+            "line": "Settings from the environment, and anything secret kept out of the plan."
           }
         ],
         "back": [
           "Your logs and basic metrics, kept for 30 days"
+        ],
+        "needs": [
+          {
+            "id": "a service that runs continuously",
+            "line": "kafka consumer run loop (index.js)"
+          },
+          {
+            "id": "a relational database",
+            "line": "pg Pool using DATABASE_URL (index.js)"
+          },
+          {
+            "id": "a stream of events it publishes or reads",
+            "line": "kafkajs on payment.events (index.js)"
+          },
+          {
+            "id": "secrets it reads while it runs",
+            "line": "SIGNING_KEY (index.js)"
+          },
+          {
+            "id": "to be reachable from inside your organization only",
+            "line": "must not be public (README.md)"
+          }
         ]
       },
       "path": []
@@ -171,10 +143,10 @@
         "name": "Cindy",
         "initial": "C"
       },
-      "status": "planned",
+      "status": "drafted",
       "chip": "amber",
       "url": null,
-      "note": "waiting on 5 catalog modules",
+      "note": "waiting on 5 needs no module supports yet",
       "profile": "dev",
       "deploys": 0,
       "last": "1h ago",
@@ -182,51 +154,39 @@
         "app": "payment-events-processor, a service that runs continuously",
         "modules": [
           {
-            "id": "compute_container",
-            "line": "A service that runs continuously, for an app that cannot start fresh on every request.",
-            "planned": "planned"
-          },
-          {
             "id": "observability_basic",
             "line": "Collects your app's logs and tracks requests, errors and response times."
           },
           {
             "id": "config_basic",
             "line": "Passes the settings your app reads from its environment through to it when it runs."
-          },
-          {
-            "id": "data_relational",
-            "line": "A managed relational database your app connects to, kept patched and backed up for you.",
-            "planned": "planned"
-          },
-          {
-            "id": "events_stream",
-            "line": "A stream your services publish events to and read events from, in the order they happened.",
-            "planned": "planned"
-          },
-          {
-            "id": "secrets_basic",
-            "line": "Secrets your app reads while it runs, kept out of your code and out of your plan.",
-            "planned": "planned"
-          },
-          {
-            "id": "network_private",
-            "line": "Your app is reachable from inside your organization only.",
-            "planned": "planned"
           }
         ],
-        "patterns": [
-          {
-            "id": "compute_container",
-            "line": "Runs continuously in a single zone, replaced when it stops being well."
-          },
-          {
-            "id": "data_relational",
-            "line": "A single zone, with backups kept and restorable."
-          }
-        ],
+        "patterns": [],
         "back": [
           "Your logs and basic metrics, kept for 30 days"
+        ],
+        "needs": [
+          {
+            "id": "a service that runs continuously",
+            "line": "kafka consumer run loop (index.js)"
+          },
+          {
+            "id": "a relational database",
+            "line": "pg Pool using DATABASE_URL (index.js)"
+          },
+          {
+            "id": "a stream of events it publishes or reads",
+            "line": "kafkajs on payment.events (index.js)"
+          },
+          {
+            "id": "secrets it reads while it runs",
+            "line": "SIGNING_KEY (index.js)"
+          },
+          {
+            "id": "to be reachable from inside your organization only",
+            "line": "must not be public (README.md)"
+          }
         ]
       },
       "path": [],
@@ -256,12 +216,7 @@
             "line": "Collects your app's logs and tracks requests, errors and response times."
           }
         ],
-        "patterns": [
-          {
-            "id": "dev",
-            "line": "A single zone and on demand, like a proof of concept, but nothing is thrown away: data is backed up and failed work is kept."
-          }
-        ],
+        "patterns": [],
         "back": [
           "A public HTTPS address, as soon as it is live",
           "Your logs and basic metrics, kept for 30 days"
@@ -297,12 +252,7 @@
             "line": "Collects your app's logs and tracks requests, errors and response times."
           }
         ],
-        "patterns": [
-          {
-            "id": "dev",
-            "line": "A single zone and on demand, like a proof of concept, but nothing is thrown away: data is backed up and failed work is kept."
-          }
-        ],
+        "patterns": [],
         "back": [
           "A public HTTPS address, as soon as it is live",
           "Your logs and basic metrics, kept for 30 days"
@@ -338,12 +288,7 @@
             "line": "Collects your app's logs and tracks requests, errors and response times."
           }
         ],
-        "patterns": [
-          {
-            "id": "dev",
-            "line": "A single zone and on demand, like a proof of concept, but nothing is thrown away: data is backed up and failed work is kept."
-          }
-        ],
+        "patterns": [],
         "back": [
           "A public HTTPS address, as soon as it is live",
           "Your logs and basic metrics, kept for 30 days"
@@ -370,26 +315,26 @@
       "by": "Cindy R.",
       "team": "Money Movement",
       "when": "1 hour ago",
-      "modules": [
-        "compute_container",
-        "data_relational",
-        "events_stream",
-        "secrets_basic",
-        "network_private"
+      "needs": [
+        "a service that runs continuously",
+        "a relational database",
+        "a stream of events it publishes or reads",
+        "secrets it reads while it runs",
+        "to be reachable from inside your organization only"
       ]
     },
     "ticket": {
       "id": "PLAT-1042",
       "url": "https://northline.atlassian.net/browse/PLAT-1042",
       "status": "Open",
-      "subject": "Catalog gap: 5 modules for payment-events-processor (Money Movement)",
-      "description": "Opened by seaLeye.run from a refused plan.\nApp: payment-events-processor, team Money Movement, requested by Cindy R.\nProfile: dev, designed for production.\nModules not in the catalog: compute_container, data_relational, events_stream, secrets_basic, network_private.\nThe plan is attached from the developer's repo (DEPLOYMENT_PLAN.md).\nThis is the second team to hit this boundary this month."
+      "subject": "No module yet for 5 needs: payment-events-processor (Money Movement)",
+      "description": "Opened by seaLeye.run from a drafted plan.\nApp: payment-events-processor, team Money Movement, requested by Cindy R.\nProfile: dev, designed for production.\nWhat the app needs, and what in the code shows it:\n  a service that runs continuously        kafka consumer run loop (index.js)\n  a relational database                   pg Pool using DATABASE_URL (index.js)\n  a stream of events it publishes or reads  kafkajs on payment.events (index.js)\n  secrets it reads while it runs          SIGNING_KEY (index.js)\n  to be reachable from inside your organization only  must not be public (README.md)\nThe drafted plan is attached from the developer's repo (DEPLOYMENT_PLAN.md).\nThis is the second team to hit this boundary this month."
     }
   }
 }
 </script>
 
-<link rel="stylesheet" href="style.css?v=2">
+<link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
 
@@ -419,7 +364,7 @@
       <input id="search" class="search" type="search" placeholder="Search apps and owners"
              aria-label="Search apps and owners" spellcheck="false" autocomplete="off">
       <button type="button" class="toggle live" id="toggleLive" aria-pressed="true">Live</button>
-      <button type="button" class="toggle planned" id="togglePlanned" aria-pressed="true">Planned</button>
+      <button type="button" class="toggle planned" id="toggleDrafted" aria-pressed="true">Drafted</button>
       <button type="button" class="toggle destroyed" id="toggleDestroyed" aria-pressed="true">Destroyed</button>
       <label class="filterlabel" for="profile">Profile</label>
       <select id="profile" class="profile"></select>
@@ -469,8 +414,8 @@
   }
 
   /** One group of the decision card, in the same words the terminal uses. */
-  function group(heading, rows) {
-    const box = el("div", "group");
+  function group(heading, rows, tone) {
+    const box = el("div", "group" + (tone ? " " + tone : ""));
     box.appendChild(el("h3", null, heading));
 
     for (const row of rows) {
@@ -479,12 +424,7 @@
       const line = el("div", "row");
       line.appendChild(el("span", "id", row.id));
 
-      const what = el("span", "what", row.line);
-      if (row.planned) {
-        what.appendChild(document.createTextNode(" "));
-        what.appendChild(el("span", "tag", "(" + row.planned + ")"));
-      }
-      line.appendChild(what);
+      line.appendChild(el("span", "what", row.line));
       box.appendChild(line);
     }
 
@@ -501,9 +441,14 @@
   function card(env, onReport) {
     const box = el("div", "cardbox");
     box.appendChild(group("Your app:", [env.card.app]));
-    box.appendChild(group("We will provision this infrastructure to run it:", env.card.modules));
+    box.appendChild(group("We will build your dev environment with:", env.card.modules));
+    // What the app needs that nothing in the catalog builds, straight after what will
+    // be built, because they are two halves of the same answer.
+    if (env.card.needs && env.card.needs.length) {
+      box.appendChild(group("Your app also needs, and no module in your catalog supports yet:", env.card.needs, "needs"));
+    }
     if (env.card.patterns && env.card.patterns.length) {
-      box.appendChild(group("Patterns the " + env.profile + " profile applies:", env.card.patterns));
+      box.appendChild(group("Patterns your " + env.profile + " environment applies:", env.card.patterns));
     }
     box.appendChild(group("You will get back:", env.card.back));
 
@@ -998,7 +943,7 @@
   const search = document.getElementById("search");
   const toggles = {
     live: document.getElementById("toggleLive"),
-    planned: document.getElementById("togglePlanned"),
+    drafted: document.getElementById("toggleDrafted"),
     destroyed: document.getElementById("toggleDestroyed")
   };
   const profile = document.getElementById("profile");

@@ -35,8 +35,6 @@ app.get('/', (req, res) => res.json({
   service: 'beneficiary-lookup-api',
   owner: 'Payments Product, Northline Bank',
   status: 'ok',
-  source: PAYMENTS_SOR_URL || 'not configured',
-  cacheMaxAgeMinutes: CACHE_MAX_AGE_MINUTES,
   examples: Object.keys(beneficiaries).map(reference => `/beneficiaries/${reference}`)
 }))
 
@@ -56,7 +54,7 @@ app.get('/beneficiaries/:reference', (req, res) => {
     })
   }
 
-  res.json({ ...beneficiary, checkedAt, cacheMaxAgeMinutes: CACHE_MAX_AGE_MINUTES })
+  res.json({ ...beneficiary, checkedAt })
 })
 
 app.listen(port, () => console.log(`beneficiary-lookup-api listening on port ${port}`))
