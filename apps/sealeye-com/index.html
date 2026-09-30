@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>seaLeye.com: the front door to your enterprise platform</title>
+<meta name="description" content="seaLeye gives every development team self-service cloud infrastructure, through the automation and controls your platform team already built.">
+<link rel="icon" href="images/sealeye-mark.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;700&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<!-- The menu button is the one thing that needs JavaScript. Without this class the
+     navigation stays on the page below 900 px instead of collapsing. -->
+<script>document.documentElement.classList.add("js");</script>
+</head>
+<body>
+
+<a class="skip" href="#main">Skip to content</a>
+
+<!-- seaLeye.com is a name only. The real sealeye.com belongs to an unrelated company, so
+     no link on this site points there. The product sites are linked by S3 address. -->
+<header class="topbar">
+  <div class="inner">
+    <a class="wordmark" href="index.html"><img src="images/sealeye-com-wordmark-light.svg" alt="seaLeye.com home" width="640" height="160"></a>
+    <button class="menubtn" type="button" aria-expanded="false" aria-controls="sitenav"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>Menu</button>
+    <nav class="sitenav" id="sitenav" aria-label="Main">
+      <ul class="navlinks">
+        <li class="hasdrop">
+          <button class="drop" type="button" aria-expanded="false" aria-controls="productmenu">Product <svg class="chev" viewBox="0 0 10 10" aria-hidden="true" focusable="false"><path d="M1.5 3.5 L5 7 L8.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <ul class="dropmenu" id="productmenu">
+            <li><a href="overview.html">Overview<span class="sub">The front door, and how it works</span></a></li>
+            <li><a href="use-cases.html">Use Cases<span class="sub">Who feels the wait, and what changes</span></a></li>
+            <li><a href="security.html">Security<span class="sub">Built to clear bank onboarding</span></a></li>
+          </ul>
+        </li>
+        <li><a href="company.html">Company</a></li>
+        <li><a href="docs.html">Docs</a></li>
+      </ul>
+      <div class="navright">
+        <a class="ghost" href="http://sealeye-online-682542496821.s3-website.ca-central-1.amazonaws.com/">Sign in</a>
+        <a class="primary" href="get-started.html">Get Started</a>
+      </div>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+<section class="hero">
+  <div class="wrap grid">
+    <div>
+      <p class="eyebrow">Self-service infrastructure for the enterprise</p>
+      <h1>Your developers' front door to your enterprise platform.</h1>
+      <p class="lead">seaLeye gives every development team self-service cloud infrastructure, through the automation and controls your platform team already built.</p>
+      <div class="btnrow">
+        <a class="primary btn-lg" href="get-started.html">Get Started</a>
+        <a class="ghost btn-lg" href="overview.html">See how it works</a>
+      </div>
+    </div>
+    <figure class="term" aria-label="A seaLeye.run session in a terminal">
+      <div class="bar"><img src="images/sealeye-mark.svg" alt="" width="18" height="18"><span>~/code/your-app</span></div>
+<pre><span class="p">$</span> <span class="f">cd your-app &amp;&amp; sealeye run</span>
+<span class="d wide">seaLeye.run  ·  cd your-app &amp;&amp; sealeye run
+</span>
+<span class="d">  Reading your app</span>
+<span class="d">  Reading index.js</span>
+<span class="d">  Reading README.md</span>
+<span class="p">? What is this for? </span><span class="a">It's headed for production.</span>
+<span class="d">  Checking the plan against your Platform Library</span>
+<span class="d">  Wrote DEPLOYMENT_PLAN.md</span>
+<span class="p">? Deploy this? [y/N] </span><span class="a">y</span>
+<span class="d">  Handing your-app to your pipeline</span>
+<span class="d">  Status: succeeded</span>
+
+<span class="a">✓ Your app is live at
+  https://oyobbr4ii2.execute-api.ca-central-1.amazonaws.com</span></pre>
+    </figure>
+  </div>
+</section>
+
+<section class="band" aria-labelledby="problem">
+  <div class="wrap split wide-left">
+    <div>
+      <p class="eyebrow">The problem</p>
+      <h2 id="problem">Your platform is good. Getting through the door is slow.</h2>
+      <p class="dim">Your platform team built hardened modules, golden pipelines and a control model your auditors sign off on. Then every new app, every change and every promotion became a request in their queue.</p>
+    </div>
+    <div class="cards flush">
+      <div class="card accent"><h3>Developers wait</h3><p>Weeks for a first environment, and again for every change after it.</p></div>
+      <div class="card accent"><h3>Platform engineers provision</h3><p>Their days go to other teams' requests, or they are forward-deployed into those teams to do it.</p></div>
+      <div class="card accent"><h3>The roadmap stalls</h3><p>The second cloud, the migrations and the new capabilities wait behind the queue.</p></div>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="how">
+  <div class="wrap">
+    <p class="eyebrow">How it works</p>
+    <h2 id="how">An agent at the front door that already knows your platform.</h2>
+    <p class="intro dim">Before a developer ever talks to seaLeye, the discovery agent has read your Platform Library. The front door agent plans from what your platform team has already approved, and your own automation does the work.</p>
+    <ol class="steps">
+      <li><h3>Ingest</h3><p>The discovery agent reads your Platform Library, read-only, overnight.</p></li>
+      <li><h3>Plan</h3><p>The front door agent reads the developer's app, asks a few questions in their language, and writes a plan they can read.</p></li>
+      <li><h3>Run</h3><p>On approval, your own pipelines and infrastructure as code do the work, and every step is recorded.</p></li>
+    </ol>
+    <p class="after"><a href="overview.html">Read the product overview</a></p>
+  </div>
+</section>
+
+<section class="band" aria-labelledby="surfaces">
+  <div class="wrap">
+    <p class="eyebrow">Two surfaces</p>
+    <h2 id="surfaces">The command line or the browser. One product.</h2>
+    <p class="intro dim">Some developers live in the terminal. Some prefer the browser. Both do exactly the same things; only the interface differs.</p>
+    <div class="surfaces">
+      <div>
+        <p class="surface-label"><span class="mono">seaLeye.run</span><span>the command line</span></p>
+        <figure class="term" aria-label="The sealeye list command in a terminal">
+          <div class="bar"><img src="images/sealeye-mark.svg" alt="" width="18" height="18"><span>~/code</span></div>
+<pre><span class="p">$</span> <span class="f">sealeye list</span>
+<span class="d">  Reading every environment you own</span>
+
+<span class="d">APP                       STATUS</span>
+<span class="f">beneficiary-lookup-api    succeeded</span>
+<span class="f">payment-events-processor  drafted</span>
+<span class="f">static-website            succeeded</span>
+<span class="d">  One row per environment.</span></pre>
+        </figure>
+        <p class="after"><a href="http://sealeye-run-682542496821.s3-website.ca-central-1.amazonaws.com/index.html">Visit seaLeye.run</a></p>
+      </div>
+      <div>
+        <p class="surface-label"><span class="mono">seaLeye.online</span><span>the web console</span></p>
+        <figure class="console" aria-label="The Environments page of seaLeye.online">
+          <div class="cbar">
+            <span class="cw"><img src="images/sealeye-online-wordmark-light.svg" alt="" width="760" height="160"></span>
+            <span class="cur">Environments</span><span>Catalog</span><span>Team</span>
+          </div>
+          <div class="cbody">
+            <p class="ctitle">Environments</p>
+            <p class="csub">Every environment seaLeye has built for your organization.</p>
+            <div class="tablewrap">
+              <table>
+                <thead><tr><th scope="col">App</th><th scope="col">Status</th><th scope="col">Path</th></tr></thead>
+                <tbody>
+                  <tr><td class="app">beneficiary-lookup-api</td><td><span class="chip phosphor">Live</span></td><td><span class="chip phosphor">dev</span></td></tr>
+                  <tr><td class="app">payment-events-processor</td><td><span class="chip amber">Drafted</span></td><td><span class="chip">none</span></td></tr>
+                  <tr><td class="app">static-website</td><td><span class="chip phosphor">Live</span></td><td><span class="chip phosphor">dev</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </figure>
+        <p class="after"><a href="http://sealeye-online-682542496821.s3-website.ca-central-1.amazonaws.com/">Visit seaLeye.online</a></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="proof">
+  <div class="wrap">
+    <p class="eyebrow">What changes</p>
+    <h2 id="proof">When developers serve themselves</h2>
+    <div class="stats">
+      <div class="stat"><div class="n">Weeks to minutes</div><div class="l">for a developer's first environment</div></div>
+      <div class="stat"><div class="n">Half</div><div class="l">of the platform team's capacity, back</div></div>
+      <div class="stat"><div class="n">Overnight</div><div class="l">to ingest a full Platform Library</div></div>
+    </div>
+  </div>
+</section>
+
+<section class="band" aria-labelledby="trust">
+  <div class="wrap teaser">
+    <div>
+      <p class="eyebrow">Security</p>
+      <h2 id="trust">Built to clear bank onboarding.</h2>
+      <p class="dim intro">seaLeye was built by people who ran platform teams inside banks. It reads your library read-only, acts only through your pipelines, lands environments in your accounts, and waits for a person to approve every plan. InfoSec, Compliance, Audit, Third-Party Risk, Model Risk and Privacy each get their answers on day one.</p>
+    </div>
+    <a class="ghost btn-lg" href="security.html">Read about security</a>
+  </div>
+</section>
+
+<section aria-labelledby="usecases">
+  <div class="wrap">
+    <p class="eyebrow">Use cases</p>
+    <h2 id="usecases">For everyone between the idea and production</h2>
+    <div class="cards four">
+      <a class="card link" href="use-cases.html#developers"><h3>Developers</h3><p>A working environment in minutes, and changes and promotions without a ticket.</p><span class="more">Developer use cases</span></a>
+      <a class="card link" href="use-cases.html#platform"><h3>Platform engineering</h3><p>The library read overnight, and a written record of what it is missing.</p><span class="more">Platform use cases</span></a>
+      <a class="card link" href="use-cases.html#business"><h3>Business-line leaders</h3><p>What every environment costs, and capacity back for the roadmap.</p><span class="more">Business-line use cases</span></a>
+      <a class="card link" href="use-cases.html#risk"><h3>Risk and audit</h3><p>Evidence for every change, generated from the record.</p><span class="more">Risk and audit use cases</span></a>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="faq">
+  <div class="wrap">
+    <p class="eyebrow">FAQ</p>
+    <h2 id="faq">Questions we hear first</h2>
+    <div class="faq">
+      <details>
+        <summary>Does seaLeye replace our platform team?</summary>
+        <div><p><strong>No. It gives them their roadmap back.</strong> Your platform team still owns the modules, the pipelines and the controls. seaLeye takes the everyday requests off their queue, so their time goes to the work only they can do.</p></div>
+      </details>
+      <details>
+        <summary>Does it replace our pipelines or our infrastructure as code?</summary>
+        <div><p><strong>No. It drives them.</strong> seaLeye builds only from your approved modules and runs through the pipelines you already have. What you certified stays certified.</p></div>
+      </details>
+      <details>
+        <summary>What happens when a developer needs something our platform doesn't support?</summary>
+        <div><p>seaLeye records the need, with the code that shows it, and routes it to the platform team. The plan is saved as a draft. <strong>It never builds around the library.</strong> When your platform supports the need, the developer runs seaLeye again and the plan is finished.</p></div>
+      </details>
+      <details>
+        <summary>Command line or browser?</summary>
+        <div><p><strong>Both, with exactly the same capabilities.</strong> seaLeye.run is the command line and seaLeye.online is the web console. Developers use whichever suits them, and plenty switch between the two.</p></div>
+      </details>
+      <details>
+        <summary>Where does seaLeye run?</summary>
+        <div><p>As SaaS in a Canadian or US region, as a dedicated single-tenant instance, in your own cloud account, or as containers on premises. <a href="security.html#deployment">Deployment options</a></p></div>
+      </details>
+      <details>
+        <summary>Is our code used to train models?</summary>
+        <div><p><strong>No.</strong> Your code, your configuration and your Platform Library are never used to train models.</p></div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<section class="band" aria-labelledby="closing">
+  <div class="wrap closing">
+    <h2 id="closing">Start with a read of your platform library.</h2>
+    <p>In about a week, the discovery agent reads your modules and pipelines and shows you what your developers could self-serve today.</p>
+    <div class="btnrow"><a class="primary btn-lg" href="get-started.html">Get Started</a></div>
+  </div>
+</section>
+
+</main>
+
+<footer class="sitefoot">
+  <div class="wrap">
+    <div class="cols">
+      <div class="brand">
+        <span class="fw"><img src="images/sealeye-com-wordmark-light.svg" alt="seaLeye.com" width="640" height="160"></span>
+        <p>The front door to your enterprise platform.</p>
+      </div>
+      <nav aria-label="Product">
+        <h2>Product</h2>
+        <ul>
+          <li><a href="overview.html">Overview</a></li>
+          <li><a href="use-cases.html">Use Cases</a></li>
+          <li><a href="security.html">Security</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Company">
+        <h2>Company</h2>
+        <ul>
+          <li><a href="company.html">About</a></li>
+          <li><a href="company.html#contact">Contact</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Developers">
+        <h2>Developers</h2>
+        <ul>
+          <li><a href="docs.html">Docs</a></li>
+          <li><a class="mono" href="http://sealeye-run-682542496821.s3-website.ca-central-1.amazonaws.com/index.html">seaLeye.run</a></li>
+          <li><a class="mono" href="http://sealeye-online-682542496821.s3-website.ca-central-1.amazonaws.com/">seaLeye.online</a></li>
+        </ul>
+      </nav>
+    </div>
+    <div class="legal">
+      <p>© 2026 seaLeye</p>
+      <p class="scenario">INTERVIEW SCENARIO, FICTIONAL PRODUCT AND STORY</p>
+    </div>
+  </div>
+</footer>
+
+<script src="site.js"></script>
+</body>
+</html>

@@ -68,3 +68,34 @@ module has got to, which is the thing everyone reading the page or the card is a
 asking about. Nothing is `requested` today. The state exists because the demo is asked
 what happens when an app needs something nobody has agreed to yet, and the honest answer
 is a word rather than a shrug.
+
+## The corporate site header says seaLeye.com
+
+Decided Wed Sept 30, 2026.
+
+`apps/sealeye-com` is the company's own site, the one a CIO, a head of platform
+engineering or a vendor-risk team reads before a meeting. Its header reads
+**seaLeye.com**, for the same reason the console's reads seaLeye.online: a header names
+the thing you are looking at, and the thing you are looking at is the company rather
+than either of its two products.
+
+seaLeye.com is a name only. The real sealeye.com domain belongs to an unrelated company,
+so the site is served from an S3 website address like the other two, and nothing
+anywhere links to sealeye.com.
+
+**The asset.** `brand/sealeye-com-wordmark-light.svg`, copied into
+`apps/sealeye-com/images/`. It is `sealeye-online-wordmark-light.svg` with `.com` in
+place of `.online`: same mark with its dark window, same ink, the same phosphor-deep `L`,
+and `.com` in regular weight and Dim exactly as `.online` and `.run` are. `.com` has the
+same number of characters as `.run`, so it takes the original `.run` geometry rather
+than the widened `.online` one: a 640 canvas, and the cursor block back at x=530.
+
+**It carries no provenance manifest**, for the reason the `.online` variant does not.
+
+**The corporate site is the console's design system, not a third one.** It is set on
+the light ground from `brand/BRAND-ONLINE.md`, with IBM Plex Sans for reading, JetBrains
+Mono for anything that is code or data, and phosphor-deep and amber-deep in their usual
+jobs. The only dark things on it are the mark and the terminal cards, which is the
+console's own rule: a small dark window on a light desk. Put side by side, the three
+wordmarks differ only in the last word, and the address is how you tell which door you
+came in by.

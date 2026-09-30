@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Security: seaLeye.com</title>
+<meta name="description" content="How seaLeye is built, where it runs, and what each of a bank's onboarding reviewers gets on day one.">
+<link rel="icon" href="images/sealeye-mark.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;700&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<!-- The menu button is the one thing that needs JavaScript. Without this class the
+     navigation stays on the page below 900 px instead of collapsing. -->
+<script>document.documentElement.classList.add("js");</script>
+</head>
+<body>
+
+<a class="skip" href="#main">Skip to content</a>
+
+<!-- seaLeye.com is a name only. The real sealeye.com belongs to an unrelated company, so
+     no link on this site points there. The product sites are linked by S3 address. -->
+<header class="topbar">
+  <div class="inner">
+    <a class="wordmark" href="index.html"><img src="images/sealeye-com-wordmark-light.svg" alt="seaLeye.com home" width="640" height="160"></a>
+    <button class="menubtn" type="button" aria-expanded="false" aria-controls="sitenav"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>Menu</button>
+    <nav class="sitenav" id="sitenav" aria-label="Main">
+      <ul class="navlinks">
+        <li class="hasdrop">
+          <button class="drop current" type="button" aria-expanded="false" aria-controls="productmenu">Product <svg class="chev" viewBox="0 0 10 10" aria-hidden="true" focusable="false"><path d="M1.5 3.5 L5 7 L8.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <ul class="dropmenu" id="productmenu">
+            <li><a href="overview.html">Overview<span class="sub">The front door, and how it works</span></a></li>
+            <li><a href="use-cases.html">Use Cases<span class="sub">Who feels the wait, and what changes</span></a></li>
+            <li><a href="security.html" aria-current="page">Security<span class="sub">Built to clear bank onboarding</span></a></li>
+          </ul>
+        </li>
+        <li><a href="company.html">Company</a></li>
+        <li><a href="docs.html">Docs</a></li>
+      </ul>
+      <div class="navright">
+        <a class="ghost" href="http://sealeye-online-682542496821.s3-website.ca-central-1.amazonaws.com/">Sign in</a>
+        <a class="primary" href="get-started.html">Get Started</a>
+      </div>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+<section class="pagehead">
+  <div class="wrap">
+    <p class="eyebrow">Security</p>
+    <h1>Built to clear bank onboarding.</h1>
+    <p class="lead">Every large financial institution puts a new SaaS vendor through InfoSec, Compliance, Audit, Third-Party Risk, Model Risk and Privacy reviews, and that process routinely takes longer than the pilot. seaLeye was built by people who ran platform teams inside banks, so the answers arrive before the questions do.</p>
+  </div>
+</section>
+
+<section class="band" aria-labelledby="built">
+  <div class="wrap split">
+    <div>
+      <p class="eyebrow">Principles</p>
+      <h2 id="built">How seaLeye is built</h2>
+      <p class="dim">seaLeye is a front door, not a new platform. Everything it does, it does through the automation and the controls you already run, and every principle below follows from that.</p>
+    </div>
+    <div class="card">
+      <ul class="checks">
+        <li>It reads your Platform Library read-only.</li>
+        <li>It acts through your pipelines and infrastructure as code, never around them.</li>
+        <li>It runs with the developer's own cloud credentials, so environments land in your accounts under your policies.</li>
+        <li>Nothing deploys until a person approves a plan they can read.</li>
+        <li>It never stores secrets. Only names are kept, with values redacted.</li>
+        <li>Customer code is never used to train models.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="deployment-h" id="deployment">
+  <div class="wrap">
+    <p class="eyebrow">Deployment options</p>
+    <h2 id="deployment-h">Run it where your risk appetite says to.</h2>
+    <p class="intro dim">The product is the same in all four. What changes is who operates it and where it sits.</p>
+    <div class="cards four">
+      <div class="card"><h3>SaaS</h3><p>Operated by seaLeye in a Canadian or US region, with your data kept in the region you choose.</p></div>
+      <div class="card"><h3>Dedicated tenant</h3><p>A single-tenant instance operated by seaLeye for your organization alone.</p></div>
+      <div class="card"><h3>Your cloud account</h3><p>Deployed into an account you own, inside your network boundary and under your policies.</p></div>
+      <div class="card"><h3>On premises</h3><p>Containers in your own data centre, operated by your own teams.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="band" aria-labelledby="answering">
+  <div class="wrap">
+    <p class="eyebrow">Onboarding</p>
+    <h2 id="answering">One answer for every reviewer</h2>
+    <p class="intro dim">Each review arrives with its own questionnaire. Here is what each team tends to ask, and what we hand them.</p>
+
+    <article class="reviewer" id="infosec">
+      <h3>Answering InfoSec</h3>
+      <p>Where the data goes, who can reach it, and how the product is built and tested.</p>
+      <div class="qa">
+        <div>
+          <h4 class="ask">What they'll ask</h4>
+          <ul class="plainlist">
+            <li>What does seaLeye touch, and how does data flow through it?</li>
+            <li>What could go wrong, and what stops it?</li>
+            <li>Has it been tested by someone independent?</li>
+            <li>How are vulnerabilities found and fixed?</li>
+            <li>How do our people sign in, and who can do what?</li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="hand">What we hand them</h4>
+          <ul class="plainlist">
+            <li>Architecture and data-flow diagrams</li>
+            <li>The threat model</li>
+            <li>The penetration test summary, under NDA</li>
+            <li>Our vulnerability management process</li>
+            <li>Our secure development lifecycle</li>
+            <li>Identity: single sign-on, SCIM provisioning and role-based access</li>
+            <li>Encryption in transit and at rest</li>
+          </ul>
+        </div>
+      </div>
+    </article>
+
+    <article class="reviewer" id="compliance">
+      <h3>Answering Compliance</h3>
+      <p>Control mappings to the frameworks a bank's compliance team works from. Each mapping shows how seaLeye's controls line up with a framework's requirements. They are mappings, not certifications, and they do not make anyone compliant on their own.</p>
+      <div class="qa">
+        <div>
+          <h4 class="ask">What they'll ask</h4>
+          <ul class="plainlist">
+            <li>Which of our obligations does this vendor touch?</li>
+            <li>How do its controls line up with the frameworks we report against?</li>
+            <li>How does it support our own third-party risk program?</li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="hand">What we hand them</h4>
+          <p class="region">Canada</p>
+          <div class="framework"><span class="fname">OSFI Guideline B-10</span><span class="fscope">Third-Party Risk Management</span></div>
+          <div class="framework"><span class="fname">OSFI Guideline B-13</span><span class="fscope">Technology and Cyber Risk Management</span></div>
+          <p class="region">United States</p>
+          <div class="framework"><span class="fname">Interagency Guidance on Third-Party Relationships: Risk Management</span><span class="fscope">Federal Reserve, FDIC and OCC, 2023</span></div>
+          <div class="framework"><span class="fname">NYDFS 23 NYCRR Part 500</span><span class="fscope">Cybersecurity Requirements for Financial Services Companies</span></div>
+          <div class="framework"><span class="fname">FFIEC IT Examination Handbook</span><span class="fscope">Federal Financial Institutions Examination Council</span></div>
+          <p class="region">European Union</p>
+          <div class="framework"><span class="fname">DORA</span><span class="fscope">Digital Operational Resilience Act, Regulation (EU) 2022/2554</span></div>
+          <p class="region">Also</p>
+          <div class="framework"><span class="fname">SOC 2 Type II</span><span class="fscope">AICPA Trust Services Criteria</span></div>
+          <div class="framework"><span class="fname">ISO/IEC 27001</span><span class="fscope">Information security management systems</span></div>
+        </div>
+      </div>
+    </article>
+
+    <article class="reviewer" id="audit">
+      <h3>Answering Audit</h3>
+      <p>Who asked for what, who approved it, and whether what is running now is still that.</p>
+      <div class="qa">
+        <div>
+          <h4 class="ask">What they'll ask</h4>
+          <ul class="plainlist">
+            <li>Can you show us every change and who approved it?</li>
+            <li>How do we know the evidence was not edited?</li>
+            <li>Will it fit our change management process?</li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="hand">What we hand them</h4>
+          <ul class="plainlist">
+            <li>Every plan, approval, deployment and change is recorded.</li>
+            <li>Evidence files are generated from the record, never typed in.</li>
+            <li>Change records are ready for your ITSM.</li>
+            <li>Evidence packs can be exported.</li>
+          </ul>
+        </div>
+      </div>
+    </article>
+
+    <article class="reviewer" id="third-party">
+      <h3>Answering Third-Party Risk</h3>
+      <p>Whether seaLeye is a vendor you can depend on, and whether you can leave.</p>
+      <div class="qa">
+        <div>
+          <h4 class="ask">What they'll ask</h4>
+          <ul class="plainlist">
+            <li>Can you complete our standard questionnaires?</li>
+            <li>Who else handles our data?</li>
+            <li>What happens if you have an outage, or disappear?</li>
+            <li>How hard is it to leave?</li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="hand">What we hand them</h4>
+          <ul class="plainlist">
+            <li>Pre-completed SIG and CAIQ questionnaires</li>
+            <li>The sub-processor list</li>
+            <li>Business continuity and disaster recovery plans</li>
+            <li>A clean exit story: seaLeye drives your automation rather than replacing it, so if you ever remove it, your pipelines and modules keep running exactly as they do today.</li>
+          </ul>
+        </div>
+      </div>
+    </article>
+
+    <article class="reviewer" id="model-risk">
+      <h3>Answering Model Risk</h3>
+      <p>Where AI makes a decision, where it does not, and who is accountable.</p>
+      <div class="qa">
+        <div>
+          <h4 class="ask">What they'll ask</h4>
+          <ul class="plainlist">
+            <li>Where is AI used, and where is it not?</li>
+            <li>Can a model change our infrastructure on its own?</li>
+            <li>How do we inventory and validate it?</li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="hand">What we hand them</h4>
+          <ul class="plainlist">
+            <li>Where AI is used: the interview, planning, and library ingestion.</li>
+            <li>Where it isn't: execution runs through your own automation.</li>
+            <li>A person approves every plan.</li>
+            <li>Plans are readable files kept next to the code.</li>
+            <li>Model inventory documentation for OSFI Guideline E-23 and the Federal Reserve's SR 11-7.</li>
+          </ul>
+        </div>
+      </div>
+    </article>
+
+    <article class="reviewer" id="privacy">
+      <h3>Answering Privacy</h3>
+      <p>What personal information seaLeye sees, which is none that it needs.</p>
+      <div class="qa">
+        <div>
+          <h4 class="ask">What they'll ask</h4>
+          <ul class="plainlist">
+            <li>Does seaLeye process customer or personal data?</li>
+            <li>What does it actually see?</li>
+            <li>Where is it kept?</li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="hand">What we hand them</h4>
+          <ul class="plainlist">
+            <li>No customer or personal data is needed.</li>
+            <li>seaLeye sees only code and configuration metadata.</li>
+            <li>Data residency options, from a Canadian or US region to your own data centre.</li>
+          </ul>
+        </div>
+      </div>
+    </article>
+  </div>
+</section>
+
+<section aria-labelledby="package" id="trust-package">
+  <div class="wrap split">
+    <div>
+      <p class="eyebrow">The trust package</p>
+      <h2 id="package">What your onboarding team gets on day one</h2>
+      <p class="dim">One package, sent to each reviewer before their first meeting. Reports and test results are documents available under NDA.</p>
+      <div class="btnrow"><a class="primary btn-lg" href="get-started.html">Request the trust package</a></div>
+    </div>
+    <div class="card">
+      <ul class="checks package">
+        <li>Architecture and data-flow diagrams</li>
+        <li>Threat model</li>
+        <li>Penetration test summary</li>
+        <li>Vulnerability management process</li>
+        <li>Secure development lifecycle</li>
+        <li>Identity and access overview</li>
+        <li>Encryption overview</li>
+        <li>Control mappings</li>
+        <li>Pre-completed SIG and CAIQ</li>
+        <li>Sub-processor list</li>
+        <li>Business continuity and disaster recovery</li>
+        <li>Exit plan</li>
+        <li>Model inventory documentation</li>
+        <li>Data handling and residency</li>
+        <li>A sample evidence pack</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="band" aria-labelledby="secfaq">
+  <div class="wrap">
+    <p class="eyebrow">FAQ</p>
+    <h2 id="secfaq">Security questions</h2>
+    <div class="faq">
+      <details>
+        <summary>Does seaLeye need administrator access to our cloud accounts?</summary>
+        <div><p>No. It runs with the developer's own cloud credentials, so it can do only what that developer is already allowed to do, and every environment lands in your accounts under your policies.</p></div>
+      </details>
+      <details>
+        <summary>What does the model see?</summary>
+        <div><p>The code and configuration of the app being planned, the developer's answers, and your Platform Library. A plan names the settings an app reads and never their values, and anything seaLeye keeps holds only those names, with the values redacted.</p></div>
+      </details>
+      <details>
+        <summary>Can we keep everything inside our own network?</summary>
+        <div><p>Yes. Deployed in your own cloud account or on premises in containers, seaLeye runs inside your boundary and uses the model endpoint your organization has approved.</p></div>
+      </details>
+      <details>
+        <summary>What happens to our platform if we stop using seaLeye?</summary>
+        <div><p>Nothing. seaLeye drives your pipelines and infrastructure as code rather than replacing them, so they keep running exactly as they do today. The plans stay in your repositories as readable files.</p></div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<section class="band" aria-labelledby="closing">
+  <div class="wrap closing">
+    <h2 id="closing">Start with a read of your platform library.</h2>
+    <p>In about a week, the discovery agent reads your modules and pipelines and shows you what your developers could self-serve today.</p>
+    <div class="btnrow"><a class="primary btn-lg" href="get-started.html">Get Started</a></div>
+  </div>
+</section>
+
+</main>
+
+<footer class="sitefoot">
+  <div class="wrap">
+    <div class="cols">
+      <div class="brand">
+        <span class="fw"><img src="images/sealeye-com-wordmark-light.svg" alt="seaLeye.com" width="640" height="160"></span>
+        <p>The front door to your enterprise platform.</p>
+      </div>
+      <nav aria-label="Product">
+        <h2>Product</h2>
+        <ul>
+          <li><a href="overview.html">Overview</a></li>
+          <li><a href="use-cases.html">Use Cases</a></li>
+          <li><a href="security.html">Security</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Company">
+        <h2>Company</h2>
+        <ul>
+          <li><a href="company.html">About</a></li>
+          <li><a href="company.html#contact">Contact</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Developers">
+        <h2>Developers</h2>
+        <ul>
+          <li><a href="docs.html">Docs</a></li>
+          <li><a class="mono" href="http://sealeye-run-682542496821.s3-website.ca-central-1.amazonaws.com/index.html">seaLeye.run</a></li>
+          <li><a class="mono" href="http://sealeye-online-682542496821.s3-website.ca-central-1.amazonaws.com/">seaLeye.online</a></li>
+        </ul>
+      </nav>
+    </div>
+    <div class="legal">
+      <p>© 2026 seaLeye</p>
+      <p class="scenario">INTERVIEW SCENARIO, FICTIONAL PRODUCT AND STORY</p>
+    </div>
+  </div>
+</footer>
+
+<script src="site.js"></script>
+</body>
+</html>

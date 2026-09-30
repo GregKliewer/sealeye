@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Docs: seaLeye.com</title>
+<meta name="description" content="Where to find the documentation for developers, the console, platform teams, and security and compliance.">
+<link rel="icon" href="images/sealeye-mark.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;700&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<!-- The menu button is the one thing that needs JavaScript. Without this class the
+     navigation stays on the page below 900 px instead of collapsing. -->
+<script>document.documentElement.classList.add("js");</script>
+</head>
+<body>
+
+<a class="skip" href="#main">Skip to content</a>
+
+<!-- seaLeye.com is a name only. The real sealeye.com belongs to an unrelated company, so
+     no link on this site points there. The product sites are linked by S3 address. -->
+<header class="topbar">
+  <div class="inner">
+    <a class="wordmark" href="index.html"><img src="images/sealeye-com-wordmark-light.svg" alt="seaLeye.com home" width="640" height="160"></a>
+    <button class="menubtn" type="button" aria-expanded="false" aria-controls="sitenav"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>Menu</button>
+    <nav class="sitenav" id="sitenav" aria-label="Main">
+      <ul class="navlinks">
+        <li class="hasdrop">
+          <button class="drop" type="button" aria-expanded="false" aria-controls="productmenu">Product <svg class="chev" viewBox="0 0 10 10" aria-hidden="true" focusable="false"><path d="M1.5 3.5 L5 7 L8.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <ul class="dropmenu" id="productmenu">
+            <li><a href="overview.html">Overview<span class="sub">The front door, and how it works</span></a></li>
+            <li><a href="use-cases.html">Use Cases<span class="sub">Who feels the wait, and what changes</span></a></li>
+            <li><a href="security.html">Security<span class="sub">Built to clear bank onboarding</span></a></li>
+          </ul>
+        </li>
+        <li><a href="company.html">Company</a></li>
+        <li><a href="docs.html" aria-current="page">Docs</a></li>
+      </ul>
+      <div class="navright">
+        <a class="ghost" href="http://sealeye-online-682542496821.s3-website.ca-central-1.amazonaws.com/">Sign in</a>
+        <a class="primary" href="get-started.html">Get Started</a>
+      </div>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+<section class="pagehead">
+  <div class="wrap">
+    <p class="eyebrow">Docs</p>
+    <h1>Documentation</h1>
+    <p class="lead">The developer documentation lives with the command line, on seaLeye.run. This page points each reader to the right place.</p>
+  </div>
+</section>
+
+<section class="band" aria-labelledby="devs">
+  <div class="wrap">
+    <p class="eyebrow">Developers</p>
+    <h2 id="devs">Get from a folder to a running app</h2>
+    <div class="cards four">
+      <a class="card link" href="http://sealeye-run-682542496821.s3-website.ca-central-1.amazonaws.com/docs.html"><h3>Install and first run</h3><p>Install from your platform team's registry, then run it in your app's folder.</p><span class="more">seaLeye.run docs</span></a>
+      <a class="card link" href="http://sealeye-run-682542496821.s3-website.ca-central-1.amazonaws.com/docs.html"><h3>Commands</h3><p>Every command and option, exactly as <code>sealeye --help</code> prints them.</p><span class="more">seaLeye.run docs</span></a>
+      <a class="card link" href="http://sealeye-run-682542496821.s3-website.ca-central-1.amazonaws.com/docs.html"><h3>Walkthroughs</h3><p>Your first environment, running it again, when it says no, and the change record.</p><span class="more">seaLeye.run docs</span></a>
+      <a class="card link" href="http://sealeye-run-682542496821.s3-website.ca-central-1.amazonaws.com/docs.html"><h3>FAQ</h3><p>Profiles, second runs, drafted plans, tearing down, and where your plan lives.</p><span class="more">seaLeye.run docs</span></a>
+    </div>
+
+    <div class="ref" aria-labelledby="cmdlist">
+      <div class="rhead" id="cmdlist">The command list</div>
+      <div class="rows">
+        <code><span class="cmd">sealeye run</span> [--answers &lt;file&gt;] [--team-context] [--watch] [--api &lt;url&gt;]</code>
+        <code><span class="cmd">sealeye deploy</span> --file &lt;plan.yaml&gt; [--app &lt;path&gt;] [--api &lt;url&gt;] [--json] [--watch]</code>
+        <code><span class="cmd">sealeye validate</span> --file &lt;plan.yaml&gt; [--api &lt;url&gt;] [--json]</code>
+        <code><span class="cmd">sealeye status</span> &lt;deploymentId&gt; [--api &lt;url&gt;] [--json]</code>
+        <code><span class="cmd">sealeye watch</span> &lt;deploymentId&gt; [--api &lt;url&gt;]</code>
+        <code><span class="cmd">sealeye destroy</span> &lt;app | deploymentId&gt; [--api &lt;url&gt;]</code>
+        <code><span class="cmd">sealeye list</span> [--deployments] [--all] [--api &lt;url&gt;] [--json]</code>
+        <code><span class="cmd">sealeye evidence</span> &lt;app | deploymentId&gt; [--json] [--out &lt;file&gt;] [--api &lt;url&gt;]</code>
+        <code><span class="cmd">sealeye needs</span> [--json] [--request &lt;kind&gt;] [--api &lt;url&gt;]</code>
+        <code><span class="cmd">sealeye doctor</span> [--json] [--api &lt;url&gt;]</code>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="consoleh">
+  <div class="wrap">
+    <p class="eyebrow">The console</p>
+    <h2 id="consoleh">seaLeye.online</h2>
+    <div class="cards two">
+      <a class="card link" href="http://sealeye-online-682542496821.s3-website.ca-central-1.amazonaws.com/"><h3>Environments</h3><p>Every environment seaLeye has built, with its status, its owner and its path to production. Open one to see what it costs, its logs and its controls.</p><span class="more">Open seaLeye.online</span></a>
+      <a class="card link" href="http://sealeye-online-682542496821.s3-website.ca-central-1.amazonaws.com/catalog.html"><h3>Catalog</h3><p>The modules in your Platform Library, and the needs apps have turned up that no module supports yet.</p><span class="more">Open the catalog</span></a>
+    </div>
+  </div>
+</section>
+
+<section class="band" aria-labelledby="platformh">
+  <div class="wrap">
+    <p class="eyebrow">Platform teams</p>
+    <h2 id="platformh">Run the front door for your organization</h2>
+    <div class="cards four">
+      <a class="card link" href="get-started.html#leaders"><h3>Connecting your Platform Library</h3><p>Read-only access for the discovery agent, and publishing the command line to your own registry.</p><span class="more">How an engagement starts</span></a>
+      <a class="card link" href="http://sealeye-run-682542496821.s3-website.ca-central-1.amazonaws.com/docs.html"><h3>The needs ledger</h3><p><code>sealeye needs</code> rolls every drafted plan up by what it is waiting on, across apps.</p><span class="more">seaLeye.run docs</span></a>
+      <a class="card link" href="http://sealeye-run-682542496821.s3-website.ca-central-1.amazonaws.com/docs.html"><h3>Evidence</h3><p><code>sealeye evidence</code> writes the change record for one environment, generated from the record.</p><span class="more">seaLeye.run docs</span></a>
+      <a class="card link" href="http://sealeye-run-682542496821.s3-website.ca-central-1.amazonaws.com/docs.html"><h3>sealeye doctor</h3><p>Checks a machine is ready: the cloud tools, the credentials, the region and the model key.</p><span class="more">seaLeye.run docs</span></a>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="sech">
+  <div class="wrap">
+    <p class="eyebrow">Security and compliance</p>
+    <h2 id="sech">For your onboarding reviewers</h2>
+    <div class="cards two">
+      <a class="card link" href="security.html"><h3>Security</h3><p>How seaLeye is built, where it runs, and what InfoSec, Compliance, Audit, Third-Party Risk, Model Risk and Privacy each receive.</p><span class="more">Read about security</span></a>
+      <a class="card link" href="security.html#trust-package"><h3>The trust package</h3><p>Everything your onboarding team gets on day one, with reports and test results available under NDA.</p><span class="more">See what is in it</span></a>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="sitefoot">
+  <div class="wrap">
+    <div class="cols">
+      <div class="brand">
+        <span class="fw"><img src="images/sealeye-com-wordmark-light.svg" alt="seaLeye.com" width="640" height="160"></span>
+        <p>The front door to your enterprise platform.</p>
+      </div>
+      <nav aria-label="Product">
+        <h2>Product</h2>
+        <ul>
+          <li><a href="overview.html">Overview</a></li>
+          <li><a href="use-cases.html">Use Cases</a></li>
+          <li><a href="security.html">Security</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Company">
+        <h2>Company</h2>
+        <ul>
+          <li><a href="company.html">About</a></li>
+          <li><a href="company.html#contact">Contact</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Developers">
+        <h2>Developers</h2>
+        <ul>
+          <li><a href="docs.html">Docs</a></li>
+          <li><a class="mono" href="http://sealeye-run-682542496821.s3-website.ca-central-1.amazonaws.com/index.html">seaLeye.run</a></li>
+          <li><a class="mono" href="http://sealeye-online-682542496821.s3-website.ca-central-1.amazonaws.com/">seaLeye.online</a></li>
+        </ul>
+      </nav>
+    </div>
+    <div class="legal">
+      <p>© 2026 seaLeye</p>
+      <p class="scenario">INTERVIEW SCENARIO, FICTIONAL PRODUCT AND STORY</p>
+    </div>
+  </div>
+</footer>
+
+<script src="site.js"></script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="160" viewBox="0 0 640 160" role="img" aria-label="seaLeye.com">
+  <!-- Light-ground variant for the corporate site. Same construction as
+       sealeye-online-wordmark-light.svg, with .com in place of .online. .com has as many
+       characters as .run, so this keeps the original .run geometry: a 640 canvas and the
+       cursor block at x=530. -->
+  <g transform="translate(24,44)">
+    <rect x="4" y="8" width="64" height="56" rx="8" fill="#13181D" stroke="#2A333C" stroke-width="2"/>
+    <path d="M18 26 L32 36 L18 46" fill="none" stroke="#7FD8C2" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="38" y="42" width="16" height="5" fill="#E8B04B"/>
+  </g>
+  <text x="116" y="100" font-family="JetBrains Mono, IBM Plex Mono, Menlo, monospace" font-size="64" font-weight="700" letter-spacing="-2" fill="#13181D">sea<tspan fill="#1A7A64">L</tspan>eye<tspan font-weight="400" fill="#5C6B7A">.com</tspan></text>
+  <rect x="530" y="52" width="26" height="56" fill="#1A7A64"/>
+</svg>

@@ -10,6 +10,56 @@ and the file layout are in `docs/DAY4-COMMANDS.md`.
 Day 5 was the polish the scoring asked for, plus the two real bugs the polish uncovered. Nothing
 about the plan contract changed, and the executor changed in one place only.
 
+## Sept 30: seaLeye.com, the company site
+
+The third site, `apps/sealeye-com`: the corporate site a CIO, a head of platform engineering
+or a bank's vendor-risk team reads before taking a meeting. seaLeye.com is a name only. The
+real sealeye.com belongs to an unrelated company, so nothing links there; the site will be
+served from an S3 website address like the other two, and it links to them by theirs.
+
+### What was built
+
+Seven flat pages, `style.css`, `site.js` and `images/` (SVG only): Home, Product (Overview,
+Use Cases, Security), Company, Docs and Get Started. No framework, no build step, no forms,
+no data collection. It is the console's design system from `brand/BRAND-ONLINE.md` rather
+than a third one: the same tokens, top bar, buttons, chips, cards and stat tiles, IBM Plex
+Sans for reading and JetBrains Mono for code and data. The only dark things on it are the
+mark and the terminal cards.
+
+- **Top bar** on every page: wordmark, Product dropdown, Company, Docs, a ghost Sign in to
+  seaLeye.online and the Get Started button. The dropdown opens on hover and keyboard focus
+  from CSS alone, and `site.js` adds click, Escape and the arrow keys. Below 900 px the
+  navigation collapses into a menu button, only when the script is running; without it the
+  links stay on the page.
+- **Footer** on every page: three link columns, then the copyright and the INTERVIEW
+  SCENARIO line. Every page is `noindex, nofollow`.
+- **Overview** carries the layered diagram in HTML and CSS: the developer, seaLeye with both
+  agents, pipelines, infrastructure as code, and what it runs on, with a phosphor rail from
+  seaLeye into the two layers it drives. Tool names are text chips.
+- **Security** answers InfoSec, Compliance, Audit, Third-Party Risk, Model Risk and Privacy
+  one block each. Frameworks are named precisely and described as mappings only; reports are
+  documents under NDA; there are no badges.
+- **The only numbers** are the three stat tiles on Home, and the only customer line is
+  "deployed at some of the largest financial institutions in North America", on Company.
+
+The wordmark is `brand/sealeye-com-wordmark-light.svg`, copied into `images/`. The decision
+and its geometry are in DESIGN.md.
+
+### Checked
+
+Every page served locally and screenshotted at 1440 and 390 wide in headless Chrome; no page
+scrolls sideways at either width. A scripted link check: every internal link and anchor
+resolves, and the only external URLs are the two product sites (all four answer 200) and
+Google Fonts. The top bar was driven in the browser: hover, click, click-outside, Tab,
+arrow keys, Escape and Enter on the dropdown, the menu button at 390, and the page with
+JavaScript off. No em dashes, no deployme, no href to sealeye.com.
+
+### Not done
+
+Not deployed and not committed. `cd apps/sealeye-com && sealeye run` deploys it, and its S3
+address will be in the DEPLOYMENT_REPORT.md that writes. apps/sealeye-run and
+apps/sealeye-online were not changed and do not link to it yet.
+
 ## Sept 27: seaLeye writes it down
 
 2.16.0. Two new commands, both read-only, both things Greg can run live on Oct 2 in the

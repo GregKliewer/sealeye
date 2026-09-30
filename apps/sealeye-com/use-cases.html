@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Use cases: seaLeye.com</title>
+<meta name="description" content="Eight problems seaLeye solves, grouped by who feels them: developers, platform engineering, business-line leaders, and risk and audit.">
+<link rel="icon" href="images/sealeye-mark.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;700&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<!-- The menu button is the one thing that needs JavaScript. Without this class the
+     navigation stays on the page below 900 px instead of collapsing. -->
+<script>document.documentElement.classList.add("js");</script>
+</head>
+<body>
+
+<a class="skip" href="#main">Skip to content</a>
+
+<!-- seaLeye.com is a name only. The real sealeye.com belongs to an unrelated company, so
+     no link on this site points there. The product sites are linked by S3 address. -->
+<header class="topbar">
+  <div class="inner">
+    <a class="wordmark" href="index.html"><img src="images/sealeye-com-wordmark-light.svg" alt="seaLeye.com home" width="640" height="160"></a>
+    <button class="menubtn" type="button" aria-expanded="false" aria-controls="sitenav"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>Menu</button>
+    <nav class="sitenav" id="sitenav" aria-label="Main">
+      <ul class="navlinks">
+        <li class="hasdrop">
+          <button class="drop current" type="button" aria-expanded="false" aria-controls="productmenu">Product <svg class="chev" viewBox="0 0 10 10" aria-hidden="true" focusable="false"><path d="M1.5 3.5 L5 7 L8.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <ul class="dropmenu" id="productmenu">
+            <li><a href="overview.html">Overview<span class="sub">The front door, and how it works</span></a></li>
+            <li><a href="use-cases.html" aria-current="page">Use Cases<span class="sub">Who feels the wait, and what changes</span></a></li>
+            <li><a href="security.html">Security<span class="sub">Built to clear bank onboarding</span></a></li>
+          </ul>
+        </li>
+        <li><a href="company.html">Company</a></li>
+        <li><a href="docs.html">Docs</a></li>
+      </ul>
+      <div class="navright">
+        <a class="ghost" href="http://sealeye-online-682542496821.s3-website.ca-central-1.amazonaws.com/">Sign in</a>
+        <a class="primary" href="get-started.html">Get Started</a>
+      </div>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+<section class="pagehead">
+  <div class="wrap">
+    <p class="eyebrow">Use cases</p>
+    <h1>Who feels the wait, and what changes when it ends.</h1>
+    <p class="lead">Every use case below is the same product doing its one job: letting a team serve itself through the platform you already run. They are grouped by who feels the problem first.</p>
+    <nav class="jump" aria-label="Use case groups">
+      <a class="chip tool" href="#developers">Developers</a>
+      <a class="chip tool" href="#platform">Platform engineering</a>
+      <a class="chip tool" href="#business">Business-line leaders</a>
+      <a class="chip tool" href="#risk">Risk and audit</a>
+    </nav>
+  </div>
+</section>
+
+<section class="band">
+  <div class="wrap">
+
+    <div class="group" id="developers">
+      <p class="eyebrow">Developers</p>
+      <h2>Ship without waiting, in the tools you already use.</h2>
+
+      <article class="usecase">
+        <header><h3>The first dev environment, in minutes</h3></header>
+        <div class="parts">
+          <div class="part problem"><h4>The problem</h4><p>A new app has code and nowhere to run it. The request goes into the platform team's queue, and the developer waits weeks for an environment they could describe in a sentence.</p></div>
+          <div class="part"><h4>What seaLeye does</h4><p>The developer runs <code>sealeye run</code> in the app's folder. The front door agent reads the code, asks what the folder cannot answer, and writes a plan from your approved modules. On approval, your pipeline builds it.</p></div>
+          <div class="part changes"><h4>What changes</h4><p>The first environment arrives in minutes, not weeks, and it is built exactly the way the platform team would have built it.</p></div>
+        </div>
+      </article>
+
+      <article class="usecase">
+        <header><h3>Changing infrastructure as the app changes</h3></header>
+        <div class="parts">
+          <div class="part problem"><h4>The problem</h4><p>The app starts reading a new setting, or needs a place to keep files. Every change to what it runs on is another ticket, so developers work around the environment instead of changing it.</p></div>
+          <div class="part"><h4>What seaLeye does</h4><p>Run it again. seaLeye reads the app as it is now and shows the plan as a difference from what is deployed: unchanged, changed, new or removed. The change goes through the same modules and the same approvals.</p></div>
+          <div class="part changes"><h4>What changes</h4><p>Infrastructure keeps pace with the code, and every change has a plan a person approved.</p></div>
+        </div>
+      </article>
+
+      <article class="usecase">
+        <header><h3>Promoting a build to production, through your gates</h3></header>
+        <div class="parts">
+          <div class="part problem"><h4>The problem</h4><p>Getting from dev to test to production means learning each stage's rules, filing each stage's request, and waiting on each stage's team.</p></div>
+          <div class="part"><h4>What seaLeye does</h4><p>The plan records what the app is designed for. seaLeye moves the build through your test stages to production through the pipeline gates you already enforce, and never around them.</p></div>
+          <div class="part changes"><h4>What changes</h4><p>Promotion becomes a step the developer takes, and the gates your auditors rely on stay exactly where they were.</p></div>
+        </div>
+      </article>
+    </div>
+
+    <div class="group" id="platform">
+      <p class="eyebrow">Platform engineering</p>
+      <h2>Scale the platform without scaling the queue.</h2>
+
+      <article class="usecase">
+        <header><h3>Ingesting a Platform Library overnight</h3></header>
+        <div class="parts">
+          <div class="part problem"><h4>The problem</h4><p>Your modules, pipelines and infrastructure code took years to build, and the knowledge of how they fit together lives in a few engineers' heads.</p></div>
+          <div class="part"><h4>What seaLeye does</h4><p>The discovery agent reads the repositories that hold your Platform Library, read-only, and learns the control model that governs them. Each module it understands becomes available to the front door agent.</p></div>
+          <div class="part changes"><h4>What changes</h4><p>Overnight, the front door knows your platform, and you get a written map of what your developers could serve themselves today.</p></div>
+        </div>
+      </article>
+
+      <article class="usecase">
+        <header><h3>Knowing exactly what your platform is missing</h3></header>
+        <div class="parts">
+          <div class="part problem"><h4>The problem</h4><p>When a developer needs something the platform does not offer, they either wait with no answer or build it themselves outside your controls. Either way, you never hear about it.</p></div>
+          <div class="part"><h4>What seaLeye does</h4><p>seaLeye drafts the plan, records the need with the code that shows it, and routes it to the platform team. <code>sealeye needs</code> is the platform team's ledger: every need, the apps waiting on it, and a request ready to paste into a ticket.</p></div>
+          <div class="part changes"><h4>What changes</h4><p>Nothing gets built around the library, and the roadmap is written from evidence. Each need is requested until the platform team agrees to it, planned once they have, and available once the module ships.</p></div>
+        </div>
+      </article>
+    </div>
+
+    <div class="group" id="business">
+      <p class="eyebrow">Business-line leaders</p>
+      <h2>Weeks to minutes, on the platform you already paid for.</h2>
+
+      <article class="usecase">
+        <header><h3>Managing what is running, in seaLeye.online</h3></header>
+        <div class="parts">
+          <div class="part problem"><h4>The problem</h4><p>Environments outlive the projects that asked for them. Nobody can say what each one costs, who owns it, or whether anyone still uses it.</p></div>
+          <div class="part"><h4>What seaLeye does</h4><p>seaLeye.online shows every environment seaLeye built, with its cost, its owner and what it is doing. Right-size it, put it to sleep when nobody is using it, or decommission it, from the console or the command line.</p></div>
+          <div class="part changes"><h4>What changes</h4><p>Spend follows use, every environment has an owner, and idle ones stop costing money.</p></div>
+        </div>
+      </article>
+
+      <article class="usecase">
+        <header><h3>Putting the freed capacity to work</h3></header>
+        <div class="parts">
+          <div class="part problem"><h4>The problem</h4><p>Your best platform engineers spend their days provisioning for other teams, and the strategic work has been waiting for years.</p></div>
+          <div class="part"><h4>What seaLeye does</h4><p>Developers serve themselves, so the everyday requests leave the queue and forward-deployed engineers come home. Plans describe what an app needs, not how it is built, so a change in the library reaches every app.</p></div>
+          <div class="part changes"><h4>What changes</h4><p>The platform team's time goes to multi-cloud, to paying down tech debt in pipelines and infrastructure code, and to adding the services AI applications need.</p></div>
+        </div>
+      </article>
+    </div>
+
+    <div class="group" id="risk">
+      <p class="eyebrow">Risk and audit</p>
+      <h2>The same controls, with better evidence.</h2>
+
+      <article class="usecase">
+        <header><h3>Answering the auditor from the record</h3></header>
+        <div class="parts">
+          <div class="part problem"><h4>The problem</h4><p>An auditor asks who requested an environment, what was approved, what was built and whether it is still that. The answer is assembled by hand from tickets, logs and memory.</p></div>
+          <div class="part"><h4>What seaLeye does</h4><p><code>sealeye evidence</code> writes the change record for one environment: who asked, the plan they approved, what was built, and what the cloud says about it right now. Every value is read from the record or checked live. Nothing is typed in, and no secret's value ever appears.</p></div>
+          <div class="part changes"><h4>What changes</h4><p>The auditor gets a document generated from the record, and change records are ready for your ITSM.</p></div>
+        </div>
+      </article>
+    </div>
+
+  </div>
+</section>
+
+<section class="band" aria-labelledby="closing">
+  <div class="wrap closing">
+    <h2 id="closing">Start with a read of your platform library.</h2>
+    <p>In about a week, the discovery agent reads your modules and pipelines and shows you what your developers could self-serve today.</p>
+    <div class="btnrow"><a class="primary btn-lg" href="get-started.html">Get Started</a></div>
+  </div>
+</section>
+
+</main>
+
+<footer class="sitefoot">
+  <div class="wrap">
+    <div class="cols">
+      <div class="brand">
+        <span class="fw"><img src="images/sealeye-com-wordmark-light.svg" alt="seaLeye.com" width="640" height="160"></span>
+        <p>The front door to your enterprise platform.</p>
+      </div>
+      <nav aria-label="Product">
+        <h2>Product</h2>
+        <ul>
+          <li><a href="overview.html">Overview</a></li>
+          <li><a href="use-cases.html">Use Cases</a></li>
+          <li><a href="security.html">Security</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Company">
+        <h2>Company</h2>
+        <ul>
+          <li><a href="company.html">About</a></li>
+          <li><a href="company.html#contact">Contact</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Developers">
+        <h2>Developers</h2>
+        <ul>
+          <li><a href="docs.html">Docs</a></li>
+          <li><a class="mono" href="http://sealeye-run-682542496821.s3-website.ca-central-1.amazonaws.com/index.html">seaLeye.run</a></li>
+          <li><a class="mono" href="http://sealeye-online-682542496821.s3-website.ca-central-1.amazonaws.com/">seaLeye.online</a></li>
+        </ul>
+      </nav>
+    </div>
+    <div class="legal">
+      <p>© 2026 seaLeye</p>
+      <p class="scenario">INTERVIEW SCENARIO, FICTIONAL PRODUCT AND STORY</p>
+    </div>
+  </div>
+</footer>
+
+<script src="site.js"></script>
+</body>
+</html>
