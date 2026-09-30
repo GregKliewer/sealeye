@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;700&amp;display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=3">
+<link rel="stylesheet" href="style.css?v=4">
 <!-- The menu button is the one thing that needs JavaScript. Without this class the
      navigation stays on the page below 900 px instead of collapsing. -->
 <script>document.documentElement.classList.add("js");</script>
@@ -57,7 +57,7 @@
 </section>
 
 <section class="band" aria-labelledby="story">
-  <div class="wrap split wide-left">
+  <div class="wrap split wide-left storygrid">
     <div class="story">
       <h2 id="story">The product was hiding inside an adoption problem</h2>
       <p><strong>Dana Whitlock and Sam Okafor ran the developer platform group at Atlantic Seaboard Bancorp</strong>, one of the biggest banks on the East Coast. They had the pipelines, the templates and the golden paths a bank's platform is supposed to have, and almost nobody used them unless they were made to.</p>
@@ -65,19 +65,19 @@
       <p><strong>Sam wrote a command over a weekend.</strong> From inside your folder, it built you a dev environment and put your code in it. No form, no ticket, no reading. It was meant to be a wedge. Within a quarter, teams across the bank had run it, and then they came back asking for the rest: a change to what it built, a look at what was running, a way to move a build through the test stages, a service nobody at the bank had used before.</p>
       <p><strong>That flood of requests was the product.</strong> When agentic build became real, the two partners brought it out of the bank for every platform team with the same problem. Today, seaLeye is deployed at some of the largest financial institutions in North America.</p>
     </div>
-    <div>
-      <h3>The founders</h3>
-      <div class="people">
-        <div class="person">
-          <span class="disc" aria-hidden="true">DW</span>
-          <span><span class="who">Dana Whitlock</span><span class="role">Co-founder</span></span>
-        </div>
-        <div class="person">
-          <span class="disc" aria-hidden="true">SO</span>
-          <span><span class="who">Sam Okafor</span><span class="role">Co-founder</span></span>
-        </div>
+    <aside class="founders" aria-labelledby="founders-h">
+      <h3 id="founders-h">The founders</h3>
+      <div class="founder-grid">
+        <figure class="founder">
+          <img src="images/founder-dana.jpg" alt="Dana Whitlock" width="640" height="640">
+          <figcaption><span class="who">Dana Whitlock</span><span class="role">Co-founder</span><span class="line">Ran the developer platform group at Atlantic Seaboard Bancorp.</span></figcaption>
+        </figure>
+        <figure class="founder">
+          <img src="images/founder-sam.jpg" alt="Sam Okafor" width="640" height="640">
+          <figcaption><span class="who">Sam Okafor</span><span class="role">Co-founder</span><span class="line">Wrote the first command over a weekend.</span></figcaption>
+        </figure>
       </div>
-    </div>
+    </aside>
   </div>
 </section>
 
@@ -162,6 +162,6 @@
   </div>
 </footer>
 
-<script src="site.js?v=3"></script>
+<script src="site.js?v=4"></script>
 </body>
 </html>

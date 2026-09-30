@@ -19,7 +19,7 @@ served from an S3 website address like the other two, and it links to them by th
 
 ### What was built
 
-Seven flat pages, `style.css`, `site.js` and `images/` (SVG only): Home, Product (Overview,
+Seven flat pages, `style.css`, `site.js` and `images/`: Home, Product (Overview,
 Use Cases, Security), Company, Docs and Get Started. No framework, no build step, no forms,
 no data collection. It is the console's design system from `brand/BRAND-ONLINE.md` rather
 than a third one: the same tokens, top bar, buttons, chips, cards and stat tiles, IBM Plex
@@ -42,6 +42,11 @@ mark and the terminal cards.
 - **The only numbers** are the three stat tiles on Home, and the only customer line is
   "deployed at some of the largest financial institutions in North America", on Company.
 
+Company shows the founders' headshots (`images/founder-dana.jpg`, `founder-sam.jpg`, 640 px),
+beside the story and held in view while it is read, and above it on a phone. They replace
+the initial discs the first brief asked for, at Greg's request; they are the only raster
+images on the site.
+
 The wordmark is `brand/sealeye-com-wordmark-light.svg`, copied into `images/`. The decision
 and its geometry are in DESIGN.md.
 
@@ -54,10 +59,17 @@ Google Fonts. The top bar was driven in the browser: hover, click, click-outside
 arrow keys, Escape and Enter on the dropdown, the menu button at 390, and the page with
 JavaScript off. No em dashes, no deployme, no href to sealeye.com.
 
-### Not done
+Docs carries the developer guide itself rather than linking to seaLeye.run's: install, the
+command list and options, the walkthroughs and the FAQ. Each walkthrough is shown in both
+products side by side, the real terminal session in seaLeye.run's design and the same
+session in seaLeye.online's. The console screens were drawn for the page; the console does
+not have all of them yet (New environment, Evidence, Reuse or Start over).
 
-Not deployed and not committed. `cd apps/sealeye-com && sealeye run` deploys it, and its S3
-address will be in the DEPLOYMENT_REPORT.md that writes. apps/sealeye-run and
+### Where it stands
+
+Deployed by seaLeye to http://sealeye-com-682542496821.s3-website.ca-central-1.amazonaws.com
+(`sealeye deploy` in `apps/sealeye-com` redeploys to the same address). Pages load
+`style.css?v=4` and `site.js?v=4`; bump the number when either changes. apps/sealeye-run and
 apps/sealeye-online were not changed and do not link to it yet.
 
 ## Sept 27: seaLeye writes it down

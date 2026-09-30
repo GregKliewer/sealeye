@@ -889,3 +889,31 @@ figure { margin: 0; }
   .runwin pre { white-space: pre; overflow-wrap: normal; }
   .onbar .onnav span:not(.cur), .onwho { display: none; }
 }
+
+/* ---- company: the founders beside their story ----
+   Beside the story on a wide screen, and held in view while it is read. On a phone the
+   faces come first, so the story that names them is read with them in mind. */
+.founders { position: sticky; top: 96px; }
+.founders h3 { margin: 0 0 16px; }
+.founder-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.founder {
+  margin: 0;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.founder img { display: block; width: 100%; height: auto; aspect-ratio: 1 / 1; object-fit: cover; background: var(--chip-neutral-bg); }
+.founder figcaption { padding: 14px 16px 16px; }
+.founder .who { display: block; font-weight: 600; }
+.founder .role { display: block; color: var(--phosphor); font-size: 14px; font-weight: 500; }
+.founder .line { display: block; color: var(--dim); font-size: 14px; line-height: 1.45; margin-top: 6px; }
+
+@media (max-width: 900px) {
+  .founders { position: static; order: -1; }
+}
+@media (max-width: 560px) {
+  .founder-grid { gap: 12px; }
+  .founder figcaption { padding: 10px 12px 12px; }
+  .founder .line { font-size: 13px; }
+}
