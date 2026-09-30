@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title>Docs: seaLeye.com</title>
-<meta name="description" content="Where to find the documentation for developers, the console, platform teams, and security and compliance.">
+<meta name="description" content="Install, commands, walkthroughs and FAQ for developers, and where platform teams and onboarding reviewers should start.">
 <link rel="icon" href="images/sealeye-mark.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;700&amp;display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=3">
 <!-- The menu button is the one thing that needs JavaScript. Without this class the
      navigation stays on the page below 900 px instead of collapsing. -->
 <script>document.documentElement.classList.add("js");</script>
@@ -52,7 +52,7 @@
   <div class="wrap">
     <p class="eyebrow">Docs</p>
     <h1>Documentation</h1>
-    <p class="lead">The developer documentation lives with the command line, on seaLeye.run. This page points each reader to the right place.</p>
+    <p class="lead">Everything a developer needs to get from a folder to a running app is on this page, along with where platform teams and onboarding reviewers should start.</p>
   </div>
 </section>
 
@@ -61,26 +61,10 @@
     <p class="eyebrow">Developers</p>
     <h2 id="devs">Get from a folder to a running app</h2>
     <div class="cards four">
-      <a class="card link" href="http://sealeye-run-682542496821.s3-website.ca-central-1.amazonaws.com/docs.html"><h3>Install and first run</h3><p>Install from your platform team's registry, then run it in your app's folder.</p><span class="more">seaLeye.run docs</span></a>
-      <a class="card link" href="http://sealeye-run-682542496821.s3-website.ca-central-1.amazonaws.com/docs.html"><h3>Commands</h3><p>Every command and option, exactly as <code>sealeye --help</code> prints them.</p><span class="more">seaLeye.run docs</span></a>
-      <a class="card link" href="http://sealeye-run-682542496821.s3-website.ca-central-1.amazonaws.com/docs.html"><h3>Walkthroughs</h3><p>Your first environment, running it again, when it says no, and the change record.</p><span class="more">seaLeye.run docs</span></a>
-      <a class="card link" href="http://sealeye-run-682542496821.s3-website.ca-central-1.amazonaws.com/docs.html"><h3>FAQ</h3><p>Profiles, second runs, drafted plans, tearing down, and where your plan lives.</p><span class="more">seaLeye.run docs</span></a>
-    </div>
-
-    <div class="ref" aria-labelledby="cmdlist">
-      <div class="rhead" id="cmdlist">The command list</div>
-      <div class="rows">
-        <code><span class="cmd">sealeye run</span> [--answers &lt;file&gt;] [--team-context] [--watch] [--api &lt;url&gt;]</code>
-        <code><span class="cmd">sealeye deploy</span> --file &lt;plan.yaml&gt; [--app &lt;path&gt;] [--api &lt;url&gt;] [--json] [--watch]</code>
-        <code><span class="cmd">sealeye validate</span> --file &lt;plan.yaml&gt; [--api &lt;url&gt;] [--json]</code>
-        <code><span class="cmd">sealeye status</span> &lt;deploymentId&gt; [--api &lt;url&gt;] [--json]</code>
-        <code><span class="cmd">sealeye watch</span> &lt;deploymentId&gt; [--api &lt;url&gt;]</code>
-        <code><span class="cmd">sealeye destroy</span> &lt;app | deploymentId&gt; [--api &lt;url&gt;]</code>
-        <code><span class="cmd">sealeye list</span> [--deployments] [--all] [--api &lt;url&gt;] [--json]</code>
-        <code><span class="cmd">sealeye evidence</span> &lt;app | deploymentId&gt; [--json] [--out &lt;file&gt;] [--api &lt;url&gt;]</code>
-        <code><span class="cmd">sealeye needs</span> [--json] [--request &lt;kind&gt;] [--api &lt;url&gt;]</code>
-        <code><span class="cmd">sealeye doctor</span> [--json] [--api &lt;url&gt;]</code>
-      </div>
+      <a class="card link" href="#install"><h3>Install and first run</h3><p>Install from your platform team's registry, then run it in your app's folder.</p><span class="more">Install</span></a>
+      <a class="card link" href="#commands"><h3>Commands</h3><p>Every command and option, exactly as <code>sealeye --help</code> prints them.</p><span class="more">Commands</span></a>
+      <a class="card link" href="#walkthroughs"><h3>Walkthroughs</h3><p>Your first environment, running it again, when it says no, and the change record.</p><span class="more">Walkthroughs</span></a>
+      <a class="card link" href="#faq"><h3>FAQ</h3><p>Profiles, second runs, drafted plans, tearing down, and where your plan lives.</p><span class="more">FAQ</span></a>
     </div>
   </div>
 </section>
@@ -102,9 +86,9 @@
     <h2 id="platformh">Run the front door for your organization</h2>
     <div class="cards four">
       <a class="card link" href="get-started.html#leaders"><h3>Connecting your Platform Library</h3><p>Read-only access for the discovery agent, and publishing the command line to your own registry.</p><span class="more">How an engagement starts</span></a>
-      <a class="card link" href="http://sealeye-run-682542496821.s3-website.ca-central-1.amazonaws.com/docs.html"><h3>The needs ledger</h3><p><code>sealeye needs</code> rolls every drafted plan up by what it is waiting on, across apps.</p><span class="more">seaLeye.run docs</span></a>
-      <a class="card link" href="http://sealeye-run-682542496821.s3-website.ca-central-1.amazonaws.com/docs.html"><h3>Evidence</h3><p><code>sealeye evidence</code> writes the change record for one environment, generated from the record.</p><span class="more">seaLeye.run docs</span></a>
-      <a class="card link" href="http://sealeye-run-682542496821.s3-website.ca-central-1.amazonaws.com/docs.html"><h3>sealeye doctor</h3><p>Checks a machine is ready: the cloud tools, the credentials, the region and the model key.</p><span class="more">seaLeye.run docs</span></a>
+      <a class="card link" href="#needs"><h3>The needs ledger</h3><p><code>sealeye needs</code> rolls every drafted plan up by what it is waiting on, across apps.</p><span class="more">What the platform team sees</span></a>
+      <a class="card link" href="#change-record"><h3>Evidence</h3><p><code>sealeye evidence</code> writes the change record for one environment, generated from the record.</p><span class="more">The change record</span></a>
+      <a class="card link" href="#commands"><h3>sealeye doctor</h3><p>Checks a machine is ready: the cloud tools, the credentials, the region and the model key.</p><span class="more">Commands</span></a>
     </div>
   </div>
 </section>
@@ -116,6 +100,628 @@
     <div class="cards two">
       <a class="card link" href="security.html"><h3>Security</h3><p>How seaLeye is built, where it runs, and what InfoSec, Compliance, Audit, Third-Party Risk, Model Risk and Privacy each receive.</p><span class="more">Read about security</span></a>
       <a class="card link" href="security.html#trust-package"><h3>The trust package</h3><p>Everything your onboarding team gets on day one, with reports and test results available under NDA.</p><span class="more">See what is in it</span></a>
+    </div>
+  </div>
+</section>
+
+<section class="band guide" aria-labelledby="guide">
+  <div class="wrap">
+    <p class="eyebrow">Developer guide</p>
+    <h2 id="guide">Using seaLeye</h2>
+    <p class="intro dim">The command line and the console do exactly the same things. Install covers the command line; for the console, open seaLeye.online in your browser and sign in.</p>
+
+    <div class="doc" id="install">
+      <h2>Install</h2>
+      <p>Your platform team publishes seaLeye to your internal registry, under your organization's own name. Copy and paste this line into your terminal to get seaLeye on your laptop. That's it. You're ready to run.</p>
+      <p class="install" aria-label="Install command"><span class="p">$</span> <span>npm install -g @your-org/sealeye</span></p>
+      <p class="after">Then, in your app's folder:</p>
+      <p class="install" aria-label="Run command"><span class="p">$</span> <span>cd your-app &amp;&amp; sealeye run</span></p>
+    </div>
+
+    <div class="doc" id="commands">
+      <h2>Commands</h2>
+      <p>This is <code>sealeye --help</code>, reproduced. It carries no per-command description, so none is written here.</p>
+      <div class="ref">
+        <div class="rhead">The command list</div>
+        <div class="rows">
+          <code><span class="cmd">sealeye run</span> [--answers &lt;file&gt;] [--team-context] [--watch] [--api &lt;url&gt;]</code>
+          <code><span class="cmd">sealeye deploy</span> --file &lt;plan.yaml&gt; [--app &lt;path&gt;] [--api &lt;url&gt;] [--json] [--watch]</code>
+          <code><span class="cmd">sealeye validate</span> --file &lt;plan.yaml&gt; [--api &lt;url&gt;] [--json]</code>
+          <code><span class="cmd">sealeye status</span> &lt;deploymentId&gt; [--api &lt;url&gt;] [--json]</code>
+          <code><span class="cmd">sealeye watch</span> &lt;deploymentId&gt; [--api &lt;url&gt;]</code>
+          <code><span class="cmd">sealeye destroy</span> &lt;app | deploymentId&gt; [--api &lt;url&gt;]</code>
+          <code><span class="cmd">sealeye list</span> [--deployments] [--all] [--api &lt;url&gt;] [--json]</code>
+          <code><span class="cmd">sealeye evidence</span> &lt;app | deploymentId&gt; [--json] [--out &lt;file&gt;] [--api &lt;url&gt;]</code>
+          <code><span class="cmd">sealeye needs</span> [--json] [--request &lt;kind&gt;] [--api &lt;url&gt;]</code>
+          <code><span class="cmd">sealeye doctor</span> [--json] [--api &lt;url&gt;]</code>
+        </div>
+      </div>
+
+      <h3 id="options">Options</h3>
+      <div class="opts">
+        <div class="row"><code class="flag">-f, --file</code><span class="what">path to your plan YAML</span></div>
+        <div class="row"><code class="flag">--app</code><span class="what">folder to deploy (default: the current folder)</span></div>
+        <div class="row"><code class="flag">-b, --backend</code><span class="what">cloudformation (default: cloudformation)</span></div>
+        <div class="row"><code class="flag">--answers</code><span class="what">with run: answer the interview from a file, one line per question, for rehearsals. Never answers "Deploy this?": that stays yours</span></div>
+        <div class="row"><code class="flag">--team-context</code><span class="what">with run: after a refusal, say whether another team has hit the same boundary (reads a local fixture)</span></div>
+        <div class="row"><code class="flag">--watch</code><span class="what">with run or deploy: stay on the live panel until the deployment finishes, instead of watching in the background and notifying you</span></div>
+        <div class="row"><code class="flag">--all</code><span class="what">with list: include environments you have torn down</span></div>
+        <div class="row"><code class="flag">--deployments</code><span class="what">with list: every deploy, instead of one row per environment</span></div>
+        <div class="row"><code class="flag">--out</code><span class="what">with evidence: where to write DEPLOYMENT_EVIDENCE.md (default: the current folder)</span></div>
+        <div class="row"><code class="flag">--request</code><span class="what">with needs: print a module request for one need, ready to paste into a ticket. Takes the kind, or part of the need's own line</span></div>
+        <div class="row"><code class="flag">--api</code><span class="what">platform API base URL (default: http://localhost:3000)</span></div>
+        <div class="row"><code class="flag">--json</code><span class="what">machine-readable output</span></div>
+        <div class="row"><code class="flag">-h, --help</code><span class="what">show help</span></div>
+      </div>
+    </div>
+
+    <div class="doc" id="walkthroughs">
+      <h2>Walkthroughs</h2>
+      <p>seaLeye does exactly the same things from the command line and from the browser, so every walkthrough is shown in both: the terminal on the left, the console on the right. Same app, same plan, same deployment. The terminal sessions are real, and are marked where a screen redrew itself in place or a banner repeated.</p>
+
+      <h3 id="first-environment">Your first environment</h3>
+      <p>You are standing in a folder with an app in it and nothing else. seaLeye reads the app, asks what it is for, shows you what it is going to build, and waits. Only a yes goes any further: <code>y</code> in the terminal, <b>Deploy this</b> in the console.</p>
+      <div class="pair">
+        <div class="side"><p class="side-label"><span class="mono">seaLeye.run</span><span>the command line</span></p><div class="runwin"><div class="runbar"><img src="images/sealeye-mark.svg" alt="" width="18" height="18"><span class="rw">sea<b>L</b>eye<i>.run</i></span><span class="where">~/code/beneficiary-lookup-api</span></div><pre><span class="a">                __</span>
+<span class="a">  ___ ___ ___ _/ /  ___ __ _____</span>
+<span class="a"> (_-&lt;/ -_) _ `/ /__/ -_) // / -_)</span>
+<span class="a">/___/\__/\_,_/____/\__/\_, /\__/</span>
+<span class="a">                      /___/</span>
+<span class="d">seaLeye.run  ·  cd your-app &amp;&amp; sealeye run   v2.16.0</span>
+
+<span class="d">  Reading your app</span>
+<span class="d">  Reading index.js</span>
+<span class="d">  Reading README.md</span>
+<span class="d">  Looking at .</span>
+
+<span class="d">  This looks like a small HTTP service, an Express app with one lookup route, no database or environment settings beyond the port.</span>
+<span class="p">? What is this for? Are you trying something out, or is this headed for the pipeline to production? If it is neither, tell me what you are trying to do. </span><span class="a">It's headed for the pipeline to production.</span>
+<span class="d">  Checking the plan against the seaLeye.run plan contract</span>
+
+<span class="d">  ┌────────────────────────────────────────────────────────────────────────────┐</span>
+<span class="d">  │ Your app:                                                                  │</span>
+<span class="d">  │   beneficiary-lookup-api, a Node.js API that starts with index.js          │</span>
+<span class="d">  ├────────────────────────────────────────────────────────────────────────────┤</span>
+<span class="d">  │ We will build your dev environment with:                                   │</span>
+<span class="d">  │   </span><span class="f">http_api_serverless</span><span class="d">  Runs your code on demand behind an HTTPS endpoint.  │</span>
+<span class="d">  │   </span><span class="f">observability_basic</span><span class="d">  Collects your app's logs and tracks requests,       │</span>
+<span class="d">  │                        errors and response times.                          │</span>
+<span class="d">  ├────────────────────────────────────────────────────────────────────────────┤</span>
+<span class="d">  │ You will get back:                                                         │</span>
+<span class="d">  │   A public HTTPS address, as soon as it is live                            │</span>
+<span class="d">  │   Your logs and basic metrics, kept for 30 days                            │</span>
+<span class="d">  │   A plan your later environments are built from                            │</span>
+<span class="d">  └────────────────────────────────────────────────────────────────────────────┘</span>
+
+<span class="d">  Full plan, and every assumption seaLeye.run made: DEPLOYMENT_PLAN.md</span>
+<span class="d">  Wrote ~/code/beneficiary-lookup-api/DEPLOYMENT_PLAN.md</span>
+
+<span class="p">? Deploy this? [y/N] </span><span class="a">y</span>
+<span class="d">  Handing ~/code/beneficiary-lookup-api to seaLeye.run to build your environment</span>
+
+<span class="d">Deployment: </span><span class="f">dep_824dce107b24</span>
+<span class="d">Status:     </span><span class="f">packaging</span>
+<span class="d">App:        </span><span class="f">beneficiary-lookup-api (api)</span>
+<span class="d">Stack:      </span><span class="f">sealeye-beneficiary-lookup-api</span>
+<span class="d">Started:    </span><span class="f">2026-09-25T18:18:36.137Z</span>
+<span class="f">You asked for:</span>
+<span class="d">  http_api_serverless</span>
+<span class="d">  observability_basic</span>
+
+<span class="d">Status: </span><span class="f">packaging.</span>
+
+<span class="d">  [ ... the watch redraws in place; frames omitted ... ]</span>
+
+<span class="d">Deployment: </span><span class="f">dep_824dce107b24</span>
+<span class="d">Status:     </span><span class="f">succeeded</span>
+<span class="d">App:        </span><span class="f">beneficiary-lookup-api (api)</span>
+<span class="d">Stack:      </span><span class="f">sealeye-beneficiary-lookup-api (CREATE_COMPLETE)</span>
+<span class="d">URL:        </span><span class="f">https://oyobbr4ii2.execute-api.ca-central-1.amazonaws.com</span>
+<span class="d">Logs:       </span><span class="f">/aws/lambda/beneficiary-lookup-api</span>
+<span class="d">Started:    </span><span class="f">2026-09-25T18:18:36.137Z</span>
+<span class="d">Finished:   </span><span class="f">2026-09-25T18:19:42.528Z</span>
+<span class="f">You asked for:</span>
+<span class="d">  http_api_serverless</span>
+<span class="d">  observability_basic</span>
+
+<span class="d">Status: </span><span class="f">succeeded..</span>
+
+<span class="a">✓ Your app is live at https://oyobbr4ii2.execute-api.ca-central-1.amazonaws.com</span>
+<span class="d">  Wrote ~/code/beneficiary-lookup-api/DEPLOYMENT_REPORT.md</span></pre></div></div>
+        <div class="side"><p class="side-label"><span class="mono">seaLeye.online</span><span>the web console</span></p><div class="onwin"><div class="onbar"><span class="cw"><img src="images/sealeye-online-wordmark-light.svg" alt="" width="760" height="160"></span><span class="onnav"><span class="cur">Environments</span><span>Catalog</span><span>Team</span></span><span class="onwho">Northline Bank <span class="cx-disc">G</span></span></div><div class="onbody">
+          <p class="cx-crumbs">Environments <span>/</span> New environment</p>
+          <p class="cx-h1">New environment</p>
+          <div class="cx-field"><span class="k">App</span><span class="mono">beneficiary-lookup-api</span></div>
+          <ul class="cx-steps"><li>Reading your app</li><li>Reading index.js</li><li>Reading README.md</li></ul>
+          <p class="cx-dim">This looks like a small HTTP service, an Express app with one lookup route, no database or environment settings beyond the port.</p>
+          <div class="cx-q"><p class="ask">What is this for? Are you trying something out, or is this headed for the pipeline to production?</p><p class="ans">It's headed for the pipeline to production.</p></div>
+          <div class="cx-card">
+            <div class="cx-group"><h4>Your app:</h4><p>beneficiary-lookup-api, a Node.js API that starts with index.js</p></div>
+            <div class="cx-group"><h4>We will build your dev environment with:</h4>
+              <div class="cx-row"><span class="id">http_api_serverless</span><span class="what">Runs your code on demand behind an HTTPS endpoint.</span></div>
+              <div class="cx-row"><span class="id">observability_basic</span><span class="what">Collects your app's logs and tracks requests, errors and response times.</span></div></div>
+            <div class="cx-group"><h4>You will get back:</h4><p>A public HTTPS address, as soon as it is live</p><p>Your logs and basic metrics, kept for 30 days</p><p>A plan your later environments are built from</p></div>
+            <div class="cx-foot"><span class="cx-dim">Full plan, and every assumption: <span class="mono">DEPLOYMENT_PLAN.md</span></span><span class="cx-btns"><span class="cx-btn ghost">Not now</span><span class="cx-btn primary">Deploy this</span></span></div>
+          </div>
+          <p class="cx-then">After <b>Deploy this</b></p>
+          <div class="cx-head"><span class="mono cx-app">beneficiary-lookup-api</span><span class="chip phosphor">Live</span></div>
+          <div class="cx-card cx-fields">
+            <div class="cx-field"><span class="k">Deployment</span><span class="mono">dep_824dce107b24</span></div>
+            <div class="cx-field"><span class="k">Stack</span><span class="mono">sealeye-beneficiary-lookup-api <span class="cx-dim">CREATE_COMPLETE</span></span></div>
+            <div class="cx-field"><span class="k">URL</span><span class="mono cx-link">https://oyobbr4ii2.execute-api.ca-central-1.amazonaws.com</span></div>
+            <div class="cx-field"><span class="k">Logs</span><span class="mono">/aws/lambda/beneficiary-lookup-api</span></div>
+            <div class="cx-field"><span class="k">Started</span><span class="mono">2026-09-25T18:18:36.137Z</span></div>
+            <div class="cx-field"><span class="k">Finished</span><span class="mono">2026-09-25T18:19:42.528Z</span></div>
+          </div>
+          <p class="cx-ok">Your app is live. The report is written next to your code as <span class="mono">DEPLOYMENT_REPORT.md</span>.</p>
+        </div></div></div>
+      </div>
+
+      <h3 id="running-again">Running it again</h3>
+      <p>The app changed: it now reads two settings from its environment. Nothing else about it moved. seaLeye offers you the plan you already have, and starting over makes it look at the app as it is now. It finds the two settings and adds the module that passes them through, and this time it asks nothing at all, because the app answered everything.</p>
+      <div class="pair">
+        <div class="side"><p class="side-label"><span class="mono">seaLeye.run</span><span>the command line</span></p><div class="runwin"><div class="runbar"><img src="images/sealeye-mark.svg" alt="" width="18" height="18"><span class="rw">sea<b>L</b>eye<i>.run</i></span><span class="where">~/code/beneficiary-lookup-api</span></div><pre><span class="a">                __</span>
+<span class="a">  ___ ___ ___ _/ /  ___ __ _____</span>
+<span class="a"> (_-&lt;/ -_) _ `/ /__/ -_) // / -_)</span>
+<span class="a">/___/\__/\_,_/____/\__/\_, /\__/</span>
+<span class="a">                      /___/</span>
+<span class="d">seaLeye.run  ·  cd your-app &amp;&amp; sealeye run   v2.16.0</span>
+
+<span class="f">beneficiary-lookup-api already has a live environment.</span>
+<span class="d">  https://oyobbr4ii2.execute-api.ca-central-1.amazonaws.com</span>
+<span class="d">  deployed 1 minute ago, running http_api_serverless and observability_basic</span>
+<span class="f">This run will update that environment. It will not create a second one.</span>
+
+<span class="p">? Continue? [y/N] </span><span class="a">y</span>
+
+<span class="p">? A plan already exists. Reuse it (r), start over (s)? </span><span class="a">s</span>
+<span class="d">  Reading your app</span>
+<span class="d">  Reading index.js</span>
+<span class="d">  Reading .env</span>
+<span class="d">  Reading README.md</span>
+<span class="d">  Reading DEPLOYMENT_PLAN.md</span>
+<span class="d">  Reading DEPLOYMENT_REPORT.md</span>
+<span class="d">  Checking the plan against the seaLeye.run plan contract</span>
+
+<span class="d">  ┌────────────────────────────────────────────────────────────────────────────┐</span>
+<span class="d">  │ Your app:                                                                  │</span>
+<span class="d">  │        beneficiary-lookup-api, a Node.js API that starts with index.js     │</span>
+<span class="d">  ├────────────────────────────────────────────────────────────────────────────┤</span>
+<span class="d">  │ We will change this environment:                                           │</span>
+<span class="d">  │        </span><span class="f">http_api_serverless</span><span class="d">  Runs your code on demand behind an HTTPS       │</span>
+<span class="d">  │                             endpoint.                                      │</span>
+<span class="d">  │        </span><span class="f">observability_basic</span><span class="d">  Collects your app's logs and tracks requests,  │</span>
+<span class="d">  │                             errors and response times.                     │</span>
+<span class="d">  │   </span><span class="f">new</span><span class="d">  config_basic         Passes the settings your app reads from its    │</span>
+<span class="d">  │                             environment through to it when it runs.        │</span>
+<span class="d">  │   </span><span class="f">new</span><span class="d">  the settings it passes through: PAYMENTS_SOR_URL,                   │</span>
+<span class="d">  │        CACHE_MAX_AGE_MINUTES                                               │</span>
+<span class="d">  ├────────────────────────────────────────────────────────────────────────────┤</span>
+<span class="d">  │ You will get back:                                                         │</span>
+<span class="d">  │        A public HTTPS address, as soon as it is live                       │</span>
+<span class="d">  │        Your logs and basic metrics, kept for 30 days                       │</span>
+<span class="d">  │        A plan your later environments are built from                       │</span>
+<span class="d">  └────────────────────────────────────────────────────────────────────────────┘</span>
+
+<span class="d">  Full plan, and every assumption seaLeye.run made: DEPLOYMENT_PLAN.md</span>
+<span class="d">  Wrote ~/code/beneficiary-lookup-api/DEPLOYMENT_PLAN.md</span>
+
+<span class="p">? Deploy this? [y/N] </span><span class="a">y</span>
+<span class="d">  Handing ~/code/beneficiary-lookup-api to seaLeye.run to build your environment</span>
+
+<span class="d">Deployment: </span><span class="f">dep_f83c7499e779</span>
+<span class="d">Status:     </span><span class="f">packaging</span>
+<span class="d">App:        </span><span class="f">beneficiary-lookup-api (api)</span>
+<span class="d">Stack:      </span><span class="f">sealeye-beneficiary-lookup-api</span>
+<span class="d">Started:    </span><span class="f">2026-09-25T18:20:40.893Z</span>
+<span class="f">You asked for:</span>
+<span class="d">  http_api_serverless</span>
+<span class="d">  observability_basic</span>
+<span class="d">  config_basic</span>
+
+<span class="d">Status: </span><span class="f">packaging.</span>
+
+<span class="d">  [ ... the watch redraws in place; frames omitted ... ]</span>
+
+<span class="d">Deployment: </span><span class="f">dep_f83c7499e779</span>
+<span class="d">Status:     </span><span class="f">succeeded</span>
+<span class="d">App:        </span><span class="f">beneficiary-lookup-api (api)</span>
+<span class="d">Stack:      </span><span class="f">sealeye-beneficiary-lookup-api (UPDATE_COMPLETE)</span>
+<span class="d">URL:        </span><span class="f">https://oyobbr4ii2.execute-api.ca-central-1.amazonaws.com</span>
+<span class="d">Logs:       </span><span class="f">/aws/lambda/beneficiary-lookup-api</span>
+<span class="d">Started:    </span><span class="f">2026-09-25T18:20:40.893Z</span>
+<span class="d">Finished:   </span><span class="f">2026-09-25T18:21:10.035Z</span>
+<span class="f">You asked for:</span>
+<span class="d">  http_api_serverless</span>
+<span class="d">  observability_basic</span>
+<span class="d">  config_basic</span>
+
+<span class="d">Status: </span><span class="f">succeeded...</span>
+
+<span class="a">✓ Your app is live at https://oyobbr4ii2.execute-api.ca-central-1.amazonaws.com</span>
+<span class="d">  Wrote ~/code/beneficiary-lookup-api/DEPLOYMENT_REPORT.md</span></pre></div></div>
+        <div class="side"><p class="side-label"><span class="mono">seaLeye.online</span><span>the web console</span></p><div class="onwin"><div class="onbar"><span class="cw"><img src="images/sealeye-online-wordmark-light.svg" alt="" width="760" height="160"></span><span class="onnav"><span class="cur">Environments</span><span>Catalog</span><span>Team</span></span><span class="onwho">Northline Bank <span class="cx-disc">G</span></span></div><div class="onbody">
+          <p class="cx-crumbs">Environments <span>/</span> beneficiary-lookup-api</p>
+          <div class="cx-head"><span class="mono cx-app">beneficiary-lookup-api</span><span class="chip phosphor">Live</span></div>
+          <div class="cx-card cx-pad">
+            <p class="mono cx-link">https://oyobbr4ii2.execute-api.ca-central-1.amazonaws.com</p>
+            <p class="cx-dim">Deployed 1 minute ago, running <span class="mono">http_api_serverless</span> and <span class="mono">observability_basic</span>. Planning again updates this environment. It will not create a second one.</p>
+            <div class="cx-btns"><span class="cx-btn ghost">Reuse the plan</span><span class="cx-btn primary">Start over</span></div>
+          </div>
+          <p class="cx-then">After <b>Start over</b></p>
+          <ul class="cx-steps"><li>Reading your app</li><li>Reading index.js</li><li>Reading .env</li><li>Reading README.md</li><li>Reading DEPLOYMENT_PLAN.md</li><li>Reading DEPLOYMENT_REPORT.md</li></ul>
+          <div class="cx-card">
+            <div class="cx-group"><h4>Your app:</h4><p>beneficiary-lookup-api, a Node.js API that starts with index.js</p></div>
+            <div class="cx-group"><h4>We will change this environment:</h4>
+              <div class="cx-row"><span class="id">http_api_serverless</span><span class="what">Runs your code on demand behind an HTTPS endpoint.</span></div>
+              <div class="cx-row"><span class="id">observability_basic</span><span class="what">Collects your app's logs and tracks requests, errors and response times.</span></div>
+              <div class="cx-row"><span class="id">config_basic <span class="chip phosphor">new</span></span><span class="what">Passes the settings your app reads from its environment through to it when it runs.</span></div>
+              <div class="cx-row"><span class="id">settings <span class="chip phosphor">new</span></span><span class="what"><span class="mono">PAYMENTS_SOR_URL</span>, <span class="mono">CACHE_MAX_AGE_MINUTES</span></span></div></div>
+            <div class="cx-group"><h4>You will get back:</h4><p>A public HTTPS address, as soon as it is live</p><p>Your logs and basic metrics, kept for 30 days</p><p>A plan your later environments are built from</p></div>
+            <div class="cx-foot"><span></span><span class="cx-btns"><span class="cx-btn ghost">Not now</span><span class="cx-btn primary">Deploy this</span></span></div>
+          </div>
+          <p class="cx-then">After <b>Deploy this</b></p>
+          <div class="cx-card cx-fields">
+            <div class="cx-field"><span class="k">Deployment</span><span class="mono">dep_f83c7499e779</span></div>
+            <div class="cx-field"><span class="k">Stack</span><span class="mono">sealeye-beneficiary-lookup-api <span class="cx-dim">UPDATE_COMPLETE</span></span></div>
+            <div class="cx-field"><span class="k">Finished</span><span class="mono">2026-09-25T18:21:10.035Z</span></div>
+          </div>
+          <p class="cx-ok">Your app is live at the same address, now with its two settings.</p>
+        </div></div></div>
+      </div>
+
+      <h3 id="says-no">When it says no</h3>
+      <p>Not every app fits what seaLeye can build today. This one reads a stream, keeps a database connection open and must not be reachable from the internet. seaLeye never names a module it cannot build, so it does not guess at one: it says what your app needs, in plain words, with the code that shows it, and saves the plan as a draft. It also tells you when somebody else has already been here.</p>
+      <div class="pair">
+        <div class="side"><p class="side-label"><span class="mono">seaLeye.run</span><span>the command line</span></p><div class="runwin"><div class="runbar"><img src="images/sealeye-mark.svg" alt="" width="18" height="18"><span class="rw">sea<b>L</b>eye<i>.run</i></span><span class="where">~/code/payment-events-processor</span></div><pre><span class="a">                __</span>
+<span class="a">  ___ ___ ___ _/ /  ___ __ _____</span>
+<span class="a"> (_-&lt;/ -_) _ `/ /__/ -_) // / -_)</span>
+<span class="a">/___/\__/\_,_/____/\__/\_, /\__/</span>
+<span class="a">                      /___/</span>
+<span class="d">seaLeye.run  ·  cd your-app &amp;&amp; sealeye run   v2.16.0</span>
+
+<span class="d">  Reading your app</span>
+<span class="d">  Reading index.js</span>
+<span class="d">  Reading README.md</span>
+
+<span class="d">  This is a continuous consumer that reads payment events from a stream, confirms payees, and writes signed outcomes to a database, so it needs to keep running rather than answer on demand. The readme also says it must stay inside the bank's network only, not reachable from the public internet.</span>
+<span class="p">? What is this for? Are you trying something out, or is this headed for the pipeline to production? If it is neither, tell me what you are trying to do. </span><span class="a">production</span>
+<span class="d">  Checking the plan against the seaLeye.run plan contract</span>
+
+<span class="d">  ┌────────────────────────────────────────────────────────────────────────────┐</span>
+<span class="d">  │ Your app:                                                                  │</span>
+<span class="d">  │   payment-events-processor, a service                                      │</span>
+<span class="d">  ├────────────────────────────────────────────────────────────────────────────┤</span>
+<span class="d">  │ We will build your dev environment with:                                   │</span>
+<span class="d">  │   </span><span class="f">observability_basic</span><span class="d">  Collects your app's logs and tracks requests,       │</span>
+<span class="d">  │                        errors and response times.                          │</span>
+<span class="d">  │   </span><span class="f">config_basic</span><span class="d">         Passes the settings your app reads from its         │</span>
+<span class="d">  │                        environment through to it when it runs.             │</span>
+<span class="d">  │   the settings it passes through: KAFKA_BROKERS, BENEFICIARY_API_URL,      │</span>
+<span class="d">  │   DATABASE_URL, SIGNING_KEY                                                │</span>
+<span class="d">  ├────────────────────────────────────────────────────────────────────────────┤</span>
+<span class="d">  │ Your app also needs, and no module in your catalog supports yet:           │</span>
+<span class="d">  │   a service that runs continuously                    kafka consumer run loop, │</span>
+<span class="d">  │                                                       health endpoint reports │</span>
+<span class="d">  │                                                       consuming (index.js) │</span>
+<span class="d">  │   a relational database                               pg Pool using        │</span>
+<span class="d">  │                                                       DATABASE_URL, SQL insert │</span>
+<span class="d">  │                                                       </span><span class="f">into</span><span class="d">                 │</span>
+<span class="d">  │                                                       payment_event_outcomes │</span>
+<span class="d">  │                                                       (index.js)           │</span>
+<span class="d">  │   a stream of events it publishes or reads            kafkajs consumer     │</span>
+<span class="d">  │                                                       subscribed to topic  │</span>
+<span class="d">  │                                                       payment.events       │</span>
+<span class="d">  │                                                       (index.js)           │</span>
+<span class="d">  │   secrets it reads while it runs                      SIGNING_KEY used to HMAC │</span>
+<span class="d">  │                                                       sign each outcome    │</span>
+<span class="d">  │                                                       (index.js)           │</span>
+<span class="d">  │   to be reachable from inside your organization only  must not be reachable │</span>
+<span class="d">  │                                                       from the public internet │</span>
+<span class="d">  │                                                       (README.md)          │</span>
+<span class="d">  ├────────────────────────────────────────────────────────────────────────────┤</span>
+<span class="d">  │ Patterns your production environment will apply:                           │</span>
+<span class="d">  │   </span><span class="f">observability_basic</span><span class="d">  Alarms on errors and latency, going to whoever is   │</span>
+<span class="d">  │                        on call.                                            │</span>
+<span class="d">  │   </span><span class="f">config_basic</span><span class="d">         Settings from the environment, and anything secret  │</span>
+<span class="d">  │                        kept out of the plan.                               │</span>
+<span class="d">  ├────────────────────────────────────────────────────────────────────────────┤</span>
+<span class="d">  │ You will get back:                                                         │</span>
+<span class="d">  │   A private address inside your organization's network, as soon as it is   │</span>
+<span class="d">  │   </span><span class="f">live</span><span class="d">                                                                     │</span>
+<span class="d">  │   Your logs and basic metrics                                              │</span>
+<span class="d">  │   A plan your later environments are built from                            │</span>
+<span class="d">  └────────────────────────────────────────────────────────────────────────────┘</span>
+
+<span class="d">  Full plan, and every assumption seaLeye.run made: DEPLOYMENT_PLAN.md</span>
+<span class="d">  Wrote ~/code/payment-events-processor/DEPLOYMENT_PLAN.md</span>
+
+<span class="d">  This plan is drafted. seaLeye.run can build part of it today, and not the parts above. It will save the draft and tell you what would make it buildable.</span>
+
+<span class="p">? Deploy this? [y/N] </span><span class="a">y</span>
+<span class="d">  Handing ~/code/payment-events-processor to seaLeye.run to build your environment</span>
+
+<span class="p">✗ seaLeye.run cannot build this environment yet.</span>
+
+<span class="d">  Your plan is drafted and saved in DEPLOYMENT_PLAN.md. Your app needs five</span>
+<span class="d">  things that no module in your catalog supports yet:</span>
+
+<span class="f">    a service that runs continuously                    kafka consumer run loop,</span>
+<span class="f">                                                        health endpoint reports</span>
+<span class="f">                                                        consuming</span>
+<span class="f">    a relational database                               pg Pool using</span>
+<span class="f">                                                        DATABASE_URL, SQL insert</span>
+<span class="f">                                                        into</span>
+<span class="f">                                                        payment_event_outcomes</span>
+<span class="f">    a stream of events it publishes or reads            kafkajs consumer</span>
+<span class="f">                                                        subscribed to topic</span>
+<span class="f">                                                        payment.events</span>
+<span class="f">    secrets it reads while it runs                      SIGNING_KEY used to HMAC</span>
+<span class="f">                                                        sign each outcome</span>
+<span class="f">    to be reachable from inside your organization only  must not be reachable</span>
+<span class="f">                                                        from the public internet</span>
+
+<span class="d">  When Northline Bank's Platform Library has modules that support these, run sealeye run again.</span>
+<span class="d">  seaLeye.run will pick them up and finish the plan.</span>
+
+<span class="d">  This app has hit the catalog boundary before.</span>
+<span class="f">    Cindy R. (Money Movement)  ·  1 hour ago  ·  the same 5 needs</span>
+<span class="f">    Ticket PLAT-1042 is open with your platform team.</span>
+
+<span class="p">? Show the ticket here, open it in Jira, or skip? [here/open/skip] </span><span class="a">here</span>
+
+<span class="d">  PLAT-1042  Open</span>
+<span class="d">  No module yet for 5 needs: payment-events-processor (Money Movement)</span>
+
+<span class="d">  Opened by seaLeye.run from a drafted plan.</span>
+<span class="d">  App: payment-events-processor, team Money Movement, requested by Cindy R.</span>
+<span class="d">  Profile: dev, designed for production.</span>
+<span class="d">  What the app needs, and what in the code shows it:</span>
+<span class="f">    a service that runs continuously        it reads a payment stream in a loop (index.js)</span>
+<span class="f">    a relational database                   it writes outcomes with pg (index.js)</span>
+<span class="f">    a stream of events it publishes or reads KAFKA_BROKERS and payment.events (index.js)</span>
+<span class="f">    secrets it reads while it runs          SIGNING_KEY (index.js)</span>
+<span class="f">    to be reachable from inside your organization only  the README says it must never be public (README.md)</span>
+<span class="d">  The drafted plan is attached from the developer's repo (DEPLOYMENT_PLAN.md).</span>
+<span class="d">  This is the second team to hit this boundary this month.</span></pre></div></div>
+        <div class="side"><p class="side-label"><span class="mono">seaLeye.online</span><span>the web console</span></p><div class="onwin"><div class="onbar"><span class="cw"><img src="images/sealeye-online-wordmark-light.svg" alt="" width="760" height="160"></span><span class="onnav"><span class="cur">Environments</span><span>Catalog</span><span>Team</span></span><span class="onwho">Northline Bank <span class="cx-disc">G</span></span></div><div class="onbody">
+          <p class="cx-crumbs">Environments <span>/</span> New environment</p>
+          <div class="cx-field"><span class="k">App</span><span class="mono">payment-events-processor</span></div>
+          <div class="cx-q"><p class="ask">What is this for? Are you trying something out, or is this headed for the pipeline to production?</p><p class="ans">production</p></div>
+          <div class="cx-card">
+            <div class="cx-group"><h4>Your app:</h4><p>payment-events-processor, a service</p></div>
+            <div class="cx-group"><h4>We will build your dev environment with:</h4>
+              <div class="cx-row"><span class="id">observability_basic</span><span class="what">Collects your app's logs and tracks requests, errors and response times.</span></div>
+              <div class="cx-row"><span class="id">config_basic</span><span class="what">Passes the settings your app reads from its environment through to it when it runs.</span></div>
+              <div class="cx-row"><span class="id">settings</span><span class="what"><span class="mono">KAFKA_BROKERS</span>, <span class="mono">BENEFICIARY_API_URL</span>, <span class="mono">DATABASE_URL</span>, <span class="mono">SIGNING_KEY</span></span></div></div>
+            <div class="cx-group needs"><h4>Your app also needs, and no module in your catalog supports yet:</h4>
+              <div class="cx-row"><span class="id">a service that runs continuously</span><span class="what">kafka consumer run loop, health endpoint reports consuming (index.js)</span></div>
+              <div class="cx-row"><span class="id">a relational database</span><span class="what">pg Pool using DATABASE_URL, SQL insert into payment_event_outcomes (index.js)</span></div>
+              <div class="cx-row"><span class="id">a stream of events it publishes or reads</span><span class="what">kafkajs consumer subscribed to topic payment.events (index.js)</span></div>
+              <div class="cx-row"><span class="id">secrets it reads while it runs</span><span class="what">SIGNING_KEY used to HMAC sign each outcome (index.js)</span></div>
+              <div class="cx-row"><span class="id">to be reachable from inside your organization only</span><span class="what">must not be reachable from the public internet (README.md)</span></div></div>
+            <div class="cx-group"><h4>Patterns your production environment will apply:</h4>
+              <div class="cx-row"><span class="id">observability_basic</span><span class="what">Alarms on errors and latency, going to whoever is on call.</span></div>
+              <div class="cx-row"><span class="id">config_basic</span><span class="what">Settings from the environment, and anything secret kept out of the plan.</span></div></div>
+            <div class="cx-foot"><span class="cx-dim">This plan is drafted. seaLeye can build part of it today, and not the parts above.</span><span class="cx-btns"><span class="cx-btn primary">Deploy this</span></span></div>
+          </div>
+          <p class="cx-then">After <b>Deploy this</b></p>
+          <div class="cx-card cx-pad cx-refuse">
+            <p class="cx-warn">seaLeye cannot build this environment yet.</p>
+            <p class="cx-dim">Your plan is drafted and saved in <span class="mono">DEPLOYMENT_PLAN.md</span>. Your app needs five things that no module in your catalog supports yet. When Northline Bank's Platform Library has modules that support these, plan it again and seaLeye will finish the plan.</p>
+            <p class="cx-dim">This app has hit the catalog boundary before.</p>
+            <p>Cindy R. (Money Movement) <span class="cx-dim">· 1 hour ago · the same 5 needs</span></p>
+            <div class="cx-ticket"><span class="mono">PLAT-1042</span><span class="chip amber">Open</span><span>No module yet for 5 needs: payment-events-processor (Money Movement)</span></div>
+            <div class="cx-btns"><span class="cx-btn ghost">Open the ticket</span></div>
+          </div>
+        </div></div></div>
+      </div>
+
+      <h3 id="change-record">The change record</h3>
+      <p>A bank does not ask for a URL. It asks who requested this, what they approved, what was built and whether the thing running now is still that. <code>sealeye evidence</code> writes it into your folder as DEPLOYMENT_EVIDENCE.md, and the console shows the same record and downloads the same file. Every value is read from seaLeye's own records and from CloudFormation at that moment, nothing is typed in, and no setting's value is ever in it.</p>
+      <div class="pair">
+        <div class="side"><p class="side-label"><span class="mono">seaLeye.run</span><span>the command line</span></p><div class="runwin"><div class="runbar"><img src="images/sealeye-mark.svg" alt="" width="18" height="18"><span class="rw">sea<b>L</b>eye<i>.run</i></span><span class="where">~/code/beneficiary-lookup-api</span></div><pre><span class="p">$</span> <span class="f">sealeye evidence beneficiary-lookup-api</span>
+<span class="d">  [ ... the banner every command prints is trimmed here ... ]</span>
+
+<span class="d">  Reading the record for beneficiary-lookup-api</span>
+<span class="d">  Asking AWS what it says about sealeye-beneficiary-lookup-api now</span>
+
+<span class="f">Change record for beneficiary-lookup-api (stack sealeye-beneficiary-lookup-api, profile prod)</span>
+
+<span class="f">  Requested by   </span><span class="d">gregkliewer on MacBook-Air-2.local, Sep 27 2026 12:43</span>
+
+<span class="f">  Approved plan  </span><span class="d">sha256 1f0019...4dfe, three modules, no needs</span>
+
+<span class="f">  Built          </span><span class="d">http_api_serverless template, artifact beneficiary-lookup-api/dep_f2032e6be5e3.zip, six CloudFormation events, 46 s</span>
+
+<span class="f">  Checked now    </span><span class="d">answered 200 in 0.2 s; the stack runs the template that was approved; no changes outside seaLeye.run</span>
+
+<span class="f">  History        </span><span class="d">63 deployments to this environment, the first on Sep 21 2026</span>
+
+<span class="f">  Wrote ~/code/beneficiary-lookup-api/DEPLOYMENT_EVIDENCE.md</span></pre></div></div>
+        <div class="side"><p class="side-label"><span class="mono">seaLeye.online</span><span>the web console</span></p><div class="onwin"><div class="onbar"><span class="cw"><img src="images/sealeye-online-wordmark-light.svg" alt="" width="760" height="160"></span><span class="onnav"><span class="cur">Environments</span><span>Catalog</span><span>Team</span></span><span class="onwho">Northline Bank <span class="cx-disc">G</span></span></div><div class="onbody">
+          <p class="cx-crumbs">Environments <span>/</span> beneficiary-lookup-api <span>/</span> Evidence</p>
+          <div class="cx-head"><span class="cx-h1">Change record</span><span class="chip">prod</span></div>
+          <p class="cx-dim">Stack <span class="mono">sealeye-beneficiary-lookup-api</span>. Read from the record and from CloudFormation just now.</p>
+          <div class="cx-card cx-fields">
+            <div class="cx-field"><span class="k">Requested by</span><span>gregkliewer on MacBook-Air-2.local, Sep 27 2026 12:43</span></div>
+            <div class="cx-field"><span class="k">Approved plan</span><span><span class="mono">sha256 1f0019...4dfe</span>, three modules, no needs</span></div>
+            <div class="cx-field"><span class="k">Built</span><span>http_api_serverless template, artifact <span class="mono">beneficiary-lookup-api/dep_f2032e6be5e3.zip</span>, six CloudFormation events, 46 s</span></div>
+            <div class="cx-field"><span class="k">Checked now</span><span>answered 200 in 0.2 s; the stack runs the template that was approved; no changes outside seaLeye</span></div>
+            <div class="cx-field"><span class="k">History</span><span>63 deployments to this environment, the first on Sep 21 2026</span></div>
+          </div>
+          <div class="cx-btns cx-right"><span class="cx-btn ghost">Download DEPLOYMENT_EVIDENCE.md</span></div>
+        </div></div></div>
+      </div>
+
+      <h3 id="needs">What the platform team sees</h3>
+      <p>A drafted plan is not a dead end, it is a request with evidence attached. <code>sealeye needs</code> and the console's Catalog roll every drafted plan up by what it is waiting on, across apps, and either one turns a row into a module request ready to paste into a ticket.</p>
+      <div class="pair">
+        <div class="side"><p class="side-label"><span class="mono">seaLeye.run</span><span>the command line</span></p><div class="runwin"><div class="runbar"><img src="images/sealeye-mark.svg" alt="" width="18" height="18"><span class="rw">sea<b>L</b>eye<i>.run</i></span><span class="where">~/code</span></div><pre><span class="p">$</span> <span class="f">sealeye needs</span>
+<span class="d">  [ ... the banner every command prints is trimmed here ... ]</span>
+
+<span class="d">NEED                                                                      APPS  FIRST SEEN  LAST SEEN</span>
+<span class="p">a service that runs continuously </span><span class="d">[continuous_service]                     1     3m ago      3m ago</span>
+<span class="d">    payment-events-processor  consumer.run loop, no request/response handling (index.js)  ·  prod</span>
+<span class="p">a relational database </span><span class="d">[relational_database]                               1     3m ago      3m ago</span>
+<span class="d">    payment-events-processor  pg Pool using DATABASE_URL, insert queries (index.js)  ·  prod</span>
+<span class="p">a stream of events it publishes or reads </span><span class="d">[event_stream]                   1     3m ago      3m ago</span>
+<span class="d">    payment-events-processor  kafkajs consumer subscribed to payment.events (index.js)  ·  prod</span>
+<span class="p">secrets it reads while it runs </span><span class="d">[runtime_secrets]                          1     3m ago      3m ago</span>
+<span class="d">    payment-events-processor  SIGNING_KEY read from env, used for HMAC signing (index.js)  ·  prod</span>
+<span class="p">to be reachable from inside your organization only </span><span class="d">[internal_only]        1     3m ago      3m ago</span>
+<span class="d">    payment-events-processor  must not be reachable from the public internet (README.md)  ·  prod</span>
+<span class="d">  sealeye needs --request &lt;kind&gt; writes a module request the platform team can paste into a ticket.</span></pre></div></div>
+        <div class="side"><p class="side-label"><span class="mono">seaLeye.online</span><span>the web console</span></p><div class="onwin"><div class="onbar"><span class="cw"><img src="images/sealeye-online-wordmark-light.svg" alt="" width="760" height="160"></span><span class="onnav"><span>Environments</span><span class="cur">Catalog</span><span>Team</span></span><span class="onwho">Northline Bank <span class="cx-disc">G</span></span></div><div class="onbody">
+          <p class="cx-h1">Catalog</p>
+          <p class="cx-h2">What apps need that no module supports yet</p>
+          <p class="cx-dim">Rolled up from every drafted plan at Northline Bank, in the words seaLeye used with the developer.</p>
+          <div class="cx-card cx-report">
+            <div class="cx-line"><div><p class="need">a service that runs continuously</p><p class="cx-dim">payment-events-processor: consumer.run loop, no request/response handling (index.js) · prod</p></div><span class="cx-btn ghost small">Request a module</span></div>
+            <div class="cx-line"><div><p class="need">a relational database</p><p class="cx-dim">payment-events-processor: pg Pool using DATABASE_URL, insert queries (index.js) · prod</p></div><span class="cx-btn ghost small">Request a module</span></div>
+            <div class="cx-line"><div><p class="need">a stream of events it publishes or reads</p><p class="cx-dim">payment-events-processor: kafkajs consumer subscribed to payment.events (index.js) · prod</p></div><span class="cx-btn ghost small">Request a module</span></div>
+            <div class="cx-line"><div><p class="need">secrets it reads while it runs</p><p class="cx-dim">payment-events-processor: SIGNING_KEY read from env, used for HMAC signing (index.js) · prod</p></div><span class="cx-btn ghost small">Request a module</span></div>
+            <div class="cx-line"><div><p class="need">to be reachable from inside your organization only</p><p class="cx-dim">payment-events-processor: must not be reachable from the public internet (README.md) · prod</p></div><span class="cx-btn ghost small">Request a module</span></div>
+          </div>
+        </div></div></div>
+      </div>
+
+      <h3 id="the-rest">The rest</h3>
+      <p><code>list</code> is the console's Environments page: one row per environment, with every deploy and the ones you have torn down a click away. Every command prints the banner first; it is shown once above and marked where it was trimmed below.</p>
+      <div class="pair">
+        <div class="side"><p class="side-label"><span class="mono">seaLeye.run</span><span>the command line</span></p><div class="runwin"><div class="runbar"><img src="images/sealeye-mark.svg" alt="" width="18" height="18"><span class="rw">sea<b>L</b>eye<i>.run</i></span><span class="where">~/code</span></div><pre><span class="p">$</span> <span class="f">sealeye list</span>
+<span class="d">  [ ... the banner every command prints is trimmed here ... ]</span>
+<span class="f">APP                     STATUS     URL                                                                       DEPLOYS  LAST</span>
+<span class="f">sealeye-online          succeeded  http://sealeye-online-682542496821.s3-website.ca-central-1.amazonaws.com  28       17h ago</span>
+<span class="f">beneficiary-lookup-api  succeeded  https://0l8r6gsg9h.execute-api.ca-central-1.amazonaws.com                 59       21h ago</span>
+<span class="f">sealeye-run             succeeded  http://sealeye-run-682542496821.s3-website.ca-central-1.amazonaws.com     14       21h ago</span>
+<span class="f">refusal-demo            planned    -                                                                         11       4d ago</span>
+<span class="f">beneficiary-lookup-api  planned    -                                                                         3        4d ago</span>
+<span class="d">  8 torn down and hidden, see --all</span>
+<span class="d">  One row per environment. sealeye list --deployments shows every deploy.</span></pre></div></div>
+        <div class="side"><p class="side-label"><span class="mono">seaLeye.online</span><span>the web console</span></p><div class="onwin"><div class="onbar"><span class="cw"><img src="images/sealeye-online-wordmark-light.svg" alt="" width="760" height="160"></span><span class="onnav"><span class="cur">Environments</span><span>Catalog</span><span>Team</span></span><span class="onwho">Northline Bank <span class="cx-disc">G</span></span></div><div class="onbody">
+          <p class="cx-h1">Environments</p>
+          <div class="cx-card cx-tablewrap">
+            <table class="cx-table">
+              <thead><tr><th>App</th><th>Status</th><th>Deploys</th><th>Last</th></tr></thead>
+              <tbody>
+                <tr><td class="mono">sealeye-online</td><td><span class="chip phosphor">Live</span></td><td class="mono">28</td><td>17h ago</td></tr>
+                <tr><td class="mono">beneficiary-lookup-api</td><td><span class="chip phosphor">Live</span></td><td class="mono">59</td><td>21h ago</td></tr>
+                <tr><td class="mono">sealeye-run</td><td><span class="chip phosphor">Live</span></td><td class="mono">14</td><td>21h ago</td></tr>
+                <tr><td class="mono">refusal-demo</td><td><span class="chip amber">Drafted</span></td><td class="mono">11</td><td>4d ago</td></tr>
+                <tr><td class="mono">beneficiary-lookup-api</td><td><span class="chip amber">Drafted</span></td><td class="mono">3</td><td>4d ago</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="cx-dim">8 torn down and hidden. <span class="cx-link">Show destroyed</span></p>
+        </div></div></div>
+      </div>
+
+      <p class="after"><code>status</code> takes a deployment id and answers in one panel, and <code>watch</code> follows a deployment and writes the report next to your code when it lands. In the console, both are the environment's own page, which follows the deployment live.</p>
+      <div class="pair">
+        <div class="side"><p class="side-label"><span class="mono">seaLeye.run</span><span>the command line</span></p><div class="runwin"><div class="runbar"><img src="images/sealeye-mark.svg" alt="" width="18" height="18"><span class="rw">sea<b>L</b>eye<i>.run</i></span><span class="where">~/code</span></div><pre><span class="p">$</span> <span class="f">sealeye status dep_5fe5857404e5</span>
+<span class="d">  [ ... the banner every command prints is trimmed here ... ]</span>
+<span class="d">Deployment: </span><span class="f">dep_5fe5857404e5</span>
+<span class="d">Status:     </span><span class="f">succeeded</span>
+<span class="d">App:        </span><span class="f">sealeye-run (static-site)</span>
+<span class="d">Stack:      </span><span class="f">sealeye-sealeye-run (CREATE_COMPLETE)</span>
+<span class="d">URL:        </span><span class="f">http://sealeye-run-682542496821.s3-website.ca-central-1.amazonaws.com</span>
+<span class="d">Bucket:     </span><span class="f">sealeye-run-682542496821</span>
+<span class="d">Started:    </span><span class="f">2026-09-24T19:01:42.400Z</span>
+<span class="d">Finished:   </span><span class="f">2026-09-24T19:01:48.317Z</span>
+<span class="f">You asked for:</span>
+<span class="d">  static_site_edge</span>
+<span class="d">  observability_basic</span></pre></div><div class="runwin"><div class="runbar"><img src="images/sealeye-mark.svg" alt="" width="18" height="18"><span class="rw">sea<b>L</b>eye<i>.run</i></span><span class="where">~/code</span></div><pre><span class="p">$</span> <span class="f">sealeye watch dep_5fe5857404e5</span>
+<span class="d">  [ ... the banner every command prints is trimmed here ... ]</span>
+<span class="d">Deployment: </span><span class="f">dep_5fe5857404e5</span>
+<span class="d">Status:     </span><span class="f">succeeded</span>
+<span class="d">App:        </span><span class="f">sealeye-run (static-site)</span>
+<span class="d">Stack:      </span><span class="f">sealeye-sealeye-run (CREATE_COMPLETE)</span>
+<span class="d">URL:        </span><span class="f">http://sealeye-run-682542496821.s3-website.ca-central-1.amazonaws.com</span>
+<span class="d">Bucket:     </span><span class="f">sealeye-run-682542496821</span>
+<span class="d">Started:    </span><span class="f">2026-09-24T19:01:42.400Z</span>
+<span class="d">Finished:   </span><span class="f">2026-09-24T19:01:48.317Z</span>
+<span class="f">You asked for:</span>
+<span class="d">  static_site_edge</span>
+<span class="d">  observability_basic</span>
+
+<span class="d">Status: </span><span class="f">succeeded</span>
+
+<span class="a">✓ Your app is live at http://sealeye-run-682542496821.s3-website.ca-central-1.amazonaws.com</span>
+<span class="d">  Wrote ~/code/sealeye-run/DEPLOYMENT_REPORT.md</span></pre></div></div>
+        <div class="side"><p class="side-label"><span class="mono">seaLeye.online</span><span>the web console</span></p><div class="onwin"><div class="onbar"><span class="cw"><img src="images/sealeye-online-wordmark-light.svg" alt="" width="760" height="160"></span><span class="onnav"><span class="cur">Environments</span><span>Catalog</span><span>Team</span></span><span class="onwho">Northline Bank <span class="cx-disc">G</span></span></div><div class="onbody">
+          <p class="cx-crumbs">Environments <span>/</span> sealeye-run</p>
+          <div class="cx-head"><span class="mono cx-app">sealeye-run</span><span class="chip phosphor">Live</span></div>
+          <div class="cx-card cx-fields">
+            <div class="cx-field"><span class="k">Deployment</span><span class="mono">dep_5fe5857404e5</span></div>
+            <div class="cx-field"><span class="k">App</span><span class="mono">sealeye-run <span class="cx-dim">static-site</span></span></div>
+            <div class="cx-field"><span class="k">Stack</span><span class="mono">sealeye-sealeye-run <span class="cx-dim">CREATE_COMPLETE</span></span></div>
+            <div class="cx-field"><span class="k">URL</span><span class="mono cx-link">http://sealeye-run-682542496821.s3-website.ca-central-1.amazonaws.com</span></div>
+            <div class="cx-field"><span class="k">Bucket</span><span class="mono">sealeye-run-682542496821</span></div>
+            <div class="cx-field"><span class="k">Started</span><span class="mono">2026-09-24T19:01:42.400Z</span></div>
+            <div class="cx-field"><span class="k">Finished</span><span class="mono">2026-09-24T19:01:48.317Z</span></div>
+            <div class="cx-field"><span class="k">You asked for</span><span class="mono">static_site_edge, observability_basic</span></div>
+          </div>
+        </div></div></div>
+      </div>
+
+      <p class="after"><code>validate</code> checks a plan against the contract without building anything. The console does the same every time a plan is shown.</p>
+
+      <p class="after"><code>destroy</code> takes the app name and deletes the environment. In the console it is the Destroy section of the environment's Control page, where typing the name is the confirmation.</p>
+      <div class="pair">
+        <div class="side"><p class="side-label"><span class="mono">seaLeye.run</span><span>the command line</span></p><div class="runwin"><div class="runbar"><img src="images/sealeye-mark.svg" alt="" width="18" height="18"><span class="rw">sea<b>L</b>eye<i>.run</i></span><span class="where">~/code</span></div><pre><span class="p">$</span> <span class="f">sealeye destroy beneficiary-lookup-api</span>
+<span class="d">  [ ... the banner every command prints is trimmed here ... ]</span>
+<span class="d">  Asking seaLeye.run to tear down beneficiary-lookup-api (dep_f83c7499e779)</span>
+<span class="d">  Checking what is still there</span>
+<span class="d">  Deleting the stack sealeye-beneficiary-lookup-api</span>
+
+<span class="a">✓ Everything seaLeye.run created for beneficiary-lookup-api is gone</span>
+<span class="d">  Removed 3 local build file(s)</span></pre></div></div>
+        <div class="side"><p class="side-label"><span class="mono">seaLeye.online</span><span>the web console</span></p><div class="onwin"><div class="onbar"><span class="cw"><img src="images/sealeye-online-wordmark-light.svg" alt="" width="760" height="160"></span><span class="onnav"><span class="cur">Environments</span><span>Catalog</span><span>Team</span></span><span class="onwho">Northline Bank <span class="cx-disc">G</span></span></div><div class="onbody">
+          <p class="cx-crumbs">Environments <span>/</span> beneficiary-lookup-api <span>/</span> Control</p>
+          <div class="cx-card cx-danger">
+            <div class="cx-dhead"><b>Destroy</b><span>Not reversible. The plan is kept; everything the plan built is taken away.</span></div>
+            <div class="cx-pad">
+              <p class="cx-dim">Type the app's name to confirm.</p>
+              <div class="cx-input mono">beneficiary-lookup-api</div>
+              <div class="cx-btns"><span class="cx-btn ghost amber">Destroy this environment</span></div>
+            </div>
+          </div>
+          <p class="cx-then">After <b>Destroy this environment</b></p>
+          <ul class="cx-steps"><li>Asking seaLeye to tear down beneficiary-lookup-api (dep_f83c7499e779)</li><li>Checking what is still there</li><li>Deleting the stack sealeye-beneficiary-lookup-api</li></ul>
+          <p class="cx-ok">Everything seaLeye created for beneficiary-lookup-api is gone.</p>
+        </div></div></div>
+      </div>
+    </div>
+
+    <div class="doc" id="faq">
+      <h2>FAQ</h2>
+      <div class="faq">
+        <details>
+          <summary>What is a profile?</summary>
+          <div><p>A profile says what your plan is designed for, not where this run goes. Every run builds a dev environment. <code>poc</code> is a single zone, started on demand, nothing kept warm. <code>dev</code> is a team using it every day, with backups kept and failed work held onto. <code>prod</code> is data across more than one zone, capacity warm on the request path, a queue in front of anything that bursts, and alarms on errors and latency. The profile is recorded in your plan and applied by the pipeline to the environments it builds later.</p></div>
+        </details>
+        <details>
+          <summary>What happens the second time I run it?</summary>
+          <div><p>seaLeye tells you the app already has a live environment, shows you its URL and waits for a <code>y</code> before going on. If a plan is already in your folder it offers to reuse it or to start over. Start over and it looks at your app as it is now, and the card becomes a diff against what is deployed: unchanged, changed, new or removed. When nothing has moved, it says so.</p></div>
+        </details>
+        <details>
+          <summary>What if seaLeye says it cannot build my plan?</summary>
+          <div><p>Your plan is drafted and it is saved. seaLeye names only the modules it can build, so rather than guessing at a module for the rest, it says what your app needs and points at the code that shows it. When your organization's Platform Library has modules that support those needs, run <code>sealeye run</code> again and seaLeye finishes the plan.</p></div>
+        </details>
+        <details>
+          <summary>How do I tear an environment down?</summary>
+          <div><p><code>sealeye destroy &lt;app&gt;</code>, with the name of the app or a deployment id. That deletes the environment and everything in it. A static site has its storage emptied first, because an environment holding files will not delete. Nothing outside that environment is touched.</p></div>
+        </details>
+        <details>
+          <summary>What is DEPLOYMENT_EVIDENCE.md for?</summary>
+          <div><p>For whoever asks what this environment is and how it got here: a change board, an auditor, the person who inherits it. It is the change record for one environment, written by <code>sealeye evidence</code>, and it holds who asked, what they answered, the checksum of the plan they approved, what was built with its checksums, the CloudFormation events from that deployment, and what AWS says about the stack right now, including whether it still runs the template that was approved and whether anything changed it outside seaLeye. Every value is read at the moment it is generated, and a value that could not be read says so rather than being guessed. It never contains a setting's value, only its name.</p></div>
+        </details>
+        <details>
+          <summary>Where does my plan live, and can I edit it?</summary>
+          <div><p>Two files, both written into your own folder next to your code: the plan file seaLeye runs, and a human readable version of it with every assumption spelled out. They are yours. Edit them, commit them, and deploy an edited plan directly with <code>sealeye deploy -f</code>. It is checked against the contract before anything is built, and a plan seaLeye finds already in your folder is offered back to you rather than overwritten.</p></div>
+        </details>
+      </div>
     </div>
   </div>
 </section>
@@ -160,6 +766,6 @@
   </div>
 </footer>
 
-<script src="site.js"></script>
+<script src="site.js?v=3"></script>
 </body>
 </html>
