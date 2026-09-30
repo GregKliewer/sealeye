@@ -69,7 +69,7 @@ not have all of them yet (New environment, Evidence, Reuse or Start over).
 
 Deployed by seaLeye to http://sealeye-com-682542496821.s3-website.ca-central-1.amazonaws.com
 (`sealeye deploy` in `apps/sealeye-com` redeploys to the same address). Pages load
-`style.css?v=4` and `site.js?v=4`; bump the number when either changes. apps/sealeye-run and
+`style.css?v=5` and `site.js?v=5`; bump the number when either changes. apps/sealeye-run and
 apps/sealeye-online were not changed and do not link to it yet.
 
 ## Sept 27: seaLeye writes it down

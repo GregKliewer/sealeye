@@ -917,3 +917,11 @@ figure { margin: 0; }
   .founder figcaption { padding: 10px 12px 12px; }
   .founder .line { font-size: 13px; }
 }
+
+/* The developer is drawn on the robots' grid, behind the same small terminal, in ink:
+   a person, so neither of the product's two colours. */
+.robot.ink { color: var(--ink); }
+.layer.dev .agent { align-items: center; gap: 10px; }
+.layer.dev .robot { width: 34px; height: 34px; }
+.layer.dev .agent .name { font-size: 14px; font-weight: 600; }
+.layer.dev .agent .what { font-size: 13px; color: var(--dim); line-height: 1.35; }
