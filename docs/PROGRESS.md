@@ -10,6 +10,54 @@ and the file layout are in `docs/DAY4-COMMANDS.md`.
 Day 5 was the polish the scoring asked for, plus the two real bugs the polish uncovered. Nothing
 about the plan contract changed, and the executor changed in one place only.
 
+## Oct 1: Pricing
+
+One new page on seaLeye.com, `pricing.html`, for the CIO, the head of platform engineering and
+a bank's procurement and vendor-risk teams. The model was decided before the page was written:
+seaLeye is priced per app under management, and everything seaLeye runs is in that price,
+the model costs included. The bill follows apps whose developers serve themselves, never
+seaLeye's own costs.
+
+### What was built
+
+- **The three steps, priced**, as numbered phases in Get Started's own markup, with the price
+  where Get Started has the timing: Read the library, free; Pilot with one team, `$50,000`
+  for eight weeks and credited in full against the first year; Scale out, `$200` per app per
+  month, billed annually.
+- **What's included**, laid out like Security's "How seaLeye is built": the text left, the
+  check list right, and the cloud bill (never included, never marked up) in a card of its own.
+- **What counts as an app**: the definition, the `250,000`-line size rule, the annual
+  commitment, and a worked example with its arithmetic in mono (`60` apps, one of them
+  `600,000` lines, so `62`; `$148,800` a year; `$98,800` after the pilot credit).
+- **Where seaLeye runs**: Security's four deployment options in the same order and the same
+  words, each with its price.
+- **Sandboxed apps**, a band with an HTML and CSS diagram in the style of the Overview one:
+  the path to production on top, and below it, joined to nothing on that path, the sandboxed
+  app, whose only way out is a need becoming an approved module. The diagram has a text
+  equivalent for screen readers and turns its arrows downward on a phone.
+- **Questions**, in Security's FAQ markup, and the closing band.
+
+Pricing is a top-level link between Product and Company on all eight pages, and the last link
+in the footer's Product column. Get Started gained one sentence linking to it, and Security
+one FAQ entry on sandboxed apps. Pages load `style.css?v=6` and `site.js?v=6`.
+
+**The numbers on this page are prices, an explicit exception to the rule that the three stat
+tiles on Home are the site's only numbers.** The only new numbers anywhere are on Pricing: the
+prices, the `250,000`-line size, the `100`-app minimum for a dedicated tenant, the `500`-app
+volume line, thirty days, and the worked example. There are still no savings, return or
+capacity claims.
+
+### Checked
+
+All eight pages served locally. The link check passes across them (299 internal references,
+including `#steps`, `#apps`, `#deployment`, `#sandboxed-apps`, `#questions` and
+`security.html#deployment`), and the only external URLs are the two product sites and Google
+Fonts. No em dashes, no deployme, no Blitzy, lorem, TODO or "coming soon", no href to
+sealeye.com. The arithmetic was checked by script, and so was the agreement with Get Started
+and Security (step names, eight weeks, one senior engineer, the four options' wording, the
+model endpoint wording). Pricing was screenshotted at 1440, 960 and 390 wide, the top bar at
+901, 920 and 1000, and the menu at 390; the 21 navigation checks still pass.
+
 ## Sept 30: seaLeye.com, the company site
 
 The third site, `apps/sealeye-com`: the corporate site a CIO, a head of platform engineering
