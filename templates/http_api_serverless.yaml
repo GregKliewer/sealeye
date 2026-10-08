@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: deployme http_api_serverless - Lambda + HTTP API + logs, app runs unchanged via Lambda Web Adapter
+Description: seaLeye http_api_serverless - Lambda + HTTP API + logs, app runs unchanged via Lambda Web Adapter
 Parameters:
   AppName:
     Type: String

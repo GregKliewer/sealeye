@@ -1,12 +1,14 @@
 node_modules/
 .env
 *.zip
+.sealeye/
 .deployme/
 .DS_Store
 dist/
 DEPLOYMENT_REPORT.md
 DEPLOYMENT_EVIDENCE.md
 DEPLOYMENT_PLAN.md
+sealeye.yaml
 deployme.yaml
 .claude/
 qa/

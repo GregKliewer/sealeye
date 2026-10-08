@@ -1,0 +1,1787 @@
+#!/usr/bin/env node
+import fs from "node:fs";
+import path from "node:path";
+import readline from "node:readline/promises";
+import { fileURLToPath } from "node:url";
+import { spawn } from "node:child_process";
+import os from "node:os";
+
+import {
+  loadPlanFromYaml,
+  createDeployment,
+  validatePlan,
+  getDeployment,
+  listDeployments,
+  destroyDeployment,
+  getEvidence,
+  getNeeds
+} from "../client.js";
+import { banner, step, ask, answer, typing, typed, c, product, spinner, stopSpinner, animations } from "../brand.js";
+import { safeName, CONFIG_FILE, LEGACY_CONFIG_FILE } from "../../core/names.js";
+import { USER_CONFIG_HINT } from "../../core/config.js";
+import { unsupportedNeeds, refusalClosing, orgName } from "../../core/catalog.js";
+import { runInterview, resolveApiKey } from "../interview/loop.js";
+import { runDoctor } from "../doctor.js";
+import { writeInterviewFiles, decisionCard } from "../interview/render.js";
+import { plainValidationErrors } from "../interview/explain.js";
+
+// Statuses that are history rather than something you can still open: one was torn
+// down, the other was never built because the platform said so.
+const PAST = new Set(["destroyed", "drafted"]);
+
+// --json is machine output: no banner, no colour, nothing but the object.
+const jsonOut = process.argv.includes("--json");
+
+// --watch opts back into the old behavior: stay on the live panel until the
+// deployment finishes, instead of handing the terminal back and watching in the
+// background. Off by default, because staring at a spinner is the thing this
+// platform is supposed to remove from a developer's day.
+const watchFlag = process.argv.includes("--watch");
+
+// Everything the CLI reads is found relative to the CLI itself, never to the
+// developer's folder.
+const cliDir = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(cliDir, "..", "..");
+
+function version() {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf8"));
+    return `v${pkg.version}`;
+  } catch {
+    return "";
+  }
+}
+
+// Who ran the command, on which machine, as the operating system reports it. The API
+// stores it exactly as sent and the evidence says it came from the developer's machine.
+function requestedBy() {
+  let user = null;
+  try { user = os.userInfo().username; } catch { /* no account name available */ }
+  return { user: user || process.env.USER || "unknown", host: os.hostname() };
+}
+
+// One plain-language line of what the platform is doing. Silent in --json mode, which
+// must stay parseable.
+function say(line) {
+  if (!jsonOut) console.log(step(line));
+}
+
+// Printed once at the top of every command.
+// A module request is text somebody pastes into a ticket. Piped or redirected, it is
+// the whole of the output and the banner would be the first thing pasted, so it is
+// left off. On a terminal the banner stays, because every command prints it there.
+const pastingARequest =
+  process.argv[2] === "needs" && process.argv.includes("--request") && !process.stdout.isTTY;
+
+function printBanner() {
+  if (jsonOut || pastingARequest) return;
+  try {
+    console.log(banner(fs.readFileSync(path.join(repoRoot, "prompts", "banner.txt"), "utf8"), version()));
+  } catch {
+    console.log(`${c.accent(product.name)}\n`);
+  }
+}
+
+function usage() {
+  console.log(`
+${product.command} - deploy your app to a real AWS environment
+
+Usage:
+  ${product.command} run [--answers <file>] [--team-context] [--watch] [--api <url>]
+  ${product.command} deploy --file <plan.yaml> [--app <path>] [--api <url>] [--json] [--watch]
+  ${product.command} validate --file <plan.yaml> [--api <url>] [--json]
+  ${product.command} status <deploymentId> [--api <url>] [--json]
+  ${product.command} watch <deploymentId> [--api <url>]
+  ${product.command} destroy <app | deploymentId> [--api <url>]
+  ${product.command} list [--deployments] [--all] [--api <url>] [--json]
+  ${product.command} evidence <app | deploymentId> [--json] [--out <file>] [--api <url>]
+  ${product.command} needs [--json] [--request <kind>] [--api <url>]
+  ${product.command} doctor [--json] [--api <url>]
+
+Options:
+  -f, --file      path to your plan YAML
+      --app       folder to deploy (default: the current folder)
+  -b, --backend   cloudformation (default: cloudformation)
+      --answers   with run: answer the interview from a file, one line per question,
+                  for rehearsals. Never answers "Deploy this?": that stays yours
+      --team-context
+                  with run: after a refusal, say whether another team has hit the
+                  same boundary (reads a local fixture)
+      --watch     with run or deploy: stay on the live panel until the deployment
+                  finishes, instead of watching in the background and notifying you
+      --all       with list: include environments you have torn down
+      --deployments
+                  with list: every deploy, instead of one row per environment
+      --out       with evidence: where to write DEPLOYMENT_EVIDENCE.md (default: the
+                  current folder)
+      --request   with needs: print a module request for one need, ready to paste
+                  into a ticket. Takes the kind, or part of the need's own line
+      --api       platform API base URL (default: http://localhost:3000)
+      --json      machine-readable output
+  -h, --help      show help
+
+Examples:
+  ${product.command} run
+  ${product.command} validate -f plan.yaml
+  ${product.command} deploy -f plan.yaml
+  ${product.command} watch dep_1a2b3c4d5e6f
+  ${product.command} list
+  ${product.command} destroy my-app
+  ${product.command} destroy dep_1a2b3c4d5e6f
+  ${product.command} evidence my-app
+  ${product.command} needs --request relational_database
+  ${product.command} doctor
+`);
+}
+
+function getArg(longFlag, shortFlag) {
+  const argv = process.argv;
+  const iLong = argv.indexOf(longFlag);
+  if (iLong !== -1) return argv[iLong + 1];
+  if (shortFlag) {
+    const iShort = argv.indexOf(shortFlag);
+    if (iShort !== -1) return argv[iShort + 1];
+  }
+  return undefined;
+}
+
+async function main() {
+  const [, , command] = process.argv;
+
+  printBanner();
+
+  if (!command || command === "-h" || command === "--help") {
+    usage();
+    process.exit(0);
+  }
+
+  const apiBaseUrl = getArg("--api") || "http://localhost:3000";
+
+  // "run" is the documented name; "init" is a hidden alias so rehearsal habits,
+  // --answers fixtures and older muscle memory keep working, with no deprecation
+  // notice, since a demo is not the moment to lecture someone about a rename.
+  if (command === "run" || command === "init") {
+    // This is the only place the developer's own folder is ever touched.
+    const appPath = process.cwd();
+    const planPath = path.join(appPath, "DEPLOYMENT_PLAN.md");
+    // sealeye.yaml since 2.17.0. A folder planned before that has deployme.yaml, which
+    // is still read and reused, and never written.
+    const newConfigPath = path.join(appPath, CONFIG_FILE);
+    const legacyConfigPath = path.join(appPath, LEGACY_CONFIG_FILE);
+    const configPath = !fs.existsSync(newConfigPath) && fs.existsSync(legacyConfigPath) ? legacyConfigPath : newConfigPath;
+
+    // A run is a conversation, so it needs somebody at a terminal to have it with.
+    if (!process.stdin.isTTY) {
+      console.error(c.fail(`${product.command} run asks you questions, so it needs a terminal.`));
+      console.error(`  Run it yourself in your app folder, or deploy an existing plan with ${product.command} deploy -f ${CONFIG_FILE}.`);
+      process.exit(1);
+    }
+
+    // A rehearsal answers the interview from a file so a recording can be re-shot
+    // without typing it again. It never answers the confirmation.
+    const scripted = loadAnswers(getArg("--answers"));
+    // Every question and answer, for the change record. Captured beside the ask, never
+    // printed here.
+    const answersGiven = [];
+
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+
+    // Ctrl+C is a normal way to leave a conversation. Say where things stand, leave
+    // the folder as it was, and go.
+    let wrote = false;
+    let leaving = false;
+
+    const interrupt = () => {
+      if (leaving) return;
+      leaving = true;
+
+      stopSpinner();   // take the line back before anything is printed on it
+      console.log("");
+      say(
+        wrote
+          ? `Stopped. Your plan is still in ${planPath}, and nothing has been deployed.`
+          : "Stopped. Nothing has been written to your folder."
+      );
+
+      rl.close();
+      process.exit(130);   // the conventional code for "interrupted"
+    };
+
+    rl.on("SIGINT", interrupt);
+    process.on("SIGINT", interrupt);
+
+    let submission = null;
+
+    try {
+      // A developer who believes they are creating something, and is in fact changing
+      // what is live, is the worst failure a platform has. Say so before spending
+      // their time on questions.
+      const live = await liveEnvironmentFor({ apiBaseUrl, appPath });
+
+      if (live) {
+        console.log("");
+        console.log(`${c.accent(live.app)}${c.fg(" already has a live environment.")}`);
+        if (live.url) console.log(`  ${c.accent(live.url)}`);
+        console.log(step(`deployed ${agoPhrase(live.last)}, running ${sentenceList(live.modules)}`));
+        console.log(c.fg("This run will update that environment. It will not create a second one."));
+        console.log("");
+
+        // Not answerable from --answers: this one is about a running service.
+        const go = await askLine(rl, "Continue? [y/N]");
+
+        if (go.toLowerCase() !== "y") {
+          console.log("");
+          say("Nothing has been written to your folder.");
+          return;
+        }
+      }
+
+      // A plan from a previous run belongs to the developer, so it is not ours to
+      // overwrite without asking.
+      if (fs.existsSync(configPath)) {
+        const choice = await askChoice(rl, "A plan already exists. Reuse it (r), start over (s)?", ["r", "s"]);
+
+        if (!choice) {
+          say("Nothing has changed, and nothing has been written to your folder.");
+          return;
+        }
+
+        if (choice === "r") {
+          say(`Reading the plan already in ${configPath}`);
+          const plan = loadPlanFromYaml(configPath);
+
+          say("Checking it against the seaLeye.run plan contract");
+          const check = await validatePlan({ apiBaseUrl, plan });
+
+          if (!check.valid) {
+            console.log("");
+            console.log(c.fail("The plan in your folder cannot be deployed as it stands:"));
+            for (const line of plainValidationErrors(check.errors)) console.log(`  ${line}`);
+            console.log("");
+            say(`Fix ${configPath}, or run ${product.command} run again and start over.`);
+            process.exitCode = 1;
+            return;
+          }
+
+          console.log("");
+          console.log(reuseSummary(plan, planPath));
+
+          // Reuse skips the interview: the plan is already written and already valid.
+          submission = { plan, reused: true };
+        }
+      }
+
+      if (!submission) {
+        // Only the interview needs the model, so the key is only required here: a
+        // reused plan deploys without one.
+        if (!resolveApiKey()) {
+          console.error(
+            c.fail(
+              `ANTHROPIC_API_KEY is not set, so put it in your environment or in ${USER_CONFIG_HINT} and run ${product.command} run again.`
+            )
+          );
+          process.exit(1);
+        }
+
+        say("Reading your app");
+
+        const result = await runInterview({
+          appPath,
+          apiBaseUrl,
+          // What is running, so the interview asks about what changed and nothing else.
+          deployed: live?.record?.plan || null,
+          onStep: say,
+          // One question at a time, amber, with whatever the platform found above it.
+          ask: async (question, lead = []) => {
+            console.log("");
+            for (const line of lead) console.log(step(line));
+
+            // Out of lines, or no file at all: the terminal, as usual.
+            const fromFile = scripted.length > 0;
+            const reply = fromFile ? await scriptedLine(question, scripted.shift()) : await askLine(rl, question, { open: true });
+            answersGiven.push({ question, answer: reply, scripted: fromFile });
+            return reply;
+          }
+        });
+
+        if (result.status === "invalid") {
+          console.log("");
+          console.log(c.fail("seaLeye.run could not write a plan that fits its own contract:"));
+          for (const line of plainValidationErrors(result.errors)) console.log(`  ${line}`);
+          console.log("");
+          say("Nothing has been written to your folder.");
+          process.exitCode = 1;
+          return;
+        }
+
+        if (result.status !== "submitted") {
+          console.log("");
+          console.log(result.message);
+          say("Nothing has been written to your folder.");
+          return;
+        }
+
+        submission = result;
+
+        // The plan is valid. These two files are the only thing written before the
+        // developer says yes.
+        const written = writeInterviewFiles(appPath, submission);
+        wrote = true;
+
+        // The card is rendered from the plan that just passed validation, never from
+        // the model's prose. The prose is in the Notes section of the file.
+        console.log("");
+        // With an environment already up, the card is a diff against what is deployed.
+        console.log(decisionCard(submission.plan, {
+          frame: true,
+          charset: "line",
+          previous: live ? (live.record?.plan ? { plan: live.record.plan } : { modules: live.modules }) : null
+        }));
+        console.log("");
+        say("Full plan, and every assumption seaLeye.run made: DEPLOYMENT_PLAN.md");
+        say(`Wrote ${written.planPath}`);
+        say(`Wrote ${written.configPath}`);
+        if (fs.existsSync(legacyConfigPath)) {
+          say(`${LEGACY_CONFIG_FILE} is from an earlier version of ${product.command}. It is no longer read and can be deleted.`);
+        }
+      }
+
+      // One line, above the boundary, so nobody says yes to a plan expecting a URL.
+      const needs = unsupportedNeeds(submission.plan);
+
+      if (needs.length) {
+        // Amber, like every other line that tells the developer something is not as
+        // they might assume. What follows it is what happens next, so it stays dim.
+        console.log("");
+        console.log(
+          `  ${c.prompt("This plan is drafted.")} ` +
+            c.dim("seaLeye.run can build part of it today, and not the parts above. It will save the draft and tell you what would make it buildable.")
+        );
+      }
+
+      console.log("");
+      const reply = await askLine(rl, "Deploy this? [y/N]");
+
+      if (reply.toLowerCase() !== "y") {
+        console.log("");
+        // Only name the files that are actually there: a reused plan may never have
+        // had a DEPLOYMENT_PLAN.md written beside it.
+        if (fs.existsSync(planPath)) say(`Your plan is in ${planPath}`);
+        say(`The plan seaLeye.run would run is in ${configPath}`);
+        say(`When you are ready: ${product.command} deploy -f ${path.basename(configPath)}`);
+        return;
+      }
+    } catch (err) {
+      // Ctrl+D leaves the same way Ctrl+C does.
+      if (err instanceof Interrupted) return interrupt();
+      throw err;
+    } finally {
+      process.off("SIGINT", interrupt);
+      rl.close();
+    }
+
+    const deployment = await runDeploy({
+      apiBaseUrl,
+      backend: "cloudformation",
+      plan: submission.plan,
+      appPath,
+      requestedBy: requestedBy(),
+      origin: submission.reused
+        ? { command: "run", planSource: "reused", file: path.basename(configPath) }
+        : { command: "run", planSource: "interview", answers: answersGiven }
+    });
+
+    // Declined: it has already said so, and there is nothing to watch. With
+    // --team-context, this is where somebody else's attempt at the same wall gets a
+    // mention, after the refusal rather than instead of it.
+    if (!deployment) {
+      await showTeamContext(submission.plan);
+      return;
+    }
+
+    if (watchFlag) {
+      await runWatch({ apiBaseUrl, deploymentId: deployment.deploymentId });
+    } else {
+      await runBackground({ apiBaseUrl, deploymentId: deployment.deploymentId, appPath, plan: submission.plan });
+    }
+
+    return;
+  }
+
+  if (command === "validate") {
+    const file = getArg("--file", "-f");
+    if (!file) {
+      console.error(c.fail(`Missing required --file: ${product.command} validate --file <plan.yaml>`));
+      process.exit(1);
+    }
+
+    say(`Reading your plan from ${file}`);
+    const plan = loadPlanFromYaml(file);
+
+    say("Checking it against the seaLeye.run plan contract");
+    const result = await validatePlan({ apiBaseUrl, plan });
+
+    if (jsonOut) {
+      console.log(JSON.stringify(result, null, 2));
+    } else if (result.valid) {
+      console.log(c.ok("Your plan is valid"));
+    } else {
+      console.log(c.fail("Your plan cannot be deployed as written:"));
+      for (const line of plainValidationErrors(result.errors)) console.log(`  ${line}`);
+      process.exitCode = 1;
+    }
+
+    return;
+  }
+
+  if (command === "deploy") {
+    const file = getArg("--file", "-f");
+    if (!file) {
+      console.error(c.fail(`Missing required --file: ${product.command} deploy --file <plan.yaml>`));
+      process.exit(1);
+    }
+
+    const backend = getArg("--backend", "-b") || "cloudformation";
+    const appPath = path.resolve(getArg("--app") || process.cwd());
+
+    say(`Reading your plan from ${file}`);
+    const plan = loadPlanFromYaml(file);
+
+    const deployment = await runDeploy({
+      apiBaseUrl,
+      backend,
+      plan,
+      appPath,
+      requestedBy: requestedBy(),
+      origin: { command: "deploy", planSource: "file", file }
+    });
+
+    // Declined, or --json already printed the object and there is nothing left to
+    // watch: either way runDeploy has said everything there is to say.
+    if (!deployment || jsonOut) return;
+
+    if (watchFlag) {
+      await runWatch({ apiBaseUrl, deploymentId: deployment.deploymentId });
+    } else {
+      await runBackground({ apiBaseUrl, deploymentId: deployment.deploymentId, appPath, plan });
+    }
+
+    return;
+  }
+
+  if (command === "status") {
+    const deploymentId = process.argv[3];
+
+    if (!deploymentId) {
+      console.error(c.fail(`Missing deploymentId: ${product.command} status <deploymentId>`));
+      process.exit(1);
+    }
+
+    const result = await getDeployment({ apiBaseUrl, deploymentId });
+
+    if (jsonOut) console.log(JSON.stringify(result, null, 2));
+    else printDeploymentSummary(result);
+
+    return;
+  }
+
+  if (command === "evidence") {
+    const target = process.argv[3];
+    if (!target || target.startsWith("--")) {
+      console.error(c.fail(`Missing name: ${product.command} evidence <app | deploymentId>`));
+      process.exit(1);
+    }
+
+    const resolved = await resolveEvidenceTarget({ apiBaseUrl, target });
+    if (!resolved) return;
+
+    say(`Reading the record for ${resolved.label}`);
+    if (resolved.stackName) say(`Asking AWS what it says about ${resolved.stackName} now`);
+
+    const { evidence, markdown } = await getEvidence({ apiBaseUrl, deploymentId: resolved.deploymentId });
+
+    if (jsonOut) {
+      console.log(JSON.stringify(evidence, null, 2));
+      return;
+    }
+
+    const outFile = path.resolve(getArg("--out") || path.join(process.cwd(), "DEPLOYMENT_EVIDENCE.md"));
+    fs.writeFileSync(outFile, markdown);
+
+    console.log("");
+    for (const line of evidenceSummaryLines(evidence)) console.log(line);
+    console.log("");
+    say(`Wrote ${outFile}`);
+    return;
+  }
+
+  if (command === "needs") {
+    const ledger = await getNeeds({ apiBaseUrl });
+    const request = getArg("--request");
+
+    if (request) {
+      const kind = matchNeedKind(ledger, request);
+      if (!kind) return;
+      process.stdout.write(moduleRequest(ledger, kind));
+      return;
+    }
+
+    if (jsonOut) {
+      console.log(JSON.stringify(ledger, null, 2));
+      return;
+    }
+
+    if (!ledger.needs.length) {
+      say("No drafted plans yet, so nothing has been asked for that a module does not support.");
+      return;
+    }
+
+    printNeedsTable(ledger);
+    say(`${product.command} needs --request <kind> writes a module request the platform team can paste into a ticket.`);
+    return;
+  }
+
+  if (command === "doctor") {
+    const result = await runDoctor({ apiBaseUrl });
+
+    if (jsonOut) {
+      console.log(JSON.stringify(result, null, 2));
+      if (!result.ok) process.exitCode = 1;
+      return;
+    }
+
+    const width = Math.max(...result.checks.map(ch => ch.name.length));
+
+    console.log("");
+    for (const check of result.checks) {
+      // ok in phosphor, fail in amber, the two colours this brand has.
+      const mark = check.ok ? c.accent("ok  ") : c.prompt("fail");
+      console.log(`  ${mark}  ${c.fg(pad(check.name, width))}  ${c.dim(check.detail)}`);
+      if (!check.ok && check.fix) console.log(`        ${" ".repeat(width)}  ${c.prompt(check.fix)}`);
+    }
+    console.log("");
+
+    if (result.ok) {
+      say(`Everything this machine needs for a demo is here.`);
+      return;
+    }
+
+    say(`Fix what is marked above, then run ${product.command} doctor again.`);
+    process.exitCode = 1;
+    return;
+  }
+
+  if (command === "list") {
+    const all = process.argv.includes("--all");
+    const perDeployment = process.argv.includes("--deployments");
+    const everything = await listDeployments({ apiBaseUrl });
+
+    // Torn-down environments are history, not something you can still open.
+    if (perDeployment) {
+      const shown = all ? everything : everything.filter(d => !PAST.has(d.status));
+      const hidden = everything.length - shown.length;
+
+      if (jsonOut) {
+        console.log(JSON.stringify(shown, null, 2));
+        return;
+      }
+
+      if (!shown.length) {
+        say(hidden ? `No live deployments (${hidden} torn down, see --all)` : "No deployments yet");
+        return;
+      }
+
+      printDeploymentTable(shown);
+      if (hidden) say(`${hidden} torn down and hidden, see --all`);
+      return;
+    }
+
+    const environments = groupEnvironments(everything);
+    const shown = all ? environments : environments.filter(env => !PAST.has(env.rawStatus));
+    const hidden = environments.length - shown.length;
+
+    if (jsonOut) {
+      console.log(JSON.stringify(shown.map(publicEnvironment), null, 2));
+      return;
+    }
+
+    if (!shown.length) {
+      say(hidden ? `No live environments (${hidden} torn down, see --all)` : "No environments yet");
+      return;
+    }
+
+    printEnvironmentTable(shown);
+    if (hidden) say(`${hidden} torn down and hidden, see --all`);
+
+    // The question this view exists to answer is "why does one app have three rows",
+    // so point at the answer only when the developer actually has one.
+    if (shown.some(env => env.deploys > 1)) {
+      say(`One row per environment. ${product.command} list --deployments shows every deploy.`);
+    }
+
+    return;
+  }
+
+  if (command === "destroy") {
+    const target = process.argv[3];
+    if (!target) {
+      console.error(c.fail(`Missing name: ${product.command} destroy <app | deploymentId>`));
+      process.exit(1);
+    }
+
+    // Typing the app name is how a developer thinks about what they are deleting. A
+    // deployment id still works, and still means exactly the record it names.
+    const resolved = await resolveTarget({ apiBaseUrl, target });
+    if (!resolved) return;
+
+    const { deploymentId, label } = resolved;
+
+    say(`Asking seaLeye.run to tear down ${label}`);
+    const started = await destroyDeployment({ apiBaseUrl, deploymentId });
+
+    if (jsonOut) {
+      console.log(JSON.stringify(started, null, 2));
+      return;
+    }
+
+    let lastStep = null;
+
+    // Tear-down runs about half a minute and changes step barely at all, so something
+    // has to move while it does. The spinner carries the step the platform is on now,
+    // and each step settles into its plain line when the next one starts, so the same
+    // words are never on the screen twice.
+    let wait = spinner("tearing down your environment");
+    const settled = () => (lastStep ? step(lastStep) : undefined);
+
+    while (true) {
+      const dep = await getDeployment({ apiBaseUrl, deploymentId });
+
+      // Each new plain-language line once, as it happens.
+      if (dep.step && dep.step !== lastStep) {
+        wait.stop(settled());
+        lastStep = dep.step;
+        wait = spinner(dep.step);
+      }
+
+      if (dep.status === "destroyed") {
+        wait.stop(settled());
+        console.log("");
+        console.log(c.ok(`Everything seaLeye.run created for ${dep.app?.name} is gone`));
+        if (dep.note) say(dep.note);
+        if (dep.removedArtifacts?.length) say(`Removed ${dep.removedArtifacts.length} local build file(s)`);
+        break;
+      }
+
+      if (dep.status === "failed") {
+        wait.stop(settled());
+        console.log("");
+        console.log(c.fail(`Tear-down failed: ${dep.failureReason || "no reason reported"}`));
+        process.exitCode = 1;
+        break;
+      }
+
+      await sleep(1000);
+    }
+
+    return;
+  }
+
+  if (command === "watch") {
+    const deploymentId = process.argv[3];
+    if (!deploymentId) {
+      console.error(c.fail(`Missing deploymentId: ${product.command} watch <deploymentId>`));
+      process.exit(1);
+    }
+
+    await runWatch({ apiBaseUrl, deploymentId });
+
+    return;
+  }
+
+  console.error(c.fail(`Unknown command: ${command}`));
+  usage();
+  process.exit(1);
+}
+
+// Ctrl+D at a prompt, or a terminal that went away mid-question. readline reports it
+// as an AbortError, which is not a developer's problem and not worth a stack trace.
+class Interrupted extends Error {}
+
+// One question, amber, and one line back. Every question the developer sees goes
+// through here, so they all look the same. An open question, the interview's, gets a
+// blank line and a phosphor prompt of its own, so it is obvious where to type, and the
+// answer is phosphor as it is typed. A [y/N] stays on the question's line.
+async function askLine(rl, question, { open = false } = {}) {
+  let reply;
+
+  try {
+    if (open) {
+      console.log(`${c.prompt("?")} ${question}`);
+      console.log("");
+      reply = (await rl.question(typing())).trim();
+      process.stdout.write(typed());
+    } else {
+      reply = (await rl.question(ask(question))).trim();
+    }
+  } catch (err) {
+    if (open) process.stdout.write(typed());
+    if (err?.name === "AbortError" || err?.code === "ABORT_ERR") throw new Interrupted();
+    throw err;
+  }
+
+  if (open) echoOpenAnswer(reply);
+  else echoAnswer(question, reply);
+  return reply;
+}
+
+// An open answer is already on its own line, in phosphor. Only a blank one needs
+// saying. With output piped there is no echo, so print the answer.
+function echoOpenAnswer(reply) {
+  if (!process.stdout.isTTY) {
+    console.log(answer(reply || "(no answer)"));
+    return;
+  }
+  if (reply) return;
+
+  process.stdout.write("\x1b[1A\x1b[2K");   // up onto the empty answer line, clear it
+  console.log(`${typing()}${answer("(no answer)")}`);
+}
+
+// The terminal has already echoed what the developer typed, in its own colour.
+// Rewrite that line so the question and the answer read as one line in the brand
+// colours. With output piped there is no echo to rewrite, so just print the answer.
+function echoAnswer(question, reply) {
+  const shown = reply || "(no answer)";
+
+  if (!process.stdout.isTTY) {
+    console.log(answer(shown));
+    return;
+  }
+
+  const width = process.stdout.columns || 80;
+  const rows = Math.max(1, Math.ceil(`? ${question} ${reply}`.length / width));
+
+  process.stdout.write(`\x1b[${rows}A\x1b[0J`);   // up over what was typed, clear it
+  console.log(`${ask(question)}${answer(shown)}`);
+}
+
+// One answer per line, in the order the questions are asked. Blank lines and lines
+// starting with # are notes to whoever wrote the file, not answers.
+function loadAnswers(file) {
+  if (!file) return [];
+
+  let raw;
+  try {
+    raw = fs.readFileSync(path.resolve(file), "utf8");
+  } catch {
+    console.error(c.fail(`There is no answers file at ${file}.`));
+    process.exit(1);
+  }
+
+  return raw
+    .split("\n")
+    .map(line => line.trim())
+    .filter(line => line && !line.startsWith("#"));
+}
+
+// A scripted answer, printed exactly as a typed one ends up: the amber question, a
+// blank line, the phosphor prompt, a beat, then the answer in phosphor. The pause is
+// what makes a recording read as a person answering rather than a script running.
+const SCRIPTED_PAUSE_MS = 700;
+
+async function scriptedLine(question, reply) {
+  console.log(`${c.prompt("?")} ${question}`);
+  console.log("");
+  process.stdout.write(typing());
+  await sleep(SCRIPTED_PAUSE_MS);
+  console.log(answer(reply));
+
+  return reply;
+}
+
+// A question with a fixed set of answers. A stray Enter must not throw away a plan,
+// so anything else is asked again, and three unusable answers change nothing.
+async function askChoice(rl, question, choices) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const reply = (await askLine(rl, question)).toLowerCase();
+    if (choices.includes(reply)) return reply;
+    say(`Please answer ${choices.join(" or ")}.`);
+  }
+
+  return null;
+}
+
+/**
+ * The environment this folder would deploy into, if it already has one.
+ *
+ * The app name comes from package.json, or from the folder name when there is none, as
+ * a static site has, and it is matched to a stack the same way `destroy` matches a
+ * name. Everything the notice prints is read from the record, never guessed.
+ */
+async function liveEnvironmentFor({ apiBaseUrl, appPath }) {
+  const appName = appNameFor(appPath);
+  if (!appName) return null;
+
+  const everything = await listDeployments({ apiBaseUrl });
+  const environment = groupEnvironments(everything)
+    .filter(env => env.rawStatus === "succeeded" || env.rawStatus === "running")
+    .find(env => env.stackName === `sealeye-${appName}`);
+
+  if (!environment) return null;
+
+  // GET /deployments is a summary: the modules, and the plan the diff card needs, are
+  // only on the full record.
+  const record = await getDeployment({ apiBaseUrl, deploymentId: environment.latest.deploymentId });
+
+  return {
+    app: environment.app,
+    url: environment.url === "-" ? null : environment.url,
+    last: environment.last,
+    modules: (record.resolvedModules || []).map(m => m.id),
+    record
+  };
+}
+
+/** package.json's name, or the folder's, by the same rule that names the stack. */
+function appNameFor(appPath) {
+  const pkgPath = path.join(appPath, "package.json");
+
+  if (fs.existsSync(pkgPath)) {
+    try {
+      const { name } = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
+      if (name) return safeName(name);
+    } catch {
+      // A package.json nobody can parse tells us nothing; the folder name still does.
+    }
+  }
+
+  return safeName(path.basename(path.resolve(appPath)));
+}
+
+/** "12 minutes ago". Longer than the list's "12m ago", because this one is a sentence. */
+function agoPhrase(iso) {
+  if (!iso) return "at an unknown time";
+
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "at an unknown time";
+
+  const seconds = Math.max(0, Math.round((Date.now() - then) / 1000));
+  if (seconds < 60) return "moments ago";
+
+  const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"} ago`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return plural(minutes, "minute");
+
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return plural(hours, "hour");
+
+  return plural(Math.round(hours / 24), "day");
+}
+
+/** "a and b", "a, b and c". */
+function sentenceList(items) {
+  if (!items.length) return "nothing the platform recorded";
+  if (items.length === 1) return items[0];
+
+  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+}
+
+/**
+ * Turn what the developer typed into the deployment that tears the environment down:
+ * an exact deployment id, then a stack name, then an app name. Deleting the stack
+ * deletes the environment whichever of its deployments asks, so a name resolves to the
+ * most recent one, which is also the one holding the current outputs.
+ *
+ * @returns {Promise<{deploymentId: string, label: string}|null>} null means it already
+ *          said why it is not going ahead
+ */
+async function resolveTarget({ apiBaseUrl, target }) {
+  const everything = await listDeployments({ apiBaseUrl });
+
+  const byId = everything.find(dep => dep.deploymentId === target);
+  if (byId) return { deploymentId: target, label: target };
+
+  const environments = groupEnvironments(everything);
+  const live = environments.filter(env => !PAST.has(env.rawStatus));
+  const named = env => env.stackName === target || env.stackName === `sealeye-${target}` || env.app === target;
+
+  const matches = live.filter(named);
+
+  if (matches.length === 1) {
+    const [env] = matches;
+    return { deploymentId: env.latest.deploymentId, label: `${env.app} (${env.latest.deploymentId})` };
+  }
+
+  // Two environments answering to one name is not something to guess at.
+  if (matches.length > 1) {
+    console.error(c.fail(`More than one environment answers to ${target}:`));
+    printEnvironmentTable(matches);
+    console.log("");
+    say(`Tear one down by its deployment id: ${product.command} list --deployments`);
+    process.exitCode = 1;
+    return null;
+  }
+
+  const known = environments.find(named);
+
+  if (known) {
+    // A plan the platform declined never had anything built for it, so "torn down" is
+    // the wrong word and the developer would be right to wonder what was deleted.
+    say(
+      known.rawStatus === "drafted"
+        ? `Nothing was built for ${target}, so there is nothing to tear down. ${product.command} list --all shows the plan.`
+        : `${target} has already been torn down. ${product.command} list --all shows it.`
+    );
+    return null;
+  }
+
+  console.error(c.fail(`There is nothing called ${target} to tear down.`));
+  say(`${product.command} list shows what is there.`);
+  process.exitCode = 1;
+  return null;
+}
+
+// What the developer sees when they reuse the plan from a previous run.
+function reuseSummary(plan, planPath) {
+  const modules = (plan.modules || []).filter(m => m.enabled !== false).map(m => m.id);
+
+  return [
+    `Reusing the plan you already have for ${plan.app?.name} (${plan.app?.type}).`,
+    modules.length ? `It uses ${modules.join(", ")}.` : null,
+    fs.existsSync(planPath) ? `The plan in your own language is in ${planPath}.` : null
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+// Hand a plan and a folder to the platform. `deploy` and `run` both come through
+// here: run has no deployment logic of its own.
+async function runDeploy({ apiBaseUrl, backend, plan, appPath, requestedBy: who, origin }) {
+  say(`Handing ${appPath} to seaLeye.run to build your environment`);
+
+  // Packaging, installing dependencies and the upload all happen inside this one call.
+  const wait = spinner("handing your app to seaLeye.run");
+  let result;
+
+  try {
+    result = await createDeployment({ apiBaseUrl, backend, plan, appPath, requestedBy: who, origin });
+  } catch (err) {
+    const refusal = err?.details?.error;
+
+    // The platform decided this, not the CLI. All the CLI does is say it in the
+    // developer's language.
+    if (refusal?.code === "UNSUPPORTED_NEEDS") {
+      wait.stop();
+      printRefusal(refusal.details);
+      process.exitCode = 1;
+      return null;
+    }
+
+    throw err;
+  } finally {
+    wait.stop();
+  }
+
+  if (jsonOut) {
+    console.log(JSON.stringify(result, null, 2));
+    return result;
+  }
+
+  // Whichever of runWatch or runBackground the caller dispatches to next draws its
+  // own summary of this same deployment, so all this needs to do is give that live
+  // panel a line of its own to start on.
+  console.log("");
+
+  return result;
+}
+
+// Counts a developer reads are words, not digits, until there are too many to read.
+const COUNT_WORDS = ["no", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"];
+const countWord = n => COUNT_WORDS[n] || String(n);
+
+/**
+ * What the platform will not build, in the developer's language.
+ *
+ * It names what is missing, says the plan is valid and where it is, and closes with the
+ * paragraph in prompts/refusal.md, which is fixed text so the words can change without
+ * anyone touching this file. No mechanism, no date, nothing that reads as a pitch.
+ */
+/** Break a sentence into lines that fit, on word boundaries. */
+function wrapWords(text, room) {
+  const lines = [];
+
+  for (const word of String(text).split(" ")) {
+    const last = lines[lines.length - 1];
+    if (last && `${last} ${word}`.length <= room) lines[lines.length - 1] = `${last} ${word}`;
+    else lines.push(word);
+  }
+
+  return lines.length ? lines : [""];
+}
+
+function printRefusal(details = {}) {
+  const needs = details.needs || [];
+  const rows = needs.map(n => ({
+    id: n.line,
+    line: (n.evidence || []).map(e => e.shows).join("; ")
+  }));
+
+  const width = Math.max(...rows.map(r => r.id.length));
+  const columns = process.stdout.columns || 80;
+
+  // The count and the list always agree, because both come from the plan.
+  const many = needs.length === 1 ? "thing" : "things";
+  const sentence =
+    `Your plan is drafted and saved in DEPLOYMENT_PLAN.md. Your app needs ` +
+    `${countWord(needs.length).toLowerCase()} ${many} that no module in your catalog supports yet:`;
+
+  console.log("");
+  console.log(c.fail("seaLeye.run cannot build this environment yet."));
+  console.log("");
+  for (const line of wrapWords(sentence, Math.max(32, columns - 4))) console.log(c.dim(`  ${line}`));
+  console.log("");
+
+  // A long line wraps under its own need rather than running off the terminal. The
+  // need is amber because it is the thing asking something of a person; the evidence
+  // is dim, like every other detail the platform is reporting.
+  const room = Math.max(24, columns - width - 8);
+  const hang = " ".repeat(width + 6);
+
+  for (const row of rows) {
+    wrapWords(row.line, room).forEach((line, i) => {
+      console.log(i === 0 ? `    ${c.prompt(row.id.padEnd(width))}  ${c.dim(line)}` : `${hang}${c.dim(line)}`);
+    });
+  }
+
+  console.log("");
+  for (const line of refusalClosing().split("\n")) console.log(c.dim(`  ${line}`));
+  console.log("");
+}
+
+/**
+ * What another team already found out, after this developer finds it out too.
+ *
+ * Off unless `--team-context` is typed. There is deliberately no env var and no config
+ * key for it: a demo is not the place for a feature that can switch itself on, and a
+ * flag somebody has to type cannot fire by accident.
+ */
+function loadTeamContext(appName) {
+  if (!process.argv.includes("--team-context")) return null;
+
+  try {
+    const file = new URL("../fixtures/team-context.json", import.meta.url);
+    const context = JSON.parse(fs.readFileSync(file, "utf8"));
+    return context.app === appName ? context : null;
+  } catch {
+    // A missing or unreadable fixture is silence, not an error: nothing about this
+    // run depends on it.
+    return null;
+  }
+}
+
+async function showTeamContext(plan) {
+  const context = loadTeamContext(plan?.app?.name);
+  if (!context) return;
+
+  const prior = context.priorAttempt;
+  const ticket = context.ticket;
+
+  // "the same" is only said when it is true, so the line cannot become a small lie
+  // if the fixture and the plan drift apart.
+  const refused = unsupportedNeeds(plan).map(n => n.kind).sort();
+  const before = (prior.needs || []).slice().sort();
+  const same = refused.length === before.length && refused.every((id, i) => id === before[i]);
+  const count = before.length;
+
+  console.log("");
+  console.log(c.fg("  This app has hit the catalog boundary before."));
+  console.log(
+    c.dim(`    ${prior.by} (${prior.team})  \u00B7  ${prior.when}  \u00B7  ${same ? "the same " : ""}${count} needs`)
+  );
+  console.log(c.dim(`    Ticket ${ticket.id} is open with your platform team.`));
+  console.log("");
+
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  let choice;
+  try {
+    choice = await askChoice(rl, "Show the ticket here, open it in Jira, or skip? [here/open/skip]", [
+      "here",
+      "open",
+      "skip"
+    ]);
+  } finally {
+    rl.close();
+  }
+
+  if (choice === "here") {
+    console.log("");
+    console.log(c.dim(`  ${ticket.id}  ${ticket.status}`));
+    console.log(c.fg(`  ${ticket.subject}`));
+    console.log("");
+    for (const line of String(ticket.description).split("\n")) console.log(c.dim(`  ${line}`));
+    console.log("");
+    return;
+  }
+
+  if (choice === "open") {
+    // Printed, not launched: a browser opening itself in the middle of a terminal is
+    // the platform taking the screen away from whoever is driving.
+    console.log("");
+    console.log(c.dim(`  ${ticket.url}`));
+    console.log("");
+  }
+}
+
+// Follow a deployment to its real end state, redrawing twice a second.
+//
+// The panel is redrawn on top of itself and nothing above it is touched, so the
+// interview the developer just had, and every command before it, stay on the screen
+// and in the scrollback. Clearing the screen here used to throw all of that away at
+// the exact moment the demo became interesting.
+async function runWatch({ apiBaseUrl, deploymentId }) {
+  const formatDots = tick => ".".repeat((tick % 3) + 1);   // 1..3
+  let tick = 0;
+
+  // One spinner for the whole wait, on the line under the status line. Its label
+  // follows the platform's own step, and its count keeps running while a step sits
+  // still, which is most of a CloudFormation create.
+  let wait = null;
+  let drawn = 0;        // rows the last panel took, so the next one lands on top of it
+  let lastPanel = null; // with no terminal to draw on, say it once and only on a change
+
+  while (true) {
+    const dep = await getDeployment({ apiBaseUrl, deploymentId });
+    // The dots are motion for a terminal. In a pipe they would turn every poll into a
+    // change and print the panel again for nothing.
+    const dots = animations() ? formatDots(tick++) : "";
+    const live = dep.status !== "succeeded" && dep.status !== "failed";
+
+    const panel = [
+      ...deploymentSummaryLines(dep, { step: !(live && animations()) }),
+      "",
+      c.dim(`Status: ${dep.status}${dots}`)
+    ];
+
+    if (animations()) {
+      // Up to the top of the last panel, then clear from there down. The \r first,
+      // because the spinner leaves the cursor part way along its own line.
+      if (drawn) process.stdout.write(`\r\x1b[${drawn}A\x1b[0J`);
+      for (const line of panel) console.log(line);
+      drawn = rowsUsed(panel);
+    } else if (panel.join("\n") !== lastPanel) {
+      lastPanel = panel.join("\n");
+      for (const line of panel) console.log(line);
+    }
+
+    if (!live) {
+      if (wait) wait.stop();
+      console.log("");
+
+      if (dep.status === "succeeded") {
+        const url = publicUrl(dep);
+        console.log(c.ok(url ? `Your app is live at ${url}` : "Your environment is ready"));
+        writeReport(dep);
+      } else {
+        console.log(c.fail(failureSentence(dep)));
+        if (dep.rolledBackStackRemoved) {
+          say("The half-built stack has been removed, so you can fix the plan and deploy again");
+        }
+        process.exitCode = 1;
+      }
+
+      return dep;
+    }
+
+    const doing = dep.step || dep.status;
+    if (wait) wait.label(doing);
+    else wait = spinner(doing);
+
+    await sleep(500); // refresh twice per second
+  }
+}
+
+// The default once "Deploy this? [y/N]" is answered y: show the same panel runWatch
+// draws, long enough for the developer to see it actually started, then hand the
+// terminal back and keep watching from a fully separate process. --watch skips this
+// and calls runWatch instead, unchanged.
+//
+// A deployment that finishes inside this window (the static path does, in a handful
+// of seconds) is reported right here, the same way runWatch reports it, and no
+// background process is ever spawned: there is nothing left to watch.
+const BACKGROUND_WINDOW_MS = 4000;
+const BACKGROUND_POLL_MS = 500;
+
+async function runBackground({ apiBaseUrl, deploymentId, appPath, plan }) {
+  const formatDots = tick => ".".repeat((tick % 3) + 1);   // 1..3, same as runWatch
+  const deadline = Date.now() + BACKGROUND_WINDOW_MS;
+  let tick = 0;
+  let drawn = 0;
+  let lastPanel = null;
+  let dep;
+
+  while (true) {
+    dep = await getDeployment({ apiBaseUrl, deploymentId });
+    const dots = animations() ? formatDots(tick++) : "";
+    const live = dep.status !== "succeeded" && dep.status !== "failed";
+
+    const panel = [
+      ...deploymentSummaryLines(dep, { step: !(live && animations()) }),
+      "",
+      c.dim(`Status: ${dep.status}${dots}`)
+    ];
+
+    if (animations()) {
+      if (drawn) process.stdout.write(`\r\x1b[${drawn}A\x1b[0J`);
+      for (const line of panel) console.log(line);
+      drawn = rowsUsed(panel);
+    } else if (panel.join("\n") !== lastPanel) {
+      lastPanel = panel.join("\n");
+      for (const line of panel) console.log(line);
+    }
+
+    if (!live) {
+      console.log("");
+
+      if (dep.status === "succeeded") {
+        const url = publicUrl(dep);
+        console.log(c.ok(url ? `Your app is live at ${url}` : "Your environment is ready"));
+        writeReport(dep);
+      } else {
+        console.log(c.fail(failureSentence(dep)));
+        if (dep.rolledBackStackRemoved) {
+          say("The half-built stack has been removed, so you can fix the plan and deploy again");
+        }
+        process.exitCode = 1;
+      }
+
+      return dep;
+    }
+
+    if (Date.now() >= deadline) break;
+
+    await sleep(BACKGROUND_POLL_MS);
+  }
+
+  console.log("");
+  say("Deploying in the background. I'll let you know when it's complete.");
+  spawnNotifier({ deploymentId, apiBaseUrl, appPath, appName: plan?.app?.name });
+
+  return dep;
+}
+
+/**
+ * The process that keeps watching after this one hands the terminal back. It has to
+ * survive this CLI exiting and the terminal tab closing, so it is spawned fully
+ * detached, with its own stdio, and never awaited: a developer who never gets the
+ * notification still has `sealeye status` and `sealeye list`, both of which read the
+ * same truth the notifier is polling.
+ */
+function spawnNotifier({ deploymentId, apiBaseUrl, appPath, appName }) {
+  const script = path.join(cliDir, "notify-when-done.js");
+
+  try {
+    const args = [script, "--deployment-id", deploymentId, "--api", apiBaseUrl];
+    if (appPath) args.push("--app", appPath);
+    if (appName) args.push("--app-name", appName);
+
+    const child = spawn(process.execPath, args, { detached: true, stdio: "ignore" });
+    // An unhandled 'error' event on a ChildProcess throws, same as any other
+    // EventEmitter. This process is about to exit either way; the notification
+    // being lost is not a reason to crash on the way out.
+    child.on("error", () => {});
+    child.unref();
+  } catch {
+    // A notification that never arrives is a nicety lost, not a run gone wrong: the
+    // deployment itself was already handed to the platform before this was ever called.
+  }
+}
+
+// Why the deployment failed, in one sentence. CloudFormation reasons arrive with
+// newlines and double spaces in them; left alone they read like a stack trace.
+function failureSentence(dep) {
+  const reason = (dep.failureReason || "").replace(/\s+/g, " ").trim().replace(/\.$/, "");
+  return reason
+    ? `Your environment was not created: ${reason}.`
+    : "Your environment was not created, and AWS did not say why.";
+}
+
+// The one URL the developer asked for: the API's or the static site's.
+function publicUrl(dep) {
+  return dep.outputs?.ApiUrl || dep.outputs?.WebsiteUrl || null;
+}
+
+// The report is the only thing the platform writes into the developer's folder.
+function writeReport(dep) {
+  if (!dep.report) {
+    say("No report was returned for this deployment");
+    return;
+  }
+
+  const reportPath = path.join(process.cwd(), "DEPLOYMENT_REPORT.md");
+  fs.writeFileSync(reportPath, dep.report);
+  say(`Wrote ${reportPath}`);
+}
+
+/**
+ * Which record `sealeye evidence` is about. An exact id first; otherwise the newest
+ * record answering to the name, drafted, destroyed and failed included, because the
+ * record of a refusal or a tear-down is still evidence. Two live environments answering
+ * to one name is not something to guess at, so it says so the way destroy does.
+ */
+async function resolveEvidenceTarget({ apiBaseUrl, target }) {
+  const everything = await listDeployments({ apiBaseUrl });
+
+  const byId = everything.find(dep => dep.deploymentId === target);
+  if (byId) return { deploymentId: target, label: byId.app?.name || target, stackName: byId.stackName || null };
+
+  const named = dep =>
+    dep.stackName === `sealeye-${target}` || dep.stackName === target || dep.app?.name === target;
+
+  const environments = groupEnvironments(everything).filter(env => !PAST.has(env.rawStatus));
+  const live = environments.filter(env => env.stackName === `sealeye-${target}` || env.stackName === target || env.app === target);
+
+  if (live.length > 1) {
+    console.error(c.fail(`More than one environment answers to ${target}:`));
+    printEnvironmentTable(live);
+    console.log("");
+    say(`Name one by its deployment id: ${product.command} list --deployments`);
+    process.exitCode = 1;
+    return null;
+  }
+
+  // listDeployments() is newest first, so the first match is the newest record.
+  const newest = everything.find(named);
+  if (newest) {
+    return { deploymentId: newest.deploymentId, label: newest.app?.name || target, stackName: newest.stackName || null };
+  }
+
+  console.error(c.fail(`There is nothing called ${target} on record.`));
+  process.exitCode = 1;
+  return null;
+}
+
+/** The first six and last four characters, for a terminal; the file has the whole hash. */
+function shortHash(hash) {
+  const h = String(hash || "");
+  return /^[0-9a-f]{64}$/.test(h) ? `${h.slice(0, 6)}...${h.slice(-4)}` : h;
+}
+
+/** "Sep 27 2026 10:41", local time, for the terminal. The file keeps the ISO string. */
+function localTime(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
+  const month = d.toLocaleDateString("en-US", { month: "short" });
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${month} ${d.getDate()} ${d.getFullYear()} ${hh}:${mm}`;
+}
+
+/** "2 min 48 s", or "48 s". */
+function humanDuration(seconds) {
+  if (typeof seconds !== "number") return String(seconds);
+  const m = Math.floor(seconds / 60);
+  const sec = seconds % 60;
+  return m ? `${m} min ${sec} s` : `${sec} s`;
+}
+
+const plural = (n, word) => `${countWord(n).toLowerCase()} ${word}${n === 1 ? "" : "s"}`;
+
+/**
+ * The evidence, in six lines. Labels in fg, values dim, and the one line that needs a
+ * person in amber, the way statusColour treats failed and drafted.
+ */
+function evidenceSummaryLines(ev) {
+  const s = ev.subject;
+  const r = ev.requested;
+  const a = ev.approved;
+  const b = ev.built;
+  const n = ev.checkedNow;
+
+  const row = (label, text, tone = c.dim) => `  ${c.fg(label.padEnd(15))}${tone(text)}`;
+  const lines = [];
+
+  const env = s.stackName ? `stack ${s.stackName}, profile ${s.profile}` : `no stack, profile ${s.profile}`;
+  lines.push(c.fg(`Change record for ${s.app?.name || s.deploymentId} (${env})`));
+  lines.push("");
+
+  // Requested
+  const who = typeof r.requestedBy === "string" ? r.requestedBy : `${r.requestedBy.user} on ${r.requestedBy.host}`;
+  const when = typeof r.startedAt === "string" && !/not recorded/.test(r.startedAt) ? `, ${localTime(r.startedAt)}` : "";
+  let via = "origin not recorded before 2.16.0";
+  if (typeof r.origin !== "string") {
+    if (r.origin.planSource === "interview") {
+      const count = (r.origin.answers || []).length;
+      via = `via ${product.command} run, ${count ? plural(count, "question") + " answered" : "no questions asked"}`;
+    } else if (r.origin.planSource === "reused") via = `via ${product.command} run, plan reused from ${r.origin.file}`;
+    else if (r.origin.planSource === "file") via = `via ${product.command} deploy -f ${r.origin.file}`;
+  }
+  lines.push(row("Requested by", `${who}${when}, ${via}`));
+  lines.push("");
+
+  // Approved
+  const modules = Array.isArray(a.modules) ? plural(a.modules.length, "module") : `modules ${a.modules}`;
+  const needs = a.needs.length ? plural(a.needs.length, "need") : "no needs";
+  lines.push(row("Approved plan", `sha256 ${shortHash(a.planSha256)}, ${modules}, ${needs}`));
+  lines.push("");
+
+  // Built
+  if (b.none) {
+    lines.push(row("Built", `nothing. ${b.sentence.replace(/^Nothing was built\. /, "")}`));
+  } else {
+    // Which module's template this stack is built from. The file on disk may be the
+    // dist copy with the plan's setting names written into it, so the name comes from
+    // the kind rather than from the path.
+    const tmpl =
+      s.kind === "api" ? "http_api_serverless template"
+      : s.kind === "static" ? "static_site_edge template"
+      : `template ${b.templatePath}`;
+    const art = /^none:/.test(String(b.artifactKey)) ? "no artifact" : `artifact ${b.artifactKey}`;
+    const events = Array.isArray(b.events) ? plural(b.events.length, "CloudFormation event") : "events not checked";
+    const took = typeof r.durationSeconds === "number" ? `, ${humanDuration(r.durationSeconds)}` : "";
+    lines.push(row("Built", `${tmpl}, ${art}, ${events}${took}`));
+  }
+  lines.push("");
+
+  // Checked now
+  if (n.none) {
+    lines.push(row("Checked now", "nothing to check"));
+  } else {
+    const parts = [];
+    let alarm = false;
+    if (!n.stack.exists) { parts.push("the stack is gone"); alarm = true; }
+    if (n.answered.error) { parts.push(`did not answer (${n.answered.error})`); alarm = true; }
+    else parts.push(`answered ${n.answered.status} in ${(n.answered.ms / 1000).toFixed(1)} s`);
+    if (n.template.result === "matches") parts.push("the stack runs the template that was approved");
+    else if (n.template.result === "differs") { parts.push("the stack runs a different template from the one approved"); alarm = true; }
+    else parts.push(`template not compared (${n.template.reason})`);
+    if (typeof n.changesOutside === "string") parts.push(`changes outside ${product.name} ${n.changesOutside}`);
+    else if (!n.changesOutside.length) parts.push(`no changes outside ${product.name}`);
+    else { parts.push(`${plural(n.changesOutside.length, "change")} outside ${product.name}`); alarm = true; }
+    lines.push(row("Checked now", parts.join("; "), alarm ? c.prompt : c.dim));
+  }
+  lines.push("");
+
+  // History
+  const first = ev.history[0];
+  const firstOn = first?.startedAt && !/not recorded/.test(first.startedAt) ? `, the first on ${localTime(first.startedAt).replace(/ \d\d:\d\d$/, "")}` : "";
+  const what = s.stackName ? "to this environment" : "for this app";
+  lines.push(row("History", `${plural(ev.history.length, "deployment")} ${what}${firstOn}`));
+
+  return lines;
+}
+
+// ---------------------------------------------------------------------------
+// The ledger: sealeye needs
+// ---------------------------------------------------------------------------
+
+function printNeedsTable(ledger) {
+  const rows = ledger.needs.map(n => ({
+    need: n.line,
+    kind: `[${n.kind}]`,
+    apps: String(n.count),
+    first: relativeTime(n.firstSeen),
+    last: relativeTime(n.lastSeen),
+    n
+  }));
+
+  const widthOf = key => Math.max(...rows.map(r => r[key].length));
+  const w = {
+    need: Math.max("NEED".length, widthOf("need") + 1 + widthOf("kind")),
+    apps: Math.max("APPS".length, widthOf("apps")),
+    first: Math.max("FIRST SEEN".length, widthOf("first"))
+  };
+
+  console.log(c.dim(`${pad("NEED", w.need)}  ${pad("APPS", w.apps)}  ${pad("FIRST SEEN", w.first)}  LAST SEEN`));
+
+  for (const r of rows) {
+    const needCell = pad(`${r.need} ${r.kind}`, w.need);
+    // The kind is for the reader who does not know the keys: dim, in brackets, after
+    // the line itself.
+    const painted = needCell.replace(r.kind, c.dim(r.kind));
+    console.log(`${painted}  ${c.dim(pad(r.apps, w.apps))}  ${c.dim(pad(r.first, w.first))}  ${c.dim(r.last)}`);
+    for (const app of r.n.apps) {
+      const shows = app.evidence.map(e => (e.file ? `${e.shows} (${e.file})` : e.shows)).join("; ");
+      console.log(c.dim(`    ${app.name}  ${shows}${app.profile ? `  \u00B7  ${app.profile}` : ""}`));
+    }
+  }
+}
+
+/** The kind a --request names: the key, or a substring of exactly one need's line. */
+function matchNeedKind(ledger, wanted) {
+  const byKey = ledger.needs.find(n => n.kind === wanted);
+  if (byKey) return byKey.kind;
+
+  const term = String(wanted).toLowerCase();
+  const hits = ledger.needs.filter(n => n.line.toLowerCase().includes(term));
+
+  if (hits.length === 1) return hits[0].kind;
+
+  if (hits.length > 1) {
+    console.error(c.fail(`"${wanted}" matches more than one need:`));
+    for (const h of hits) console.error(`  ${h.line}  ${c.dim(`[${h.kind}]`)}`);
+    say(`Say which one: ${product.command} needs --request <kind>`);
+    process.exitCode = 1;
+    return null;
+  }
+
+  console.error(c.fail(`No need matches "${wanted}".`));
+  say(`${product.command} needs shows the needs on record and their kinds.`);
+  process.exitCode = 1;
+  return null;
+}
+
+/**
+ * A module request, plain text, ready to paste. No colour and no banner: this is for a
+ * ticket, and the platform team reads it there. No vendor, no date, no promise.
+ */
+function moduleRequest(ledger, kind) {
+  const need = ledger.needs.find(n => n.kind === kind);
+  const org = ledger.org || orgName();
+  const apps = need.apps;
+
+  const out = [];
+  out.push(`No module yet for: ${need.line}`);
+  out.push("");
+  out.push(`Apps waiting: ${countWord(apps.length).toLowerCase()} (${apps.map(a => a.name).join(", ")})`);
+  out.push("");
+  out.push("What the apps need, and what in their code shows it");
+  out.push("");
+  for (const app of apps) {
+    out.push(`  ${app.name}`);
+    for (const e of app.evidence) out.push(`    ${e.shows}${e.file ? ` (${e.file})` : ""}`);
+    if (app.profile) out.push(`    designed for ${app.profile}`);
+    out.push("");
+  }
+
+  // Only the profiles the waiting apps designed for, and only what the catalog says.
+  const expectations = new Map();
+  for (const app of apps) {
+    if (app.profile && app.profile_expects && !expectations.has(app.profile)) expectations.set(app.profile, app.profile_expects);
+  }
+  if (expectations.size) {
+    out.push("What a module supporting this will be expected to provide");
+    out.push("");
+    for (const [profile, text] of expectations) out.push(`  ${profile}: ${text}`);
+    out.push("");
+  }
+
+  out.push(`When a module supporting this is in ${org}'s Platform Library, each app above runs`);
+  out.push(`${product.command} run again and ${product.name} finishes its plan.`);
+  out.push("");
+
+  return out.join("\n");
+}
+
+function statusColour(status, text = status) {
+  if (status === "succeeded") return c.accent(text);
+  // A failure and a draft both need a person. Amber is the colour for that, and the
+  // brand has no third colour to reach for.
+  if (status === "failed" || status === "drafted") return c.prompt(text);
+  return c.dim(text);
+}
+
+// Pad before colouring: escape codes have width on the page but not on the screen.
+const pad = (s, n) => s + " ".repeat(Math.max(0, n - s.length));
+
+/**
+ * One environment is one stack. The stored record has no environment in it, so the
+ * view builds one: deployments that share a stackName are the same environment, and
+ * its status and URL are whatever the most recent deploy made them.
+ *
+ * A record that never reached a stack has no stack name to group on, so it groups
+ * under its app name and shows up as the failure it is.
+ */
+function groupEnvironments(deployments) {
+  const groups = new Map();
+
+  for (const dep of deployments) {
+    // listDeployments() is newest first, so the first record for a key is the latest.
+    const key = dep.stackName || dep.app?.name || dep.deploymentId;
+    const group = groups.get(key);
+
+    if (group) group.deploys.push(dep);
+    else groups.set(key, { key, latest: dep, deploys: [dep] });
+  }
+
+  return [...groups.values()].map(({ key, latest, deploys }) => ({
+    key,
+    stackName: latest.stackName || null,
+    app: latest.app?.name || "-",
+    rawStatus: latest.status,
+    interrupted: !!latest.interrupted,
+    status: latest.interrupted ? `${latest.status} (interrupted)` : latest.status,
+    url: publicUrl(latest) || "-",
+    deploys: deploys.length,
+    last: latest.startedAt || latest.finishedAt || null,
+    latest
+  }));
+}
+
+/** The environment as --json reports it: no view strings, no record internals. */
+const publicEnvironment = env => ({
+  app: env.app,
+  stackName: env.stackName,
+  status: env.rawStatus,
+  ...(env.interrupted ? { interrupted: true } : {}),
+  url: env.url === "-" ? null : env.url,
+  deploys: env.deploys,
+  lastDeployedAt: env.last,
+  latestDeploymentId: env.latest.deploymentId
+});
+
+/** "4m ago" answers "is this the one I just deployed?" faster than a timestamp does. */
+function relativeTime(iso) {
+  if (!iso) return "-";
+
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "-";
+
+  const seconds = Math.max(0, Math.round((Date.now() - then) / 1000));
+  if (seconds < 60) return "just now";
+
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+
+  return `${Math.round(hours / 24)}d ago`;
+}
+
+function printEnvironmentTable(environments) {
+  const rows = environments.map(env => ({
+    env,
+    app: env.app,
+    status: env.status,
+    url: env.url,
+    deploys: String(env.deploys),
+    last: relativeTime(env.last)
+  }));
+
+  const widthOf = key => Math.max(...rows.map(r => r[key].length));
+  const w = {
+    app: Math.max("APP".length, widthOf("app")),
+    status: Math.max("STATUS".length, widthOf("status")),
+    url: Math.max("URL".length, widthOf("url")),
+    deploys: Math.max("DEPLOYS".length, widthOf("deploys"))
+  };
+
+  console.log(
+    c.dim(`${pad("APP", w.app)}  ${pad("STATUS", w.status)}  ${pad("URL", w.url)}  ${pad("DEPLOYS", w.deploys)}  LAST`)
+  );
+
+  for (const r of rows) {
+    const status = r.env.interrupted
+      ? c.prompt(pad(r.status, w.status))
+      : statusColour(r.env.rawStatus, pad(r.status, w.status));
+    const url = r.url === "-" ? c.dim(pad(r.url, w.url)) : c.accent(pad(r.url, w.url));
+
+    console.log(`${pad(r.app, w.app)}  ${status}  ${url}  ${c.dim(pad(r.deploys, w.deploys))}  ${c.dim(r.last)}`);
+  }
+}
+
+function printDeploymentTable(deployments) {
+  const rows = deployments.map(dep => ({
+    dep,
+    id: dep.deploymentId,
+    app: dep.app?.name || "-",
+    // An interrupted record is the last status we knew, not a live one. Say so.
+    status: dep.interrupted ? `${dep.status} (interrupted)` : dep.status,
+    url: publicUrl(dep) || "-"
+  }));
+
+  const widthOf = key => Math.max(...rows.map(r => r[key].length));
+  const w = {
+    id: Math.max("ID".length, widthOf("id")),
+    app: Math.max("APP".length, widthOf("app")),
+    status: Math.max("STATUS".length, widthOf("status"))
+  };
+
+  console.log(c.dim(`${pad("ID", w.id)}  ${pad("APP", w.app)}  ${pad("STATUS", w.status)}  URL`));
+
+  for (const r of rows) {
+    const status = r.dep.interrupted
+      ? c.prompt(pad(r.status, w.status))
+      : statusColour(r.dep.status, pad(r.status, w.status));
+    const url = r.url === "-" ? c.dim(r.url) : c.accent(r.url);
+
+    console.log(`${pad(r.id, w.id)}  ${pad(r.app, w.app)}  ${status}  ${url}`);
+  }
+}
+
+// The summary as lines rather than as output, so `watch` can measure the block it is
+// about to draw and put the next one on top of it.
+function deploymentSummaryLines(dep, { step: showStep = true } = {}) {
+  const lines = [];
+  const row = (label, value) => lines.push(`${label.padEnd(12)}${value}`);
+
+  row("Deployment:", dep.deploymentId);
+  row("Status:", statusColour(dep.status));
+  row("App:", `${dep.app?.name} (${dep.app?.type})`);
+  if (dep.stackName) row("Stack:", c.dim(`${dep.stackName}${dep.stackStatus ? ` (${dep.stackStatus})` : ""}`));
+
+  const url = publicUrl(dep);
+  if (url) row("URL:", c.accent(url));
+  if (dep.outputs?.LogGroup) row("Logs:", c.accent(dep.outputs.LogGroup));
+  if (dep.outputs?.BucketName) row("Bucket:", c.accent(dep.outputs.BucketName));
+  if (dep.startedAt) row("Started:", c.dim(dep.startedAt));
+  if (dep.finishedAt) row("Finished:", c.dim(dep.finishedAt));
+  if (dep.failureReason) row("Failed:", c.prompt(dep.failureReason));
+
+  if (Array.isArray(dep.resolvedModules) && dep.resolvedModules.length) {
+    lines.push("You asked for:");
+    for (const m of dep.resolvedModules) lines.push(`  ${c.accent(m.id)}`);
+  }
+
+  // A draft is defined by what it could not build, so that is what it lists. Amber,
+  // because every need is something waiting on a person.
+  if (Array.isArray(dep.needs) && dep.needs.length) {
+    lines.push(`Needs no module supports yet (${dep.needs.length}):`);
+    for (const n of dep.needs) lines.push(`  ${c.prompt(n.line)}`);
+  }
+
+  // One plain-language line of what the platform is doing right now. `watch` turns
+  // this off while the deployment is live, because there the spinner carries the same
+  // line and the developer should not read the same words twice.
+  if (dep.step && showStep) lines.push("", step(dep.step));
+
+  return lines;
+}
+
+function printDeploymentSummary(dep, options) {
+  for (const line of deploymentSummaryLines(dep, options)) console.log(line);
+}
+
+// How many rows a block takes on this terminal, wrapping included. Colour codes have
+// width on the page but not on the screen, so they do not count.
+function rowsUsed(lines) {
+  const width = process.stdout.columns || 80;
+  let rows = 0;
+
+  for (const line of lines) {
+    // A value can arrive carrying newlines of its own, a CloudFormation reason does,
+    // and each one of those is another row on the screen.
+    for (const piece of String(line).split("\n")) {
+      const visible = piece.replace(/\x1b\[[0-9;]*m/g, "").length;
+      rows += Math.max(1, Math.ceil(visible / width));
+    }
+  }
+
+  return rows;
+}
+
+async function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+main().catch(err => {
+  // An unreachable platform, a missing key or a model that would not answer is one
+  // sentence the developer can act on, not a stack trace.
+  if (err?.userFacing) {
+    console.error(c.fail(err.message));
+    process.exit(1);
+  }
+
+  console.error(c.fail(err.details ? JSON.stringify(err.details, null, 2) : (err.stack || String(err))));
+  process.exit(1);
+});

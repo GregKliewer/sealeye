@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: deployme static_site_edge - S3 website hosting (CloudFront deliberately omitted)
+Description: seaLeye static_site_edge - S3 website hosting (CloudFront deliberately omitted)
 Parameters:
   AppName:
     Type: String
