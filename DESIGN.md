@@ -34,7 +34,11 @@ tell which one you are in.
 
 ## The Catalog chip says planned, not Platform Library
 
-Decided Mon Sept 22, 2026. It changes `brand/BRAND-ONLINE.md` section 4, which said
+Decided Mon Sept 22, 2026.
+
+**Superseded Sept 26, 2026** by planVersion 0.4: seaLeye.run no longer names modules it
+cannot build, so there is no planned or requested state, only a module it builds or a
+need it describes. Kept for its reasoning about naming states once. It changes `brand/BRAND-ONLINE.md` section 4, which said
 "Platform Library" in its first draft.
 
 Everything in the Catalog on seaLeye.online is in the Platform Library, including the
@@ -99,3 +103,37 @@ jobs. The only dark things on it are the mark and the terminal cards, which is t
 console's own rule: a small dark window on a light desk. Put side by side, the three
 wordmarks differ only in the last word, and the address is how you tell which door you
 came in by.
+
+## The demo becomes a product repo
+
+Decided Thu Oct 8, 2026.
+
+**The demo is frozen, not discarded.** The build shown on Oct 2 is the tag
+`demo-2026-10-02`. The repo was renamed from `deployme-demo` to `sealeye` rather than
+started fresh, because its history is the record of why seaLeye works the way it does.
+The May 2026 POC documents were removed from all history first.
+
+**Parity is a principle, not a feature.** The dry run promised that seaLeye.online does
+everything seaLeye.run does, one for one. That only holds if both are clients of one API,
+so the rule is: an operation is an API endpoint first, then a command and a page with
+the same name, inputs and outputs, and it ships when both surfaces have it. VISION.md has
+it in full.
+
+**cli/, api/ and core/, in one package.** The CLI and the API will ship separately (a
+command developers install, a service we host), so they cannot depend on each other.
+What both must agree on, the plan contract, the catalog, settings and how an app name
+becomes a stack name, is core/. One package rather than npm workspaces for now, because
+nothing is published yet; a test enforces the boundary instead. Workspaces come when the
+CLI is published (OPEN-QUESTIONS Q10).
+
+**sealeye everywhere, deployme still read.** `deployme.yaml` was being written into
+developers' folders and `~/.deployme/config` was where they were told to put their key,
+so the internal name had already leaked. From 2.17.0 the names are `sealeye.yaml`,
+`~/.sealeye/` and `SEALEYE_*`. The old ones are read for at least one release and never
+written, and the old deployment store is copied rather than moved, so a rollback to
+2.16.0 still finds everything. The `deployme` bin alias is gone; `init` stays as the
+hidden alias for `run`.
+
+**Demo material is archived, not deleted.** The three sites, transcripts, day notes,
+PROGRESS, SCOPE and the QA bench are in `archive/`. The seaLeye.online mock-up is where
+the real portal's design starts (OPEN-QUESTIONS Q11).
