@@ -51,6 +51,12 @@ export const step = (msg) => c.dim(`  ${msg}`);
 export const ask = (q) => `${c.prompt("?")} ${q} `;
 export const answer = (a) => c.accent(a);
 
+// An open question is answered on a line of its own: a phosphor prompt, and the colour
+// left on so the answer is phosphor while it is typed, not only after Enter. `typed()`
+// turns it off again once the line is in.
+export const typing = () => (enabled ? `${BOLD}${rgb(127, 216, 194)}>${RESET}${rgb(127, 216, 194)} ` : "> ");
+export const typed = () => RESET;
+
 // A spinner for the waits with nothing on the screen. It owns one line: frames are
 // rewritten in place with \r, and the real line lands on top of it when it arrives.
 // It never replaces a step line. The step lines are the persuasive part of the demo;

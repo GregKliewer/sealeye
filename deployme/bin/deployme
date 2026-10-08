@@ -16,7 +16,7 @@ import {
   getEvidence,
   getNeeds
 } from "../lib/run.js";
-import { banner, step, ask, answer, c, product, spinner, stopSpinner, animations } from "../src/brand.js";
+import { banner, step, ask, answer, typing, typed, c, product, spinner, stopSpinner, animations } from "../src/brand.js";
 import { safeName } from "../src/executor/compose.js";
 import { unsupportedNeeds, refusalClosing, orgName } from "../src/catalog.js";
 import { runInterview, resolveApiKey } from "../src/interview/loop.js";
@@ -293,7 +293,7 @@ async function main() {
 
             // Out of lines, or no file at all: the terminal, as usual.
             const fromFile = scripted.length > 0;
-            const reply = fromFile ? await scriptedLine(question, scripted.shift()) : await askLine(rl, question);
+            const reply = fromFile ? await scriptedLine(question, scripted.shift()) : await askLine(rl, question, { open: true });
             answersGiven.push({ question, answer: reply, scripted: fromFile });
             return reply;
           }
@@ -700,19 +700,43 @@ async function main() {
 class Interrupted extends Error {}
 
 // One question, amber, and one line back. Every question the developer sees goes
-// through here, so they all look the same.
-async function askLine(rl, question) {
+// through here, so they all look the same. An open question, the interview's, gets a
+// blank line and a phosphor prompt of its own, so it is obvious where to type, and the
+// answer is phosphor as it is typed. A [y/N] stays on the question's line.
+async function askLine(rl, question, { open = false } = {}) {
   let reply;
 
   try {
-    reply = (await rl.question(ask(question))).trim();
+    if (open) {
+      console.log(`${c.prompt("?")} ${question}`);
+      console.log("");
+      reply = (await rl.question(typing())).trim();
+      process.stdout.write(typed());
+    } else {
+      reply = (await rl.question(ask(question))).trim();
+    }
   } catch (err) {
+    if (open) process.stdout.write(typed());
     if (err?.name === "AbortError" || err?.code === "ABORT_ERR") throw new Interrupted();
     throw err;
   }
 
-  echoAnswer(question, reply);
+  if (open) echoOpenAnswer(reply);
+  else echoAnswer(question, reply);
   return reply;
+}
+
+// An open answer is already on its own line, in phosphor. Only a blank one needs
+// saying. With output piped there is no echo, so print the answer.
+function echoOpenAnswer(reply) {
+  if (!process.stdout.isTTY) {
+    console.log(answer(reply || "(no answer)"));
+    return;
+  }
+  if (reply) return;
+
+  process.stdout.write("\x1b[1A\x1b[2K");   // up onto the empty answer line, clear it
+  console.log(`${typing()}${answer("(no answer)")}`);
 }
 
 // The terminal has already echoed what the developer typed, in its own colour.
@@ -753,12 +777,14 @@ function loadAnswers(file) {
 }
 
 // A scripted answer, printed exactly as a typed one ends up: the amber question, a
-// beat, then the answer in phosphor on the same line. The pause is what makes a
-// recording read as a person answering rather than a script running.
+// blank line, the phosphor prompt, a beat, then the answer in phosphor. The pause is
+// what makes a recording read as a person answering rather than a script running.
 const SCRIPTED_PAUSE_MS = 700;
 
 async function scriptedLine(question, reply) {
-  process.stdout.write(ask(question));
+  console.log(`${c.prompt("?")} ${question}`);
+  console.log("");
+  process.stdout.write(typing());
   await sleep(SCRIPTED_PAUSE_MS);
   console.log(answer(reply));
 
