@@ -190,3 +190,8 @@ The pilot starts with one shared seaLeye account and one team, but every deploym
 already goes through an assumed role (the API's instance role may only assume roles
 named `sealeye-deploy-*`), so adding a team's own account is configuration, not a
 rewrite.
+
+**Model calls move behind the API.** The interview runs in the API, with the API's
+`ANTHROPIC_API_KEY` and any other model settings, and the CLI streams it. Developers no
+longer need a key of their own, model cost can be priced into the product as the vision
+says, and the system prompt stays off developers' machines. Tracing keys move with it.

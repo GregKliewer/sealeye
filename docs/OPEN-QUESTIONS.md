@@ -15,14 +15,6 @@ yours to share.
 **Now blocking:** A5 brings collaborators into the repo, so this is answered before
 anyone else is invited.
 
-### Q8. Whose model key?
-
-Today each developer needs ANTHROPIC_API_KEY. The vision prices model costs into the
-product. **Leaning:** the interview runs behind the API with the API's key, and the CLI
-streams it. That also keeps the system prompt off developers' machines.
-
-A8: Model calls move behind the API, including ANTHROPIC_API_KEY and any other configs needed to run model calls.
-
 ### Q9. What is the portal built with?
 
 Today it is static HTML with each page's data inlined as JSON. **Options:** keep it
