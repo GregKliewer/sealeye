@@ -115,11 +115,12 @@ It lives in `core/` because the interview moves from `cli/` to `api/` in Part B,
 tracing should not have to move with it. `test/boundaries.test.js` should keep passing.
 
 ```bash
-npm install @langfuse/tracing @langfuse/otel @langfuse/client @opentelemetry/sdk-node
+npm install @langfuse/tracing @langfuse/otel @langfuse/core @opentelemetry/api \
+  @opentelemetry/sdk-trace-node @opentelemetry/context-async-hooks
 ```
 
-Check the exact v4 function names against the current LangFuse TypeScript docs when you
-start; the sketch below follows their v4 layout.
+Built on LangFuse v5 with a tracer provider of seaLeye's own rather than `NodeSDK`;
+DESIGN.md says why. The sketch below still describes what the module does.
 
 What the module does:
 

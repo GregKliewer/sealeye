@@ -253,6 +253,29 @@ files read earlier, so it would break the rule above. It is also untested agains
 `@anthropic-ai/sdk` 0.127 this repo pins. Hand-written spans let seaLeye decide what a
 trace contains.
 
+**How `core/tracing.js` is built.** Decided Fri Oct 9, 2026, writing PHASE1-PLAN Step 3.
+
+- *LangFuse SDK v5, not the v4 the plan sketched.* v5 is current; the names the plan used
+  (`LangfuseSpanProcessor`, `startActiveObservation`, a `mask` option) are unchanged.
+- *A tracer provider of seaLeye's own, not `@opentelemetry/sdk-node`.* The plan's
+  `NodeSDK` pulls in about 25 exporters seaLeye never uses (gRPC, Prometheus, Zipkin)
+  and registers itself for the whole process. `sdk-trace-node` with
+  `setLangfuseTracerProvider` traces seaLeye's spans and nothing else. Only the context
+  manager is registered globally, because nested spans need it.
+- *Names come from code, never from model or developer text.* LangFuse masks only input,
+  output and metadata. Span names, status messages, the session id and the user id skip
+  the mask, so they are set from seaLeye's own values: a tool name the model invents is
+  recorded as `unknown_tool`, and an error is recorded by its class, not its message.
+- *The prompt version is a hash of the file's content, not its git hash.* An installed
+  `sealeye` has no git history to ask; the content hash names the same version either way.
+- *Spans are sent as they end, not batched.* The CLI is short-lived and can be
+  interrupted, and a run is a few dozen spans, so sending each one is cheap and an
+  interrupted run still leaves what it did. `flushTracing()` waits for the last few.
+- *Token counts use Anthropic's field names.* `input`, `output`,
+  `cache_read_input_tokens` and `cache_creation_input_tokens`, which is what LangFuse's
+  Anthropic example uses. Step 4 checks that cost shows up against the `claude-sonnet-5`
+  model definition; if cache writes show no cost, that key is the one to rename.
+
 ## The earliest code is Greg's to share
 
 Decided Fri Oct 9, 2026.
