@@ -148,3 +148,10 @@ seaLeye with Greg, and a pilot group using it to deploy their own apps. So Phase
 a repo that sets up in minutes with good tests, and also a hosted API, sign-in and AWS
 access for people who only use it. Collaborators come first, which makes the provenance
 of the earliest code (OPEN-QUESTIONS Q12) a gate before anyone else sees the repo.
+
+**The CLI uploads the app; the portal will read a repository.** A hosted API cannot read
+a folder on the developer's machine, and the portal has no folder at all. For now the CLI
+uploads a zip of the folder, with the same exclusions as packaging and with secret files
+never leaving the laptop, and the API unpacks it into a scratch folder per interview.
+Reading from a connected Git repository and branch comes later, for the portal and for
+promotions. Upload first keeps the promise that you run seaLeye in your own folder.

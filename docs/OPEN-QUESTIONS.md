@@ -15,24 +15,6 @@ yours to share.
 **Now blocking:** A5 brings collaborators into the repo, so this is answered before
 anyone else is invited.
 
-### Q1. Where does the API get the app from?
-
-**Why it matters:** today `POST /deployments` takes a folder path on the API's own
-machine. That stops working the moment the API is hosted, and the portal's "New
-environment" has no folder at all.
-
-**Options:**
-- (a) The CLI uploads a snapshot of the folder; the portal accepts an upload.
-- (b) The API reads the app from a connected Git repository and branch, for both.
-- (c) Both: upload from the CLI, repository for the portal.
-
-**Leaning:** (c) now, (b) later. Upload keeps today's "run it in your folder" promise;
-a repository is what the portal and promotions will need anyway.
-
-**Blocks:** Phase 1 work item 1.
-
-A1: (c) now, (b) later.
-
 ### Q2. Where does the hosted API run, and on what store?
 
 **Options:** a container service or Lambda in your own AWS account; a managed platform
