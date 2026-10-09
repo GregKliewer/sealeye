@@ -323,6 +323,17 @@ trace contains.
   experiment's run id, name, dataset id and item id, and the root is in LangFuse's
   `sdk-experiment` environment, which also keeps these traces apart from real runs.
   The script starts its own API with an empty store, so it adds no deployment records.
+- *The older dataset-run endpoints are off for new LangFuse organizations.* Greg's
+  organization (created after September 16, 2026) answers
+  `GET /api/public/datasets/{name}/runs` with LEGACY_API_UNAVAILABLE_FOR_NEW_ORGANIZATION
+  and points to `GET /api/public/experiments`. So the dataset-run link is tried and
+  allowed to fail, and each run carries an experiment id of its own (one per run,
+  shared by its items), as LangFuse's runner does when no run id comes back.
+- *Recheck before November 16, 2026.* LangFuse Cloud says older public endpoints go
+  then, and that OpenTelemetry ingestion is the only path to live data. Traces already
+  go that way. Scores (`POST /api/public/scores`) and dataset items
+  (`POST /api/public/dataset-items`) work on this organization today and are the two
+  calls to check against the migration notes at langfuse.com/docs/compatibility.
 - *Dataset items hold the app's name, never its files,* the same rule as traces.
 
 ## The earliest code is Greg's to share

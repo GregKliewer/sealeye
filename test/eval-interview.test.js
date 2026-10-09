@@ -70,6 +70,8 @@ test("a run that stopped instead of refusing is not correct", () => {
 // A whole pass, offline.
 
 const port = 3895 + Math.floor(Math.random() * 4);
+// Tracing starts once per process, so both passes below share one exporter.
+const exporter = new InMemorySpanExporter();
 const api = `http://localhost:${port}`;
 let server;
 
@@ -118,8 +120,8 @@ function clientFor(plan) {
 test("one pass grades all three apps and records a dataset run in LangFuse", async () => {
   process.env.LANGFUSE_PUBLIC_KEY ||= "pk-lf-test";
   process.env.LANGFUSE_SECRET_KEY ||= "sk-lf-test-only";
-  const exporter = new InMemorySpanExporter();
   assert.equal(startTracing({ exporter }), true);
+  exporter.reset();
 
   // LangFuse answers with the ids the experiment marks need.
   const requests = [];
@@ -178,4 +180,35 @@ test("one pass grades all three apps and records a dataset run in LangFuse", asy
   assert.deepEqual(named("outcome_correct"), [1, 1, 1]);
   assert.deepEqual(named("needs_correct"), [1, 1, 1]);
   assert.deepEqual(named("modules_correct"), [1, 1], "the drafted app is not graded on modules");
+});
+
+test("with the older dataset-run link refused, a run still records as one experiment", async () => {
+  assert.equal(startTracing({ exporter }), true);
+  exporter.reset();
+  const requests = [];
+  useLangfuseTransport((method, apiPath, body) => {
+    requests.push({ method, apiPath, body });
+    if (apiPath === "/api/public/dataset-run-items") {
+      const err = new Error("LangFuse answered 410 to POST /api/public/dataset-run-items");
+      err.status = 410;
+      throw err;
+    }
+    if (apiPath === "/api/public/v2/datasets") return { id: "ds_1" };
+    return {};
+  });
+
+  const byApp = plans();
+  const rows = await evaluate({
+    cases: loadCases(),
+    apiBaseUrl: api,
+    runName: "refused link run",
+    model: "claude-sonnet-5",
+    clientFor: app => clientFor(byApp[app])
+  });
+  for (const row of rows) assert.ok(allCorrect(row), JSON.stringify(row));
+
+  // No run id came back, so the run's own id marks all three apps, the same one.
+  const ids = new Set(exporter.getFinishedSpans().filter(sp => sp.name === "sealeye run").map(sp => sp.attributes["langfuse.experiment.id"]));
+  assert.equal(ids.size, 1);
+  assert.match([...ids][0], /^[0-9a-f]{16}$/);
 });

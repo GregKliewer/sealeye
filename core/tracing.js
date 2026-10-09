@@ -375,6 +375,11 @@ export function traceStep(name, fn) {
     }), fn, noop);
 }
 
+/** A new experiment id: one per regression run, shared by its items. */
+export function newExperimentId() {
+  return crypto.randomBytes(8).toString("hex");
+}
+
 /**
  * One dataset item's run, for the interview regression set, recorded the way LangFuse's
  * own experiment runner records it so it shows under the dataset's Experiments: a root
@@ -383,18 +388,28 @@ export function traceStep(name, fn) {
  * `item.traceId` is this trace. Throws if tracing is off, because an experiment with
  * no trace is nothing to look at.
  */
-export async function traceExperimentItem({ runName, description, datasetId, itemId, input, expectedOutput }, fn) {
+export async function traceExperimentItem({ experimentId, runName, description, datasetId, itemId, input, expectedOutput }, fn) {
   if (!provider) throw new Error("tracing is not on, so there is nothing to record the run in");
 
   return startActiveObservation("experiment-item-run", async span => {
     const traceId = span.traceId;
-    const run = await langfuseRequest("POST", "/api/public/dataset-run-items", {
-      runName,
-      runDescription: description,
-      datasetItemId: itemId,
-      traceId,
-      observationId: span.id
-    }, 10_000);
+
+    // The older dataset-run link. LangFuse organizations created from September 16,
+    // 2026 build experiments from the marks below alone, so a failed link is not a
+    // failed run, and without a run id from it the experiment's own id is used, as
+    // LangFuse's runner does.
+    let run = null;
+    try {
+      run = await langfuseRequest("POST", "/api/public/dataset-run-items", {
+        runName,
+        runDescription: description,
+        datasetItemId: itemId,
+        traceId,
+        observationId: span.id
+      }, 10_000);
+    } catch (err) {
+      debug("could not link the dataset run item", err);
+    }
 
     span.otelSpan.setAttributes({
       [LangfuseOtelSpanAttributes.ENVIRONMENT]: LANGFUSE_SDK_EXPERIMENT_ENVIRONMENT,
@@ -405,7 +420,7 @@ export async function traceExperimentItem({ runName, description, datasetId, ite
     const output = await propagateAttributes(
       {
         _internalExperiment: {
-          experimentId: run?.datasetRunId,
+          experimentId: run?.datasetRunId || experimentId,
           experimentName: runName,
           experimentDatasetId: datasetId,
           experimentItemId: itemId,

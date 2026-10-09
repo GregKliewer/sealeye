@@ -25,6 +25,7 @@ import {
   flushScores,
   flushTracing,
   langfuseRequest,
+  newExperimentId,
   promptVersion,
   scoreTrace,
   startTracing,
@@ -116,6 +117,7 @@ async function ensureDataset() {
 export async function evaluate({ cases, apiBaseUrl, runName, model, clientFor, log = () => {} }) {
   const datasetId = await ensureDataset();
   const description = `Interview prompt ${promptVersion()}, model ${model}`;
+  const experimentId = newExperimentId();
 
   const rows = [];
   for (const { app, answers, expected } of cases) {
@@ -137,7 +139,7 @@ export async function evaluate({ cases, apiBaseUrl, runName, model, clientFor, l
       // Recorded the way LangFuse's own experiment runner records an item, so the run
       // shows under the dataset's Experiments with each app's trace, cost and scores.
       row = await traceExperimentItem(
-        { runName, description, datasetId, itemId, input: { app }, expectedOutput: expected },
+        { experimentId, runName, description, datasetId, itemId, input: { app }, expectedOutput: expected },
         async () => {
           const result = await runInterview({
             appPath: path.join(repoRoot, "apps", app),
