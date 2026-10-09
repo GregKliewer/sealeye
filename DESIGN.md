@@ -137,3 +137,26 @@ hidden alias for `run`.
 **Demo material is archived, not deleted.** The three sites, transcripts, day notes,
 PROGRESS, SCOPE and the QA bench are in `archive/`. The seaLeye.online mock-up is where
 the real portal's design starts (OPEN-QUESTIONS Q11).
+
+## The interview never reads secret files
+
+Decided Fri Oct 9, 2026.
+
+**What is refused.** The interview's `read_file` tool refuses `.env` and any `.env.*`
+file except `.env.example` and `.env.sample`, plus `.envrc`, `*.pem`, `*.key`, SSH keys
+(`id_rsa*`, `id_dsa*`, `id_ecdsa*`, `id_ed25519*`), `.npmrc` and `credentials`. Names
+are matched case-insensitively, and a symlink is judged by what it points at as well as
+its own name. The refusal is text the model reads, like the other refusals, and the
+`.env` one points it at `.env.example`.
+
+**Why.** Before this, `read_file` could return a developer's real `.env`, so their
+secrets could reach the model, against principle 6. Tracing (PHASE1-PLAN Part A) would
+also have copied them into a third system. This is a fix whether or not tracing ships,
+so it is its own commit on `main`.
+
+**Why the names stay visible.** `list_files` still shows these files. Knowing a `.env`
+exists tells the model the app reads settings, and `.env.example` or the code tells it
+which ones. The names carry no secret; the contents do.
+
+**Not covered.** Secrets pasted into ordinary files (a key in `config.js`) are still
+readable. Finding those is a scanning job, not a name rule, and is not attempted here.
