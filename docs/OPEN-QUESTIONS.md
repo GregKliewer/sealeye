@@ -15,15 +15,6 @@ yours to share.
 **Now blocking:** A5 brings collaborators into the repo, so this is answered before
 anyone else is invited.
 
-### Q4. Whose AWS account does a deployment land in?
-
-**Options:** one shared seaLeye account for everyone (simplest, fine for a pilot); a
-role in each team's own account that the API assumes (what a bank will require).
-
-**Leaning:** design for (b), start with (a) and one team.
-
-A4: design for (b), start with (a)
-
 ### Q8. Whose model key?
 
 Today each developer needs ANTHROPIC_API_KEY. The vision prices model costs into the

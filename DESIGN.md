@@ -183,3 +183,10 @@ then $0.015 per person a month. Google sign-in works out of the box; GitHub need
 small shim, because its sign-in is not standard OIDC. The CLI signs in through the
 browser and keeps a token. How Cognito replaces the Phase 1 plan's temporary per-person
 token (D7) is still to be decided.
+
+**Deployments are designed for each team's own account and start in one shared account.**
+A bank will require deployments in its own AWS account, through a role the API assumes.
+The pilot starts with one shared seaLeye account and one team, but every deployment
+already goes through an assumed role (the API's instance role may only assume roles
+named `sealeye-deploy-*`), so adding a team's own account is configuration, not a
+rewrite.
