@@ -15,17 +15,6 @@ yours to share.
 **Now blocking:** A5 brings collaborators into the repo, so this is answered before
 anyone else is invited.
 
-### Q3. How do people sign in?
-
-**Options:** GitHub OAuth (fast, and developers have it); Google; Amazon Cognito (can
-front a bank's SAML later); an identity service such as Auth0 or WorkOS.
-
-**Leaning:** something that speaks SAML and OIDC from the start, because every bank will
-ask for its own identity provider. The CLI signs in through the browser and keeps a
-token.
-
-A3: Amazon Cognito
-
 ### Q4. Whose AWS account does a deployment land in?
 
 **Options:** one shared seaLeye account for everyone (simplest, fine for a pilot); a

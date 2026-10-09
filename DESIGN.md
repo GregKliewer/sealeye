@@ -174,3 +174,12 @@ interview turn takes 25 to 45 seconds over server-sent events; Lightsail, Fly, R
 Railway, because they mean long-lived AWS keys and data outside the account and possibly
 outside Canada; Fargate Spot, because an interruption kills a running interview. Costs
 are approximate USD as of Oct 9, 2026.
+
+**Sign-in is Amazon Cognito.** Every bank will ask to use its own identity provider, so
+sign-in speaks SAML and OIDC from the start. Cognito does, and it runs in the same
+account and region as the API, so user records stay in Canada. Its free tier covers
+10,000 people signing in directly and 50 through their own company's identity provider,
+then $0.015 per person a month. Google sign-in works out of the box; GitHub needs a
+small shim, because its sign-in is not standard OIDC. The CLI signs in through the
+browser and keeps a token. How Cognito replaces the Phase 1 plan's temporary per-person
+token (D7) is still to be decided.
