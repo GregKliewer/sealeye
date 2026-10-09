@@ -137,3 +137,106 @@ hidden alias for `run`.
 **Demo material is archived, not deleted.** The three sites, transcripts, day notes,
 PROGRESS, SCOPE and the QA bench are in `archive/`. The seaLeye.online mock-up is where
 the real portal's design starts (OPEN-QUESTIONS Q11).
+
+## Phase 1: who it is for, and how the hosted product is built
+
+Decided Fri Oct 9, 2026. These answer the questions that blocked Phase 1 in
+`docs/OPEN-QUESTIONS.md`.
+
+**The first release is for collaborators, then a pilot group.** Both: people building
+seaLeye with Greg, and a pilot group using it to deploy their own apps. So Phase 1 needs
+a repo that sets up in minutes with good tests, and also a hosted API, sign-in and AWS
+access for people who only use it. Collaborators come first, which makes the provenance
+of the earliest code (OPEN-QUESTIONS Q12) a gate before anyone else sees the repo.
+
+**The CLI uploads the app; the portal will read a repository.** A hosted API cannot read
+a folder on the developer's machine, and the portal has no folder at all. For now the CLI
+uploads a zip of the folder, with the same exclusions as packaging and with secret files
+never leaving the laptop, and the API unpacks it into a scratch folder per interview.
+Reading from a connected Git repository and branch comes later, for the portal and for
+promotions. Upload first keeps the promise that you run seaLeye in your own folder.
+
+**One AWS account, ca-central-1, Postgres, grown in three stages.** Everything stays in
+one account and one region. The executor runs the AWS CLI and polls CloudFormation from a
+long-lived process, so it needs a real machine with an IAM role, not Lambda and not
+stored access keys. Each stage starts on a trigger, not a date:
+
+1. Pilot: one EC2 t4g.small running the API, Postgres and Caddy in Docker Compose, with a
+   nightly `pg_dump` to S3. About $20 a month.
+2. When someone else's data matters: the same server, with Postgres moved to RDS
+   (db.t4g.micro) for backups, point-in-time restore and patching. About $35 to $40.
+3. When downtime becomes the problem (a second team, or anyone who expects it to stay
+   up): ECS Express Mode, which is Fargate behind a load balancer, plus the same RDS.
+   About $65 to $100, less with a 1-year Savings Plan.
+
+Ruled out: API Gateway in front of the API, because it times out at 30 seconds and an
+interview turn takes 25 to 45 seconds over server-sent events; Lightsail, Fly, Render and
+Railway, because they mean long-lived AWS keys and data outside the account and possibly
+outside Canada; Fargate Spot, because an interruption kills a running interview. Costs
+are approximate USD as of Oct 9, 2026.
+
+**Sign-in is Amazon Cognito.** Every bank will ask to use its own identity provider, so
+sign-in speaks SAML and OIDC from the start. Cognito does, and it runs in the same
+account and region as the API, so user records stay in Canada. Its free tier covers
+10,000 people signing in directly and 50 through their own company's identity provider,
+then $0.015 per person a month. Google sign-in works out of the box; GitHub needs a
+small shim, because its sign-in is not standard OIDC. The CLI signs in through the
+browser and keeps a token. How Cognito replaces the Phase 1 plan's temporary per-person
+token (D7) is still to be decided.
+
+**Deployments are designed for each team's own account and start in one shared account.**
+A bank will require deployments in its own AWS account, through a role the API assumes.
+The pilot starts with one shared seaLeye account and one team, but every deployment
+already goes through an assumed role (the API's instance role may only assume roles
+named `sealeye-deploy-*`), so adding a team's own account is configuration, not a
+rewrite.
+
+**Model calls move behind the API.** The interview runs in the API, with the API's
+`ANTHROPIC_API_KEY` and any other model settings, and the CLI streams it. Developers no
+longer need a key of their own, model cost can be priced into the product as the vision
+says, and the system prompt stays off developers' machines. Tracing keys move with it.
+
+**The portal is React and TypeScript, built with Vite, with shadcn/ui and Playwright.**
+Greg builds through coding agents, and agents write React more reliably than any other
+framework because there is the most of it to learn from. TypeScript makes an agent's
+mistake a failed build with a clear error, rather than something found by reading code.
+Vite builds plain static files that Caddy serves beside the API, so there is no second
+server, and the portal talks only to the API. shadcn/ui components are copied into the
+repo and styled from `brand/BRAND-ONLINE.md`. Playwright tests check that pages load and
+work, and run in CI beside `npm test`. The archived seaLeye.online mock-up is the design
+reference; the portal is rebuilt in `portal/`, not copied. Not chosen: Next.js (a second
+server), Svelte and Vue (less for agents to draw on), staying plain (the interview page
+would force a rewrite). All of it is free.
+
+## Tracing the interview with LangFuse
+
+Decided Fri Oct 9, 2026. These are D1 to D3 in `docs/PHASE1-PLAN.md`.
+
+**LangFuse Cloud, Hobby plan, US region, sample apps only.** LangFuse Cloud has no
+Canadian region, and self-hosting it needs Postgres, ClickHouse, Redis and S3. A trace
+holds a developer's questions, answers and plan, which is fine for the sample apps and
+not for a bank's code. Where traces live for an organization is written down as an open
+question rather than solved, and it must be answered before the pilot group runs seaLeye
+on real code.
+
+**File contents never go into a trace.** A trace records which files were read, their
+sizes and any refusals, never what is in them. Developer code can hold secrets, a trace is
+a copy in a third system, and "our traces hold file names, never contents" is what a bank
+needs to hear. The developer's questions and answers (through the redaction filter) and
+the plan do go in; the plan holds no secrets by contract.
+
+**Spans are hand-written, in `createWithOneRetry` and `runTool`.** LangFuse's automatic
+instrumentation for Anthropic records every request whole, and every turn resends the
+files read earlier, so it would break the rule above. It is also untested against the
+`@anthropic-ai/sdk` 0.127 this repo pins. Hand-written spans let seaLeye decide what a
+trace contains.
+
+## The earliest code is Greg's to share
+
+Decided Fri Oct 9, 2026.
+
+**Provenance confirmed.** The first commit resurrected May 2026 proof-of-concept code,
+and its documents were removed from history on Oct 8. Before collaborators are invited
+(the first-release decision above), Greg confirmed that he owns all of the code, and
+that no line of it was lifted, copied or drawn from work produced for a previous
+employer. This was OPEN-QUESTIONS Q12.
