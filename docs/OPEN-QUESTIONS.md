@@ -6,14 +6,7 @@ date and reason, and delete it from here.
 
 ## Blocking Phase 1
 
-### Q12. Provenance of the earliest code
-
-The first commit resurrected May 2026 proof-of-concept code. Its documents were removed
-from history on Oct 8. Before seaLeye is offered beyond you, confirm the code itself is
-yours to share.
-
-**Now blocking:** A5 brings collaborators into the repo, so this is answered before
-anyone else is invited.
+None right now.
 
 ## Later
 

@@ -230,3 +230,13 @@ instrumentation for Anthropic records every request whole, and every turn resend
 files read earlier, so it would break the rule above. It is also untested against the
 `@anthropic-ai/sdk` 0.127 this repo pins. Hand-written spans let seaLeye decide what a
 trace contains.
+
+## The earliest code is Greg's to share
+
+Decided Fri Oct 9, 2026.
+
+**Provenance confirmed.** The first commit resurrected May 2026 proof-of-concept code,
+and its documents were removed from history on Oct 8. Before collaborators are invited
+(the first-release decision above), Greg confirmed that he owns all of the code, and
+that no line of it was lifted, copied or drawn from work produced for a previous
+employer. This was OPEN-QUESTIONS Q12.
