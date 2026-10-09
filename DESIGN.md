@@ -137,3 +137,14 @@ hidden alias for `run`.
 **Demo material is archived, not deleted.** The three sites, transcripts, day notes,
 PROGRESS, SCOPE and the QA bench are in `archive/`. The seaLeye.online mock-up is where
 the real portal's design starts (OPEN-QUESTIONS Q11).
+
+## Phase 1: who it is for, and how the hosted product is built
+
+Decided Fri Oct 9, 2026. These answer the questions that blocked Phase 1 in
+`docs/OPEN-QUESTIONS.md`.
+
+**The first release is for collaborators, then a pilot group.** Both: people building
+seaLeye with Greg, and a pilot group using it to deploy their own apps. So Phase 1 needs
+a repo that sets up in minutes with good tests, and also a hosted API, sign-in and AWS
+access for people who only use it. Collaborators come first, which makes the provenance
+of the earliest code (OPEN-QUESTIONS Q12) a gate before anyone else sees the repo.
