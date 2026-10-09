@@ -207,3 +207,26 @@ work, and run in CI beside `npm test`. The archived seaLeye.online mock-up is th
 reference; the portal is rebuilt in `portal/`, not copied. Not chosen: Next.js (a second
 server), Svelte and Vue (less for agents to draw on), staying plain (the interview page
 would force a rewrite). All of it is free.
+
+## Tracing the interview with LangFuse
+
+Decided Fri Oct 9, 2026. These are D1 to D3 in `docs/PHASE1-PLAN.md`.
+
+**LangFuse Cloud, Hobby plan, US region, sample apps only.** LangFuse Cloud has no
+Canadian region, and self-hosting it needs Postgres, ClickHouse, Redis and S3. A trace
+holds a developer's questions, answers and plan, which is fine for the sample apps and
+not for a bank's code. Where traces live for an organization is written down as an open
+question rather than solved, and it must be answered before the pilot group runs seaLeye
+on real code.
+
+**File contents never go into a trace.** A trace records which files were read, their
+sizes and any refusals, never what is in them. Developer code can hold secrets, a trace is
+a copy in a third system, and "our traces hold file names, never contents" is what a bank
+needs to hear. The developer's questions and answers (through the redaction filter) and
+the plan do go in; the plan holds no secrets by contract.
+
+**Spans are hand-written, in `createWithOneRetry` and `runTool`.** LangFuse's automatic
+instrumentation for Anthropic records every request whole, and every turn resends the
+files read earlier, so it would break the rule above. It is also untested against the
+`@anthropic-ai/sdk` 0.127 this repo pins. Hand-written spans let seaLeye decide what a
+trace contains.

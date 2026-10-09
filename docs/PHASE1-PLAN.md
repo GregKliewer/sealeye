@@ -35,13 +35,13 @@ These facts shape every step below.
 Per CLAUDE.md, nothing is built past an open question. These are the calls, with a
 recommendation for each. Each answer goes in DESIGN.md with its date and reason.
 
-| # | Decision | Recommendation | Needed by |
-|---|---|---|---|
-| D1 | LangFuse Cloud or self-hosted for Part A | Cloud, Hobby plan (free), US region, sample apps only | Step 2 |
-| D2 | Do file contents ever go into a trace? | No. Paths, sizes and refusals only. | Step 3 |
-| D3 | Auto-instrumentation or hand-written spans | Hand-written, in `createWithOneRetry` and `runTool` | Step 3 |
-| D4 | Where the hosted API runs (Q2) | One EC2 t4g.small in ca-central-1 for the pilot; ECS Express Mode later | Step 9 |
-| D5 | Database (Q2) | Postgres in a container on the same machine, nightly dump to S3 | Step 10 |
+| # | Decision | Recommendation | Needed by | Decided
+|---|---|---|---|---|
+| D1 | LangFuse Cloud or self-hosted for Part A | Cloud, Hobby plan (free), US region, sample apps only | Step 2 | Cloud, Hobby plan, US region, sample apps only
+| D2 | Do file contents ever go into a trace? | No. Paths, sizes and refusals only. | Step 3 | No. Paths, sizes, and refusals only
+| D3 | Auto-instrumentation or hand-written spans | Hand-written, in `createWithOneRetry` and `runTool` | Step 3 | Hand-written, in createWithOneRetry and runTool
+| D4 | Where the hosted API runs (Q2) | One EC2 t4g.small in ca-central-1 for the pilot; ECS Express Mode later | Step 9 | Yes (A2, stage 1)
+| D5 | Database (Q2) | Postgres in a container on the same machine, nightly dump to S3 | Step 10 | Yes (A2, stage 1)
 | D6 | Which domain does what | See Step 12 | Step 12 |
 | D7 | Sign-in (Q3) | Defer to its own plan. Part B ships with a temporary per-person token. | Step 13 |
 
@@ -385,9 +385,15 @@ seaLeye.com stays a name only, as DESIGN.md says.
 
 ### Step 14. The portal reads live data (Phase 1 item 7, Q9)
 
-- Copy the seaLeye.online mock-up from `archive/` into `portal/`, keeping plain HTML (the
-  Q9 leaning). Replace the inlined sample JSON on Environments, Catalog and Control with
-  `fetch` calls to the API.
+- Rebuild the portal in `portal/` with React + TypeScript and Vite, using shadcn/ui for
+  buttons, tables and forms (A9). The seaLeye.online mock-up in `archive/` is the design
+  reference, not code to copy. Colours and type come from `brand/BRAND-ONLINE.md`.
+- Build Environments, Catalog and Control first. Where the mock-up inlined sample JSON,
+  the new pages call the API, and nothing else.
+- `npm run build` in `portal/` produces static files that Caddy serves at
+  `sealeye.online` (Step 12). There is no second server.
+- Playwright tests check that each page loads and shows live data from a test API, and
+  that tear down works. CI (Step 11) runs them next to `npm test`.
 - Tear down from the portal calls `DELETE /deployments/{id}`, the same endpoint
   `sealeye destroy` uses, and the record says which surface did it.
 - Update the parity table rows for List, Status, Tear down and Needs ledger.
