@@ -412,7 +412,12 @@ const SCORES = {
   questions_asked: "NUMERIC",
   developer_said_yes: "BOOLEAN",
   needs_refused: "BOOLEAN",
-  deployment_succeeded: "BOOLEAN"
+  deployment_succeeded: "BOOLEAN",
+  // Only the interview regression set (scripts/eval-interview.js) posts these: they
+  // compare a run's plan with what the sample app is known to need.
+  outcome_correct: "BOOLEAN",
+  modules_correct: "BOOLEAN",
+  needs_correct: "BOOLEAN"
 };
 
 // Scores are sent one request each to LangFuse's public scores endpoint, with a hard
@@ -420,24 +425,43 @@ const SCORES = {
 // kept a finished `sealeye status` alive for a minute when LangFuse could not be
 // reached; a command line tool should give up on a score rather than hang.
 const pending = [];
-let sender = null;
+let transport = null;
 
-/** Replace how scores are sent, for tests: `fn(body)` gets each score's body. */
-export function useScoreSender(fn) {
-  sender = fn;
+/**
+ * Replace how requests reach LangFuse, for tests: `fn(method, path, body)` gets each
+ * request and returns its parsed answer.
+ */
+export function useLangfuseTransport(fn) {
+  transport = fn;
 }
 
-async function postScore(body, timeoutMs) {
-  if (sender) return sender(body);
+/**
+ * One request to LangFuse's public API, given at most `timeoutMs`, with no retries.
+ * Throws on any failure; callers that must never fail catch it.
+ */
+export async function langfuseRequest(method, apiPath, body, timeoutMs = 3000) {
+  if (transport) return transport(method, apiPath, body);
+  loadEnv();
+  loadUserConfig();
   const base = (process.env.LANGFUSE_BASE_URL || process.env.LANGFUSE_BASEURL || "https://cloud.langfuse.com").replace(/\/+$/, "");
   const auth = Buffer.from(`${process.env.LANGFUSE_PUBLIC_KEY}:${process.env.LANGFUSE_SECRET_KEY}`).toString("base64");
-  const res = await fetch(`${base}/api/public/scores`, {
-    method: "POST",
+  const res = await fetch(`${base}${apiPath}`, {
+    method,
     headers: { "content-type": "application/json", authorization: `Basic ${auth}` },
-    body: JSON.stringify(body),
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     signal: AbortSignal.timeout(timeoutMs)
   });
-  if (!res.ok) throw new Error(`LangFuse answered ${res.status}`);
+  const text = await res.text();
+  if (!res.ok) {
+    const err = new Error(`LangFuse answered ${res.status} to ${method} ${apiPath}`);
+    err.status = res.status;
+    throw err;
+  }
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch {
+    return {};
+  }
 }
 
 /**
@@ -459,7 +483,7 @@ export function scoreTrace(traceId, name, value) {
     numeric = value;
   }
 
-  if (!sender && !tracingConfigured()) return false;
+  if (!transport && !tracingConfigured()) return false;
 
   pending.push({ id: `${traceId}-${name}`, traceId, name, value: numeric, dataType });
   return true;
@@ -482,7 +506,7 @@ export function scoreDeploymentOutcome(deployment) {
 export async function flushScores(timeoutMs = 3000) {
   const batch = pending.splice(0);
   if (!batch.length) return;
-  const results = await Promise.allSettled(batch.map(body => postScore(body, timeoutMs)));
+  const results = await Promise.allSettled(batch.map(body => langfuseRequest("POST", "/api/public/scores", body, timeoutMs)));
   for (const r of results) if (r.status === "rejected") debug("could not send a score", r.reason);
 }
 

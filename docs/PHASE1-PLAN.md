@@ -210,7 +210,8 @@ need) both show their scores, and the deployment record holds the trace id.
 The `ask` callback is already injected, so a scripted run needs no new interview code.
 
 - `scripts/eval-interview.js` runs `runInterview` against each app in `apps/` with
-  pre-written answers in `test/fixtures/answers/<app>.json`, and without deploying.
+  pre-written answers in `test/fixtures/eval/<app>.json` (with the expected result beside
+  them), and without deploying.
 - Each run is linked to a LangFuse dataset item named after the app, with the expected
   outcome: the static site gives a `ready` plan with `static_site_edge`; the API gives
   `http_api_serverless`; the payment events processor is refused with the needs it should

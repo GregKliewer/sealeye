@@ -1,0 +1,10 @@
+{
+  "answers": [
+    "Yes, that's right.",
+    "It must only be reachable from inside the bank."
+  ],
+  "expected": {
+    "status": "drafted",
+    "needs": ["continuous_service", "event_stream", "internal_only", "relational_database", "runtime_secrets"]
+  }
+}

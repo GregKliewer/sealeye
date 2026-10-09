@@ -75,13 +75,13 @@ function scriptedClient(plan) {
 test("one run sends one trace, and nothing from the folder's files is in it", async () => {
   process.env.LANGFUSE_PUBLIC_KEY ||= "pk-lf-test";
   process.env.LANGFUSE_SECRET_KEY ||= "sk-lf-test-only";
-  const { startTracing, flushTracing, flushScores, useScoreSender } = await import("../core/tracing.js");
+  const { startTracing, flushTracing, flushScores, useLangfuseTransport } = await import("../core/tracing.js");
   const { runInterview } = await import("../cli/interview/loop.js");
 
   const exporter = new InMemorySpanExporter();
   assert.equal(startTracing({ exporter }), true);
   const scores = [];
-  useScoreSender(body => { scores.push(body); });
+  useLangfuseTransport((method, apiPath, body) => { scores.push(body); return {}; });
 
   const app = staticApp();
   const indexHtml = fs.readFileSync(path.join(app, "index.html"), "utf8");

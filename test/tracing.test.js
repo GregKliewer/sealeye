@@ -24,7 +24,7 @@ import {
   traceTurn,
   turnOutput,
   usageDetails,
-  useScoreSender
+  useLangfuseTransport
 } from "../core/tracing.js";
 
 const root = path.resolve(import.meta.dirname, "..");
@@ -265,7 +265,7 @@ test("with keys, a broken exporter never breaks a run", async () => {
 
 function fakeSender() {
   const sent = [];
-  useScoreSender(body => { sent.push(body); });
+  useLangfuseTransport((method, apiPath, body) => { sent.push(body); return {}; });
   return sent;
 }
 
@@ -316,7 +316,7 @@ test("a deployment is scored only on a final status read from the platform", asy
 });
 
 test("a score that cannot be sent is dropped, and flushScores never throws", async () => {
-  useScoreSender(() => { throw new Error("network down"); });
+  useLangfuseTransport(() => { throw new Error("network down"); });
   scoreTrace(TRACE, "questions_asked", 1);
   await flushScores(200);
   const sent = fakeSender();

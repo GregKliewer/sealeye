@@ -172,6 +172,9 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
 ## Working here
 
 - `npm test` before every commit. It needs no AWS and no API key.
+- `npm run eval:interview` before and after any change to `prompts/`. It runs the
+  interview on each sample app, grades the plans, and records a LangFuse dataset run;
+  it needs ANTHROPIC_API_KEY and LangFuse keys, and deploys nothing.
 - `npm start` runs the API from the repo root; `npm link` from the repo root installs
   `sealeye`.
 - One decision per commit where possible. A decision goes in DESIGN.md with its date and

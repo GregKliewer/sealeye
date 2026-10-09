@@ -1,0 +1,12 @@
+{
+  "answers": [
+    "Yes, that's right.",
+    "No, nothing else. It's just the site."
+  ],
+  "expected": {
+    "status": "ready",
+    "modules": ["static_site_edge"],
+    "notModules": ["http_api_serverless"],
+    "needs": []
+  }
+}

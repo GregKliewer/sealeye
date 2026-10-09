@@ -303,6 +303,23 @@ trace contains.
   LangFuse matches on id, name and date, so a re-read on a later day adds a copy with
   the same value, which is harmless for a final status.
 
+**The interview regression set.** Decided Fri Oct 9, 2026, writing PHASE1-PLAN Step 6.
+
+- *One fixture per sample app, answers and expected result together,* in
+  `test/fixtures/eval/<app>.json` rather than the plan's `answers/` folder: what to say
+  and what should come of it are one case, and a test checks every app has one.
+- *What "right" means.* The outcome (ready, drafted, or how it stopped) must match. A
+  ready plan must enable its building block and not the other one. Needs must match
+  exactly, by kind; a missing or extra need is named. A drafted plan is not graded on
+  modules. The payment processor's five expected needs are each shown in its code or
+  README: it reads a Kafka stream continuously, writes to Postgres, reads a signing
+  key, and says it must not be reachable from the internet.
+- *Cost comes from LangFuse, not a score.* A dataset run shows each item's cost and
+  latency from its linked trace, so the script does not price tokens itself.
+- *Eval traces live in the `eval` environment,* so they never mix with real runs, and
+  the script starts its own API with an empty store, so it adds no deployment records.
+- *Dataset items hold the app's name, never its files,* the same rule as traces.
+
 ## The earliest code is Greg's to share
 
 Decided Fri Oct 9, 2026.

@@ -14,7 +14,8 @@
     "start": "node api/server.js",
     "dev": "node --watch api/server.js",
     "cli": "node cli/bin/sealeye",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "eval:interview": "node scripts/eval-interview.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.127.0",

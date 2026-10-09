@@ -1,0 +1,12 @@
+{
+  "answers": [
+    "Yes, that's right. It stays up and answers requests.",
+    "No, nothing else."
+  ],
+  "expected": {
+    "status": "ready",
+    "modules": ["http_api_serverless"],
+    "notModules": ["static_site_edge"],
+    "needs": []
+  }
+}
