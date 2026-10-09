@@ -155,3 +155,22 @@ uploads a zip of the folder, with the same exclusions as packaging and with secr
 never leaving the laptop, and the API unpacks it into a scratch folder per interview.
 Reading from a connected Git repository and branch comes later, for the portal and for
 promotions. Upload first keeps the promise that you run seaLeye in your own folder.
+
+**One AWS account, ca-central-1, Postgres, grown in three stages.** Everything stays in
+one account and one region. The executor runs the AWS CLI and polls CloudFormation from a
+long-lived process, so it needs a real machine with an IAM role, not Lambda and not
+stored access keys. Each stage starts on a trigger, not a date:
+
+1. Pilot: one EC2 t4g.small running the API, Postgres and Caddy in Docker Compose, with a
+   nightly `pg_dump` to S3. About $20 a month.
+2. When someone else's data matters: the same server, with Postgres moved to RDS
+   (db.t4g.micro) for backups, point-in-time restore and patching. About $35 to $40.
+3. When downtime becomes the problem (a second team, or anyone who expects it to stay
+   up): ECS Express Mode, which is Fargate behind a load balancer, plus the same RDS.
+   About $65 to $100, less with a 1-year Savings Plan.
+
+Ruled out: API Gateway in front of the API, because it times out at 30 seconds and an
+interview turn takes 25 to 45 seconds over server-sent events; Lightsail, Fly, Render and
+Railway, because they mean long-lived AWS keys and data outside the account and possibly
+outside Canada; Fargate Spot, because an interruption kills a running interview. Costs
+are approximate USD as of Oct 9, 2026.

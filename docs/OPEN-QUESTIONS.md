@@ -15,36 +15,6 @@ yours to share.
 **Now blocking:** A5 brings collaborators into the repo, so this is answered before
 anyone else is invited.
 
-### Q2. Where does the hosted API run, and on what store?
-
-**Options:** a container service or Lambda in your own AWS account; a managed platform
-(Fly, Render, Railway). Store: Postgres (RDS or managed), or DynamoDB.
-
-**Leaning:** your AWS account, ca-central-1, a container service and Postgres. It keeps
-everything in one account and one region, and the executor already shells out to the AWS
-CLI, which suits a container better than Lambda.
-
-A2: Your AWS account, ca-central-1, Postgres, in three stages. Each stage is set off by a
-trigger, not a date.
-
-1. **Pilot: one EC2 t4g.small** running the API, Postgres and Caddy in Docker Compose,
-   with nightly `pg_dump` to S3 (Phase 1 plan D4/D5). About $20 a month.
-2. **When someone else's data matters: keep the EC2 server, move Postgres to RDS**
-   (db.t4g.micro). About $35 to $40 a month. RDS takes over backups, point-in-time restore
-   and patching, so a lost disk or a bad upgrade can no longer lose data. Deploys and
-   patching still cause a minute or two of downtime, and Greg still patches the server.
-3. **When downtime becomes the problem: ECS Express Mode (Fargate behind a load balancer)
-   plus the same RDS.** About $65 to $100 a month. The trigger is a second team, or anyone
-   who expects the service to stay up. Add a 1-year Savings Plan or RDS reservation then
-   (20 to 40 percent off) if the bill matters.
-
-Ruled out: Lambda and API Gateway in front of Fargate (API Gateway times out at 30
-seconds, and interview turns take 25 to 45 seconds over server-sent events); Lightsail,
-Fly, Render and Railway (no instance role, so long-lived AWS keys, and data leaves the
-account and possibly Canada); Fargate Spot (an interruption kills a running interview).
-DynamoDB and Aurora Serverless scaled to zero stay possible but aren't planned.
-Costs are approximate USD as of Oct 9, 2026. Check the AWS calculator before quoting them.
-
 ### Q3. How do people sign in?
 
 **Options:** GitHub OAuth (fast, and developers have it); Google; Amazon Cognito (can
