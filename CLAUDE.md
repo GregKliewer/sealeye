@@ -132,7 +132,10 @@ break.
   clear message and exit 1.
 - Tools: list_files and read_file, read-only, inside the app folder only (no `..`, no
   symlinks out, no node_modules, .git, .sealeye); read_file capped at 20 KB,
-  list_files at 40 entries. submit_plan(plan, summary, assumptions) ends it.
+  list_files at 40 entries. read_file refuses secret files (`.env`, `.env.*` except
+  `.env.example` and `.env.sample`, `.envrc`, `*.pem`, `*.key`, SSH keys, `.npmrc`,
+  `credentials`); list_files still shows their names. submit_plan(plan, summary,
+  assumptions) ends it.
 - At most four questions, one per turn, in developer language. Look at the folder
   before asking anything the folder can answer.
 - The submitted plan goes to POST /plans/validate; errors go back to the model; two
