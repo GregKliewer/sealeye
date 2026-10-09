@@ -253,6 +253,18 @@ files read earlier, so it would break the rule above. It is also untested agains
 `@anthropic-ai/sdk` 0.127 this repo pins. Hand-written spans let seaLeye decide what a
 trace contains.
 
+**What a trace holds, as built.** Checked by hand on Greg's own runs on Oct 9, and by
+`test/interview-trace.test.js` on every `npm test`.
+
+| In a trace | Never in a trace |
+|---|---|
+| Each turn's shape: roles, block types, tool names, file paths, lengths | Any file's contents, including earlier reads resent on later turns |
+| The model's text and tool calls; `submit_plan` whole | The model's thinking (recorded as a step, not its words) |
+| Each file read: path, size, truncated or not, any refusal and its reason | `.env` and credential files, which the interview cannot read at all |
+| Each question, and each answer after the mask | A secret shaped like one (keys, tokens, `NAME=value` secrets, private keys) |
+| The plan check: valid, error count, error messages, retry | The prompt's text (recorded as a hash of the file) |
+| Token usage and cost, the model, the app name, the user name, the six scores | Anything from the developer's folder beyond names and sizes |
+
 **How `core/tracing.js` is built.** Decided Fri Oct 9, 2026, writing PHASE1-PLAN Step 3.
 
 - *LangFuse SDK v5, not the v4 the plan sketched.* v5 is current; the names the plan used

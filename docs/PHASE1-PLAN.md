@@ -62,6 +62,13 @@ answer, and it is the more useful thing to learn.
 
 ## Part A: tracing the interview (before Tuesday)
 
+**Status:** built and checked by hand on Fri Oct 9, 2026, on `langfuse-tracing` (pull
+request #4, not merged). Where the build differs from the steps below, DESIGN.md says
+why: LangFuse SDK v5 with a tracer provider of seaLeye's own (Step 3), scores sent one
+bounded request each rather than through `@langfuse/client` (Step 5), and regression
+runs recorded as LangFuse experiments, because dataset runs are off for new
+organizations (Step 6).
+
 ### Step 0. Branch and baseline
 
 ```bash
