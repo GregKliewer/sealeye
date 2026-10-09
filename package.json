@@ -12,7 +12,7 @@
   },
   "scripts": {
     "start": "node api/server.js",
-    "dev": "nodemon api/server.js",
+    "dev": "node --watch api/server.js",
     "cli": "node cli/bin/sealeye",
     "test": "node --test test/*.test.js"
   },
@@ -22,8 +22,5 @@
     "ajv-formats": "^3.0.1",
     "express": "^5.2.1",
     "yaml": "^2.8.4"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.14"
   }
 }
