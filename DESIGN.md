@@ -316,8 +316,13 @@ trace contains.
   key, and says it must not be reachable from the internet.
 - *Cost comes from LangFuse, not a score.* A dataset run shows each item's cost and
   latency from its linked trace, so the script does not price tokens itself.
-- *Eval traces live in the `eval` environment,* so they never mix with real runs, and
-  the script starts its own API with an empty store, so it adds no deployment records.
+- *Each app is recorded the way LangFuse's own experiment runner records an item.*
+  Linking traces to a dataset run through the REST API alone was accepted but never
+  shown: this LangFuse builds its Experiments view from marks on the spans. So each app
+  runs under a root span linked to the dataset run, every span under it carries the
+  experiment's run id, name, dataset id and item id, and the root is in LangFuse's
+  `sdk-experiment` environment, which also keeps these traces apart from real runs.
+  The script starts its own API with an empty store, so it adds no deployment records.
 - *Dataset items hold the app's name, never its files,* the same rule as traces.
 
 ## The earliest code is Greg's to share

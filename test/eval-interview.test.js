@@ -118,11 +118,15 @@ function clientFor(plan) {
 test("one pass grades all three apps and records a dataset run in LangFuse", async () => {
   process.env.LANGFUSE_PUBLIC_KEY ||= "pk-lf-test";
   process.env.LANGFUSE_SECRET_KEY ||= "sk-lf-test-only";
-  assert.equal(startTracing({ exporter: new InMemorySpanExporter() }), true);
+  const exporter = new InMemorySpanExporter();
+  assert.equal(startTracing({ exporter }), true);
 
+  // LangFuse answers with the ids the experiment marks need.
   const requests = [];
   useLangfuseTransport((method, apiPath, body) => {
     requests.push({ method, apiPath, body });
+    if (apiPath === "/api/public/v2/datasets") return { id: "ds_1" };
+    if (apiPath === "/api/public/dataset-run-items") return { datasetRunId: "run_1" };
     return {};
   });
 
@@ -148,7 +152,26 @@ test("one pass grades all three apps and records a dataset run in LangFuse", asy
 
   const links = posts("/api/public/dataset-run-items");
   assert.deepEqual(links.map(b => b.traceId), rows.map(r => r.traceId));
-  assert.ok(links.every(b => b.runName === "test run"));
+  assert.ok(links.every(b => b.runName === "test run" && b.observationId), "linked to each item's root span");
+
+  // What the Experiments view is built from, as LangFuse's own runner leaves it.
+  const spans = exporter.getFinishedSpans();
+  const roots = spans.filter(sp => sp.name === "experiment-item-run");
+  assert.equal(roots.length, 3);
+  for (const root of roots) {
+    assert.equal(root.attributes["langfuse.environment"], "sdk-experiment");
+    assert.ok(root.attributes["langfuse.experiment.item.expected_output"]);
+  }
+  const marked = spans.filter(sp => sp.name === "sealeye run");
+  assert.equal(marked.length, 3);
+  for (const sp of marked) {
+    assert.equal(sp.attributes["langfuse.experiment.id"], "run_1");
+    assert.equal(sp.attributes["langfuse.experiment.name"], "test run");
+    assert.equal(sp.attributes["langfuse.experiment.dataset.id"], "ds_1");
+    assert.match(sp.attributes["langfuse.experiment.item.id"], /^sealeye-interview-/);
+    const root = roots.find(r => r.spanContext().traceId === sp.spanContext().traceId);
+    assert.equal(sp.attributes["langfuse.experiment.item.root_observation_id"], root.spanContext().spanId);
+  }
 
   const scores = posts("/api/public/scores");
   const named = name => scores.filter(s => s.name === name).map(s => s.value);

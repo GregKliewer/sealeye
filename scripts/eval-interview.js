@@ -28,6 +28,7 @@ import {
   promptVersion,
   scoreTrace,
   startTracing,
+  traceExperimentItem,
   tracingConfigured
 } from "../core/tracing.js";
 
@@ -87,19 +88,23 @@ export function allCorrect(row) {
   return !row.error && row.outcomeCorrect && row.needsCorrect && row.modulesCorrect !== false;
 }
 
-/** Create the dataset if it is not there yet. */
+/** The dataset's id, creating the dataset if it is not there yet. */
 async function ensureDataset() {
   try {
-    await langfuseRequest("POST", "/api/public/v2/datasets", {
+    const created = await langfuseRequest("POST", "/api/public/v2/datasets", {
       name: DATASET,
       description: "The sample apps in apps/, with the plan each one should get. Written by scripts/eval-interview.js."
     }, 10_000);
+    if (created?.id) return created.id;
   } catch (err) {
     // Already there is fine; anything else (bad keys, no network) is not.
-    await langfuseRequest("GET", `/api/public/v2/datasets/${encodeURIComponent(DATASET)}`, undefined, 10_000).catch(() => {
+    const existing = await langfuseRequest("GET", `/api/public/v2/datasets/${encodeURIComponent(DATASET)}`, undefined, 10_000).catch(() => {
       throw err;
     });
+    return existing?.id;
   }
+  const existing = await langfuseRequest("GET", `/api/public/v2/datasets/${encodeURIComponent(DATASET)}`, undefined, 10_000);
+  return existing?.id;
 }
 
 /**
@@ -109,7 +114,8 @@ async function ensureDataset() {
  * @returns {Promise<object[]>} one graded row per app
  */
 export async function evaluate({ cases, apiBaseUrl, runName, model, clientFor, log = () => {} }) {
-  await ensureDataset();
+  const datasetId = await ensureDataset();
+  const description = `Interview prompt ${promptVersion()}, model ${model}`;
 
   const rows = [];
   for (const { app, answers, expected } of cases) {
@@ -128,30 +134,28 @@ export async function evaluate({ cases, apiBaseUrl, runName, model, clientFor, l
     let row;
 
     try {
-      const result = await runInterview({
-        appPath: path.join(repoRoot, "apps", app),
-        apiBaseUrl,
-        model,
-        user: "eval",
-        ask: async () => (queue.length ? queue.shift() : FALLBACK_ANSWER),
-        ...(clientFor ? { client: clientFor(app) } : {})
-      });
+      // Recorded the way LangFuse's own experiment runner records an item, so the run
+      // shows under the dataset's Experiments with each app's trace, cost and scores.
+      row = await traceExperimentItem(
+        { runName, description, datasetId, itemId, input: { app }, expectedOutput: expected },
+        async () => {
+          const result = await runInterview({
+            appPath: path.join(repoRoot, "apps", app),
+            apiBaseUrl,
+            model,
+            user: "eval",
+            ask: async () => (queue.length ? queue.shift() : FALLBACK_ANSWER),
+            ...(clientFor ? { client: clientFor(app) } : {})
+          });
+          return { app, traceId: result.traceId, ...grade(result, expected) };
+        }
+      );
       await flushTracing();
 
-      row = { app, traceId: result.traceId, ...grade(result, expected) };
-
-      if (result.traceId) {
-        scoreTrace(result.traceId, "outcome_correct", row.outcomeCorrect);
-        scoreTrace(result.traceId, "needs_correct", row.needsCorrect);
-        if (row.modulesCorrect !== null) scoreTrace(result.traceId, "modules_correct", row.modulesCorrect);
-
-        await langfuseRequest("POST", "/api/public/dataset-run-items", {
-          runName,
-          runDescription: `Interview prompt ${promptVersion()}, model ${model}`,
-          datasetItemId: itemId,
-          traceId: result.traceId,
-          metadata: { prompt: promptVersion(), model }
-        }, 10_000);
+      if (row.traceId) {
+        scoreTrace(row.traceId, "outcome_correct", row.outcomeCorrect);
+        scoreTrace(row.traceId, "needs_correct", row.needsCorrect);
+        if (row.modulesCorrect !== null) scoreTrace(row.traceId, "modules_correct", row.modulesCorrect);
       }
     } catch (err) {
       row = { app, error: err.message };
@@ -218,13 +222,16 @@ async function main() {
     process.exit(1);
   }
 
-  // Eval traces live in their own LangFuse environment, so they never mix with real
-  // runs in the Tracing and Sessions views.
-  process.env.LANGFUSE_TRACING_ENVIRONMENT ||= "eval";
+  // Each app's trace is marked as an experiment (environment "sdk-experiment", the
+  // one LangFuse's own runner uses), so it never mixes with real runs.
   startTracing();
 
   const model = setting("MODEL") || DEFAULT_MODEL;
-  const stamp = new Date().toISOString().slice(0, 19).replace("T", " ");
+  // Local time, so the run name matches the clock of whoever ran it.
+  const now = new Date();
+  const two = n => String(n).padStart(2, "0");
+  const stamp = `${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())} ` +
+    `${two(now.getHours())}:${two(now.getMinutes())}:${two(now.getSeconds())}`;
   const runName = `${stamp} prompt ${promptVersion()}`;
   const cases = loadCases();
 
@@ -243,7 +250,7 @@ async function main() {
   console.log("");
   for (const line of summaryLines(rows)) console.log(line);
   console.log("");
-  console.log(`In LangFuse: Datasets, ${DATASET}, then this run. Choose the environment "eval" to see its traces.`);
+  console.log(`In LangFuse: Datasets, ${DATASET}, Experiments, then this run.`);
 
   process.exitCode = rows.every(allCorrect) ? 0 : 1;
 }

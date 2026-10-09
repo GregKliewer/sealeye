@@ -22,7 +22,7 @@ import { context } from "@opentelemetry/api";
 import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { LangfuseSpanProcessor } from "@langfuse/otel";
-import { configureGlobalLogger, LogLevel } from "@langfuse/core";
+import { configureGlobalLogger, LANGFUSE_SDK_EXPERIMENT_ENVIRONMENT, LangfuseOtelSpanAttributes, LogLevel } from "@langfuse/core";
 import {
   getActiveTraceId,
   propagateAttributes,
@@ -373,6 +373,51 @@ export function traceStep(name, fn) {
       };
       return wrapped(span, handle);
     }), fn, noop);
+}
+
+/**
+ * One dataset item's run, for the interview regression set, recorded the way LangFuse's
+ * own experiment runner records it so it shows under the dataset's Experiments: a root
+ * span linked to the dataset run, and every span under it marked with the experiment.
+ * `fn(item)` does the work and returns what to show as the item's output;
+ * `item.traceId` is this trace. Throws if tracing is off, because an experiment with
+ * no trace is nothing to look at.
+ */
+export async function traceExperimentItem({ runName, description, datasetId, itemId, input, expectedOutput }, fn) {
+  if (!provider) throw new Error("tracing is not on, so there is nothing to record the run in");
+
+  return startActiveObservation("experiment-item-run", async span => {
+    const traceId = span.traceId;
+    const run = await langfuseRequest("POST", "/api/public/dataset-run-items", {
+      runName,
+      runDescription: description,
+      datasetItemId: itemId,
+      traceId,
+      observationId: span.id
+    }, 10_000);
+
+    span.otelSpan.setAttributes({
+      [LangfuseOtelSpanAttributes.ENVIRONMENT]: LANGFUSE_SDK_EXPERIMENT_ENVIRONMENT,
+      [LangfuseOtelSpanAttributes.EXPERIMENT_DESCRIPTION]: description,
+      [LangfuseOtelSpanAttributes.EXPERIMENT_ITEM_EXPECTED_OUTPUT]: JSON.stringify(expectedOutput)
+    });
+
+    const output = await propagateAttributes(
+      {
+        _internalExperiment: {
+          experimentId: run?.datasetRunId,
+          experimentName: runName,
+          experimentDatasetId: datasetId,
+          experimentItemId: itemId,
+          experimentItemRootObservationId: span.id
+        }
+      },
+      () => fn({ traceId })
+    );
+
+    quietly(() => span.update({ input, output }));
+    return output;
+  });
 }
 
 /** One list_files or read_file call: its path and size, never its contents. */
