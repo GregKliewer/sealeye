@@ -15,35 +15,6 @@ yours to share.
 **Now blocking:** A5 brings collaborators into the repo, so this is answered before
 anyone else is invited.
 
-### Q9. What is the portal built with?
-
-Today it is static HTML with each page's data inlined as JSON. **Options:** keep it
-plain (HTML, CSS, a little JavaScript fetching the API); a framework (React, Svelte).
-**Leaning:** stay plain until a page needs real interaction (the interview will), then
-decide. Whatever it is, it uses `brand/BRAND-ONLINE.md` and only the API.
-
-A9: React + TypeScript, built with Vite into plain static files, plus shadcn/ui for
-buttons, tables and forms, plus Playwright tests.
-
-- **Why React:** coding agents write it most reliably, because there is more React code
-  than any other framework's. The interview page, with streamed progress, questions and
-  answers, is the kind of live page React handles well.
-- **Why TypeScript:** when an agent's change breaks how data flows between pages, or calls
-  an API field that doesn't exist, the build fails with a clear error, without anyone
-  reading the code.
-- **Why Vite and static files:** no second server. Caddy serves the built files from the
-  same machine as the API (A2), and the portal talks only to the API.
-- **shadcn/ui:** its components are copied into the repo, not installed as a dependency,
-  and they take their colours and type from `brand/BRAND-ONLINE.md`.
-- **Playwright:** tests that pages load and work, so an agent can check its own change
-  before it is merged. They run in CI next to `npm test`.
-- **Starting point:** the archived seaLeye.online mock-up (`archive/sealeye-online/`) is
-  the design reference. Rebuild it in `portal/`; don't copy its HTML.
-- **Not chosen:** Next.js (a second server, or Vercel hosting), Svelte and Vue (agents
-  have less to draw on, and Svelte 5 changed its syntax), staying plain (the interview
-  page would mean a rewrite).
-- **Cost:** $0. All of it is open source, and hosting adds nothing to the A2 server.
-
 ## Later
 
 ### Q6. How are hardcoded secrets detected during ingestion?

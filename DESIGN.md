@@ -195,3 +195,15 @@ rewrite.
 `ANTHROPIC_API_KEY` and any other model settings, and the CLI streams it. Developers no
 longer need a key of their own, model cost can be priced into the product as the vision
 says, and the system prompt stays off developers' machines. Tracing keys move with it.
+
+**The portal is React and TypeScript, built with Vite, with shadcn/ui and Playwright.**
+Greg builds through coding agents, and agents write React more reliably than any other
+framework because there is the most of it to learn from. TypeScript makes an agent's
+mistake a failed build with a clear error, rather than something found by reading code.
+Vite builds plain static files that Caddy serves beside the API, so there is no second
+server, and the portal talks only to the API. shadcn/ui components are copied into the
+repo and styled from `brand/BRAND-ONLINE.md`. Playwright tests check that pages load and
+work, and run in CI beside `npm test`. The archived seaLeye.online mock-up is the design
+reference; the portal is rebuilt in `portal/`, not copied. Not chosen: Next.js (a second
+server), Svelte and Vue (less for agents to draw on), staying plain (the interview page
+would force a rewrite). All of it is free.
