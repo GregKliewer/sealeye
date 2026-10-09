@@ -272,9 +272,12 @@ trace contains.
   interrupted, and a run is a few dozen spans, so sending each one is cheap and an
   interrupted run still leaves what it did. `flushTracing()` waits for the last few.
 - *Token counts use Anthropic's field names.* `input`, `output`,
-  `cache_read_input_tokens` and `cache_creation_input_tokens`, which is what LangFuse's
-  Anthropic example uses. Step 4 checks that cost shows up against the `claude-sonnet-5`
-  model definition; if cache writes show no cost, that key is the one to rename.
+  `cache_read_input_tokens` and `cache_creation_input_tokens`. LangFuse's maintained
+  `claude-sonnet-5` definition prices each of these names directly (checked in the
+  `sealeye-dev` project, Oct 9). Its `cache_creation_input_tokens` price is the
+  five-minute cache rate, which is what the interview asks for (`ephemeral` with no
+  `ttl`). If the system prompt ever moves to the one-hour cache, cache writes must be
+  sent as `input_cache_creation_1h` instead, or their cost will read low.
 
 ## The earliest code is Greg's to share
 
