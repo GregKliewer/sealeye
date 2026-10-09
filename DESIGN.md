@@ -312,3 +312,16 @@ and its documents were removed from history on Oct 8. Before collaborators are i
 (the first-release decision above), Greg confirmed that he owns all of the code, and
 that no line of it was lifted, copied or drawn from work produced for a previous
 employer. This was OPEN-QUESTIONS Q12.
+
+## npm run dev uses Node's own watcher
+
+Decided Fri Oct 9, 2026.
+
+`npm run dev` is now `node --watch api/server.js`, and nodemon is gone. nodemon was the
+only thing left in `npm audit` that `npm audit fix` could not fix: its file watcher
+depends on a vulnerable `braces`, and the offered "fix" was a downgrade to a 2018
+release. Node has restarted on file changes by itself since 18.11, so the dependency was
+doing nothing Node does not, and removing it took 27 packages out of the install. The
+rest of that audit (Express's `body-parser`, `proxy-addr` and `qs`, and ajv's
+`fast-uri`) was patch and minor updates within the ranges already in package.json.
+`npm audit` reports nothing after this.
