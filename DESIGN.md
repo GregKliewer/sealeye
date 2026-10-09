@@ -278,6 +278,12 @@ trace contains.
   five-minute cache rate, which is what the interview asks for (`ephemeral` with no
   `ttl`). If the system prompt ever moves to the one-hour cache, cache writes must be
   sent as `input_cache_creation_1h` instead, or their cost will read low.
+- *The trace is sent when the interview returns, not at exit.* Only the interview is
+  traced, so its trace is complete at that point, and deploy and watch can end the
+  process in more ways than are worth guarding one by one. Ctrl+C and a crash also send
+  what there is, waiting at most a second; with tracing off they exit exactly as before.
+- *`runInterview` takes an optional `client`.* Tests pass a scripted one, so the real
+  loop, tools and API can be checked for what they send to LangFuse without a model.
 
 ## The earliest code is Greg's to share
 

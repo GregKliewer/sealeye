@@ -136,6 +136,9 @@ break.
   `.env.example` and `.env.sample`, `.envrc`, `*.pem`, `*.key`, SSH keys, `.npmrc`,
   `credentials`); list_files still shows their names. submit_plan(plan, summary,
   assumptions) ends it.
+- Tracing (LangFuse, `core/tracing.js`) is on only when LangFuse keys are set. It
+  records the shape of each turn, file paths and sizes, never file contents; anything
+  new the interview records goes through those helpers, not straight to LangFuse.
 - At most four questions, one per turn, in developer language. Look at the folder
   before asking anything the folder can answer.
 - The submitted plan goes to POST /plans/validate; errors go back to the model; two

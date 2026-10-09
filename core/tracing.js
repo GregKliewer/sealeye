@@ -353,6 +353,28 @@ export function traceTurn({ turn, model, messages }, fn) {
     }, { asType: "generation" }), fn, noop);
 }
 
+/**
+ * A timed step of seaLeye's own, such as checking a plan against the contract.
+ * `fn(step)` does the work; `step.set(attrs)` records what came of it, cleaned and
+ * masked like an event.
+ */
+export function traceStep(name, fn) {
+  const noop = { set() {} };
+  if (!provider) return fn(noop);
+
+  const recorded = {};
+  return guarded(wrapped =>
+    startActiveObservation(safeId(name), async span => {
+      const handle = {
+        set(attrs) {
+          Object.assign(recorded, eventAttributes(attrs));
+          quietly(() => span.update({ output: recorded }));
+        }
+      };
+      return wrapped(span, handle);
+    }), fn, noop);
+}
+
 /** One list_files or read_file call: its path and size, never its contents. */
 export function traceTool(fields) {
   if (!provider) return;

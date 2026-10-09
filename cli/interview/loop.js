@@ -14,6 +14,7 @@ import { validatePlan } from "../client.js";
 import { product, spinner } from "../brand.js";
 import { catalogForPrompt, orgName } from "../../core/catalog.js";
 import { repoRoot, loadEnv, loadUserConfig, setting, USER_CONFIG_HINT } from "../../core/config.js";
+import { promptVersion, traceEvent, traceRun, traceStep, traceTool, traceTurn } from "../../core/tracing.js";
 import { submitPlanTool, splitSubmission } from "./schema.js";
 import { listFilesTool, readFileTool, runTool, folderDigest } from "./tools.js";
 
@@ -211,13 +212,23 @@ function asUserFacing(err) {
  * One model turn, retried once. Anything the retry does not fix comes back as a
  * sentence rather than a stack: the developer cannot fix an SDK trace.
  */
-async function createWithOneRetry(client, params, onStep) {
+async function createWithOneRetry(client, params, onStep, turn = 0) {
+  // One generation in the trace per turn, retry included, so a slow turn can be
+  // explained from the trace the way debugTurn explains it on stderr. The trace sees
+  // the shape of the conversation, never its contents (core/tracing.js).
+  return traceTurn({ turn, model: params.model, messages: params.messages }, traced =>
+    createOnce(client, params, onStep, traced)
+  );
+}
+
+async function createOnce(client, params, onStep, traced) {
   const startedAt = Date.now();
 
   try {
     return await client.messages.create(params);
   } catch (err) {
     if (!isRetryable(err)) throw asUserFacing(err);
+    traced.retried(err);
 
     // A rate limit or a dropped connection comes back in well under a second. Saying
     // that is taking longer than it should while it plainly has not is how a platform
@@ -279,6 +290,18 @@ function turnEndedIn(response) {
 }
 
 /**
+ * What the trace records about one list_files or read_file call: the path, the size
+ * of what came back and any refusal, never the contents themselves.
+ */
+function toolRecord(use, content, isError) {
+  const text = String(content ?? "");
+  const record = { name: use.name, path: typeof use.input?.path === "string" ? use.input.path : "." };
+  if (isError) return { ...record, refused: text.replace(/^refused: /, "") };
+  if (use.name === "list_files") return { ...record, entries: text ? text.split("\n").length : 0 };
+  return { ...record, bytes: Buffer.byteLength(text), truncated: /\(truncated at \d+ KB\)$/.test(text) };
+}
+
+/**
  * Run the interview.
  *
  * @param {object}   options
@@ -289,7 +312,9 @@ function turnEndedIn(response) {
  * @param {string}   options.apiBaseUrl  the platform API, for plan validation
  * @param {function} options.ask         (question, lead[]) => Promise<string>, one line from the terminal
  * @param {function} options.onStep      (line) => void, one plain-language line of what the platform is doing
- * @returns {Promise<{status: "submitted"|"stopped"|"invalid", plan?, summary?, assumptions?, questions?, message?, errors?}>}
+ * @param {string}   [options.user]      who is running it, for the trace (requestedBy's user)
+ * @param {object}   [options.client]    an Anthropic client; tests pass a scripted one
+ * @returns {Promise<{status: "submitted"|"stopped"|"invalid", plan?, summary?, assumptions?, questions?, message?, errors?, traceId?}>}
  */
 export async function runInterview({
   appPath,
@@ -297,19 +322,45 @@ export async function runInterview({
   deployed = null,
   ask,
   onStep = () => {},
-  model = setting("MODEL") || DEFAULT_MODEL
+  model = setting("MODEL") || DEFAULT_MODEL,
+  user,
+  client
 }) {
-  const apiKey = resolveApiKey();
-  if (!apiKey) {
-    throw userFacing(
-      `ANTHROPIC_API_KEY is not set, so put it in your environment or in ${USER_CONFIG_HINT} and run ${product.command} run again.`
-    );
+  if (!client) {
+    const apiKey = resolveApiKey();
+    if (!apiKey) {
+      throw userFacing(
+        `ANTHROPIC_API_KEY is not set, so put it in your environment or in ${USER_CONFIG_HINT} and run ${product.command} run again.`
+      );
+    }
+
+    // The SDK's own retries are off: one retry, announced, beats three silent ones in
+    // front of an audience.
+    client = new Anthropic({ apiKey, timeout: TIMEOUT_MS, maxRetries: 0 });
   }
 
-  // The SDK's own retries are off: one retry, announced, beats three silent ones in
-  // front of an audience.
-  const client = new Anthropic({ apiKey, timeout: TIMEOUT_MS, maxRetries: 0 });
+  // One trace per run, when LangFuse is configured. The session is the app's name, so
+  // every run of one app lines up; the prompt is recorded by version, never by text.
+  // The trace id comes back with the result, so a deployment can be joined to the
+  // interview that produced it.
+  return traceRun(
+    {
+      app: path.basename(path.resolve(appPath)),
+      mode: deployed ? "re-run" : "first run",
+      model,
+      promptSha: promptVersion(),
+      user
+    },
+    async run => {
+      const result = await interview({ appPath, apiBaseUrl, deployed, ask, onStep, model, client });
+      run.set({ status: result.status, questions: result.questions ?? 0 });
+      return run.traceId ? { ...result, traceId: run.traceId } : result;
+    }
+  );
+}
 
+/** The conversation itself. runInterview owns the client and the trace around it. */
+async function interview({ appPath, apiBaseUrl, deployed, ask, onStep, model, client }) {
   // The system prompt and the tool schemas are the same several thousand tokens on
   // every turn of a run, and a run is a dozen turns. One cache breakpoint on the
   // system block covers the tools too, since they sit in front of it in the prompt,
@@ -397,7 +448,8 @@ export async function runInterview({
           messages,
           ...(supportsTemperature(model) ? { temperature: 0.2 } : {})
         },
-        announce
+        announce,
+        turn
       );
     } finally {
       // Whatever came back, including an error on its way to the CLI, the line is
@@ -425,7 +477,16 @@ export async function runInterview({
           const submission = splitSubmission(use.input);
 
           announce("Checking the plan against the seaLeye.run plan contract");
-          const result = await validatePlan({ apiBaseUrl, plan: submission.plan });
+          const result = await traceStep("plan checked", async step => {
+            const checked = await validatePlan({ apiBaseUrl, plan: submission.plan });
+            step.set({
+              valid: Boolean(checked.valid),
+              errorCount: (checked.errors || []).length,
+              errors: (checked.errors || []).map(e => e.message),
+              retry: validationRetries
+            });
+            return checked;
+          });
 
           if (result.valid) {
             return { status: "submitted", ...submission, questions };
@@ -451,6 +512,7 @@ export async function runInterview({
         }
 
         const { content, isError } = runTool(appPath, use.name, use.input || {});
+        traceTool(toolRecord(use, content, isError));
 
         // The line comes after the tool ran, so it says what happened rather than what
         // was about to be attempted.
@@ -487,6 +549,7 @@ export async function runInterview({
           return { status: "stopped", message: text, questions };
         }
         nudged = true;
+        traceEvent("nudged to submit", { questions });
         messages.push({
           role: "user",
           content:
@@ -499,8 +562,12 @@ export async function runInterview({
 
       const { question, lead } = splitQuestion(text);
       questions++;
+      traceEvent("question asked", { number: questions, question });
       stopWaiting();   // a question owns the line, and the developer owns the wait
       const answer = await ask(question, lead);
+      // The answer is the developer's own words. It goes through the mask, which
+      // redacts anything shaped like a secret before it can leave the machine.
+      traceEvent("answer given", { number: questions, answer: answer || "(no answer)" });
 
       // What the platform does next is write the plan, which takes half a minute. The
       // label was still naming the last file it read, so the spinner sat there saying
