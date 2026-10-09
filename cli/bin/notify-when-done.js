@@ -14,6 +14,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 
 import { getDeployment } from "../client.js";
+import { scoreDeploymentOutcome, flushScores } from "../../core/tracing.js";
 
 const POLL_MS = 5000;
 // An hour of five-second polls, then stop rather than keep a process alive forever
@@ -157,6 +158,11 @@ async function main() {
 
     if (dep && (dep.status === "succeeded" || dep.status === "failed")) {
       if (dep.status === "succeeded") writeReport(dep, appPath);
+
+      // The outcome, against the interview that produced it. This is where most runs
+      // end, so without it most deployments would never be scored.
+      scoreDeploymentOutcome(dep);
+      await flushScores();
 
       const appName = dep.app?.name || fallbackAppName || "your app";
       const subtitle = `${appName} · ${deploymentId}`;

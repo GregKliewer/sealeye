@@ -14,7 +14,7 @@ import { validatePlan } from "../client.js";
 import { product, spinner } from "../brand.js";
 import { catalogForPrompt, orgName } from "../../core/catalog.js";
 import { repoRoot, loadEnv, loadUserConfig, setting, USER_CONFIG_HINT } from "../../core/config.js";
-import { promptVersion, traceEvent, traceRun, traceStep, traceTool, traceTurn } from "../../core/tracing.js";
+import { promptVersion, scoreTrace, traceEvent, traceRun, traceStep, traceTool, traceTurn } from "../../core/tracing.js";
 import { submitPlanTool, splitSubmission } from "./schema.js";
 import { listFilesTool, readFileTool, runTool, folderDigest } from "./tools.js";
 
@@ -354,9 +354,23 @@ export async function runInterview({
     async run => {
       const result = await interview({ appPath, apiBaseUrl, deployed, ask, onStep, model, client });
       run.set({ status: result.status, questions: result.questions ?? 0 });
+      scoreInterview(run.traceId, result);
       return run.traceId ? { ...result, traceId: run.traceId } : result;
     }
   );
+}
+
+/**
+ * The interview's own scores. A plan's scores exist only when a plan reached the
+ * contract check; a run that stopped before that has only its question count.
+ */
+function scoreInterview(traceId, result) {
+  if (!traceId) return;
+  scoreTrace(traceId, "questions_asked", result.questions ?? 0);
+  if (Number.isFinite(result.validationRetries)) {
+    scoreTrace(traceId, "plan_valid_first_try", result.status === "submitted" && result.validationRetries === 0);
+    scoreTrace(traceId, "validation_retries", result.validationRetries);
+  }
 }
 
 /** The conversation itself. runInterview owns the client and the trace around it. */
@@ -489,13 +503,13 @@ async function interview({ appPath, apiBaseUrl, deployed, ask, onStep, model, cl
           });
 
           if (result.valid) {
-            return { status: "submitted", ...submission, questions };
+            return { status: "submitted", ...submission, questions, validationRetries };
           }
 
           const errors = result.errors || [];
 
           if (validationRetries >= MAX_VALIDATION_RETRIES) {
-            return { status: "invalid", errors, ...submission, questions };
+            return { status: "invalid", errors, ...submission, questions, validationRetries };
           }
 
           validationRetries++;

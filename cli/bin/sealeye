@@ -19,7 +19,7 @@ import {
 import { banner, step, ask, answer, typing, typed, c, product, spinner, stopSpinner, animations } from "../brand.js";
 import { safeName, CONFIG_FILE, LEGACY_CONFIG_FILE } from "../../core/names.js";
 import { USER_CONFIG_HINT, setting } from "../../core/config.js";
-import { startTracing, flushTracing, tracingActive } from "../../core/tracing.js";
+import { startTracing, flushTracing, tracingActive, scoreTrace, scoreDeploymentOutcome, flushScores } from "../../core/tracing.js";
 import { unsupportedNeeds, refusalClosing, orgName } from "../../core/catalog.js";
 import { runInterview, resolveApiKey } from "../interview/loop.js";
 import { runDoctor } from "../doctor.js";
@@ -378,6 +378,14 @@ async function main() {
       console.log("");
       const reply = await askLine(rl, "Deploy this? [y/N]");
 
+      // How the interview's plan landed, against its trace. Only an interviewed plan has
+      // one; a reused plan has no trace to score.
+      if (submission.traceId) {
+        scoreTrace(submission.traceId, "developer_said_yes", reply.toLowerCase() === "y");
+        scoreTrace(submission.traceId, "needs_refused", needs.length > 0);
+        await flushScores();
+      }
+
       if (reply.toLowerCase() !== "y") {
         console.log("");
         // Only name the files that are actually there: a reused plan may never have
@@ -404,7 +412,14 @@ async function main() {
       requestedBy: requestedBy(),
       origin: submission.reused
         ? { command: "run", planSource: "reused", file: path.basename(configPath) }
-        : { command: "run", planSource: "interview", answers: answersGiven }
+        : {
+            command: "run",
+            planSource: "interview",
+            answers: answersGiven,
+            // The interview that produced this plan, so its outcome can be scored
+            // against it and a reader can find the trace from the record.
+            ...(submission.traceId ? { traceId: submission.traceId } : {})
+          }
     });
 
     // Declined: it has already said so, and there is nothing to watch. With
@@ -497,6 +512,10 @@ async function main() {
 
     if (jsonOut) console.log(JSON.stringify(result, null, 2));
     else printDeploymentSummary(result);
+
+    // A final status read here scores the interview that produced it, if one did.
+    scoreDeploymentOutcome(result);
+    await flushScores();
 
     return;
   }
@@ -1192,6 +1211,8 @@ async function runWatch({ apiBaseUrl, deploymentId }) {
     if (!live) {
       if (wait) wait.stop();
       console.log("");
+      scoreDeploymentOutcome(dep);
+      await flushScores();
 
       if (dep.status === "succeeded") {
         const url = publicUrl(dep);
@@ -1257,6 +1278,8 @@ async function runBackground({ apiBaseUrl, deploymentId, appPath, plan }) {
 
     if (!live) {
       console.log("");
+      scoreDeploymentOutcome(dep);
+      await flushScores();
 
       if (dep.status === "succeeded") {
         const url = publicUrl(dep);
@@ -1800,5 +1823,6 @@ main().catch(async err => {
 
   // A run that failed is the one most worth a trace. Capped, and free when tracing is off.
   await flushTracing(1000);
+  await flushScores(1000);
   process.exit(1);
 });

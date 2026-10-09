@@ -12,7 +12,10 @@ import {
   conversationShape,
   eventAttributes,
   flushTracing,
+  flushScores,
   maskSecrets,
+  scoreDeploymentOutcome,
+  scoreTrace,
   startTracing,
   toolAttributes,
   traceEvent,
@@ -20,7 +23,8 @@ import {
   traceTool,
   traceTurn,
   turnOutput,
-  usageDetails
+  usageDetails,
+  useScoreSender
 } from "../core/tracing.js";
 
 const root = path.resolve(import.meta.dirname, "..");
@@ -141,10 +145,12 @@ test("with no LangFuse keys, tracing is off and every helper passes through", ()
     const turn = await t.traceTurn({ turn: 0 }, async h => { h.retried(new Error("e")); return "turn-value"; });
     t.traceTool({ name: "read_file", path: "a" });
     t.traceEvent("asked", { q: "?" });
+    const scored = t.scoreTrace("${"0".repeat(32)}", "questions_asked", 1);
     await t.flushTracing();
+    await t.flushScores();
     let thrown;
     try { await t.traceRun({ app: "demo" }, async () => { throw new TypeError("boom"); }); } catch (e) { thrown = e.name + ":" + e.message; }
-    console.log(JSON.stringify({ configured: t.tracingConfigured(), started, run, turn, thrown }));
+    console.log(JSON.stringify({ configured: t.tracingConfigured(), started, run, turn, thrown, scored }));
   `;
   const out = execFileSync(process.execPath, ["--input-type=module", "-e", code], {
     cwd: root,
@@ -156,7 +162,8 @@ test("with no LangFuse keys, tracing is off and every helper passes through", ()
     started: false,
     run: "run-value",
     turn: "turn-value",
-    thrown: "TypeError:boom"
+    thrown: "TypeError:boom",
+    scored: false
   });
 });
 
@@ -251,4 +258,68 @@ test("with keys, a broken exporter never breaks a run", async () => {
   } finally {
     exporter.export = original;
   }
+});
+
+// ---------------------------------------------------------------------------------
+// Scores. A stand-in sender records what would have been sent.
+
+function fakeSender() {
+  const sent = [];
+  useScoreSender(body => { sent.push(body); });
+  return sent;
+}
+
+const TRACE = "fedcba9876543210fedcba9876543210";
+
+test("a score has a fixed id per trace, so a same-day re-read replaces it", async () => {
+  const sent = fakeSender();
+  scoreTrace(TRACE, "questions_asked", 2);
+  scoreTrace(TRACE, "questions_asked", 3);
+  await flushScores();
+  assert.deepEqual(sent.map(b => b.id), [`${TRACE}-questions_asked`, `${TRACE}-questions_asked`]);
+  assert.deepEqual(sent[1], { id: `${TRACE}-questions_asked`, traceId: TRACE, name: "questions_asked", value: 3, dataType: "NUMERIC" });
+});
+
+test("yes-or-no scores are sent as 1 and 0", async () => {
+  const sent = fakeSender();
+  scoreTrace(TRACE, "developer_said_yes", true);
+  scoreTrace(TRACE, "needs_refused", false);
+  await flushScores();
+  assert.deepEqual(sent.map(b => [b.name, b.value, b.dataType]), [
+    ["developer_said_yes", 1, "BOOLEAN"],
+    ["needs_refused", 0, "BOOLEAN"]
+  ]);
+});
+
+test("unknown names, bad trace ids and values of the wrong kind are not sent", async () => {
+  const sent = fakeSender();
+  assert.equal(scoreTrace(TRACE, "developer_comment", 1), false);
+  assert.equal(scoreTrace("not-a-trace", "questions_asked", 1), false);
+  assert.equal(scoreTrace(undefined, "questions_asked", 1), false);
+  assert.equal(scoreTrace(TRACE, "developer_said_yes", "yes"), false);
+  assert.equal(scoreTrace(TRACE, "questions_asked", "four"), false);
+  await flushScores();
+  assert.deepEqual(sent, []);
+});
+
+test("a deployment is scored only on a final status read from the platform", async () => {
+  const sent = fakeSender();
+  const origin = { traceId: TRACE };
+  for (const status of ["running", "destroying", "destroyed", "drafted", undefined]) {
+    assert.equal(scoreDeploymentOutcome({ status, origin }), false, String(status));
+  }
+  assert.equal(scoreDeploymentOutcome({ status: "succeeded" }), false, "no trace, no score");
+  scoreDeploymentOutcome({ status: "succeeded", origin });
+  scoreDeploymentOutcome({ status: "failed", origin });
+  await flushScores();
+  assert.deepEqual(sent.map(b => [b.name, b.value]), [["deployment_succeeded", 1], ["deployment_succeeded", 0]]);
+});
+
+test("a score that cannot be sent is dropped, and flushScores never throws", async () => {
+  useScoreSender(() => { throw new Error("network down"); });
+  scoreTrace(TRACE, "questions_asked", 1);
+  await flushScores(200);
+  const sent = fakeSender();
+  await flushScores();
+  assert.deepEqual(sent, [], "a failed score is not sent again");
 });

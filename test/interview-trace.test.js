@@ -75,11 +75,13 @@ function scriptedClient(plan) {
 test("one run sends one trace, and nothing from the folder's files is in it", async () => {
   process.env.LANGFUSE_PUBLIC_KEY ||= "pk-lf-test";
   process.env.LANGFUSE_SECRET_KEY ||= "sk-lf-test-only";
-  const { startTracing, flushTracing } = await import("../core/tracing.js");
+  const { startTracing, flushTracing, flushScores, useScoreSender } = await import("../core/tracing.js");
   const { runInterview } = await import("../cli/interview/loop.js");
 
   const exporter = new InMemorySpanExporter();
   assert.equal(startTracing({ exporter }), true);
+  const scores = [];
+  useScoreSender(body => { scores.push(body); });
 
   const app = staticApp();
   const indexHtml = fs.readFileSync(path.join(app, "index.html"), "utf8");
@@ -94,6 +96,7 @@ test("one run sends one trace, and nothing from the folder's files is in it", as
     ask: async () => `Customers. Our key is ${ANSWER_SECRET}`
   });
   await flushTracing();
+  await flushScores();
 
   assert.equal(result.status, "submitted", JSON.stringify(result.errors || result.message));
   assert.match(result.traceId, /^[0-9a-f]{32}$/);
@@ -150,4 +153,12 @@ test("one run sends one trace, and nothing from the folder's files is in it", as
 
   const [answer] = attrs("answer given");
   assert.match(answer["langfuse.observation.input"], /\[value redacted\]/);
+
+  // The interview's own scores, against this trace. The rest come from the CLI at
+  // "Deploy this?" and when a deployment finishes.
+  assert.ok(scores.every(b => b.traceId === result.traceId));
+  assert.deepEqual(
+    Object.fromEntries(scores.map(b => [b.name, b.value])),
+    { questions_asked: 1, plan_valid_first_try: 1, validation_retries: 0 }
+  );
 });

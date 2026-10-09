@@ -139,6 +139,8 @@ break.
 - Tracing (LangFuse, `core/tracing.js`) is on only when LangFuse keys are set. It
   records the shape of each turn, file paths and sizes, never file contents; anything
   new the interview records goes through those helpers, not straight to LangFuse.
+  Scores are numbers and yes-or-no values from the fixed list in `core/tracing.js`;
+  `deployment_succeeded` is scored only from a final status read from the platform.
 - At most four questions, one per turn, in developer language. Look at the folder
   before asking anything the folder can answer.
 - The submitted plan goes to POST /plans/validate; errors go back to the model; two

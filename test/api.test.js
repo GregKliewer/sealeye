@@ -99,3 +99,33 @@ test("sealeye list works against an empty store", async () => {
   );
   assert.match(stdout, /No environments yet/);
 });
+
+test("POST /deployments keeps origin.traceId on the record, so an outcome can be scored", async () => {
+  // A drafted plan: the API refuses it and saves the record, with no AWS involved.
+  const plan = YAML.parse(fs.readFileSync(path.join(root, "plans", "static-plan.yaml"), "utf8"));
+  plan.planVersion = "0.4";
+  plan.needs = [{
+    kind: "continuous_service",
+    line: "a service that runs continuously",
+    evidence: [{ file: "index.js", shows: "it reads a stream in a loop" }]
+  }];
+  const traceId = "0123456789abcdef0123456789abcdef";
+
+  const res = await fetch(`${api}/deployments`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      backend: "cloudformation",
+      plan,
+      appPath: path.join(root, "apps", "static-website"),
+      origin: { command: "run", planSource: "interview", answers: [], traceId }
+    })
+  });
+  const body = await res.json();
+  assert.equal(res.status, 422);
+  assert.equal(body.error.code, "UNSUPPORTED_NEEDS");
+
+  const id = body.error.details.deploymentId;
+  const record = await (await fetch(`${api}/deployments/${id}`)).json();
+  assert.equal(record.origin.traceId, traceId);
+});

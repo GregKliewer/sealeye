@@ -398,6 +398,95 @@ export function traceEvent(name, attrs = {}) {
 }
 
 // ---------------------------------------------------------------------------------
+// Scores: how a run turned out, posted against its trace.
+//
+// Scores are numbers and yes-or-no values only, from a fixed list, so nothing a model
+// or a developer wrote can reach LangFuse this way. Each has a fixed id per trace, so
+// reading the same outcome twice on the same day (running `status` again, say)
+// replaces the score; LangFuse keys the replacement on id, name and date, so a re-read
+// on a later day adds a copy with the same value.
+
+const SCORES = {
+  plan_valid_first_try: "BOOLEAN",
+  validation_retries: "NUMERIC",
+  questions_asked: "NUMERIC",
+  developer_said_yes: "BOOLEAN",
+  needs_refused: "BOOLEAN",
+  deployment_succeeded: "BOOLEAN"
+};
+
+// Scores are sent one request each to LangFuse's public scores endpoint, with a hard
+// time limit and no retries. LangFuse's own client retries with growing delays, which
+// kept a finished `sealeye status` alive for a minute when LangFuse could not be
+// reached; a command line tool should give up on a score rather than hang.
+const pending = [];
+let sender = null;
+
+/** Replace how scores are sent, for tests: `fn(body)` gets each score's body. */
+export function useScoreSender(fn) {
+  sender = fn;
+}
+
+async function postScore(body, timeoutMs) {
+  if (sender) return sender(body);
+  const base = (process.env.LANGFUSE_BASE_URL || process.env.LANGFUSE_BASEURL || "https://cloud.langfuse.com").replace(/\/+$/, "");
+  const auth = Buffer.from(`${process.env.LANGFUSE_PUBLIC_KEY}:${process.env.LANGFUSE_SECRET_KEY}`).toString("base64");
+  const res = await fetch(`${base}/api/public/scores`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Basic ${auth}` },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(timeoutMs)
+  });
+  if (!res.ok) throw new Error(`LangFuse answered ${res.status}`);
+}
+
+/**
+ * Score a trace. Unknown names, malformed trace ids and values of the wrong kind are
+ * dropped, not sent. Never throws.
+ *
+ * @returns {boolean} whether a score was queued
+ */
+export function scoreTrace(traceId, name, value) {
+  const dataType = SCORES[name];
+  if (!dataType || typeof traceId !== "string" || !/^[0-9a-f]{32}$/.test(traceId)) return false;
+
+  let numeric;
+  if (dataType === "BOOLEAN") {
+    if (typeof value !== "boolean") return false;
+    numeric = value ? 1 : 0;
+  } else {
+    if (!Number.isFinite(value)) return false;
+    numeric = value;
+  }
+
+  if (!sender && !tracingConfigured()) return false;
+
+  pending.push({ id: `${traceId}-${name}`, traceId, name, value: numeric, dataType });
+  return true;
+}
+
+/**
+ * Score a deployment's outcome against the interview that produced it, if it came from
+ * one. Status is real here as everywhere: only a final status the platform read from
+ * AWS is scored. Anything else, including a deployment nobody has looked at since, gets
+ * no score rather than a guess.
+ */
+export function scoreDeploymentOutcome(deployment) {
+  const traceId = deployment?.origin?.traceId;
+  if (deployment?.status === "succeeded") return scoreTrace(traceId, "deployment_succeeded", true);
+  if (deployment?.status === "failed") return scoreTrace(traceId, "deployment_succeeded", false);
+  return false;
+}
+
+/** Send queued scores, each given at most `timeoutMs`. Never throws. */
+export async function flushScores(timeoutMs = 3000) {
+  const batch = pending.splice(0);
+  if (!batch.length) return;
+  const results = await Promise.allSettled(batch.map(body => postScore(body, timeoutMs)));
+  for (const r of results) if (r.status === "rejected") debug("could not send a score", r.reason);
+}
+
+// ---------------------------------------------------------------------------------
 // Keeping tracing out of the way.
 
 /**

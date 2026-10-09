@@ -191,7 +191,8 @@ This is where tracing becomes evaluation.
 - `POST /deployments` already accepts an `origin` object. The CLI adds `traceId` to it, so
   the record names the interview that produced it. The API stores it and changes nothing
   else (keep existing endpoints working).
-- Scores, posted with `@langfuse/client` against the trace:
+- Scores, posted against the trace (one bounded request each; DESIGN.md says why not
+  `@langfuse/client`):
   - `plan_valid_first_try` (boolean)
   - `validation_retries` (0 to 2)
   - `questions_asked` (0 to 4)

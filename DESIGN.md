@@ -285,6 +285,24 @@ trace contains.
 - *`runInterview` takes an optional `client`.* Tests pass a scripted one, so the real
   loop, tools and API can be checked for what they send to LangFuse without a model.
 
+**Scoring a run's outcome.** Decided Fri Oct 9, 2026, writing PHASE1-PLAN Step 5.
+
+- *The trace id travels in `origin`.* `POST /deployments` already stores `origin` as
+  sent, on deployed and refused records alike, so `origin.traceId` needed no API change.
+- *Six scores, from a fixed list, numbers and yes-or-no only.* `questions_asked`,
+  `plan_valid_first_try` and `validation_retries` come from the interview;
+  `developer_said_yes` and `needs_refused` from "Deploy this?"; `deployment_succeeded`
+  from wherever a final status is read: `watch`, `status`, the first seconds after
+  `run`, and the background notifier, which is where most runs end. Only `succeeded`
+  and `failed` are scored. A deployment nobody looks at again gets no score.
+- *One request per score, three seconds, no retries.* LangFuse's own client
+  (`@langfuse/client`) retries with growing delays, and with LangFuse unreachable it
+  kept a finished command alive for over a minute. Scores now go straight to
+  `POST /api/public/scores`, and the client package is not used.
+- *A fixed id per score (`<trace>-<name>`).* A same-day re-read replaces the score.
+  LangFuse matches on id, name and date, so a re-read on a later day adds a copy with
+  the same value, which is harmless for a final status.
+
 ## The earliest code is Greg's to share
 
 Decided Fri Oct 9, 2026.
