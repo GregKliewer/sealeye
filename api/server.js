@@ -8,6 +8,7 @@ import { checkPlan, checkUpgraded } from "./validate.js";
 import { backendMappings } from "./mappings.js";
 import { putDeployment, getDeployment, listDeployments, storeFile, count } from "./store.js";
 import { startDeployment, startDestroy } from "./executor/index.js";
+import { acceptSent } from "./executor/settings.js";
 import { unsupportedNeeds } from "../core/catalog.js";
 import { assembleEvidence, renderEvidence } from "./executor/evidence.js";
 import { rollupNeeds } from "./needs.js";
@@ -173,7 +174,12 @@ app.post("/deployments", (req, res) => {
 
   // Runs to completion in the background against real CloudFormation; the record is
   // mutated in place, so GET /deployments/:id always reads the live state.
-  startDeployment(record, plan, resolvedAppPath).catch(err => {
+  // Setting values sent with the request (DESIGN.md, "Setting values travel with the
+  // deploy, for now"): only for settings this plan asks for, handed to this deployment
+  // and never put on the record, in a response or in a log.
+  const sent = acceptSent(plan, req.body?.settings);
+
+  startDeployment(record, plan, resolvedAppPath, sent).catch(err => {
     record.status = "failed";
     record.failureReason = err.message;
     record.finishedAt = new Date().toISOString();

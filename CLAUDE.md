@@ -104,7 +104,7 @@ module ids, and only for that. Changing the contract is a DESIGN.md decision.
 
 ## API
 
-POST /plans/validate, POST /deployments ({ plan, appPath }), GET /deployments,
+POST /plans/validate, POST /deployments ({ plan, appPath, settings? }), GET /deployments,
 GET /deployments/{id}, GET /deployments/{id}/evidence, DELETE /deployments/{id},
 GET /needs, GET /health, POST /interviews ({ app, zip }), POST
 /interviews/{id}/answers ({ answer }), GET /interviews/{id}/events (server-sent events),
@@ -181,8 +181,13 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   No CloudFront.
 - The API runs locally on one machine with a JSON file store and no sign-in. Phase 1
   of the roadmap replaces this. Interviews are kept in memory, so an API restart loses
-  any in progress (Step 10 moves them to Postgres). Deploys still read the developer's
-  folder by `appPath` (OPEN-QUESTIONS Q15).
+  any in progress (Step 10 moves them to Postgres). Deploys still package the
+  developer's folder by `appPath`.
+- Setting values travel with each deploy request, from the developer's `.env`, and are
+  never kept. Moving them to the organization's secret store is owed (ROADMAP Phase 1
+  item 10); `settingValues` in `api/executor/settings.js` is the one place that decides
+  where they come from, and a record keeps each setting's name and source, never its
+  value.
 - seaLeye.online in `archive/sealeye-online` is a static mock-up with sample data, not
   a client of the API.
 

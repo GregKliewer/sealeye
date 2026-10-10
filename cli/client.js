@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "node:path";
 import YAML from "yaml";
 
+import { envValuesFor } from "../core/settings.js";
 import { zipFolder } from "../core/upload.js";
 
 /**
@@ -66,6 +67,12 @@ export function loadPlanFromYaml(planPath) {
  */
 export async function createDeployment({ apiBaseUrl, backend, plan, appPath, requestedBy, origin }) {
   const body = { backend, plan, appPath };
+  // The values of the settings this plan asks for, from the developer's .env, and only
+  // those. A hosted API cannot read this folder, so they travel with the request, once.
+  // Moving them to the organization's secret store is on the roadmap (DESIGN.md,
+  // "Setting values travel with the deploy, for now").
+  const settings = envValuesFor(plan, appPath);
+  if (Object.keys(settings).length) body.settings = settings;
   if (requestedBy) body.requestedBy = requestedBy;
   if (origin) body.origin = origin;
   return platformFetch(apiBaseUrl, "/deployments", asJson(body));

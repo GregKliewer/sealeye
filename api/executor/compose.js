@@ -6,17 +6,14 @@ import path from "node:path";
 
 import { backendMappings } from "../mappings.js";
 import { safeName } from "../../core/names.js";
-import { repoRoot, loadEnv, requireSetting, readEnvFile } from "../../core/config.js";
+import { repoRoot, loadEnv, requireSetting } from "../../core/config.js";
+import { settingValues } from "./settings.js";
 
 const DEFAULT_RETENTION_DAYS = 30;
 const DEFAULT_ENTRY_POINT = "index.js";
 
-// The platform decides the port and tells the app what it is, so it is never a setting
-// the plan gets to pass.
-const PLATFORM_OWNED = new Set(["PORT"]);
 const CONFIG_PARAMETER_MARKER = "# sealeye:config-parameters";
 const CONFIG_VARIABLE_MARKER = "# sealeye:config-variables";
-const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 // The two core modules, and the deployment kind each one produces.
 const CORE_MODULE_KINDS = {
@@ -72,38 +69,6 @@ function entryPointFor(plan) {
 }
 
 /**
- * The settings the plan asks the platform to pass to the app, with their values.
- *
- * A value comes from the developer's own `.env` when they have one, because that is
- * where a developer already keeps these, and from the plan otherwise, where the
- * interview left a placeholder for them to fill in. The file is read, never written,
- * and never applied to the platform's own environment.
- */
-function configSettings(plan, appPath) {
-  const module = enabledModules(plan).find(m => m.id === "config_basic");
-  const wanted = module?.inputs?.variables || {};
-  const fromFolder = appPath ? readEnvFile(path.join(appPath, ".env")) : {};
-
-  return Object.keys(wanted)
-    .filter(name => !PLATFORM_OWNED.has(name))
-    .map(name => {
-      if (!ENV_NAME.test(name)) {
-        throw new Error(
-          `config_basic asks for a setting called "${name}", which is not a name an environment variable can have`
-        );
-      }
-
-      const mine = Object.prototype.hasOwnProperty.call(fromFolder, name);
-
-      return {
-        name,
-        value: String((mine ? fromFolder[name] : wanted[name]) ?? ""),
-        source: mine ? ".env" : "plan"
-      };
-    });
-}
-
-/**
  * The template this deployment actually gets: the module's own file, with one parameter
  * and one environment variable written in per setting.
  *
@@ -153,10 +118,11 @@ function withoutSecrets(parameters) {
  * @param {object} plan          a plan that has already passed planSchema validation
  * @param {string} deploymentId  required for kind "api" (it names the artifact)
  * @param {string} [appPath]      the developer's folder, read for its .env only
+ * @param {Record<string,string>} [sent] setting values sent with the deploy request
  * @returns {{kind: "api"|"static", templatePath: string, stackName: string, parameters: object,
  *            safeParameters: object, settings: {name: string, source: string}[], entryPoint?: string}}
  */
-export function compose(plan, deploymentId, appPath) {
+export function compose(plan, deploymentId, appPath, sent = {}) {
   loadEnv();
 
   const appName = safeName(plan?.app?.name);
@@ -194,7 +160,7 @@ export function compose(plan, deploymentId, appPath) {
 
   if (kind === "api") {
     entryPoint = entryPointFor(plan);
-    settings = configSettings(plan, appPath);
+    settings = settingValues(plan, { sent, appPath });
 
     if (!deploymentId) {
       throw new Error("deploymentId is required to compose an http_api_serverless deployment");

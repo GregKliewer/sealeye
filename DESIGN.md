@@ -551,10 +551,56 @@ a final status, and never from a tear-down, which would overwrite how the deploy
 itself went. The CLI's own scoring calls do nothing without keys, so they were left in place.
 
 **What did not move yet: deploying from the upload.** `sealeye run` still deploys with
-`appPath`, the developer's folder, as `sealeye deploy` does. A deploy reads setting
-values from the folder's `.env`, which the upload deliberately leaves out. Where those
-values come from on a hosted API is OPEN-QUESTIONS Q15. This is fine for Step 8, which
-is done against a local API.
+`appPath`, the developer's folder, as `sealeye deploy` does. Setting values no longer
+stand in the way (see "Setting values travel with the deploy, for now"), so packaging
+from an upload is Step 9's to build. This is fine for Step 8, which is done against a
+local API.
 
 `npm run eval:interview` runs the same graph in-process (`runInterview` in
 `api/interview/service.js`) and checks plans in-process, so it no longer starts an API.
+
+## Setting values travel with the deploy, for now
+
+Decided Sat Oct 10, 2026, by Greg. This answers OPEN-QUESTIONS Q15. **The retrofit to
+the organization's secret store is owed: ROADMAP, Phase 1 work item 10.**
+
+When the API deploys an app with config_basic, it needs each setting's value (a Stripe
+key, say). It used to read them from the `.env` in the app folder, which only works
+while the API runs on the developer's machine. A hosted API has only the upload, which
+carries `.env` as an empty name. There were three options:
+
+- (a) the CLI sends the values with the deploy request;
+- (b) the values live in the organization's secret store, and the deployed app reads
+  them when it starts;
+- (c) hosted deploys use the plan's placeholders.
+
+**Chosen: (a) now, (b) later.** (a) is about half a day and keeps the developer
+experience exactly as it is: edit `.env`, run again. (b) is three to five days, changes
+the plan contract, and adds a step to a developer's first deploy, and it is what a bank
+will require. Most of (b) is the same work whether or not (a) came first, so (a) costs
+little to retire.
+
+**How (a) works.** `createDeployment` in the CLI reads the developer's `.env` and sends
+`settings` with `POST /deployments`: the values of the settings the plan names, and only
+those (`core/settings.js`). The API accepts only strings for those names
+(`acceptSent`), hands them to that one deployment's NoEcho parameters, and never puts
+them on the record, in a response or in a log. They travel over the API's TLS once per
+deploy. The honest limit: values do leave the laptop, which the interview upload was
+designed not to do. When asked about it, the answer is that moving them to the
+organization's secret store is on the roadmap, Phase 1 work item 10.
+
+**Three choices that keep the retrofit cheap:**
+
+1. *Every deployment records where each setting came from, by name.* A record's
+   `settings` list holds `{ name, source }`, where source is `sent`, `.env` (the local
+   API reading the folder) or `plan`, never the value. The apps still to move to the
+   store are the records with a `sent` or `.env` source.
+2. *One function decides where values come from.* `settingValues` in
+   `api/executor/settings.js` is the only place that knows the sources and their order.
+   (b) adds a `store` source there, and the executor, the report and the evidence stay
+   as they are; their wording for a source also comes from that file
+   (`sourceInWords`).
+3. *(a) stays after (b) exists,* for dev and the sample apps, so (b) is required only
+   where an organization turns it on. A team that has no secret store yet is never
+   blocked.
+

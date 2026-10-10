@@ -38,7 +38,8 @@ shows what is really there.
    `appPath` on the API's own machine. A hosted API cannot read the developer's laptop,
    so the CLI uploads a snapshot of the folder (or the API reads a connected repo; see
    OPEN-QUESTIONS Q1) and packaging works from that. *The interview reads the upload
-   since Oct 10, 2026; packaging still reads the folder until Q15 is answered.*
+   since Oct 10, 2026; packaging from the upload is Step 9 (setting values now travel
+   with the deploy request).*
 2. **Host the API** behind seaLeye.online (Q2).
 3. **Sign-in**: the portal signs in through an identity provider; the CLI gets a
    `sealeye login` that does the same and stores a token in `~/.sealeye/` (Q3). Every
@@ -57,6 +58,24 @@ shows what is really there.
    produced and scored on how it turned out (`core/tracing.js`, DESIGN.md "Tracing the
    interview with LangFuse"). It moved to the API with the interview on Oct 10, 2026,
    one trace across the interview's pauses; where an organization's traces live is Q13.
+10. **OWED: setting values move to the organization's secret store.** Decided Oct 10,
+    2026 (DESIGN.md, "Setting values travel with the deploy, for now"): for now the CLI
+    sends an app's setting values from its `.env` with each deploy. A bank will want
+    them in its own secret store instead, with nothing secret passing through seaLeye.
+    About three to five days:
+    - the plan names where each value lives (a contract change, so a new planVersion,
+      a prompt change and `npm run eval:interview`);
+    - the injected `run.sh` reads the values from the store when the app starts, so
+      the app is still not modified;
+    - the function may read only its own entries, and the deploy role reads them in
+      the team's own account;
+    - `sealeye secrets set`, an endpoint and a portal page (parity) put values in, and
+      the first deploy of an app offers to store what its `.env` holds;
+    - `sealeye run` says once that deployed settings come from the store, not `.env`;
+    - apps already deployed with sent values are moved: the records with a `sent` or
+      `.env` setting source are the list.
+    The sent-values path stays for dev and the sample apps. **Due before any pilot that
+    deploys an organization's real secrets.**
 
 ### Phase 2: Day-two parity
 
@@ -125,6 +144,7 @@ and does nothing real. A blank is not started.
 | Team and access | `sealeye team` | | | mock-up | 2 |
 | Integrations | `sealeye integrations` | | | mock-up (report) | 2 |
 | Sign in | `sealeye login` | | | | 1 |
+| Settings in the secret store | `sealeye secrets set` | | | | 1 (owed, item 10) |
 | Onboard and ingest | `sealeye admin ingest` | | | | 3 |
 | Promote | `sealeye promote` | | | | 4 |
 | Raise a gap ticket | `sealeye needs --request` | | prints text only | | 4 |
