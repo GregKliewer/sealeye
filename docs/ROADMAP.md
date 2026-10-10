@@ -57,7 +57,9 @@ shows what is really there.
    (DESIGN.md, "The interview runs in the API").
 7. **The portal becomes a client**: the mock-up's Environments, Catalog and Control pages
    read from the API for the operations that exist today (Q9).
-8. **CI**: `npm test` on every push and pull request.
+8. **CI**: `npm test` on every push and pull request. *Done Oct 10, 2026: GitHub runs
+   the tests, with Postgres, on every push and pull request, and builds the server's
+   image on main (DESIGN.md, "GitHub tests every change and builds the image").*
 9. **Observability**: every interview is a LangFuse trace, joined to the deployment it
    produced and scored on how it turned out (`core/tracing.js`, DESIGN.md "Tracing the
    interview with LangFuse"). It moved to the API with the interview on Oct 10, 2026,

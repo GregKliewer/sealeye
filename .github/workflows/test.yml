@@ -1,0 +1,77 @@
+# PHASE1-PLAN Step 11 (ROADMAP Phase 1 item 8). Every push and pull request runs
+# `npm test`, with a Postgres beside it so the database tests run too. A push to main
+# that passes also builds the server image and stores it in ECR, where
+# `deploy/release.sh` finds it; putting it live stays a manual step (deploy/README.md).
+name: test
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s --health-timeout 5s --health-retries 20
+    env:
+      SEALEYE_TEST_DATABASE_URL: postgresql://postgres:ci@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      # The executor stages with rsync and zips with zip; the runner image has both.
+      - run: npm test
+
+  image:
+    # Only main, only after the tests pass, and only once the AWS role exists
+    # (deploy/ci-role.yaml sets the repository variable it reads).
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.SEALEYE_CI_ROLE_ARN != ''
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write   # to ask AWS for short-lived credentials; no keys are stored
+    env:
+      AWS_REGION: ca-central-1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.SEALEYE_CI_ROLE_ARN }}
+          aws-region: ca-central-1
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Build and push, unless this commit's image is already there
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          TAG="main-$(git rev-parse --short=12 HEAD)"
+          IMAGE="${REGISTRY}/sealeye-api:${TAG}"
+          # Tags in the repository cannot be overwritten, so a re-run finds it and stops.
+          if aws ecr describe-images --repository-name sealeye-api --image-ids imageTag="$TAG" >/dev/null 2>&1; then
+            echo "${IMAGE} is already built."
+            exit 0
+          fi
+          # The Dockerfile runs npm test again inside the build, on the server's processor.
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "Built ${IMAGE}. deploy/release.sh on this commit puts it live." >> "$GITHUB_STEP_SUMMARY"

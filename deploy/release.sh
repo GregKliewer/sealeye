@@ -1,7 +1,8 @@
 #!/bin/bash
 # Build the API image, push it, and roll it out to the pilot server. Run from the repo
 # root on your Mac, with Docker running and the AWS CLI signed in to the seaLeye account.
-# deploy/README.md says when to use it.
+# deploy/README.md says when to use it. With --from-ci it only uses GitHub's image, and
+# stops if there is none for this commit.
 set -euo pipefail
 
 REGION="${AWS_REGION:-ca-central-1}"
@@ -20,11 +21,22 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
   echo "You have changes that are not committed. Commit them first, so the server runs code that is in git."
   exit 1
 fi
-TAG="$(git rev-parse --short HEAD)-$(date +%Y%m%d%H%M%S)"
-
-echo "Building ${REPOSITORY}:${TAG} for the server (the tests run as part of the build)"
-aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "${REPOSITORY%%/*}" >/dev/null
-docker buildx build --platform linux/arm64 -t "${REPOSITORY}:${TAG}" --push .
+# GitHub builds every commit on main that passes its tests (.github/workflows/test.yml).
+# If it has built this one, that image is used and Docker is not needed here.
+CI_TAG="main-$(git rev-parse --short=12 HEAD)"
+if aws ecr describe-images --region "$REGION" --repository-name sealeye-api --image-ids imageTag="$CI_TAG" >/dev/null 2>&1; then
+  TAG="$CI_TAG"
+  echo "Using ${REPOSITORY}:${TAG}, built and tested by GitHub"
+else
+  if [ "${1:-}" = "--from-ci" ]; then
+    echo "GitHub has not built this commit yet. Wait for its run on main to finish, or run without --from-ci to build here."
+    exit 1
+  fi
+  TAG="$(git rev-parse --short HEAD)-$(date +%Y%m%d%H%M%S)"
+  echo "Building ${REPOSITORY}:${TAG} for the server (the tests run as part of the build)"
+  aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "${REPOSITORY%%/*}" >/dev/null
+  docker buildx build --platform linux/arm64 -t "${REPOSITORY}:${TAG}" --push .
+fi
 
 echo "Sending the server its config"
 for f in compose.yaml Caddyfile update.sh backup.sh restore-check.sh; do
