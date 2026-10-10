@@ -684,3 +684,96 @@ Not tested here: building the image and deploying the templates, which need Dock
 AWS. Both templates pass `cfn-lint`; `test/server-start.test.js` runs the start script
 against a stand-in for SSM.
 
+## Deployment records live in Postgres
+
+Decided Sat Oct 10, 2026 (PHASE1-PLAN Step 10, D5; D8 for interviews).
+
+With `DATABASE_URL` set, the API keeps its deployment records and its interviews in
+progress in Postgres. Without it, nothing changes: records in `~/.sealeye/deployments.json`
+and interviews in memory, which is what a laptop API and `npm test` use.
+
+**The store keeps its functions, and its map.** `putDeployment`, `getDeployment`,
+`listDeployments` and `count` stay synchronous, so nothing that calls them changed. The
+map in memory is still what they read. With a database, every change is written through
+to the `deployments` table, one write after another so the table always ends with the
+last change, and the map is filled from the table at start (`openStore`). A stop waits
+for the last write. This is right while the API is one process, which the pilot server
+is. ECS Express Mode (stage 3 of the hosting plan) runs more than one, and the store
+then has to read from Postgres instead; that is a change inside `api/store.js` only.
+
+**Each row is the record as it always was, with columns beside it.** The whole record is
+kept as JSON, so readers, reports and evidence are unchanged. Beside it: `org_id`,
+`team_id`, `created_by`, `surface`, `trace_id`, `app`, `status`, `started_at`. Until
+sign-in (Step 13) every record is org and team "default", with `created_by` from the
+CLI's `requestedBy` and `surface` "cli"; sign-in fills them for real.
+
+**Migrations are plain SQL** in `api/migrations/`, applied in name order at start, each
+in a transaction, recorded in `schema_migrations`.
+
+**Interviews live in their own schema, `interview_state`,** with LangGraph's checkpoint
+tables (through its Postgres saver), the interview records and their events. The API
+makes the schema and tables at every start rather than by migration, because the
+backup leaves the whole schema out and a restored database has to get them back by
+itself. At start, an interview waiting on the developer waits again, one that was
+mid-step carries on from its last saved step, and an ended one stays for a client to
+replay. The model client is made on demand, since a restored interview reaches it
+without `POST /interviews` having run.
+
+**What was in flight is picked up again** (`api/executor/resume.js`), with or without a
+database. A deployment that was running is watched until CloudFormation says how it
+ended, through the same loop a live deployment uses; a final status counts as its own
+only if the change was seen under way before the restart, and otherwise the deployment
+fails with that said plainly. A tear-down is started again; every step of it is safe to
+repeat. One still being prepared fails with the reason. A change set that was made and
+never run now ends a deployment instead of being polled forever. Three kinds are left
+exactly as they were, marked interrupted, with nothing asked of AWS: a record imported
+from another machine (its account and role may not be this server's), one more than a
+day old, and one that is not the newest for its stack, since acting on it could tear
+down or claim the result of the deployment that came after. Whether the change was seen
+under way is kept on the record (`sawInProgress`), so a static site whose stack had
+finished while its files were syncing finishes the sync after a restart.
+
+**A write that fails is kept and tried again.** A record whose write to Postgres failed
+is written again from the map with the next write and at shutdown, which logs any still
+unsaved. Strings lose NUL characters on the way in, which Postgres refuses in JSON. The
+first-start adoption of an old `deployments.json` is one transaction: all of it or none,
+and none means the next start tries again.
+
+**On the server:** Postgres 16 in the compose file, reachable only from the API, its
+password from `/sealeye/POSTGRES_PASSWORD`, read by Postgres only when it first creates
+the database. A nightly `pg_dump` at 03:15 Toronto time goes to the config bucket's
+`backups/` (kept 30 days), without `interview_state`: interviews hold developers' code
+and live a day at most. `deploy/server.sh restore-check` restores the newest dump into a
+scratch database and compares counts. The first start on an empty database brings in
+the API's own old `deployments.json`; `deploy/server.sh import` brings in a laptop's.
+
+**Tests:** the ones that need Postgres run when `SEALEYE_TEST_DATABASE_URL` points at a
+server they may create databases on, and are skipped otherwise, so `npm test` still
+needs nothing but Node. CI (Step 11) should set it.
+
+## Installing an app's dependencies runs none of its code
+
+Decided Sat Oct 10, 2026 (PHASE1-PLAN Step 10 review).
+
+The packager runs `npm install --omit=dev --ignore-scripts` in the staging folder, with
+an environment holding only what npm needs (`installEnv` in `api/executor/package.js`):
+the path, a home, a proxy and certificates. No keys, no deploy role, no database address.
+And the API removes `POSTGRES_PASSWORD` from its own environment once it has built the
+database address.
+
+Why: the app and every package it depends on are code nobody on the platform has
+reviewed, and an install script runs as the API. On the pilot server that process can
+reach the instance's role through the metadata service (the containers need it, so the
+hop limit is 2) and the database next door. Before this, any developer, or any package
+an app depended on, could read the API's settings or call AWS as the server.
+
+What it costs: a dependency that builds native code at install time (bcrypt, sharp and
+the like) is not built. Such a package would rarely have worked anyway, since it would
+have been built for the server rather than the function's runtime. If a developer needs
+one, that is a platform decision (build in a runtime-matched container), not a reason to
+run unreviewed code inside the API.
+
+What it does not fix: the metadata service is still reachable from the API's container,
+so code that does run inside it (the API's own dependencies) could still reach the
+server's role. Building in a separate, unprivileged container is the full fix, and
+belongs with the move off the single pilot server.

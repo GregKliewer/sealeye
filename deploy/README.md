@@ -9,10 +9,13 @@ in to the seaLeye account as someone who can create IAM roles.
 |---|---|
 | `server.yaml` | The server: instance, fixed address, firewall (web only, no SSH), its role, an image repository, a config bucket. Stack `platform-sealeye-server`. |
 | `deploy-role.yaml` | The `sealeye-deploy-*` role every deployment goes through. Stack `platform-sealeye-deploy-role`. |
-| `start.mjs` | How the API starts: reads its settings from Parameter Store, switches AWS calls to the deploy role. |
-| `compose.yaml`, `Caddyfile` | What runs on the server. |
+| `settings.mjs`, `start.mjs`, `with-settings.mjs` | How the API starts: its settings from Parameter Store, its database, AWS calls through the deploy role. |
+| `compose.yaml`, `Caddyfile` | What runs on the server: the API, Postgres and Caddy. |
+| `dns.yaml` | Route 53 for a domain, with the `api` record. |
 | `release.sh` | Build, push and roll out a new version. Run on your Mac. |
-| `update.sh` | The server's half of a release. `release.sh` sends it. |
+| `update.sh` | The server's half of a release. `release.sh` sends it. It also installs the nightly backup. |
+| `server.sh` | The server's own jobs, run from your Mac: backup, restore check, importing records, logs. |
+| `backup.sh`, `restore-check.sh` | The server's half of those jobs. |
 
 Platform stacks are named `platform-sealeye-*`, never `sealeye-*`, so the deploy role,
 which may only touch `sealeye-*` stacks, can never touch them.
@@ -93,6 +96,21 @@ put_value SEALEYE_DEPLOY_ROLE_ARN "$(aws cloudformation describe-stacks --region
 ``` Changing a setting later takes
 effect at the next release, or after `docker compose restart api` on the server.
 
+## Once: the database password
+
+Postgres keeps the API's records and its interviews in progress (PHASE1-PLAN Step 10).
+Its password is one more parameter, made up once and never typed by anyone:
+
+```bash
+aws ssm put-parameter --region ca-central-1 --name /sealeye/POSTGRES_PASSWORD \
+  --type SecureString --value "$(openssl rand -hex 24)" >/dev/null && echo saved
+```
+
+Postgres reads it only the first time it creates the database. Do not change the
+parameter afterwards: the database would keep the old password and the API could no
+longer connect. (To change it on purpose, change it inside Postgres first, with
+`ALTER USER sealeye PASSWORD ...`, then the parameter, then release.)
+
 ## Once: the address
 
 DNS for seaLeye's domains is in Route 53 (`dns.yaml`, about $0.50 a month per
@@ -153,6 +171,35 @@ Then check:
 curl https://api.sealeye.online/health
 ```
 
+## Backups
+
+Every night at 03:15 Toronto time the server dumps its database to the config bucket's
+`backups/` folder, where each dump is kept 30 days. Interviews in progress are left out
+on purpose: their saved conversations include developers' code, and they last a day at
+most.
+
+```bash
+deploy/server.sh backup          # one now
+deploy/server.sh restore-check   # restore the newest into a scratch database and compare
+```
+
+Run `restore-check` once after the first backup: a backup is only a backup once a
+restore of it has worked. It never touches the database the API uses.
+
+## Records from before Postgres
+
+The first time the API starts with Postgres, it brings in the records it kept in its own
+file until then, by itself. Records that only your laptop's API knows (your
+`~/.sealeye/deployments.json`) come across with:
+
+```bash
+deploy/server.sh import ~/.sealeye/deployments.json
+```
+
+Records already there are left alone, so running it twice does no harm. It restarts the
+API afterwards, which is how the API reads them; an interview in progress carries on
+across the restart.
+
 ## Using it
 
 Point the CLI at it once, for every command:
@@ -168,7 +215,13 @@ reaches a local API again.
 
 ## When something is wrong
 
-Open a shell on the server, with no SSH key needed:
+The API's last lines:
+
+```bash
+deploy/server.sh logs
+```
+
+Or open a shell on the server, with no SSH key needed:
 
 ```bash
 aws ssm start-session --region ca-central-1 --target <InstanceId>

@@ -27,7 +27,7 @@ aws ecr get-login-password --region "$REGION" | docker login --username AWS --pa
 docker buildx build --platform linux/arm64 -t "${REPOSITORY}:${TAG}" --push .
 
 echo "Sending the server its config"
-for f in compose.yaml Caddyfile update.sh; do
+for f in compose.yaml Caddyfile update.sh backup.sh restore-check.sh; do
   aws s3 cp "deploy/$f" "s3://${BUCKET}/server/$f" --region "$REGION" --only-show-errors
 done
 

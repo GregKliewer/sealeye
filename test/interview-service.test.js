@@ -120,3 +120,41 @@ test("a developer who leaves takes their app with them", async () => {
   assert.equal(await service.remove(interviewId), false);
   service.close();
 });
+
+test("an interview saved as ended, whose last event was never written, says how it ended after a restart", async () => {
+  const scratchBase = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-svc-restore-"));
+  const scratchRoot = path.join(scratchBase, "int-left");
+  fs.mkdirSync(scratchRoot);
+  const t = Date.now();
+  const saved = [
+    {
+      record: { id: "int_finished", status: "finished", result: { status: "ready" }, approved: false, ownsDir: true, scratchRoot, createdAt: t - 1000 },
+      events: [{ seq: 1, type: "question" }, { seq: 3, type: "plan" }]   // numbers need not be contiguous
+    },
+    {
+      record: { id: "int_failed", status: "failed", failure: "The model stopped answering.", createdAt: t - 1000 },
+      events: []
+    },
+    {
+      record: { id: "int_whole", status: "finished", result: { status: "ready" }, createdAt: t - 1000 },
+      events: [{ seq: 1, type: "finished", status: "ready" }]
+    }
+  ];
+  const added = [];
+  const persistence = {
+    loadAll: async () => saved,
+    save() {},
+    addEvent: (id, event) => added.push([id, event.seq, event.type]),
+    remove() {},
+    flush: async () => {}
+  };
+  const service = createInterviewService({ client: client(asks), now: () => t, scratchBase, persistence });
+  await service.restore();
+
+  assert.deepEqual(added, [["int_finished", 4, "finished"], ["int_failed", 1, "failed"]], "only the two missing their end, numbered after the last");
+  const seen = [];
+  service.subscribe("int_failed", 0, e => seen.push(e));
+  assert.equal(seen.at(-1).message, "The model stopped answering.");
+  assert.ok(!fs.existsSync(scratchRoot), "its copy of the app is gone");
+  service.close();
+});

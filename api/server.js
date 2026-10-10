@@ -6,14 +6,17 @@ import path from "node:path";
 import { upgradePlan } from "../core/schema.js";
 import { checkPlan, checkUpgraded } from "./validate.js";
 import { backendMappings } from "./mappings.js";
-import { putDeployment, getDeployment, listDeployments, storeFile, count } from "./store.js";
+import { putDeployment, getDeployment, listDeployments, storeFile, count, openStore, flushStore } from "./store.js";
 import { startDeployment, startDestroy } from "./executor/index.js";
 import { acceptSent } from "./executor/settings.js";
 import { removeUpload, stageUpload, sweepUploads } from "./executor/uploads.js";
+import { resumeInFlight } from "./executor/resume.js";
 import { unsupportedNeeds } from "../core/catalog.js";
 import { assembleEvidence, renderEvidence } from "./executor/evidence.js";
 import { rollupNeeds } from "./needs.js";
 import { createInterviewService, NotWaiting, UploadRefused } from "./interview/service.js";
+import { postgresCheckpointer, postgresInterviewStore } from "./interview/pgstore.js";
+import { databaseUrl, closeDb } from "./db.js";
 import { startTracing } from "../core/tracing.js";
 
 const app = express();
@@ -30,9 +33,10 @@ app.use((req, res, next) => {
   return smallJson(req, res, next);
 });
 
-// The interviews this process holds (api/interview/service.js). The model key and any
-// LangFuse keys are the API's own; developers hold neither.
-const interviews = createInterviewService();
+// The interviews this process holds (api/interview/service.js), created once the store
+// is open. The model key and any LangFuse keys are the API's own; developers hold
+// neither.
+let interviews;
 
 // The version comes from the package, not from a literal, so it cannot drift from what
 // was actually shipped.
@@ -419,7 +423,37 @@ app.get("/interviews/:interviewId/events", (req, res) => {
 const port = process.env.PORT || 3000;
 startTracing();
 sweepUploads();
+// Records first: nothing is served until the store has everything it knew.
+const opened = await openStore();
+// Then whatever was in flight when the API last stopped is picked up again: deployments,
+// and, with a database, interviews.
+const resumed = resumeInFlight();
+let interviewPersistence = null;
+if (databaseUrl()) {
+  interviewPersistence = postgresInterviewStore();
+  interviews = createInterviewService({ checkpointer: await postgresCheckpointer(), persistence: interviewPersistence });
+} else {
+  interviews = createInterviewService();
+}
+const restoredInterviews = await interviews.restore();
+
+// A stop (a release, a reboot) waits for the last record to be written.
+for (const signal of ["SIGTERM", "SIGINT"]) {
+  process.once(signal, () => {
+    Promise.all([flushStore(), interviewPersistence?.flush()])
+      .then(([unsavedIds]) => {
+        if (unsavedIds?.length) console.error(`stopping with ${unsavedIds.length} deployment records not saved: ${unsavedIds.join(", ")}`);
+        return closeDb();
+      })
+      .finally(() => process.exit(0));
+    setTimeout(() => process.exit(0), 5000).unref();
+  });
+}
+
 app.listen(port, () => {
   console.log(`seaLeye API listening on http://localhost:${port}`);
-  console.log(`deployment store: ${storeFile} (${listDeployments().length} records loaded)`);
+  if (opened.adopted) console.log(`deployment store: brought ${opened.adopted} records in from ${opened.from}`);
+  for (const r of resumed) console.log(`${r.deploymentId}: ${r.as}`);
+  for (const r of restoredInterviews) console.log(`${r.interviewId}: ${r.as}`);
+  console.log(`deployment store: ${storeFile} (${listDeployments().length} records loaded${opened.migrations?.length ? `, applied ${opened.migrations.join(", ")}` : ""})`);
 });

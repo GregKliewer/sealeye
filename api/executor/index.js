@@ -8,7 +8,8 @@ import { renderReport } from "./report.js";
 import { putDeployment, listDeployments } from "../store.js";
 import { flushScores, scoreDeploymentOutcome } from "../../core/tracing.js";
 
-const POLL_MS = 5000;
+// Every 5 s, as CLAUDE.md says. Tests that stand in for CloudFormation poll faster.
+const POLL_MS = Number(process.env.SEALEYE_TEST_POLL_MS) || 5000;
 // Once the deploy command has exited, describe() is the only way to learn anything.
 // If it will not answer either, give up rather than poll forever.
 const MAX_POLL_ERRORS = 3;
@@ -30,12 +31,14 @@ export function mapStackStatus(stackStatus) {
  * Drive one deployment to a terminal state, mutating `record` in place as it goes.
  * Returns the record; never rejects — a thrown error becomes status "failed".
  */
-export async function startDeployment(record, plan, appPath, sent = {}) {
+/**
+ * How a deployment's status changes, written to the store each time. The API holds the
+ * LangFuse keys, so it scores how a deployment ended against the interview that
+ * produced it the moment it knows (core/tracing.js): a final status only, never a guess.
+ */
+export function settersFor(record) {
   const set = (status, patch = {}) => {
     Object.assign(record, { status, ...patch });
-    // The API holds the LangFuse keys now, so it scores how a deployment ended against
-    // the interview that produced it, the moment it knows (core/tracing.js). Same rule
-    // as before: a final status only, never a guess.
     if (status === "succeeded" || status === "failed") {
       scoreDeploymentOutcome(record);
       flushScores().catch(() => {});
@@ -43,6 +46,11 @@ export async function startDeployment(record, plan, appPath, sent = {}) {
     return putDeployment(record);
   };
   const fail = reason => set("failed", { failureReason: reason, finishedAt: now(), step: null });
+  return { set, fail };
+}
+
+export async function startDeployment(record, plan, appPath, sent = {}) {
+  const { set, fail } = settersFor(record);
 
   let composed;
   try {
@@ -92,19 +100,35 @@ export async function startDeployment(record, plan, appPath, sent = {}) {
   }
 
   // Fire and forget: the poll below, not this promise, is the source of truth.
-  let childExited = false;
-  let childResult = null;
+  const child = { exited: false, result: null };
   deploy(composed)
     .catch(err => ({ ok: false, code: -1, stdout: "", stderr: err.message }))
     .then(result => {
-      childResult = result;
-      childExited = true;
+      child.result = result;
+      child.exited = true;
     });
 
+  return followStack(record, { plan, appPath, stackName: composed.stackName, child, set, fail });
+}
+
+/**
+ * Poll one deployment's stack until it reaches a final status, and record it. Shared by
+ * a deployment in progress and one picked up again after the API restarted
+ * (`resumed`), when the deploy command is long gone and only CloudFormation knows.
+ */
+export async function followStack(record, { plan, appPath, stackName, child, set, fail, resumed = false }) {
+  const composed = { stackName };
   let pollErrors = 0;
   // Set once this deployment's own operation is visibly under way. Until then a
   // terminal stack status belongs to a previous deploy, not to this one.
-  let sawInProgress = false;
+  // After a restart, the last status read before it counts: a change seen under way
+  // then is this deployment's, whatever final status it has reached since.
+  // Kept on the record (sawInProgress), so a static site that was being synced when the
+  // API stopped, its stack already complete, is still known to be this deployment's.
+  let sawInProgress =
+    resumed &&
+    (record.sawInProgress === true ||
+      (/IN_PROGRESS/.test(record.stackStatus || "") && record.stackStatus !== "REVIEW_IN_PROGRESS"));
 
   while (true) {
     await sleep(POLL_MS);
@@ -117,8 +141,8 @@ export async function startDeployment(record, plan, appPath, sent = {}) {
       // unless the deploy is over and this is all we are going to get.
       record.pollError = err.message;
       putDeployment(record);
-      if (childExited && ++pollErrors >= MAX_POLL_ERRORS) {
-        return fail(`${err.message}${childResult?.stderr ? `\n${childResult.stderr.trim()}` : ""}`);
+      if (child.exited && ++pollErrors >= MAX_POLL_ERRORS) {
+        return fail(`${err.message}${child.result?.stderr ? `\n${child.result.stderr.trim()}` : ""}`);
       }
       continue;
     }
@@ -128,15 +152,36 @@ export async function startDeployment(record, plan, appPath, sent = {}) {
 
     const mapped = mapStackStatus(described.status);
     if (Object.keys(described.outputs).length) record.outputs = described.outputs;
-    if (/IN_PROGRESS/.test(described.status || "")) sawInProgress = true;
+    // A change set that was made and never run: the deploy command stopped between the
+    // two, or the platform restarted there. Nothing will move it on.
+    if (described.status === "REVIEW_IN_PROGRESS" && (child.exited || resumed)) {
+      return fail(
+        resumed
+          ? "The platform restarted before your environment was created, so nothing was built. Run it again."
+          : child.result?.stderr?.trim() || "the change was prepared but never run"
+      );
+    }
+    if (/IN_PROGRESS/.test(described.status || "") && described.status !== "REVIEW_IN_PROGRESS") {
+      sawInProgress = true;
+      record.sawInProgress = true;
+    }
 
     // A terminal stack status is only ours once this deployment's operation has
     // started, or once the AWS CLI has exited. Otherwise a redeploy would report the
     // previous run's CREATE_COMPLETE (or ROLLBACK) a second after it began.
     // record.stackStatus always carries the literal CloudFormation status.
-    if (!childExited && !sawInProgress) {
+    if (!child.exited && !sawInProgress) {
       set("running");
       continue;
+    }
+
+    // Picked up after a restart, with this deployment's change never seen under way:
+    // a final status now could be the previous deploy's, or the change set may never
+    // have been run. Status is real, so this is said, not guessed.
+    if (resumed && !sawInProgress && mapped !== "running" && mapped !== "destroying") {
+      return fail(
+        "The platform restarted before this deployment's change could be seen starting, so seaLeye.run cannot say it happened. Your environment is as it was before; run it again."
+      );
     }
 
     if (mapped === "succeeded") {
@@ -182,7 +227,7 @@ export async function startDeployment(record, plan, appPath, sent = {}) {
       const reason =
         (await firstFailure(composed.stackName)) ||
         described.statusReason ||
-        childResult?.stderr?.trim() ||
+        child.result?.stderr?.trim() ||
         `stack ${described.status}`;
 
       // ROLLBACK_COMPLETE is a dead stack — a create that failed and undid itself.
@@ -206,12 +251,16 @@ export async function startDeployment(record, plan, appPath, sent = {}) {
     if (mapped === null) {
       // No stack. Either the command exited before creating one, or one existed a
       // moment ago and something outside this deployment deleted it.
-      if (!childExited) {
+      if (!child.exited) {
         set("running");
         continue;
       }
       return fail(
-        childResult?.stderr?.trim() || "the deploy command exited without creating a stack"
+        resumed && sawInProgress
+          ? "Your environment's stack no longer exists: it was removed after this deployment started. Run it again."
+          : resumed
+            ? "The platform restarted before your environment was created, so nothing was built. Run it again."
+            : child.result?.stderr?.trim() || "the deploy command exited without creating a stack"
       );
     }
 

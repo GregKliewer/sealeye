@@ -51,14 +51,22 @@ function switchOffLangSmith() {
   }
 }
 
+// Passed to stretch() to pick up an interview that was running when the API stopped:
+// LangGraph carries on from its last saved step.
+const RESTART = Symbol("restart");
+
 export function createInterviewService({
   client,
   checkpointer = new MemorySaver(),
+  persistence = null,
   now = Date.now,
   scratchBase = path.join(sealeyeHome(), "interviews")
 } = {}) {
   switchOffLangSmith();
   const interviews = new Map();
+  // Kept in Postgres when the API has one (pgstore.js), so an interview outlives a
+  // restart. In memory otherwise.
+  const keep = record => persistence?.save(record);
   let modelClientCache = client || null;
 
   const graph = buildInterviewGraph({
@@ -66,6 +74,9 @@ export function createInterviewService({
     runtimeFor: id => {
       const record = interviews.get(id);
       if (!record) throw new Error(`no interview ${id}`);
+      // An interview picked up after a restart reaches here without POST /interviews
+      // having made the client first.
+      if (!ready()) throw new Error("the seaLeye API has no model key set, so it cannot run an interview");
       return { client: modelClientCache, emit: event => emit(record, event) };
     }
   });
@@ -80,8 +91,9 @@ export function createInterviewService({
   }
 
   function emit(record, event) {
-    const numbered = { seq: record.events.length + 1, at: new Date(now()).toISOString(), ...event };
+    const numbered = { seq: (record.events.at(-1)?.seq || 0) + 1, at: new Date(now()).toISOString(), ...event };
     record.events.push(numbered);
+    persistence?.addEvent(record.id, numbered);
     for (const listener of record.listeners) {
       try {
         listener(numbered);
@@ -123,6 +135,7 @@ export function createInterviewService({
       listeners: new Set()
     };
     interviews.set(id, record);
+    keep(record);
 
     emit(record, { type: "started", interviewId: id, app: record.app });
     stretch(record, null, {
@@ -167,6 +180,7 @@ export function createInterviewService({
     record.status = "running";
     const waited = record.waitingFor;
     record.waitingFor = null;
+    keep(record);
     emit(record, { type: "answered", for: waited });
     stretch(record, new Command({ resume: typeof value === "string" || typeof value === "boolean" ? value : "" }));
     return summary(record);
@@ -181,12 +195,17 @@ export function createInterviewService({
 
     const work = async () => {
       const saved = resume ? await graph.getState(config) : null;
+      if (resume === RESTART && !saved?.next?.length) {
+        throw new Error("the platform restarted before this interview had saved its place");
+      }
       const continueFrom = saved?.values?.trace || null;
 
       return traceRun(
         { app: record.app, mode: record.mode, model: record.model, promptSha: promptVersion(), user: record.user, continueFrom },
         async run => {
-          const begin = resume || { ...input, trace: run.traceId ? { traceId: run.traceId, spanId: run.spanId } : null };
+          const begin = resume === RESTART
+            ? null
+            : resume || { ...input, trace: run.traceId ? { traceId: run.traceId, spanId: run.spanId } : null };
           if (run.traceId && !record.traceId) record.traceId = run.traceId;
 
           const out = await graph.invoke(begin, config);
@@ -212,6 +231,7 @@ export function createInterviewService({
           record.status = "waiting";
           record.waitingFor = paused.type;
           if (paused.type === "confirm") record.result = { ...strip(paused), traceId: record.traceId || undefined };
+          keep(record);
           emit(record, paused.type === "confirm"
             ? { type: "plan", ...record.result }
             : { type: "question", number: paused.number, question: paused.question, lead: paused.lead || [] });
@@ -221,15 +241,21 @@ export function createInterviewService({
         record.status = "finished";
         record.approved = out.approved ?? null;
         record.result = { ...(record.result || out.result || { status: "stopped" }), ...(record.traceId ? { traceId: record.traceId } : {}) };
-        emit(record, { type: "finished", ...record.result, approved: record.approved });
-        return end(record).catch(cleanupFailed(record));
+        keep(record);
+        // Cleaned up first, so a client that sees "finished" knows the app's copy is gone.
+        return end(record)
+          .catch(cleanupFailed(record))
+          .then(() => emit(record, { type: "finished", ...record.result, approved: record.approved }));
       })
       .catch(err => {
         record.status = "failed";
         const message = err?.userFacing ? err.message : `seaLeye.run could not finish the interview: ${err?.message || err}`;
         if (setting("DEBUG") && !err?.userFacing) console.error(err);
-        emit(record, { type: "failed", message });
-        return end(record).catch(cleanupFailed(record));
+        record.failure = message;
+        keep(record);
+        return end(record)
+          .catch(cleanupFailed(record))
+          .then(() => emit(record, { type: "failed", message }));
       })
       .catch(err => {
         // Cleaning up must never take the API down with it.
@@ -245,6 +271,7 @@ export function createInterviewService({
   /** The interview's own data goes as soon as it is over: the code and the saved state. */
   async function end(record) {
     record.endedAt = now();
+    keep(record);
     await forget(record, { keepRecord: true });
   }
 
@@ -256,6 +283,7 @@ export function createInterviewService({
       fs.rmSync(record.scratchRoot, { recursive: true, force: true });
     }
     if (!keepRecord) {
+      persistence?.remove(record.id);
       for (const listener of record.listeners) {
         try { listener(null); } catch {}
       }
@@ -273,7 +301,10 @@ export function createInterviewService({
     if (!record) return null;
     for (const event of record.events) if (event.seq > after) listener(event);
     // Already over: everything there is to know has just been sent.
-    if (record.status === "finished" || record.status === "failed") return () => {};
+    // (Judged by the last event, not the status: the status changes a moment before the
+    // final event is sent, while the app's copy is being removed.)
+    const last = record.events[record.events.length - 1]?.type;
+    if (last === "finished" || last === "failed") return () => {};
     record.listeners.add(listener);
     return () => record.listeners.delete(listener);
   }
@@ -297,6 +328,44 @@ export function createInterviewService({
     }
     await forget(record);
     return true;
+  }
+
+  /**
+   * Pick up the interviews kept from before the API restarted: one waiting on the
+   * developer waits again, one that was mid-step carries on from its last saved step,
+   * and an ended one stays for a client to replay. Anything older than a day goes.
+   *
+   * @returns {Promise<{ interviewId: string, as: string }[]>}
+   */
+  async function restore() {
+    if (!persistence) return [];
+    const cutoff = now() - INTERVIEW_TTL_MS;
+    const picked = [];
+    for (const { record: kept, events } of await persistence.loadAll()) {
+      if (interviews.has(kept.id)) continue;
+      const record = { ...kept, events, listeners: new Set() };
+      interviews.set(record.id, record);
+      if (record.createdAt < cutoff) {
+        await forget(record);
+        continue;
+      }
+      if (record.status === "running") {
+        stretch(record, RESTART);
+        picked.push({ interviewId: record.id, as: "carrying on from its last step" });
+      } else if (record.status === "waiting") {
+        picked.push({ interviewId: record.id, as: `waiting for ${record.waitingFor === "confirm" ? "Deploy this?" : "an answer"}` });
+      } else if (record.status === "finished" || record.status === "failed") {
+        // Saved as ended, but the API stopped before its last event was written: say it
+        // now, so a client following it is not left waiting for an end that never comes.
+        const last = record.events.at(-1)?.type;
+        if (last !== "finished" && last !== "failed") {
+          await end(record).catch(cleanupFailed(record));
+          if (record.status === "finished") emit(record, { type: "finished", ...record.result, approved: record.approved });
+          else emit(record, { type: "failed", message: record.failure || "seaLeye.run could not finish the interview." });
+        }
+      }
+    }
+    return picked;
   }
 
   /** Waits for the current stretch, for tests and for shutting down. */
@@ -333,7 +402,7 @@ export function createInterviewService({
   const timer = setInterval(() => sweep().catch(() => {}), SWEEP_EVERY_MS);
   timer.unref();
 
-  return { start, startFromUpload, answer, remove, subscribe, get, settled, sweep, ready, close: () => clearInterval(timer) };
+  return { start, startFromUpload, answer, remove, restore, subscribe, get, settled, sweep, ready, close: () => clearInterval(timer) };
 }
 
 function summary(record) {

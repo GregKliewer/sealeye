@@ -1,10 +1,21 @@
 // api/store.js
-// In-memory map, mirrored to ~/.sealeye/deployments.json on every change so that
-// restarting the API does not lose the developer's deployment ids.
+// Deployment records. The API reads them from a map in memory, so every function here
+// stays synchronous and nothing that calls them had to change. What backs the map:
+//
+// - Postgres, when DATABASE_URL is set (PHASE1-PLAN Step 10, D5): every change is
+//   written through to the deployments table, in order, and the map is filled from it
+//   at start (openStore).
+// - ~/.sealeye/deployments.json otherwise, mirrored on every change, as before. This is
+//   the laptop API and `npm test`.
+//
+// The map is the one process's view: correct while the API is one process, which the
+// pilot server is. ECS Express Mode (stage 3) runs more than one, and the store then
+// has to read from Postgres instead (DESIGN.md, "Deployment records live in Postgres").
 import fs from "node:fs";
 import path from "node:path";
 
 import { sealeyeHome, legacyHome } from "../core/config.js";
+import { databaseUrl, db, migrate } from "./db.js";
 
 const STORE_DIR = sealeyeHome();
 const STORE_FILE = path.join(STORE_DIR, "deployments.json");
@@ -23,10 +34,25 @@ export function adoptLegacyStore(storeFile = STORE_FILE, legacyFile = path.join(
 
 // A deployment that was in flight when the API stopped has nobody polling it any
 // more, so its stored status is the last thing we actually knew, not the truth now.
-// Say so rather than let it read as live.
-const IN_FLIGHT = new Set(["queued", "packaging", "running", "destroying"]);
+// It is marked so until the executor picks it up again (executor/resume.js).
+export const IN_FLIGHT = new Set(["queued", "packaging", "running", "destroying"]);
 
-function load() {
+const markInterrupted = dep => (IN_FLIGHT.has(dep.status) ? { ...dep, interrupted: true } : dep);
+
+/** Read a deployments.json, as an array of records. Never throws for a missing file. */
+export function readStoreFile(file) {
+  let raw;
+  try {
+    raw = fs.readFileSync(file, "utf8");
+  } catch {
+    return [];
+  }
+  const records = JSON.parse(raw);
+  if (!Array.isArray(records)) throw new Error("expected an array of deployments");
+  return records.filter(dep => dep && dep.deploymentId);
+}
+
+function loadFile() {
   // Only for the default home: a SEALEYE_HOME set on purpose starts where it says.
   if (!process.env.SEALEYE_HOME && !process.env.DEPLOYME_HOME) {
     try {
@@ -36,17 +62,8 @@ function load() {
     }
   }
 
-  let raw;
   try {
-    raw = fs.readFileSync(STORE_FILE, "utf8");
-  } catch {
-    return []; // no file yet: first run
-  }
-
-  let records;
-  try {
-    records = JSON.parse(raw);
-    if (!Array.isArray(records)) throw new Error("expected an array of deployments");
+    return readStoreFile(STORE_FILE).map(dep => [dep.deploymentId, markInterrupted(dep)]);
   } catch (err) {
     // Never start by silently overwriting something we could not read.
     const backup = `${STORE_FILE}.corrupt`;
@@ -58,15 +75,15 @@ function load() {
     }
     return [];
   }
-
-  return records
-    .filter(dep => dep && dep.deploymentId)
-    .map(dep => [dep.deploymentId, IN_FLIGHT.has(dep.status) ? { ...dep, interrupted: true } : dep]);
 }
 
-const deployments = new Map(load());
+const usingDatabase = Boolean(databaseUrl());
+const deployments = new Map(usingDatabase ? [] : loadFile());
 
-function persist() {
+// ---------------------------------------------------------------------------------
+// Writing.
+
+function persistFile() {
   const tmp = `${STORE_FILE}.tmp`;
   try {
     fs.mkdirSync(STORE_DIR, { recursive: true });
@@ -79,9 +96,136 @@ function persist() {
   }
 }
 
+/**
+ * The columns written beside each record. Until sign-in (Step 13) there is one
+ * organization and one team; the record's own fields, when it has them, win.
+ */
+export function recordColumns(dep) {
+  return {
+    org_id: dep.orgId || "default",
+    team_id: dep.teamId || "default",
+    created_by: dep.requestedBy?.user || null,
+    surface: dep.surface || dep.origin?.surface || "cli",
+    trace_id: dep.origin?.traceId || null,
+    app: dep.app?.name || (typeof dep.app === "string" ? dep.app : null),
+    status: String(dep.status || "unknown"),
+    started_at: dep.startedAt || null
+  };
+}
+
+/**
+ * A record as Postgres will take it: a deep copy with every NUL character removed from
+ * its strings. jsonb refuses "\u0000", which can arrive in a stack event's reason or an
+ * app's name, and one refused record must not stop the rest from being saved.
+ */
+export function forDatabase(record) {
+  return JSON.parse(JSON.stringify(record, (_key, value) =>
+    typeof value === "string" ? value.replace(/\u0000/g, "") : value));
+}
+
+const UPSERT = `INSERT INTO deployments (deployment_id, org_id, team_id, created_by, surface, trace_id, app, status, started_at, record, updated_at)
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now())
+  ON CONFLICT (deployment_id) DO UPDATE SET
+    org_id = EXCLUDED.org_id, team_id = EXCLUDED.team_id, created_by = EXCLUDED.created_by,
+    surface = EXCLUDED.surface, trace_id = EXCLUDED.trace_id, app = EXCLUDED.app,
+    status = EXCLUDED.status, started_at = EXCLUDED.started_at, record = EXCLUDED.record,
+    updated_at = now()`;
+
+function upsertArgs(dep) {
+  const snapshot = forDatabase(dep);
+  const c = recordColumns(snapshot);
+  return [snapshot.deploymentId, c.org_id, c.team_id, c.created_by, c.surface, c.trace_id, c.app, c.status, c.started_at, snapshot];
+}
+
+// Writes go out one after another, so the table always ends with the last thing the
+// map said. A record whose write failed stays in `unsaved` and is written again, from the
+// map, with the next write of anything and at shutdown, so a database that was away for
+// a moment ends up with every change rather than only the ones that happened to retry.
+let writes = Promise.resolve();
+const unsaved = new Set();
+
+async function writeOne(id) {
+  const dep = deployments.get(id);
+  if (!dep) return unsaved.delete(id);
+  try {
+    await db().query(UPSERT, upsertArgs(dep));
+    unsaved.delete(id);
+  } catch (err) {
+    if (!unsaved.has(id)) console.error(`could not save deployment ${id}: ${err.message}`);
+    unsaved.add(id);
+  }
+}
+
+function persistRow(dep) {
+  unsaved.add(dep.deploymentId);
+  writes = writes.then(async () => {
+    for (const id of [...unsaved]) await writeOne(id);
+  });
+  return writes;
+}
+
+/**
+ * Wait until every change so far is in the database, trying once more any that failed.
+ * For shutdown and tests.
+ *
+ * @returns {Promise<string[]>} ids of records whose latest change could not be saved
+ */
+export async function flushStore() {
+  if (!usingDatabase) return [];
+  if (unsaved.size) {
+    writes = writes.then(async () => {
+      for (const id of [...unsaved]) await writeOne(id);
+    });
+  }
+  await writes;
+  return [...unsaved];
+}
+
+// ---------------------------------------------------------------------------------
+// The functions everything else uses.
+
+/**
+ * Get the store ready. With a database: apply migrations and load every record. With a
+ * file: nothing to do, it was read at import. Call once, before serving.
+ */
+export async function openStore() {
+  if (!usingDatabase) return { kind: "file", records: deployments.size };
+  const applied = await migrate();
+
+  // The first start on a database, where this API kept a deployments.json before: its
+  // records come with it, so an API moving to Postgres loses nothing it knew. Only into
+  // an empty table, so it happens once. The file is left as it was.
+  let adopted = 0;
+  const existing = Number((await db().query("SELECT count(*) AS n FROM deployments")).rows[0].n);
+  if (existing === 0 && fs.existsSync(STORE_FILE)) {
+    // All or nothing, in one transaction: a record that cannot be written leaves the
+    // table empty, so the next start tries again, rather than half the file arriving and
+    // the rest never being looked at again.
+    const conn = await db().connect();
+    try {
+      const records = readStoreFile(STORE_FILE);
+      await conn.query("BEGIN");
+      for (const dep of records) await conn.query(UPSERT, upsertArgs(dep));
+      await conn.query("COMMIT");
+      adopted = records.length;
+    } catch (err) {
+      await conn.query("ROLLBACK").catch(() => {});
+      console.error(`could not bring ${STORE_FILE} into the database, so nothing from it was brought in; the next start tries again: ${err.message}`);
+    } finally {
+      conn.release();
+    }
+  }
+
+  const { rows } = await db().query("SELECT record FROM deployments");
+  deployments.clear();
+  for (const { record } of rows) deployments.set(record.deploymentId, markInterrupted(record));
+  return { kind: "postgres", records: deployments.size, migrations: applied, ...(adopted ? { adopted, from: STORE_FILE } : {}) };
+}
+
 export function putDeployment(dep) {
   deployments.set(dep.deploymentId, dep);
-  persist();
+  if (usingDatabase) persistRow(dep);
+  else persistFile();
   return dep;
 }
 
@@ -101,4 +245,5 @@ export function count() {
   return deployments.size;
 }
 
-export const storeFile = STORE_FILE;
+/** Where records live, for the start-up line. */
+export const storeFile = usingDatabase ? "Postgres (DATABASE_URL)" : STORE_FILE;
