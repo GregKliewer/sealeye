@@ -54,7 +54,7 @@ never in a file. Type each value at the prompt rather than on the command line, 
 stays out of your shell history:
 
 ```bash
-put_secret() { read -rs -p "$1: " v; echo; aws ssm put-parameter --region ca-central-1 --name "/sealeye/$1" --type SecureString --value "$v" --overwrite >/dev/null; }
+put_secret() { printf "%s: " "$1"; stty -echo; read -r v; stty echo; echo; aws ssm put-parameter --region ca-central-1 --name "/sealeye/$1" --type SecureString --value "$v" --overwrite >/dev/null && echo "saved /sealeye/$1"; unset v; }
 put_value()  { aws ssm put-parameter --region ca-central-1 --name "/sealeye/$1" --type String --value "$2" --overwrite >/dev/null; }
 
 put_secret ANTHROPIC_API_KEY
@@ -68,7 +68,21 @@ put_value  ORG                  "<organization name>"
 ```
 
 The values for `SEALEYE_BUCKET`, `SEALEYE_LWA_VERSION` and the LangFuse keys are the ones
-already in your repo `.env` and `~/.sealeye/config`. Changing a setting later takes
+already in your repo `.env` and `~/.sealeye/config`. These work in zsh (the macOS
+default) and bash. To check what is stored, names only:
+
+```bash
+aws ssm get-parameters-by-path --region ca-central-1 --path /sealeye/ --query "Parameters[].[Name,Type]" --output table
+```
+
+`SEALEYE_DEPLOY_ROLE_ARN` is the deploy-role stack's `DeployRoleArn` output, and can be
+stored straight from it:
+
+```bash
+put_value SEALEYE_DEPLOY_ROLE_ARN "$(aws cloudformation describe-stacks --region ca-central-1 \
+  --stack-name platform-sealeye-deploy-role \
+  --query "Stacks[0].Outputs[?OutputKey=='DeployRoleArn'].OutputValue" --output text)"
+``` Changing a setting later takes
 effect at the next release, or after `docker compose restart api` on the server.
 
 ## Once: the address
