@@ -6,7 +6,7 @@ import path from "node:path";
 import { upgradePlan } from "../core/schema.js";
 import { checkPlan, checkUpgraded } from "./validate.js";
 import { backendMappings } from "./mappings.js";
-import { putDeployment, getDeployment, listDeployments, storeFile, count } from "./store.js";
+import { putDeployment, getDeployment, listDeployments, storeFile, count, openStore, flushStore } from "./store.js";
 import { startDeployment, startDestroy } from "./executor/index.js";
 import { acceptSent } from "./executor/settings.js";
 import { removeUpload, stageUpload, sweepUploads } from "./executor/uploads.js";
@@ -419,7 +419,18 @@ app.get("/interviews/:interviewId/events", (req, res) => {
 const port = process.env.PORT || 3000;
 startTracing();
 sweepUploads();
+// Records first: nothing is served until the store has everything it knew.
+const opened = await openStore();
+
+// A stop (a release, a reboot) waits for the last record to be written.
+for (const signal of ["SIGTERM", "SIGINT"]) {
+  process.once(signal, () => {
+    flushStore().finally(() => process.exit(0));
+    setTimeout(() => process.exit(0), 5000).unref();
+  });
+}
+
 app.listen(port, () => {
   console.log(`seaLeye API listening on http://localhost:${port}`);
-  console.log(`deployment store: ${storeFile} (${listDeployments().length} records loaded)`);
+  console.log(`deployment store: ${storeFile} (${listDeployments().length} records loaded${opened.migrations?.length ? `, applied ${opened.migrations.join(", ")}` : ""})`);
 });
