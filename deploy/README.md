@@ -155,11 +155,14 @@ curl https://api.sealeye.online/health
 
 ## Using it
 
-Point the CLI at it:
+Point the CLI at it once, for every command:
 
 ```bash
-sealeye run --api https://api.sealeye.online
+echo "SEALEYE_API=https://api.sealeye.online" >> ~/.sealeye/config
 ```
+
+`--api <url>` still overrides it for one command, and `--api http://localhost:3000`
+reaches a local API again.
 
 `sealeye run` no longer needs an Anthropic or LangFuse key on your machine.
 
