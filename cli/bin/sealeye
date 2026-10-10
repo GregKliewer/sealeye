@@ -18,7 +18,8 @@ import {
 } from "../client.js";
 import { banner, step, ask, answer, typing, typed, c, product, spinner, stopSpinner, animations } from "../brand.js";
 import { safeName, CONFIG_FILE, LEGACY_CONFIG_FILE } from "../../core/names.js";
-import { USER_CONFIG_HINT } from "../../core/config.js";
+import { USER_CONFIG_HINT, setting } from "../../core/config.js";
+import { startTracing, flushTracing, tracingActive, tracingConfigured, tracingSwitchedOff, scoreTrace, scoreDeploymentOutcome, flushScores } from "../../core/tracing.js";
 import { unsupportedNeeds, refusalClosing, orgName } from "../../core/catalog.js";
 import { runInterview, resolveApiKey } from "../interview/loop.js";
 import { runDoctor } from "../doctor.js";
@@ -37,6 +38,8 @@ const jsonOut = process.argv.includes("--json");
 // background. Off by default, because staring at a spinner is the thing this
 // platform is supposed to remove from a developer's day.
 const watchFlag = process.argv.includes("--watch");
+// With run: no trace for this run, whatever the keys and settings say.
+const noTraceFlag = process.argv.includes("--no-trace");
 
 // Everything the CLI reads is found relative to the CLI itself, never to the
 // developer's folder.
@@ -87,7 +90,7 @@ function usage() {
 ${product.command} - deploy your app to a real AWS environment
 
 Usage:
-  ${product.command} run [--answers <file>] [--team-context] [--watch] [--api <url>]
+  ${product.command} run [--answers <file>] [--team-context] [--watch] [--no-trace] [--api <url>]
   ${product.command} deploy --file <plan.yaml> [--app <path>] [--api <url>] [--json] [--watch]
   ${product.command} validate --file <plan.yaml> [--api <url>] [--json]
   ${product.command} status <deploymentId> [--api <url>] [--json]
@@ -109,6 +112,8 @@ Options:
                   same boundary (reads a local fixture)
       --watch     with run or deploy: stay on the live panel until the deployment
                   finishes, instead of watching in the background and notifying you
+      --no-trace  with run: record nothing about this run in LangFuse, even when its
+                  keys are set. SEALEYE_TRACING=off does the same for every run
       --all       with list: include environments you have torn down
       --deployments
                   with list: every deploy, instead of one row per environment
@@ -204,7 +209,11 @@ async function main() {
       );
 
       rl.close();
-      process.exit(130);   // the conventional code for "interrupted"
+      // 130 is the conventional code for "interrupted". With tracing on, what the
+      // interview did before Ctrl+C is still worth seeing, so wait for it, briefly;
+      // with tracing off, leave exactly as before.
+      if (!tracingActive()) process.exit(130);
+      flushTracing(1000).finally(() => process.exit(130));
     };
 
     rl.on("SIGINT", interrupt);
@@ -285,9 +294,18 @@ async function main() {
 
         say("Reading your app");
 
+        // Only the interview is traced, and only when LangFuse keys are set and
+        // neither --no-trace nor SEALEYE_TRACING=off says otherwise (DESIGN.md,
+        // "Turning tracing off for a run"). A switch that turned it off says so, once.
+        const tracing = startTracing({ off: noTraceFlag });
+        if (!tracing && tracingConfigured() && (noTraceFlag || tracingSwitchedOff())) {
+          say("Tracing is off for this run");
+        }
+
         const result = await runInterview({
           appPath,
           apiBaseUrl,
+          user: requestedBy().user,
           // What is running, so the interview asks about what changed and nothing else.
           deployed: live?.record?.plan || null,
           onStep: say,
@@ -303,6 +321,12 @@ async function main() {
             return reply;
           }
         });
+
+        // The interview is the only traced part of a run, so its trace is complete here.
+        // Send it now rather than at exit: deploy and watch can end the process in more
+        // ways than are worth guarding one by one.
+        await flushTracing();
+        if (result.traceId && setting("DEBUG")) console.error(`  [debug] trace ${result.traceId}`);
 
         if (result.status === "invalid") {
           console.log("");
@@ -362,6 +386,14 @@ async function main() {
       console.log("");
       const reply = await askLine(rl, "Deploy this? [y/N]");
 
+      // How the interview's plan landed, against its trace. Only an interviewed plan has
+      // one; a reused plan has no trace to score.
+      if (submission.traceId) {
+        scoreTrace(submission.traceId, "developer_said_yes", reply.toLowerCase() === "y");
+        scoreTrace(submission.traceId, "needs_refused", needs.length > 0);
+        await flushScores();
+      }
+
       if (reply.toLowerCase() !== "y") {
         console.log("");
         // Only name the files that are actually there: a reused plan may never have
@@ -388,7 +420,14 @@ async function main() {
       requestedBy: requestedBy(),
       origin: submission.reused
         ? { command: "run", planSource: "reused", file: path.basename(configPath) }
-        : { command: "run", planSource: "interview", answers: answersGiven }
+        : {
+            command: "run",
+            planSource: "interview",
+            answers: answersGiven,
+            // The interview that produced this plan, so its outcome can be scored
+            // against it and a reader can find the trace from the record.
+            ...(submission.traceId ? { traceId: submission.traceId } : {})
+          }
     });
 
     // Declined: it has already said so, and there is nothing to watch. With
@@ -481,6 +520,10 @@ async function main() {
 
     if (jsonOut) console.log(JSON.stringify(result, null, 2));
     else printDeploymentSummary(result);
+
+    // A final status read here scores the interview that produced it, if one did.
+    scoreDeploymentOutcome(result);
+    await flushScores();
 
     return;
   }
@@ -1176,6 +1219,8 @@ async function runWatch({ apiBaseUrl, deploymentId }) {
     if (!live) {
       if (wait) wait.stop();
       console.log("");
+      scoreDeploymentOutcome(dep);
+      await flushScores();
 
       if (dep.status === "succeeded") {
         const url = publicUrl(dep);
@@ -1241,6 +1286,8 @@ async function runBackground({ apiBaseUrl, deploymentId, appPath, plan }) {
 
     if (!live) {
       console.log("");
+      scoreDeploymentOutcome(dep);
+      await flushScores();
 
       if (dep.status === "succeeded") {
         const url = publicUrl(dep);
@@ -1774,14 +1821,16 @@ async function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-main().catch(err => {
+main().catch(async err => {
   // An unreachable platform, a missing key or a model that would not answer is one
   // sentence the developer can act on, not a stack trace.
-  if (err?.userFacing) {
-    console.error(c.fail(err.message));
-    process.exit(1);
-  }
+  const message = err?.userFacing
+    ? err.message
+    : (err.details ? JSON.stringify(err.details, null, 2) : (err.stack || String(err)));
+  console.error(c.fail(message));
 
-  console.error(c.fail(err.details ? JSON.stringify(err.details, null, 2) : (err.stack || String(err))));
+  // A run that failed is the one most worth a trace. Capped, and free when tracing is off.
+  await flushTracing(1000);
+  await flushScores(1000);
   process.exit(1);
 });

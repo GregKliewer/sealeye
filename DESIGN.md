@@ -253,6 +253,142 @@ files read earlier, so it would break the rule above. It is also untested agains
 `@anthropic-ai/sdk` 0.127 this repo pins. Hand-written spans let seaLeye decide what a
 trace contains.
 
+**What a trace holds, as built.** Checked by hand on Greg's own runs on Oct 9, and by
+`test/interview-trace.test.js` on every `npm test`.
+
+| In a trace | Never in a trace |
+|---|---|
+| Each turn's shape: roles, block types, tool names, file paths, lengths | Any file's contents, including earlier reads resent on later turns |
+| The model's text and tool calls; `submit_plan` whole | The model's thinking (recorded as a step, not its words) |
+| Each file read: path, size, truncated or not, any refusal and its reason | `.env` and credential files, which the interview cannot read at all |
+| Each question, and each answer after the mask | A secret shaped like one (keys, tokens, `NAME=value` secrets, private keys) |
+| The plan check: valid, error count, error messages, retry | The prompt's text (recorded as a hash of the file) |
+| Token usage and cost, the model, the app name, the user name, the six scores | Anything from the developer's folder beyond names and sizes |
+
+**How `core/tracing.js` is built.** Decided Fri Oct 9, 2026, writing PHASE1-PLAN Step 3.
+
+- *LangFuse SDK v5, not the v4 the plan sketched.* v5 is current; the names the plan used
+  (`LangfuseSpanProcessor`, `startActiveObservation`, a `mask` option) are unchanged.
+- *A tracer provider of seaLeye's own, not `@opentelemetry/sdk-node`.* The plan's
+  `NodeSDK` pulls in about 25 exporters seaLeye never uses (gRPC, Prometheus, Zipkin)
+  and registers itself for the whole process. `sdk-trace-node` with
+  `setLangfuseTracerProvider` traces seaLeye's spans and nothing else. Only the context
+  manager is registered globally, because nested spans need it.
+- *Names come from code, never from model or developer text.* LangFuse masks only input,
+  output and metadata. Span names, status messages, the session id and the user id skip
+  the mask, so they are set from seaLeye's own values: a tool name the model invents is
+  recorded as `unknown_tool`, and an error is recorded by its class, not its message.
+- *The prompt version is a hash of the file's content, not its git hash.* An installed
+  `sealeye` has no git history to ask; the content hash names the same version either way.
+- *Spans are sent as they end, not batched.* The CLI is short-lived and can be
+  interrupted, and a run is a few dozen spans, so sending each one is cheap and an
+  interrupted run still leaves what it did. `flushTracing()` waits for the last few.
+- *Token counts use Anthropic's field names.* `input`, `output`,
+  `cache_read_input_tokens` and `cache_creation_input_tokens`. LangFuse's maintained
+  `claude-sonnet-5` definition prices each of these names directly (checked in the
+  `sealeye-dev` project, Oct 9). Its `cache_creation_input_tokens` price is the
+  five-minute cache rate, which is what the interview asks for (`ephemeral` with no
+  `ttl`). If the system prompt ever moves to the one-hour cache, cache writes must be
+  sent as `input_cache_creation_1h` instead, or their cost will read low.
+- *The trace is sent when the interview returns, not at exit.* Only the interview is
+  traced, so its trace is complete at that point, and deploy and watch can end the
+  process in more ways than are worth guarding one by one. Ctrl+C and a crash also send
+  what there is, waiting at most a second; with tracing off they exit exactly as before.
+- *`runInterview` takes an optional `client`.* Tests pass a scripted one, so the real
+  loop, tools and API can be checked for what they send to LangFuse without a model.
+
+**Scoring a run's outcome.** Decided Fri Oct 9, 2026, writing PHASE1-PLAN Step 5.
+
+- *The trace id travels in `origin`.* `POST /deployments` already stores `origin` as
+  sent, on deployed and refused records alike, so `origin.traceId` needed no API change.
+- *Six scores, from a fixed list, numbers and yes-or-no only.* `questions_asked`,
+  `plan_valid_first_try` and `validation_retries` come from the interview;
+  `developer_said_yes` and `needs_refused` from "Deploy this?"; `deployment_succeeded`
+  from wherever a final status is read: `watch`, `status`, the first seconds after
+  `run`, and the background notifier, which is where most runs end. Only `succeeded`
+  and `failed` are scored. A deployment nobody looks at again gets no score.
+- *One request per score, three seconds, no retries.* LangFuse's own client
+  (`@langfuse/client`) retries with growing delays, and with LangFuse unreachable it
+  kept a finished command alive for over a minute. Scores now go straight to
+  `POST /api/public/scores`, and the client package is not used.
+- *A fixed id per score (`<trace>-<name>`).* A same-day re-read replaces the score.
+  LangFuse matches on id, name and date, so a re-read on a later day adds a copy with
+  the same value, which is harmless for a final status.
+
+**The interview regression set.** Decided Fri Oct 9, 2026, writing PHASE1-PLAN Step 6.
+
+- *One fixture per sample app, answers and expected result together,* in
+  `test/fixtures/eval/<app>.json` rather than the plan's `answers/` folder: what to say
+  and what should come of it are one case, and a test checks every app has one.
+- *What "right" means.* The outcome (ready, drafted, or how it stopped) must match. A
+  ready plan must enable its building block and not the other one. Needs must match
+  exactly, by kind; a missing or extra need is named. A drafted plan is not graded on
+  modules. The payment processor's five expected needs are each shown in its code or
+  README: it reads a Kafka stream continuously, writes to Postgres, reads a signing
+  key, and says it must not be reachable from the internet.
+- *Cost comes from LangFuse, not a score.* A dataset run shows each item's cost and
+  latency from its linked trace, so the script does not price tokens itself.
+- *Each app is recorded the way LangFuse's own experiment runner records an item.*
+  Linking traces to a dataset run through the REST API alone was accepted but never
+  shown: this LangFuse builds its Experiments view from marks on the spans. So each app
+  runs under a root span linked to the dataset run, every span under it carries the
+  experiment's run id, name, dataset id and item id, and the root is in LangFuse's
+  `sdk-experiment` environment, which also keeps these traces apart from real runs.
+  The script starts its own API with an empty store, so it adds no deployment records.
+- *The older dataset-run endpoints are off for new LangFuse organizations.* Greg's
+  organization (created after September 16, 2026) answers
+  `GET /api/public/datasets/{name}/runs` with LEGACY_API_UNAVAILABLE_FOR_NEW_ORGANIZATION
+  and points to `GET /api/public/experiments`. So the dataset-run link is tried and
+  allowed to fail, and each run carries an experiment id of its own (one per run,
+  shared by its items), as LangFuse's runner does when no run id comes back.
+- *Recheck before November 16, 2026.* LangFuse Cloud says older public endpoints go
+  then, and that OpenTelemetry ingestion is the only path to live data. Traces already
+  go that way. Scores (`POST /api/public/scores`) and dataset items
+  (`POST /api/public/dataset-items`) work on this organization today and are the two
+  calls to check against the migration notes at langfuse.com/docs/compatibility.
+- *Dataset items hold the app's name, never its files,* the same rule as traces.
+
+## Tracing stays in the product
+
+Decided Fri Oct 9, 2026, by Greg. Part A (pull request #4) merges to `main` now, and Part B
+of PHASE1-PLAN starts from `main` on Sat Oct 10.
+
+The plan held this decision until after the Lightworks interview on Tue Oct 13, for two
+reasons: Step 8 moves tracing into the API, so building it before deciding risked wasted
+work, and the interview demo ran on this code. Neither holds. Tracing is in, and Part A is
+not being demoed. Working on Part B now is also the point: seaLeye is how Greg is learning
+LangFuse, and how a real AI-native product is built, hands on, alongside the interview
+process.
+
+What stays open is unchanged: where traces live for an organization (Q13), and the Part B
+decisions that are not yet made (Q1's folder upload before Step 8, D6 and D7 before Steps
+12 and 13).
+
+## Turning tracing off for a run
+
+Decided Fri Oct 9, 2026, after Part A of PHASE1-PLAN.
+
+Tracing was on whenever LangFuse keys could be found, and they are found in the
+environment, the repo `.env` and `~/.sealeye/config`. Unsetting the environment variables
+for one command did not turn it off, so there was no way to say "not this run".
+
+- *Two switches.* `sealeye run --no-trace` for one run, and `SEALEYE_TRACING=off` for
+  every run in a shell, a `.env` or a config file, read through `setting()` like any other
+  setting, so the environment wins over the files. Either one is checked first in
+  `startTracing()`; everything else already does nothing when tracing has not started.
+- *Anything but on, true, 1 or yes is off.* A switch exists to stop data leaving, so a
+  typo in it (`SEALEYE_TRACING=of`) must not send a trace someone meant to stop.
+- *It says so.* When a switch turns tracing off and keys are set, `run` prints one line,
+  "Tracing is off for this run". With no keys it says nothing, as before.
+- *The cost is the join.* An untraced run has no trace id, so its deployment record has
+  no `origin.traceId` and its outcome is never scored.
+- *The regression set refuses.* `npm run eval:interview` exists to record a run in
+  LangFuse, so with `SEALEYE_TRACING` off or `--no-trace` it stops with a plain message
+  instead. Without `--`, npm keeps `--no-trace` for itself and sets `npm_config_trace`,
+  so the script reads that too.
+- *The default stays on when keys are set.* An organization may want it the other way,
+  off unless turned on; that belongs with Q13, where traces live for an organization.
+
 ## The earliest code is Greg's to share
 
 Decided Fri Oct 9, 2026.

@@ -50,6 +50,11 @@ shows what is really there.
 7. **The portal becomes a client**: the mock-up's Environments, Catalog and Control pages
    read from the API for the operations that exist today (Q9).
 8. **CI**: `npm test` on every push and pull request.
+9. **Observability**: every interview is a LangFuse trace, joined to the deployment it
+   produced and scored on how it turned out (`core/tracing.js`, DESIGN.md "Tracing the
+   interview with LangFuse"). Built on the `langfuse-tracing` branch for one machine;
+   it moves to the API with the interview (work item 6), and where an organization's
+   traces live is Q13.
 
 ### Phase 2: Day-two parity
 
@@ -68,7 +73,10 @@ shows what is really there.
 - Admin onboarding: identity provider, repositories, which automation is strategic.
 - The discovery agent: ingest modules and pipelines, stop on hardcoded secrets (Q6),
   flag ambiguity for a person.
-- Self-test: plans that must be refused, and are.
+- Self-test: plans that must be refused, and are. It starts from the interview
+  regression set (`npm run eval:interview`): three sample apps, each graded on its
+  outcome, building blocks and needs, compared run against run in LangFuse. Phase 3
+  grows it to the organization's own apps and modules.
 - The catalog becomes the organization's, and a need becomes buildable when a module
   supports it.
 - A second backend: Terraform, since that is what most platform libraries are.

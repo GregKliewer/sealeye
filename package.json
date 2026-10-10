@@ -14,10 +14,17 @@
     "start": "node api/server.js",
     "dev": "node --watch api/server.js",
     "cli": "node cli/bin/sealeye",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "eval:interview": "node scripts/eval-interview.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.127.0",
+    "@langfuse/core": "^5.13.1",
+    "@langfuse/otel": "^5.13.1",
+    "@langfuse/tracing": "^5.13.1",
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/context-async-hooks": "^2.12.0",
+    "@opentelemetry/sdk-trace-node": "^2.12.0",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
     "express": "^5.2.1",

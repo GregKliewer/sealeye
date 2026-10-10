@@ -1,13 +1,14 @@
 # Phase 1 plan: LangFuse tracing, then a hosted API
 
-Written Thu Oct 8, 2026. Work happens on the branch `langfuse-tracing`. Nothing merges to
-`main` until Greg decides, after the Lightworks interview on Tue Oct 13, whether tracing
-stays in the product.
+Written Thu Oct 8, 2026. Part A was built on the branch `langfuse-tracing` and merged to
+`main` on Fri Oct 9 (pull request #4), when Greg decided tracing stays in the product
+(DESIGN.md, "Tracing stays in the product"). The plan first held that decision until after
+the Lightworks interview on Tue Oct 13; it did not need to wait.
 
 The plan has two parts. **Part A** (Steps 0 to 7) adds LangFuse to the interview as it runs
 today, on Greg's machine, and can be finished before Tuesday. **Part B** (Steps 8 to 15) is
 Phase 1 proper: the API is hosted, the interview moves behind it, and tracing moves with
-it. Part B starts only after the merge decision.
+it. Part B starts from `main` on Sat Oct 10.
 
 ## What the code looks like today
 
@@ -62,6 +63,13 @@ answer, and it is the more useful thing to learn.
 
 ## Part A: tracing the interview (before Tuesday)
 
+**Status:** built and checked by hand on Fri Oct 9, 2026, on `langfuse-tracing` (pull
+request #4, merged Fri Oct 9). Where the build differs from the steps below, DESIGN.md says
+why: LangFuse SDK v5 with a tracer provider of seaLeye's own (Step 3), scores sent one
+bounded request each rather than through `@langfuse/client` (Step 5), and regression
+runs recorded as LangFuse experiments, because dataset runs are off for new
+organizations (Step 6).
+
 ### Step 0. Branch and baseline
 
 ```bash
@@ -115,11 +123,12 @@ It lives in `core/` because the interview moves from `cli/` to `api/` in Part B,
 tracing should not have to move with it. `test/boundaries.test.js` should keep passing.
 
 ```bash
-npm install @langfuse/tracing @langfuse/otel @langfuse/client @opentelemetry/sdk-node
+npm install @langfuse/tracing @langfuse/otel @langfuse/core @opentelemetry/api \
+  @opentelemetry/sdk-trace-node @opentelemetry/context-async-hooks
 ```
 
-Check the exact v4 function names against the current LangFuse TypeScript docs when you
-start; the sketch below follows their v4 layout.
+Built on LangFuse v5 with a tracer provider of seaLeye's own rather than `NodeSDK`;
+DESIGN.md says why. The sketch below still describes what the module does.
 
 What the module does:
 
@@ -190,7 +199,8 @@ This is where tracing becomes evaluation.
 - `POST /deployments` already accepts an `origin` object. The CLI adds `traceId` to it, so
   the record names the interview that produced it. The API stores it and changes nothing
   else (keep existing endpoints working).
-- Scores, posted with `@langfuse/client` against the trace:
+- Scores, posted against the trace (one bounded request each; DESIGN.md says why not
+  `@langfuse/client`):
   - `plan_valid_first_try` (boolean)
   - `validation_retries` (0 to 2)
   - `questions_asked` (0 to 4)
@@ -208,7 +218,8 @@ need) both show their scores, and the deployment record holds the trace id.
 The `ask` callback is already injected, so a scripted run needs no new interview code.
 
 - `scripts/eval-interview.js` runs `runInterview` against each app in `apps/` with
-  pre-written answers in `test/fixtures/answers/<app>.json`, and without deploying.
+  pre-written answers in `test/fixtures/eval/<app>.json` (with the expected result beside
+  them), and without deploying.
 - Each run is linked to a LangFuse dataset item named after the app, with the expected
   outcome: the static site gives a `ready` plan with `static_site_edge`; the API gives
   `http_api_serverless`; the payment events processor is refused with the needs it should
@@ -252,7 +263,7 @@ assumed. It also gives you three things worth saying in the room:
 - **The connection that matters.** Tracing only becomes governance when a trace is joined
   to a real outcome. Step 5 is that join.
 
-## Part B: the hosted API (after the merge decision)
+## Part B: the hosted API (from Sat Oct 10)
 
 This is roadmap Phase 1, work items 1 to 8, in the order the dependencies force.
 

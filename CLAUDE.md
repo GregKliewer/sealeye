@@ -82,7 +82,7 @@ needs something the API has, it belongs in `core/` or behind an endpoint.
 - Stacks are `sealeye-<app>` (lowercase, `[a-z0-9-]` only, `core/names.js`). Artifacts
   are `<app>/<deploymentId>.zip`.
 - Settings are `SEALEYE_<NAME>` (ACCOUNT, BUCKET, LWA_VERSION, REGION, MODEL, DEBUG,
-  HOME), read through `setting()` in `core/config.js`.
+  HOME, TRACING), read through `setting()` in `core/config.js`.
 - `deployme` was the original name. Until 2.17.0 the plan file was `deployme.yaml`, the
   config folder `~/.deployme`, and settings `DEPLOYME_*`. They are still read, never
   written. Only `core/config.js`, `core/names.js`, `core/schema.js` and `api/store.js`
@@ -136,6 +136,13 @@ break.
   `.env.example` and `.env.sample`, `.envrc`, `*.pem`, `*.key`, SSH keys, `.npmrc`,
   `credentials`); list_files still shows their names. submit_plan(plan, summary,
   assumptions) ends it.
+- Tracing (LangFuse, `core/tracing.js`) is on only when LangFuse keys are set, and
+  `sealeye run --no-trace` or `SEALEYE_TRACING=off` turns it off; a switch that does
+  says so in one line. It records the shape of each turn, file paths and sizes, never
+  file contents; anything new the interview records goes through those helpers, not
+  straight to LangFuse.
+  Scores are numbers and yes-or-no values from the fixed list in `core/tracing.js`;
+  `deployment_succeeded` is scored only from a final status read from the platform.
 - At most four questions, one per turn, in developer language. Look at the folder
   before asking anything the folder can answer.
 - The submitted plan goes to POST /plans/validate; errors go back to the model; two
@@ -167,6 +174,9 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
 ## Working here
 
 - `npm test` before every commit. It needs no AWS and no API key.
+- `npm run eval:interview` before and after any change to `prompts/`. It runs the
+  interview on each sample app, grades the plans, and records a LangFuse dataset run;
+  it needs ANTHROPIC_API_KEY and LangFuse keys, and deploys nothing.
 - `npm start` runs the API from the repo root; `npm link` from the repo root installs
   `sealeye`.
 - One decision per commit where possible. A decision goes in DESIGN.md with its date and
