@@ -39,6 +39,11 @@ export function stageUpload(zip, deploymentId) {
   return appDir;
 }
 
+/** Where one deployment's uploaded copy is unpacked. */
+export function uploadDirFor(deploymentId) {
+  return path.join(uploadsBase(), deploymentId, "app");
+}
+
 /** Remove one deployment's copy. Never throws. */
 export function removeUpload(deploymentId) {
   try {
