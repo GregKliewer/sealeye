@@ -467,3 +467,61 @@ setting, seaLeye fits behind that gateway and needs no route of its own to the
 internet. Whether seaLeye runs a gateway of its own is OPEN-QUESTIONS Q14, and is not
 decided here. `test/model-url.test.js` runs one turn against a stand-in at that address
 and checks nothing else was called.
+
+## The interview runs in the API
+
+Decided Sat Oct 10, 2026 (PHASE1-PLAN Step 8, built on D8).
+
+The interview moved from `cli/interview/loop.js` to `api/interview/`, as the LangGraph
+graph DESIGN.md already describes: `begin`, `model_turn`, `tools`, `ask`, `approve`.
+`sealeye run` uploads the folder, follows the interview's events and sends the answers.
+It holds no model key and no LangFuse keys.
+
+**The endpoints.** `POST /interviews` takes `{ app, zip, deployed?, user?, trace? }`,
+with the zip as base64, and returns an interview id. `POST /interviews/{id}/answers`
+takes `{ answer }`, which is the text of an answer or y/n to "Deploy this?", from any
+client. `GET /interviews/{id}/events` is a server-sent event stream. It carries
+`started`, `step`, `question`, `answered`, `plan`, `finished` and `failed`, each with a
+sequence number. A client that reconnects gets everything after the last one it saw.
+`plan` means the interview is waiting on "Deploy this?". `finished` says whether it was
+approved.
+
+**What travels in the upload (`core/upload.js`).** The folder travels without
+node_modules, .git, .github, .do, seaLeye's own folders and symlinks. Secret files
+(`core/secrets.js`, the same list `read_file` refuses) travel as empty files with
+their names. That keeps `list_files` showing that a `.env` exists, which tells the
+model the app reads settings, while the contents never leave the laptop. The API checks
+every rule again when it unpacks, because it cannot trust the client: no absolute
+paths, no `..`, at most 25 MB unpacked and 5,000 files (checked before inflating), and
+a secret file that arrives with contents is written empty.
+
+**Each interview has its own scratch folder.** It is named after the app, so the
+model's view is the same as before, and it lives under the system temp folder. The
+scratch folder and the saved state are both deleted when the interview ends, or after a
+day if it never does. A sweep also removes scratch folders no live interview owns,
+which covers an API that was stopped mid-interview.
+
+**One trace across pauses.** Each stretch of work after a pause opens a span named
+`interview resumed`. Its parent is the first stretch's `sealeye run` span, whose trace
+id and span id are kept in the graph's state (`traceRun`'s `continueFrom`). Each
+stretch's output says what it ended on: `asked a question`, `submitted`, `approved`,
+`declined` or `stopped`.
+
+**Tracing off is per interview.** `--no-trace` and a CLI-side `SEALEYE_TRACING=off`
+send `trace: false`, and the API runs that interview under `withoutTracing`, so every
+helper in `core/tracing.js` is a no-op for it alone. One developer's choice must not
+turn tracing off for everyone else on a shared API. It must also not leave their turns
+as stray traces of their own.
+
+**Scores moved with the keys.** The approve node scores `developer_said_yes` and
+`needs_refused`. The executor scores `deployment_succeeded` when it records a final
+status. The CLI's own scoring calls do nothing without keys, so they were left in place.
+
+**What did not move yet: deploying from the upload.** `sealeye run` still deploys with
+`appPath`, the developer's folder, as `sealeye deploy` does. A deploy reads setting
+values from the folder's `.env`, which the upload deliberately leaves out. Where those
+values come from on a hosted API is OPEN-QUESTIONS Q15. This is fine for Step 8, which
+is done against a local API.
+
+`npm run eval:interview` runs the same graph in-process (`runInterview` in
+`api/interview/service.js`) and checks plans in-process, so it no longer starts an API.

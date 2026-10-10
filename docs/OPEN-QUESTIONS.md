@@ -30,6 +30,28 @@ a bank's code: LangFuse Cloud has no Canadian region.
 agreed with the organization, and LangFuse in their network for a bank. Blocks any
 Phase 1 pilot on real code with tracing on.
 
+### Q15. Where do an app's setting values come from when the API is hosted?
+
+When the API deploys an app with the config_basic module, it reads each setting's value
+from the developer's `.env` in the app folder (`api/executor/compose.js`), and passes
+it to the function as a NoEcho parameter. That works while the API runs on the same
+machine as the folder. A hosted API has only the upload, and the upload carries `.env`
+as an empty name (DESIGN.md, "The interview runs in the API"), so it would deploy with
+the plan's placeholders instead.
+
+**Options:**
+- **The CLI sends the values of the settings the plan names**, and only those, with the
+  deploy request. Used once for the parameters, never stored, never logged. Simple, but
+  values leave the laptop, which the upload was designed not to do.
+- **Values live in the organization's secret store** (SSM Parameter Store or Secrets
+  Manager in the team's account), and the plan names where each is. Nothing secret
+  travels through seaLeye; it is more for the developer to set up.
+- **A hosted deploy uses the placeholders** until one of the above is decided, and the
+  report says which settings were left unset.
+
+**Leaning:** none yet. Blocks Step 9 (a hosted API deploying apps with settings), not
+Step 8, whose deploys still read the folder.
+
 ## Later
 
 ### Q6. How are hardcoded secrets detected during ingestion?

@@ -37,7 +37,8 @@ shows what is really there.
 1. **The app reaches the API without a shared disk.** Today `POST /deployments` takes an
    `appPath` on the API's own machine. A hosted API cannot read the developer's laptop,
    so the CLI uploads a snapshot of the folder (or the API reads a connected repo; see
-   OPEN-QUESTIONS Q1) and packaging works from that.
+   OPEN-QUESTIONS Q1) and packaging works from that. *The interview reads the upload
+   since Oct 10, 2026; packaging still reads the folder until Q15 is answered.*
 2. **Host the API** behind seaLeye.online (Q2).
 3. **Sign-in**: the portal signs in through an identity provider; the CLI gets a
    `sealeye login` that does the same and stores a token in `~/.sealeye/` (Q3). Every
@@ -46,15 +47,16 @@ shows what is really there.
    organization and team on every record (Q2).
 5. **AWS access per team**: the API acts in each team's account through a role it
    assumes, not with one person's credentials (Q4).
-6. **The model key**: the API holds it, not each developer (Q8).
+6. **The model key**: the API holds it, not each developer (Q8). *Done Oct 10, 2026:*
+   the interview runs in the API as a LangGraph graph, and `sealeye run` streams it
+   (DESIGN.md, "The interview runs in the API").
 7. **The portal becomes a client**: the mock-up's Environments, Catalog and Control pages
    read from the API for the operations that exist today (Q9).
 8. **CI**: `npm test` on every push and pull request.
 9. **Observability**: every interview is a LangFuse trace, joined to the deployment it
    produced and scored on how it turned out (`core/tracing.js`, DESIGN.md "Tracing the
-   interview with LangFuse"). Built on the `langfuse-tracing` branch for one machine;
-   it moves to the API with the interview (work item 6), and where an organization's
-   traces live is Q13.
+   interview with LangFuse"). It moved to the API with the interview on Oct 10, 2026,
+   one trace across the interview's pauses; where an organization's traces live is Q13.
 
 ### Phase 2: Day-two parity
 
@@ -104,7 +106,7 @@ and does nothing real. A blank is not started.
 
 | Operation | Command | API | CLI | Portal | Phase |
 |---|---|---|---|---|---|
-| Plan and deploy (interview) | `sealeye run` | validate + deployments | built | mock-up (button only) | 1 (API), 2 (portal) |
+| Plan and deploy (interview) | `sealeye run` | `POST /interviews`, `/answers`, `/events`, then deployments | built | mock-up (button only) | 1 (API), 2 (portal) |
 | Deploy an existing plan | `sealeye deploy -f` | `POST /deployments` | built | | 2 |
 | Re-run on a live environment | `sealeye run` | `POST /deployments` | built | | 2 |
 | Validate a plan | `sealeye validate` | `POST /plans/validate` | built | | 2 |
