@@ -14,6 +14,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 
 import { getDeployment } from "../client.js";
+import { DEFAULT_API, setting } from "../../core/config.js";
 import { scoreDeploymentOutcome, flushScores } from "../../core/tracing.js";
 
 const POLL_MS = 5000;
@@ -139,7 +140,7 @@ function notifyWithOsascript({ title, subtitle, message, sound }) {
 
 async function main() {
   const deploymentId = getArg("--deployment-id");
-  const apiBaseUrl = getArg("--api") || "http://localhost:3000";
+  const apiBaseUrl = getArg("--api") || setting("API") || DEFAULT_API;
   const appPath = getArg("--app");
   const appNameArg = getArg("--app-name");
   const fallbackAppName = appNameArg || appPath?.split("/").filter(Boolean).pop();

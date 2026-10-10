@@ -11,6 +11,10 @@ source ./server.env
 aws s3 cp "s3://${CONFIG_BUCKET}/server/compose.yaml" compose.yaml --region "$REGION" --only-show-errors
 aws s3 cp "s3://${CONFIG_BUCKET}/server/Caddyfile" Caddyfile --region "$REGION" --only-show-errors
 
+# The pages Caddy serves: seaLeye.online, seaLeye.run and the package it installs.
+mkdir -p sites
+aws s3 sync "s3://${CONFIG_BUCKET}/server/sites/" sites/ --region "$REGION" --delete --only-show-errors
+
 for f in backup.sh restore-check.sh; do
   aws s3 cp "s3://${CONFIG_BUCKET}/server/$f" "$f" --region "$REGION" --only-show-errors
 done
@@ -28,7 +32,7 @@ if ! aws ssm get-parameter --region "$REGION" --name /sealeye/POSTGRES_PASSWORD 
 fi
 chmod 644 secrets/pg_password.new && mv secrets/pg_password.new secrets/pg_password
 
-# The nightly backup, at 03:15 Toronto time (07:15 UTC). Installed or updated every
+# The nightly backup, at 03:15 Toronto time. Installed or updated every
 # release; Persistent=true runs a missed one after the server was off.
 cat > /etc/systemd/system/sealeye-backup.service <<UNIT
 [Unit]

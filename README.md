@@ -6,8 +6,19 @@ report. When your app needs something the platform cannot build, it says so, wit
 code that shows it, and builds nothing.
 
 - **seaLeye.run** is the `sealeye` command.
-- **seaLeye.online** is the web portal (today a mock-up in `archive/`).
-- Both are clients of the seaLeye API in `api/`.
+- **seaLeye.online** is the web portal (today a page saying what it will be; the
+  mock-up is in `archive/`).
+- Both are clients of the seaLeye API in `api/`, which runs at https://api.sealeye.online.
+
+## Use it
+
+```bash
+curl -fsSL https://sealeye.run/install | sh
+cd your-app && sealeye run
+```
+
+The command talks to https://api.sealeye.online unless `SEALEYE_API` (in
+`~/.sealeye/config`) or `--api` says otherwise.
 
 Where it is going: [docs/VISION.md](docs/VISION.md). What is next:
 [docs/ROADMAP.md](docs/ROADMAP.md).
@@ -37,11 +48,12 @@ ANTHROPIC_API_KEY=...
 ORG=Your Organization
 ```
 
-Start the API in one window, then use the command in another:
+Start the API in one window, then use the command in another, pointed at it (add
+`SEALEYE_API=http://localhost:3000` to the repo `.env` to make that the default here):
 
 ```bash
 npm start
-cd apps/beneficiary-lookup-api && sealeye run
+cd apps/beneficiary-lookup-api && sealeye run --api http://localhost:3000
 sealeye doctor           # checks every one of the above
 ```
 

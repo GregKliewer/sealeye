@@ -805,3 +805,36 @@ does not deploy on merge: the pilot server has real environments behind it, and 
 release is still something you choose to do (PHASE1-PLAN Step 11: "manual until there is
 a reason to automate").
 
+## Each domain has one job
+
+Decided Sat Oct 10, 2026 (PHASE1-PLAN Step 12, D6).
+
+- `api.sealeye.online` is the API, and the command's default: a developer installs and
+  runs, with nothing to configure. `SEALEYE_API` or `--api` points it elsewhere, a
+  local API included (`DEFAULT_API` in `core/config.js`).
+- `sealeye.online` is the portal. Until Step 14 builds it, a page in the console's light
+  brand says what it will be and sends developers to seaLeye.run.
+- `sealeye.run` is the command's home page and its installer:
+  `curl -fsSL https://sealeye.run/install | sh` checks for Node.js 20 and runs
+  `npm install -g` on a package the server hosts.
+- `sealeye.org` redirects to sealeye.run for now.
+
+All four are served by the pilot server's Caddy, which gets each certificate itself.
+DNS for each is a Route 53 zone (`deploy/dns.yaml`), as `sealeye.online` already was.
+The pages live in `sites/` and go to the server with every release, beside the image.
+
+**The package is a file on the server, not a registry.** `release.sh` runs `npm pack`
+and the server hosts `sealeye-<version>.tgz`; the installer names the version it was
+released with. No npm account, no private registry, and a release is still one command.
+package.json `"files"` limits the package to `cli/`, `core/` and the prompt and template
+files the command reads. The API and the interview's system prompt never leave the
+server, and `test/package-contents.test.js` fails if they would. The package still
+installs every dependency in package.json, the API's included, which is heavier than
+the command needs; splitting the dependencies is worth doing when the package grows.
+
+**Anyone with the address can install it, and the API answers anyone, until Step 13.**
+The command is a thin client, so installing it gives nothing the API does not already
+give. But the API takes requests without asking who is calling, and each interview
+spends model credit and each deploy builds in the pilot account. The pages ask not to be
+indexed (robots.txt and noindex) until Step 13 puts a token in front of the API.
+

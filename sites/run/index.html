@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>seaLeye.run</title>
+<meta name="description" content="Bring the app you already have. seaLeye reads it, asks a few questions, and gives you back a URL.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="sealeye-mark.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+
+<header>
+<img src="sealeye-wordmark.svg" alt="seaLeye.run">
+<p class="tagline">cd your-app &amp;&amp; sealeye run</p>
+</header>
+
+<p class="lede">
+You have an app in a folder. seaLeye reads it, asks you a few questions, writes a plan you can read, and on yes builds the environment and gives you back a URL.
+<span class="aside">It builds only from modules your platform team already trusts, and when your app needs something they do not offer yet, it says so plainly instead of building half of it.</span>
+</p>
+
+<h2>Install</h2>
+<p class="note">You need Node.js 20 or later. Paste this into your terminal:</p>
+<div class="block">
+<code><span class="prompt">$</span> <span class="cmd">curl -fsSL https://sealeye.run/install | sh</span></code>
+<button type="button" data-copy="curl -fsSL https://sealeye.run/install | sh">copy</button>
+</div>
+
+<h2>Run it</h2>
+<div class="block">
+<code><span class="prompt">$</span> <span class="cmd">cd your-app &amp;&amp; sealeye run</span></code>
+<button type="button" data-copy="sealeye run">copy</button>
+</div>
+
+<h2>What you get back</h2>
+<ul>
+<li>A plan in your folder <span>saying what will be built and what was assumed, before anything is built.</span></li>
+<li>A URL <span>that works as soon as it is live, and stays the same every time you deploy again.</span></li>
+<li>Logs <span>collected from the first request, with nothing to set up.</span></li>
+</ul>
+
+</main>
+
+<footer>
+seaLeye.run · sealeye v{{VERSION}} · <a href="https://sealeye.online">seaLeye.online</a>
+</footer>
+
+<script>
+function copy(text, button) {
+  const done = () => {
+    const was = button.textContent;
+    button.textContent = "copied";
+    button.dataset.copied = "yes";
+    setTimeout(() => { button.textContent = was; delete button.dataset.copied; }, 1600);
+  };
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(done, () => {});
+  }
+}
+document.querySelectorAll("button[data-copy]").forEach(button => {
+  button.addEventListener("click", () => copy(button.dataset.copy, button));
+});
+</script>
+</body>
+</html>

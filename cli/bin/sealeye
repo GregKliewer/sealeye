@@ -20,7 +20,7 @@ import {
 } from "../client.js";
 import { banner, step, ask, answer, typing, typed, c, product, spinner, stopSpinner, animations } from "../brand.js";
 import { safeName, CONFIG_FILE, LEGACY_CONFIG_FILE } from "../../core/names.js";
-import { USER_CONFIG_HINT, setting, loadUserConfig } from "../../core/config.js";
+import { USER_CONFIG_HINT, setting, loadUserConfig, DEFAULT_API } from "../../core/config.js";
 import { startTracing, flushTracing, tracingActive, tracingConfigured, tracingSwitchedOff, scoreTrace, scoreDeploymentOutcome, flushScores } from "../../core/tracing.js";
 import { unsupportedNeeds, refusalClosing, orgName } from "../../core/catalog.js";
 import { interviewThroughApi } from "../interview/follow.js";
@@ -124,7 +124,7 @@ Options:
       --request   with needs: print a module request for one need, ready to paste
                   into a ticket. Takes the kind, or part of the need's own line
       --api       platform API base URL (default: SEALEYE_API in ~/.sealeye/config,
-                  else http://localhost:3000)
+                  else https://api.sealeye.online)
       --json      machine-readable output
   -h, --help      show help
 
@@ -164,10 +164,9 @@ async function main() {
   }
 
   // Which API to talk to: --api for one command, SEALEYE_API (environment, repo .env or
-  // ~/.sealeye/config) for every command, the local API otherwise. Step 12 decides
-  // whether the hosted API becomes the default.
+  // ~/.sealeye/config) for every command, seaLeye's own API otherwise (Step 12).
   loadUserConfig();
-  const apiBaseUrl = (getArg("--api") || setting("API") || "http://localhost:3000").replace(/\/+$/, "");
+  const apiBaseUrl = (getArg("--api") || setting("API") || DEFAULT_API).replace(/\/+$/, "");
 
   // "run" is the documented name; "init" is a hidden alias so rehearsal habits,
   // --answers fixtures and older muscle memory keep working, with no deprecation
