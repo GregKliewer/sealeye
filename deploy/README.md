@@ -87,10 +87,44 @@ effect at the next release, or after `docker compose restart api` on the server.
 
 ## Once: the address
 
-At your registrar, add an **A record** for `api.sealeye.online` pointing at the
-`PublicIp` output. Caddy asks for a certificate as soon as the name resolves to the
-server, so do this before the first release, or the first minute of the first release
-will show a certificate error.
+DNS for seaLeye's domains is in Route 53 (`dns.yaml`, about $0.50 a month per
+domain), so the records live in CloudFormation with everything else.
+
+1. Create the zone and the `api` record, with the server's address:
+
+   ```bash
+   IP=$(aws cloudformation describe-stacks --region ca-central-1 --stack-name platform-sealeye-server \
+     --query "Stacks[0].Outputs[?OutputKey=='PublicIp'].OutputValue" --output text)
+   aws cloudformation deploy --region ca-central-1 \
+     --template-file deploy/dns.yaml --stack-name platform-sealeye-dns-sealeye-online \
+     --parameter-overrides DomainName=sealeye.online ApiAddress=$IP
+   ```
+
+2. Read the four nameservers it was given:
+
+   ```bash
+   aws cloudformation describe-stacks --region ca-central-1 --stack-name platform-sealeye-dns-sealeye-online \
+     --query "Stacks[0].Outputs[?OutputKey=='NameServers'].OutputValue" --output text
+   ```
+
+3. At the domain's registrar, replace the domain's nameservers with those four (the
+   setting is usually called "custom nameservers"). If the domain was bought through
+   Route 53 itself, do it in the Route 53 console under Registered domains, or:
+
+   ```bash
+   aws route53domains update-domain-nameservers --region us-east-1 --domain-name sealeye.online \
+     --nameservers Name=ns-1.example Name=ns-2.example Name=ns-3.example Name=ns-4.example
+   ```
+
+4. Wait until the name resolves to the server. Usually minutes, sometimes a few hours:
+
+   ```bash
+   dig +short NS sealeye.online      # the four Route 53 names
+   dig +short api.sealeye.online     # the server's address
+   ```
+
+Caddy asks for a certificate the first time the name reaches the server, so the first
+request after this can take 10 to 20 seconds.
 
 ## Every release
 
