@@ -21,7 +21,8 @@ a bank's code: LangFuse Cloud has no Canadian region.
   "in-network").
 - **LangFuse Cloud under a regional or contractual arrangement** the organization's
   risk team accepts.
-- **Tracing off.** It is already off whenever LangFuse keys are not set, and the
+- **Tracing off.** It is already off whenever LangFuse keys are not set, or with
+  `SEALEYE_TRACING=off` (every run) or `sealeye run --no-trace` (one run), and the
   interview works the same without it. The cost is the evaluation it gives: no scores,
   no regression comparisons on real apps.
 

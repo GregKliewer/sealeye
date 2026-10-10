@@ -214,20 +214,38 @@ export function tracingConfigured() {
   return Boolean(process.env.LANGFUSE_PUBLIC_KEY && process.env.LANGFUSE_SECRET_KEY);
 }
 
+const TRACING_ON_VALUES = new Set(["on", "true", "1", "yes"]);
+
+/**
+ * True when SEALEYE_TRACING turns tracing off, from the environment, .env or
+ * ~/.sealeye/config. Unset leaves tracing to the keys. Any value other than on, true,
+ * 1 or yes means off, so a typo in the switch never sends a trace someone meant to
+ * stop (DESIGN.md, "Turning tracing off for a run").
+ */
+export function tracingSwitchedOff() {
+  loadEnv();
+  loadUserConfig();
+  const value = setting("TRACING");
+  if (value === undefined) return false;
+  return !TRACING_ON_VALUES.has(value.trim().toLowerCase());
+}
+
 /** True once startTracing has succeeded. */
 export function tracingActive() {
   return provider !== null;
 }
 
 /**
- * Start tracing for this process, if LangFuse is configured. Safe to call more than
- * once. `exporter` replaces the network exporter, for tests.
+ * Start tracing for this process, if LangFuse is configured and nothing has turned it
+ * off. Safe to call more than once. `off` is the CLI's --no-trace; `exporter` replaces
+ * the network exporter, for tests.
  *
  * @returns {boolean} whether tracing is on
  */
-export function startTracing({ exporter } = {}) {
+export function startTracing({ exporter, off = false } = {}) {
   if (provider) return true;
   try {
+    if (off || tracingSwitchedOff()) return false;
     if (!tracingConfigured()) return false;
 
     // LangFuse's own logger writes to the terminal; the CLI's terminal is the

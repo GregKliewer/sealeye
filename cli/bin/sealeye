@@ -19,7 +19,7 @@ import {
 import { banner, step, ask, answer, typing, typed, c, product, spinner, stopSpinner, animations } from "../brand.js";
 import { safeName, CONFIG_FILE, LEGACY_CONFIG_FILE } from "../../core/names.js";
 import { USER_CONFIG_HINT, setting } from "../../core/config.js";
-import { startTracing, flushTracing, tracingActive, scoreTrace, scoreDeploymentOutcome, flushScores } from "../../core/tracing.js";
+import { startTracing, flushTracing, tracingActive, tracingConfigured, tracingSwitchedOff, scoreTrace, scoreDeploymentOutcome, flushScores } from "../../core/tracing.js";
 import { unsupportedNeeds, refusalClosing, orgName } from "../../core/catalog.js";
 import { runInterview, resolveApiKey } from "../interview/loop.js";
 import { runDoctor } from "../doctor.js";
@@ -38,6 +38,8 @@ const jsonOut = process.argv.includes("--json");
 // background. Off by default, because staring at a spinner is the thing this
 // platform is supposed to remove from a developer's day.
 const watchFlag = process.argv.includes("--watch");
+// With run: no trace for this run, whatever the keys and settings say.
+const noTraceFlag = process.argv.includes("--no-trace");
 
 // Everything the CLI reads is found relative to the CLI itself, never to the
 // developer's folder.
@@ -88,7 +90,7 @@ function usage() {
 ${product.command} - deploy your app to a real AWS environment
 
 Usage:
-  ${product.command} run [--answers <file>] [--team-context] [--watch] [--api <url>]
+  ${product.command} run [--answers <file>] [--team-context] [--watch] [--no-trace] [--api <url>]
   ${product.command} deploy --file <plan.yaml> [--app <path>] [--api <url>] [--json] [--watch]
   ${product.command} validate --file <plan.yaml> [--api <url>] [--json]
   ${product.command} status <deploymentId> [--api <url>] [--json]
@@ -110,6 +112,8 @@ Options:
                   same boundary (reads a local fixture)
       --watch     with run or deploy: stay on the live panel until the deployment
                   finishes, instead of watching in the background and notifying you
+      --no-trace  with run: record nothing about this run in LangFuse, even when its
+                  keys are set. SEALEYE_TRACING=off does the same for every run
       --all       with list: include environments you have torn down
       --deployments
                   with list: every deploy, instead of one row per environment
@@ -290,9 +294,13 @@ async function main() {
 
         say("Reading your app");
 
-        // Only the interview is traced, and only when LangFuse keys are set
-        // (DESIGN.md, "Tracing the interview with LangFuse").
-        startTracing();
+        // Only the interview is traced, and only when LangFuse keys are set and
+        // neither --no-trace nor SEALEYE_TRACING=off says otherwise (DESIGN.md,
+        // "Turning tracing off for a run"). A switch that turned it off says so, once.
+        const tracing = startTracing({ off: noTraceFlag });
+        if (!tracing && tracingConfigured() && (noTraceFlag || tracingSwitchedOff())) {
+          say("Tracing is off for this run");
+        }
 
         const result = await runInterview({
           appPath,

@@ -348,6 +348,29 @@ trace contains.
   calls to check against the migration notes at langfuse.com/docs/compatibility.
 - *Dataset items hold the app's name, never its files,* the same rule as traces.
 
+## Turning tracing off for a run
+
+Decided Fri Oct 9, 2026, after Part A of PHASE1-PLAN.
+
+Tracing was on whenever LangFuse keys could be found, and they are found in the
+environment, the repo `.env` and `~/.sealeye/config`. Unsetting the environment variables
+for one command did not turn it off, so there was no way to say "not this run".
+
+- *Two switches.* `sealeye run --no-trace` for one run, and `SEALEYE_TRACING=off` for
+  every run in a shell, a `.env` or a config file, read through `setting()` like any other
+  setting, so the environment wins over the files. Either one is checked first in
+  `startTracing()`; everything else already does nothing when tracing has not started.
+- *Anything but on, true, 1 or yes is off.* A switch exists to stop data leaving, so a
+  typo in it (`SEALEYE_TRACING=of`) must not send a trace someone meant to stop.
+- *It says so.* When a switch turns tracing off and keys are set, `run` prints one line,
+  "Tracing is off for this run". With no keys it says nothing, as before.
+- *The cost is the join.* An untraced run has no trace id, so its deployment record has
+  no `origin.traceId` and its outcome is never scored.
+- *The regression set refuses.* `npm run eval:interview` exists to record a run in
+  LangFuse, so with `SEALEYE_TRACING` off it stops with a plain message instead.
+- *The default stays on when keys are set.* An organization may want it the other way,
+  off unless turned on; that belongs with Q13, where traces live for an organization.
+
 ## The earliest code is Greg's to share
 
 Decided Fri Oct 9, 2026.

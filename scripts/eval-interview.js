@@ -30,7 +30,8 @@ import {
   scoreTrace,
   startTracing,
   traceExperimentItem,
-  tracingConfigured
+  tracingConfigured,
+  tracingSwitchedOff
 } from "../core/tracing.js";
 
 export const DATASET = "sealeye-interview";
@@ -217,6 +218,12 @@ async function main() {
 
   if (!resolveApiKey()) {
     console.error("ANTHROPIC_API_KEY is not set. Put it in ~/.sealeye/config and run this again.");
+    process.exit(1);
+  }
+  // The regression set exists to record a run in LangFuse, so with tracing switched
+  // off it stops rather than grading apps nobody will see.
+  if (tracingSwitchedOff()) {
+    console.error("SEALEYE_TRACING turns tracing off, and the regression set only records with it on. Unset it and run this again.");
     process.exit(1);
   }
   if (!tracingConfigured()) {
