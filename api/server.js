@@ -320,6 +320,14 @@ app.post("/interviews/:interviewId/answers", (req, res) => {
   }
 });
 
+// DELETE /interviews/{id}: the developer left. The interview, its saved state and the
+// uploaded copy of their app go now rather than after a day.
+app.delete("/interviews/:interviewId", async (req, res) => {
+  const removed = await interviews.remove(req.params.interviewId);
+  if (!removed) return res.status(404).json({ error: { code: "NOT_FOUND", message: "interviewId not found" } });
+  return res.status(200).json({ interviewId: req.params.interviewId, removed: true });
+});
+
 // GET /interviews/{id}/events: progress lines, questions, the plan and how it ended, as
 // server-sent events. Every event so far is sent first, so a client that reconnects
 // (with Last-Event-ID, or ?after=) misses nothing. The stream ends with the interview.

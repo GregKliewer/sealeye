@@ -83,3 +83,22 @@ test("an upload that unpacks too big is refused before it is unpacked", () => {
   assert.throws(() => unzipInto(zeros, dest), /more than 25 MB/);
   assert.ok(!fs.existsSync(dest), "nothing written");
 });
+
+test("excluded folders are excluded whatever their case, and clashing entries are refused", () => {
+  const body = new Uint8Array([1]);
+  assert.throws(() => unpack({ ".Git/config": body }), UploadRefused);
+  assert.throws(() => unpack({ "Node_Modules/x/index.js": body }), UploadRefused);
+  assert.throws(() => unpack({ "a": body, "a/b": body }), /clash/);
+});
+
+test("the wider list of credential files travels as names only", () => {
+  const dir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-upload-")), "app");
+  fs.mkdirSync(dir);
+  for (const name of [".netrc", ".git-credentials", "prod.tfvars", "terraform.tfstate", "deploy-service-account.json", "store.p12"]) {
+    fs.writeFileSync(path.join(dir, name), SECRET);
+  }
+  fs.writeFileSync(path.join(dir, "index.html"), "<h1>hi</h1>");
+  const { zip, withheld } = zipFolder(dir);
+  assert.equal(withheld.length, 6);
+  assert.ok(!Buffer.from(zip).toString("latin1").includes(SECRET));
+});

@@ -47,7 +47,7 @@ export function zipFolder(dir) {
 
       if (entry.isSymbolicLink()) continue;
       if (entry.isDirectory()) {
-        if (EXCLUDED_FOLDERS.has(entry.name)) continue;
+        if (EXCLUDED_FOLDERS.has(entry.name.toLowerCase())) continue;
         walk(childAbs, childRel);
         continue;
       }
@@ -116,9 +116,14 @@ export function unzipInto(zip, dest) {
     if (!safe) throw new UploadRefused(`the upload has a file path seaLeye will not write: ${name}`);
 
     const target = path.join(root, ...safe.split("/"));
-    fs.mkdirSync(path.dirname(target), { recursive: true });
     const body = secretFileReason(target) ? new Uint8Array(0) : data;
-    fs.writeFileSync(target, body, { flag: "wx" });
+    try {
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, body, { flag: "wx" });
+    } catch (err) {
+      // The same name twice, or a name that is both a file and a folder.
+      throw new UploadRefused(`the upload has two entries that clash at ${safe}`);
+    }
     written += body.length;
   }
 
@@ -131,6 +136,7 @@ function safeRelative(name) {
   if (name.startsWith("/") || /^[A-Za-z]:/.test(name)) return null;
   const parts = name.split("/").filter(p => p !== "" && p !== ".");
   if (!parts.length || parts.some(p => p === "..")) return null;
-  if (parts.slice(0, -1).some(p => EXCLUDED_FOLDERS.has(p))) return null;
+  // Case-insensitive, as macOS and Windows folders are: .Git is .git there.
+  if (parts.slice(0, -1).some(p => EXCLUDED_FOLDERS.has(p.toLowerCase()))) return null;
   return parts.join("/");
 }

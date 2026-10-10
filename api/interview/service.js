@@ -8,15 +8,14 @@
 // the same LangFuse trace (core/tracing.js, traceRun's continueFrom).
 import crypto from "node:crypto";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 
 import { Command, MemorySaver } from "@langchain/langgraph";
 
-import { setting } from "../../core/config.js";
+import { sealeyeHome, setting } from "../../core/config.js";
 import { unzipInto, UploadRefused } from "../../core/upload.js";
 import { promptVersion, traceRun, withoutTracing, flushScores } from "../../core/tracing.js";
-import { buildInterviewGraph } from "./graph.js";
+import { buildInterviewGraph, MAX_TURNS } from "./graph.js";
 import { DEFAULT_MODEL, modelClient, resolveApiKey } from "./model.js";
 
 // Everything about an interview is gone a day after it starts, finished or not: its
@@ -37,12 +36,28 @@ export { UploadRefused };
  * @param {function} [options.now]          the clock, for tests
  * @param {string}   [options.scratchBase]  where uploaded apps are unpacked
  */
+// LangChain sends every graph run to LangSmith when any of these is "true": each node's
+// whole state, which holds the files the model read (D2), past the mask and past
+// --no-trace. Anyone learning LangGraph is likely to have one set, so the interview
+// turns them off for this process. Anything but "true" leaves LangChain's tracer off.
+export const LANGCHAIN_TRACING_VARS = ["LANGSMITH_TRACING", "LANGSMITH_TRACING_V2", "LANGCHAIN_TRACING", "LANGCHAIN_TRACING_V2"];
+
+function switchOffLangSmith() {
+  for (const name of LANGCHAIN_TRACING_VARS) {
+    if (process.env[name] !== undefined && process.env[name] !== "false" && setting("DEBUG")) {
+      console.error(`  [debug] ${name} is set; LangSmith tracing is off for the interview, which never sends file contents out`);
+    }
+    process.env[name] = "false";
+  }
+}
+
 export function createInterviewService({
   client,
   checkpointer = new MemorySaver(),
   now = Date.now,
-  scratchBase = path.join(os.tmpdir(), "sealeye-interviews")
+  scratchBase = path.join(sealeyeHome(), "interviews")
 } = {}) {
+  switchOffLangSmith();
   const interviews = new Map();
   let modelClientCache = client || null;
 
@@ -124,7 +139,8 @@ export function createInterviewService({
    * interview does. Throws UploadRefused with a sentence when the upload breaks a rule.
    */
   function startFromUpload({ zip, app, ...rest }) {
-    if (typeof app !== "string" || !/^[A-Za-z0-9._ -]{1,100}$/.test(app) || /^\.+$/.test(app)) {
+    // Any folder name a developer might have, as one path segment and nothing more.
+    if (typeof app !== "string" || !app || app.length > 200 || /[\/\\\0-\x1f]/.test(app) || /^\.+$/.test(app)) {
       throw new UploadRefused("app must be the app folder's name");
     }
     fs.mkdirSync(scratchBase, { recursive: true, mode: 0o700 });
@@ -158,7 +174,10 @@ export function createInterviewService({
 
   /** Run the graph until it pauses or ends, inside this interview's trace. */
   function stretch(record, resume, input) {
-    const config = { configurable: { thread_id: record.id } };
+    // LangGraph stops a run after 25 steps by default, and a reading turn is two steps
+    // (the model, then its tools). The interview's own limit is MAX_TURNS, so the graph's
+    // has to sit above it, or a long read ends in LangGraph's error instead.
+    const config = { configurable: { thread_id: record.id }, recursionLimit: 2 * MAX_TURNS + 10 };
 
     const work = async () => {
       const saved = resume ? await graph.getState(config) : null;
@@ -203,17 +222,25 @@ export function createInterviewService({
         record.approved = out.approved ?? null;
         record.result = { ...(record.result || out.result || { status: "stopped" }), ...(record.traceId ? { traceId: record.traceId } : {}) };
         emit(record, { type: "finished", ...record.result, approved: record.approved });
-        return end(record);
+        return end(record).catch(cleanupFailed(record));
       })
       .catch(err => {
         record.status = "failed";
         const message = err?.userFacing ? err.message : `seaLeye.run could not finish the interview: ${err?.message || err}`;
         if (setting("DEBUG") && !err?.userFacing) console.error(err);
         emit(record, { type: "failed", message });
-        return end(record);
+        return end(record).catch(cleanupFailed(record));
+      })
+      .catch(err => {
+        // Cleaning up must never take the API down with it.
+        if (setting("DEBUG")) console.error(`  [debug] could not clean up interview ${record.id}: ${err?.message || err}`);
       })
       .finally(() => flushScores().catch(() => {}));
   }
+
+  const cleanupFailed = record => err => {
+    if (setting("DEBUG")) console.error(`  [debug] could not clean up interview ${record.id}: ${err?.message || err}`);
+  };
 
   /** The interview's own data goes as soon as it is over: the code and the saved state. */
   async function end(record) {
@@ -256,6 +283,22 @@ export function createInterviewService({
     return record ? summary(record) : null;
   }
 
+  /**
+   * The developer left (Ctrl+C, or quit at a question): drop the interview now rather
+   * than keep their code for a day. A stretch still running finishes first.
+   */
+  async function remove(id) {
+    const record = interviews.get(id);
+    if (!record) return false;
+    await record.running?.catch?.(() => {});
+    if (record.status === "running" || record.status === "waiting") {
+      record.status = "failed";
+      emit(record, { type: "failed", message: "The interview was stopped." });
+    }
+    await forget(record);
+    return true;
+  }
+
   /** Waits for the current stretch, for tests and for shutting down. */
   async function settled(id) {
     const record = interviews.get(id);
@@ -290,7 +333,7 @@ export function createInterviewService({
   const timer = setInterval(() => sweep().catch(() => {}), SWEEP_EVERY_MS);
   timer.unref();
 
-  return { start, startFromUpload, answer, subscribe, get, settled, sweep, ready, close: () => clearInterval(timer) };
+  return { start, startFromUpload, answer, remove, subscribe, get, settled, sweep, ready, close: () => clearInterval(timer) };
 }
 
 function summary(record) {

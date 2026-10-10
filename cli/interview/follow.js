@@ -28,10 +28,11 @@ const NAMES_A_FILE = /^(Reading |Looking at |Nothing to read at )/;
  * @param {boolean}  [options.trace]     false turns tracing off for this interview
  * @param {function} options.ask         (question, lead[]) => Promise<string>
  * @param {function} options.onStep      (line) => void
+ * @param {function} [options.onStarted] (interviewId) => void, so a Ctrl+C can drop it
  * @returns {Promise<{status, plan?, summary?, assumptions?, questions?, message?, errors?, traceId?, interviewId}>}
  *          At "submitted", the interview is waiting in the API for "Deploy this?".
  */
-export async function interviewThroughApi({ apiBaseUrl, appPath, deployed = null, user, trace = true, ask, onStep }) {
+export async function interviewThroughApi({ apiBaseUrl, appPath, deployed = null, user, trace = true, ask, onStep, onStarted = () => {} }) {
   // A redeploy is working out what moved; a first run is working out what the app needs
   // at all. Either way it is what the model is doing once the reading has stopped.
   const thinkingLabel = deployed ? "Working out what changed" : "Working out what your app needs";
@@ -75,6 +76,7 @@ export async function interviewThroughApi({ apiBaseUrl, appPath, deployed = null
   try {
     const started = await startInterview({ apiBaseUrl, appPath, deployed, user, trace });
     const interviewId = started.interviewId;
+    onStarted(interviewId);
 
     const end = await followInterview({
       apiBaseUrl,

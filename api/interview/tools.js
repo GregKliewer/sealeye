@@ -75,7 +75,7 @@ export function resolveInside(appPath, requested) {
     throw new ToolRefusal("that path is outside your app folder");
   }
   for (const segment of segments) {
-    if (BLOCKED.has(segment)) throw new ToolRefusal(`${segment} is not readable`);
+    if (BLOCKED.has(segment.toLowerCase())) throw new ToolRefusal(`${segment} is not readable`);
   }
 
   // Resolve symlinks: the real path has to be inside the folder too. A path that does
@@ -115,7 +115,7 @@ export function listFiles(appPath, requested = ".") {
   }
 
   const visible = entries
-    .filter(e => !BLOCKED.has(e.name))
+    .filter(e => !BLOCKED.has(e.name.toLowerCase()))
     .map(e => (e.isDirectory() ? `${e.name}/` : e.name))
     .sort();
 

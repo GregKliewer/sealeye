@@ -107,7 +107,8 @@ module ids, and only for that. Changing the contract is a DESIGN.md decision.
 POST /plans/validate, POST /deployments ({ plan, appPath }), GET /deployments,
 GET /deployments/{id}, GET /deployments/{id}/evidence, DELETE /deployments/{id},
 GET /needs, GET /health, POST /interviews ({ app, zip }), POST
-/interviews/{id}/answers ({ answer }), GET /interviews/{id}/events (server-sent events). Keep existing endpoints and commands working; add, do not
+/interviews/{id}/answers ({ answer }), GET /interviews/{id}/events (server-sent events),
+DELETE /interviews/{id}. Keep existing endpoints and commands working; add, do not
 break.
 
 ## Executor
@@ -141,9 +142,12 @@ break.
   ends, or after a day.
 - Tools: list_files and read_file, read-only, inside the app folder only (no `..`, no
   symlinks out, no node_modules, .git, .sealeye); read_file capped at 20 KB,
-  list_files at 40 entries. read_file refuses secret files (`.env`, `.env.*` except
-  `.env.example` and `.env.sample`, `.envrc`, `*.pem`, `*.key`, SSH keys, `.npmrc`,
-  `credentials`); list_files still shows their names. submit_plan(plan, summary,
+  list_files at 40 entries. read_file refuses secret files (`core/secrets.js`: `.env`,
+  `.env.*` except `.env.example` and `.env.sample`, `.envrc`, keys and keystores, SSH
+  keys, package-manager and git credentials, Terraform variables and state,
+  service-account JSON); list_files still shows their names, and the upload carries
+  them as empty files. LangSmith tracing stays off in the API (it would send file
+  contents). submit_plan(plan, summary,
   assumptions) ends it.
 - Tracing (LangFuse, `core/tracing.js`) is on only when the API has LangFuse keys, and
   `sealeye run --no-trace` or `SEALEYE_TRACING=off` turns it off for that interview; a

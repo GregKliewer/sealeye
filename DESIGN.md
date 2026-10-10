@@ -484,7 +484,8 @@ client. `GET /interviews/{id}/events` is a server-sent event stream. It carries
 `started`, `step`, `question`, `answered`, `plan`, `finished` and `failed`, each with a
 sequence number. A client that reconnects gets everything after the last one it saw.
 `plan` means the interview is waiting on "Deploy this?". `finished` says whether it was
-approved.
+approved. `DELETE /interviews/{id}` drops an interview the developer left; `sealeye
+run` calls it on Ctrl+C, so the API keeps nothing of their app.
 
 **What travels in the upload (`core/upload.js`).** The folder travels without
 node_modules, .git, .github, .do, seaLeye's own folders and symlinks. Secret files
@@ -493,10 +494,23 @@ their names. That keeps `list_files` showing that a `.env` exists, which tells t
 model the app reads settings, while the contents never leave the laptop. The API checks
 every rule again when it unpacks, because it cannot trust the client: no absolute
 paths, no `..`, at most 25 MB unpacked and 5,000 files (checked before inflating), and
-a secret file that arrives with contents is written empty.
+a secret file that arrives with contents is written empty. Excluded folders match
+whatever their case, as macOS and Windows folders do.
+
+Because the whole folder now travels, not only the files the model chose to read, the
+list of secret files was widened the same day (`core/secrets.js`): `.netrc`,
+`.git-credentials`, `.pgpass`, `.yarnrc.yml`, `.pypirc`, `.dockercfg`, keystores
+(`.p12`, `.pfx`, `.jks`, `.keystore`), Terraform variables and state, and
+service-account JSON files. `read_file` refuses the same list.
+
+A folder over 25 MB or 5,000 files outside the excluded folders is refused with a
+sentence saying so. Before, the interview read the folder in place with no limit, so a
+Python `.venv` or a large build folder now stops an interview that used to run.
+Skipping what `.gitignore` names would fix most of these, and is not built yet.
 
 **Each interview has its own scratch folder.** It is named after the app, so the
-model's view is the same as before, and it lives under the system temp folder. The
+model's view is the same as before, and it lives in `~/.sealeye/interviews` of the
+user the API runs as, not in a shared temp folder another user could tamper with. The
 scratch folder and the saved state are both deleted when the interview ends, or after a
 day if it never does. A sweep also removes scratch folders no live interview owns,
 which covers an API that was stopped mid-interview.
@@ -513,9 +527,22 @@ helper in `core/tracing.js` is a no-op for it alone. One developer's choice must
 turn tracing off for everyone else on a shared API. It must also not leave their turns
 as stray traces of their own.
 
+**LangSmith stays off.** LangChain sends every graph run to LangSmith when
+`LANGSMITH_TRACING` (or `LANGSMITH_TRACING_V2`, `LANGCHAIN_TRACING`,
+`LANGCHAIN_TRACING_V2`) is "true". That would send each node's whole state, file
+contents included, past the mask and past `--no-trace`. The interview service sets all
+four to "false" for its process. LangGraph's own step limit is raised above the
+interview's 24 turns, so the interview's limit is the one that stops a long read.
+
+**The model is the API's choice.** `SEALEYE_MODEL` and `SEALEYE_MODEL_URL` are read where
+the API runs. A developer's own `SEALEYE_MODEL` no longer changes anything.
+"Tracing is off for this run" prints whenever the developer turns tracing off, even if
+the API has no LangFuse keys and would not have traced anyway; the CLI cannot know.
+
 **Scores moved with the keys.** The approve node scores `developer_said_yes` and
-`needs_refused`. The executor scores `deployment_succeeded` when it records a final
-status. The CLI's own scoring calls do nothing without keys, so they were left in place.
+`needs_refused`. The executor scores `deployment_succeeded` when a deployment reaches
+a final status, and never from a tear-down, which would overwrite how the deployment
+itself went. The CLI's own scoring calls do nothing without keys, so they were left in place.
 
 **What did not move yet: deploying from the upload.** `sealeye run` still deploys with
 `appPath`, the developer's folder, as `sealeye deploy` does. A deploy reads setting

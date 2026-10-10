@@ -15,7 +15,8 @@ import {
   destroyDeployment,
   getEvidence,
   getNeeds,
-  answerInterview
+  answerInterview,
+  abandonInterview
 } from "../client.js";
 import { banner, step, ask, answer, typing, typed, c, product, spinner, stopSpinner, animations } from "../brand.js";
 import { safeName, CONFIG_FILE, LEGACY_CONFIG_FILE } from "../../core/names.js";
@@ -196,6 +197,7 @@ async function main() {
     // the folder as it was, and go.
     let wrote = false;
     let leaving = false;
+    let interviewId = null;   // set once the API holds an interview for this run
 
     const interrupt = () => {
       if (leaving) return;
@@ -210,11 +212,15 @@ async function main() {
       );
 
       rl.close();
-      // 130 is the conventional code for "interrupted". With tracing on, what the
-      // interview did before Ctrl+C is still worth seeing, so wait for it, briefly;
-      // with tracing off, leave exactly as before.
-      if (!tracingActive()) process.exit(130);
-      flushTracing(1000).finally(() => process.exit(130));
+      // 130 is the conventional code for "interrupted". An interview the API is still
+      // holding is dropped first, briefly, so the platform keeps nothing of the app.
+      const dropping = interviewId
+        ? Promise.race([
+            abandonInterview({ apiBaseUrl, interviewId }).catch(() => {}),
+            new Promise(r => setTimeout(r, 1500))
+          ])
+        : Promise.resolve();
+      dropping.finally(() => process.exit(130));
     };
 
     rl.on("SIGINT", interrupt);
@@ -293,6 +299,7 @@ async function main() {
         const result = await interviewThroughApi({
           apiBaseUrl,
           onStep: say,
+          onStarted: id => { interviewId = id; },
           appPath,
           user: requestedBy().user,
           trace: !traceOff,
@@ -376,6 +383,7 @@ async function main() {
       if (submission.interviewId) {
         await answerInterview({ apiBaseUrl, interviewId: submission.interviewId, answer: reply.toLowerCase() === "y" ? "y" : "n" })
           .catch(err => { if (setting("DEBUG")) console.error(`  [debug] could not send the answer: ${err.message}`); });
+        interviewId = null;   // answered: the API has already let it go
       }
 
       if (reply.toLowerCase() !== "y") {

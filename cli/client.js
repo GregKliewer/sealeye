@@ -152,6 +152,11 @@ export async function startInterview({ apiBaseUrl, appPath, deployed, user, trac
   return { ...started, withheld: packed.withheld };
 }
 
+/** Drop an interview the developer has left, so the API keeps nothing of their app. */
+export async function abandonInterview({ apiBaseUrl, interviewId }) {
+  return platformFetch(apiBaseUrl, `/interviews/${interviewId}`, { method: "DELETE" });
+}
+
 /** The developer's answer to a question, or y/n to "Deploy this?". */
 export async function answerInterview({ apiBaseUrl, interviewId, answer }) {
   return interviewFetch(apiBaseUrl, `/interviews/${interviewId}/answers`, asJson({ answer }));
@@ -185,7 +190,11 @@ export async function followInterview({ apiBaseUrl, interviewId, onEvent, after 
       gone.userFacing = true;
       throw gone;
     }
-    if (!res.ok || !res.body) throw new Error(`seaLeye.run API error: ${res.status}`);
+    if (!res.ok || !res.body) {
+      const err = new Error(`The platform could not stream the interview (it answered ${res.status}). Run sealeye run again.`);
+      err.userFacing = true;
+      throw err;
+    }
 
     const decoder = new TextDecoder();
     let buffer = "";
@@ -218,8 +227,10 @@ export async function followInterview({ apiBaseUrl, interviewId, onEvent, after 
       }
     } catch (err) {
       if (err?.fromHandler || err?.userFacing) throw err;
-      if (++drops > 3) throw new PlatformUnreachableError(apiBaseUrl, err);
     }
-    // The stream ended without the interview ending: pick it up again.
+    // The stream ended without the interview ending: pick it up again, a little later
+    // each time, so a proxy that keeps closing it is not hammered.
+    if (++drops > 5) throw new PlatformUnreachableError(apiBaseUrl, new Error("the event stream kept closing"));
+    await new Promise(r => setTimeout(r, 250 * drops));
   }
 }

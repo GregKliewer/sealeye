@@ -11,7 +11,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import YAML from "yaml";
 
-import { answerInterview, followInterview, startInterview } from "../cli/client.js";
+import { abandonInterview, answerInterview, followInterview, startInterview } from "../cli/client.js";
 
 const root = path.resolve(import.meta.dirname, "..");
 const ENV_SECRET = "sk-live-from-the-dotenv-file";
@@ -57,7 +57,6 @@ before(async () => {
       PORT: String(port),
       HOME: tmp,
       SEALEYE_HOME: tmp,
-      TMPDIR: tmp,
       SEALEYE_TRACING: "off",
       ANTHROPIC_API_KEY: "sk-ant-the-apis-own-key",
       SEALEYE_MODEL_URL: `http://127.0.0.1:${model.address().port}`
@@ -146,7 +145,7 @@ test("an interview runs in the API: upload, a question, a plan, a yes", async ()
     answerInterview({ apiBaseUrl: apiBase, interviewId: started.interviewId, answer: "y" }),
     /not waiting for an answer/
   );
-  const scratch = path.join(tmp, "sealeye-interviews");
+  const scratch = path.join(tmp, "interviews");
   assert.deepEqual(fs.existsSync(scratch) ? fs.readdirSync(scratch) : [], []);
 
   // A late subscriber gets the whole story and the stream ends.
@@ -170,4 +169,17 @@ test("an upload that is not a zip is refused in a sentence", async () => {
 test("an unknown interview is a 404", async () => {
   const res = await fetch(`${apiBase}/interviews/int_0000000000000000/events`);
   assert.equal(res.status, 404);
+});
+
+test("a developer who leaves mid-interview is forgotten at once", async () => {
+  const app = path.join(tmp, "leaving");
+  fs.cpSync(path.join(root, "apps", "static-website"), app, { recursive: true });
+  calls.length = 2;   // the stand-in's next turn is the question
+  const started = await startInterview({ apiBaseUrl: apiBase, appPath: app });
+  await followInterview({ apiBaseUrl: apiBase, interviewId: started.interviewId, onEvent: e => (e.type === "question" ? "stop" : undefined) });
+
+  await abandonInterview({ apiBaseUrl: apiBase, interviewId: started.interviewId });
+  const res = await fetch(`${apiBase}/interviews/${started.interviewId}/events`);
+  assert.equal(res.status, 404);
+  assert.deepEqual(fs.readdirSync(path.join(tmp, "interviews")), []);
 });

@@ -83,3 +83,40 @@ test("tracing turned off for one interview records nothing, in a process that tr
   assert.ok(exporter.getFinishedSpans().length > 0, "the next interview is traced as usual");
   service.close();
 });
+
+test("a long read is the interview's limit to stop, not LangGraph's", async () => {
+  const read = { content: [{ type: "tool_use", id: "r", name: "list_files", input: { path: "." } }], stop_reason: "tool_use", usage: {} };
+  const model = client(...Array(20).fill(read), stops);
+  const { service, zip } = setup(model);
+  const { interviewId } = service.startFromUpload({ zip, app: "site" });
+  await service.settled(interviewId);
+
+  const done = service.get(interviewId);
+  assert.equal(done.status, "finished", JSON.stringify(done));
+  assert.equal(done.result.status, "stopped");
+  assert.equal(model.calls(), 21);
+  service.close();
+});
+
+test("LangChain's own tracer is switched off, whatever the environment says", () => {
+  process.env.LANGSMITH_TRACING = "true";
+  process.env.LANGCHAIN_TRACING_V2 = "true";
+  const { service } = setup(client(stops));
+  assert.equal(process.env.LANGSMITH_TRACING, "false");
+  assert.equal(process.env.LANGCHAIN_TRACING_V2, "false");
+  service.close();
+});
+
+test("a developer who leaves takes their app with them", async () => {
+  const { service, scratchBase, zip, checkpointer } = setup(client(asks));
+  const { interviewId } = service.startFromUpload({ zip, app: "app (1) café" });
+  await service.settled(interviewId);
+  assert.equal(scratchDirs(scratchBase).length, 1);
+
+  assert.equal(await service.remove(interviewId), true);
+  assert.equal(service.get(interviewId), null);
+  assert.deepEqual(scratchDirs(scratchBase), []);
+  assert.equal(await checkpointer.getTuple({ configurable: { thread_id: interviewId } }), undefined);
+  assert.equal(await service.remove(interviewId), false);
+  service.close();
+});

@@ -260,13 +260,6 @@ function closeSiblings(record) {
 export async function startDestroy(record) {
   const set = (status, patch = {}) => {
     Object.assign(record, { status, ...patch });
-    // The API holds the LangFuse keys now, so it scores how a deployment ended against
-    // the interview that produced it, the moment it knows (core/tracing.js). Same rule
-    // as before: a final status only, never a guess.
-    if (status === "succeeded" || status === "failed") {
-      scoreDeploymentOutcome(record);
-      flushScores().catch(() => {});
-    }
     return putDeployment(record);
   };
   const fail = reason => set("failed", { failureReason: reason, step: null });

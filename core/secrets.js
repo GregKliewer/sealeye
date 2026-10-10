@@ -9,8 +9,17 @@ import path from "node:path";
 // contents (principle 6). Matched on the file's own name, case-insensitively, since
 // macOS and Windows folders treat .ENV and .env as the same file.
 const ENV_EXAMPLES = new Set([".env.example", ".env.sample"]);
-const CREDENTIAL_NAMES = new Set([".npmrc", "credentials", ".envrc"]);
-const CREDENTIAL_EXTENSIONS = [".pem", ".key"];
+// Widened on Oct 10, 2026, when the whole folder began to travel to the API rather
+// than only the files the model chose to read (DESIGN.md, "The interview runs in the
+// API"): the usual homes of tokens and passwords for git, package managers, databases,
+// Docker, Terraform and cloud service accounts.
+const CREDENTIAL_NAMES = new Set([
+  ".npmrc", "credentials", ".envrc",
+  ".netrc", "_netrc", ".git-credentials", ".pgpass", ".yarnrc.yml", ".pypirc", ".dockercfg"
+]);
+const CREDENTIAL_EXTENSIONS = [".pem", ".key", ".p12", ".pfx", ".jks", ".keystore", ".tfvars", ".tfstate", ".tfstate.backup"];
+// GCP and similar service-account keys are JSON files named for what they are.
+const CREDENTIAL_PATTERNS = [/service[-_]?account.*\.json$/, /^gcp[-_].*key.*\.json$/];
 const SSH_KEY_PREFIXES = ["id_rsa", "id_dsa", "id_ecdsa", "id_ed25519"];
 
 /**
@@ -26,6 +35,7 @@ export function secretFileReason(fileName) {
   if (
     CREDENTIAL_NAMES.has(name) ||
     CREDENTIAL_EXTENSIONS.some(ext => name.endsWith(ext)) ||
+    CREDENTIAL_PATTERNS.some(pattern => pattern.test(name)) ||
     SSH_KEY_PREFIXES.some(prefix => name.startsWith(prefix))
   ) {
     return `${path.basename(fileName)} is a credential file; its contents are never read`;

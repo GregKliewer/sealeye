@@ -19,7 +19,9 @@
 // Model calls go straight to the Anthropic SDK through createWithOneRetry; there are no
 // LangChain model wrappers, so SEALEYE_MODEL_URL works unchanged. Tracing is seaLeye's
 // own (core/tracing.js); LangFuse's LangGraph handler is never attached, because it
-// records every node's state whole and the state holds file contents (D2).
+// records every node's state whole and the state holds file contents (D2). LangChain's
+// own LangSmith tracer, which env vars can switch on, is switched off for the same
+// reason (service.js).
 import { Annotation, END, interrupt, START, StateGraph } from "@langchain/langgraph";
 
 import { unsupportedNeeds } from "../../core/catalog.js";
@@ -43,7 +45,7 @@ import { folderDigest, listFilesTool, readFileTool, runTool } from "./tools.js";
 
 const MAX_QUESTIONS = 4;       // the interview rule
 const MAX_VALIDATION_RETRIES = 2;
-const MAX_TURNS = 24;          // a stuck conversation stops instead of spending
+export const MAX_TURNS = 24;   // a stuck conversation stops instead of spending
 const COMMAND = "sealeye";
 
 const replace = (fallback) => Annotation({ reducer: (_, next) => next, default: fallback });
