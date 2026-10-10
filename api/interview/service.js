@@ -91,7 +91,7 @@ export function createInterviewService({
   }
 
   function emit(record, event) {
-    const numbered = { seq: record.events.length + 1, at: new Date(now()).toISOString(), ...event };
+    const numbered = { seq: (record.events.at(-1)?.seq || 0) + 1, at: new Date(now()).toISOString(), ...event };
     record.events.push(numbered);
     persistence?.addEvent(record.id, numbered);
     for (const listener of record.listeners) {
@@ -251,6 +251,7 @@ export function createInterviewService({
         record.status = "failed";
         const message = err?.userFacing ? err.message : `seaLeye.run could not finish the interview: ${err?.message || err}`;
         if (setting("DEBUG") && !err?.userFacing) console.error(err);
+        record.failure = message;
         keep(record);
         return end(record)
           .catch(cleanupFailed(record))
@@ -353,6 +354,15 @@ export function createInterviewService({
         picked.push({ interviewId: record.id, as: "carrying on from its last step" });
       } else if (record.status === "waiting") {
         picked.push({ interviewId: record.id, as: `waiting for ${record.waitingFor === "confirm" ? "Deploy this?" : "an answer"}` });
+      } else if (record.status === "finished" || record.status === "failed") {
+        // Saved as ended, but the API stopped before its last event was written: say it
+        // now, so a client following it is not left waiting for an end that never comes.
+        const last = record.events.at(-1)?.type;
+        if (last !== "finished" && last !== "failed") {
+          await end(record).catch(cleanupFailed(record));
+          if (record.status === "finished") emit(record, { type: "finished", ...record.result, approved: record.approved });
+          else emit(record, { type: "failed", message: record.failure || "seaLeye.run could not finish the interview." });
+        }
       }
     }
     return picked;

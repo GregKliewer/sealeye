@@ -85,6 +85,19 @@ test("with a database host, the password from Parameter Store becomes the databa
     import { applyServerSettings } from "./deploy/settings.mjs";
     applyServerSettings({ quiet: true });
     console.log(process.env.DATABASE_URL);
+    console.log(String(process.env.POSTGRES_PASSWORD));
   `], { cwd: root, encoding: "utf8", env: { ...process.env, SEALEYE_SKIP_SSM: "1", SEALEYE_DATABASE_HOST: "postgres", POSTGRES_PASSWORD: "a/b:c@d", DATABASE_URL: "" } });
-  assert.equal(r.stdout.trim(), "postgres://sealeye:a%2Fb%3Ac%40d@postgres:5432/sealeye");
+  const [url, left] = r.stdout.trim().split("\n");
+  assert.equal(url, "postgres://sealeye:a%2Fb%3Ac%40d@postgres:5432/sealeye");
+  assert.equal(left, "undefined", "the password alone is gone from the environment");
+});
+
+test("npm install in staging sees no keys, passwords or database address", async () => {
+  const { installEnv } = await import("../api/executor/package.js");
+  const env = installEnv({
+    PATH: "/usr/bin", HOME: "/home/api", HTTPS_PROXY: "http://proxy",
+    ANTHROPIC_API_KEY: "sk", DATABASE_URL: "postgres://x", POSTGRES_PASSWORD: "p",
+    AWS_PROFILE: "sealeye-deploy", AWS_ACCESS_KEY_ID: "AKIA", LANGFUSE_SECRET_KEY: "s"
+  });
+  assert.deepEqual(Object.keys(env).sort(), ["HOME", "HTTPS_PROXY", "PATH"]);
 });

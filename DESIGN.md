@@ -725,7 +725,19 @@ ended, through the same loop a live deployment uses; a final status counts as it
 only if the change was seen under way before the restart, and otherwise the deployment
 fails with that said plainly. A tear-down is started again; every step of it is safe to
 repeat. One still being prepared fails with the reason. A change set that was made and
-never run now ends a deployment instead of being polled forever.
+never run now ends a deployment instead of being polled forever. Three kinds are left
+exactly as they were, marked interrupted, with nothing asked of AWS: a record imported
+from another machine (its account and role may not be this server's), one more than a
+day old, and one that is not the newest for its stack, since acting on it could tear
+down or claim the result of the deployment that came after. Whether the change was seen
+under way is kept on the record (`sawInProgress`), so a static site whose stack had
+finished while its files were syncing finishes the sync after a restart.
+
+**A write that fails is kept and tried again.** A record whose write to Postgres failed
+is written again from the map with the next write and at shutdown, which logs any still
+unsaved. Strings lose NUL characters on the way in, which Postgres refuses in JSON. The
+first-start adoption of an old `deployments.json` is one transaction: all of it or none,
+and none means the next start tries again.
 
 **On the server:** Postgres 16 in the compose file, reachable only from the API, its
 password from `/sealeye/POSTGRES_PASSWORD`, read by Postgres only when it first creates
@@ -739,3 +751,29 @@ the API's own old `deployments.json`; `deploy/server.sh import` brings in a lapt
 server they may create databases on, and are skipped otherwise, so `npm test` still
 needs nothing but Node. CI (Step 11) should set it.
 
+## Installing an app's dependencies runs none of its code
+
+Decided Sat Oct 10, 2026 (PHASE1-PLAN Step 10 review).
+
+The packager runs `npm install --omit=dev --ignore-scripts` in the staging folder, with
+an environment holding only what npm needs (`installEnv` in `api/executor/package.js`):
+the path, a home, a proxy and certificates. No keys, no deploy role, no database address.
+And the API removes `POSTGRES_PASSWORD` from its own environment once it has built the
+database address.
+
+Why: the app and every package it depends on are code nobody on the platform has
+reviewed, and an install script runs as the API. On the pilot server that process can
+reach the instance's role through the metadata service (the containers need it, so the
+hop limit is 2) and the database next door. Before this, any developer, or any package
+an app depended on, could read the API's settings or call AWS as the server.
+
+What it costs: a dependency that builds native code at install time (bcrypt, sharp and
+the like) is not built. Such a package would rarely have worked anyway, since it would
+have been built for the server rather than the function's runtime. If a developer needs
+one, that is a platform decision (build in a runtime-matched container), not a reason to
+run unreviewed code inside the API.
+
+What it does not fix: the metadata service is still reachable from the API's container,
+so code that does run inside it (the API's own dependencies) could still reach the
+server's role. Building in a separate, unprivileged container is the full fix, and
+belongs with the move off the single pilot server.

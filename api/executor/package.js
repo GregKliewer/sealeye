@@ -12,6 +12,19 @@ import { repoRoot, loadEnv, requireSetting } from "../../core/config.js";
 // .env is excluded deliberately: its values are passed to the function as real
 // environment variables by config_basic, so shipping the file as well would put the
 // developer's secrets inside the artifact for no gain.
+/**
+ * What npm install sees of the environment: where npm is, a home for its cache, a proxy
+ * and certificates if the API has them. Never a key, a password or the database address.
+ */
+export function installEnv(env = process.env) {
+  const keep = ["PATH", "HOME", "TMPDIR", "LANG", "HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY",
+    "https_proxy", "http_proxy", "no_proxy", "NODE_EXTRA_CA_CERTS", "npm_config_registry",
+    "NPM_CONFIG_REGISTRY", "npm_config_cache", "NPM_CONFIG_CACHE"];
+  const out = {};
+  for (const name of keep) if (env[name] !== undefined) out[name] = env[name];
+  return out;
+}
+
 const RSYNC_EXCLUDES = ["node_modules", ".git", ".do", ".github", ".env"];
 
 /** Run a command, no shell. Resolves with stdout; rejects with stderr on a non-zero exit. */
@@ -78,9 +91,20 @@ export async function stage(appPath, deploymentId, composed, onStep = () => {}) 
     `${stageDir}/`
   ]);
 
-  // npm install --omit=dev in the *stage* dir, never the developer's
+  // npm install --omit=dev in the *stage* dir, never the developer's.
+  //
+  // With --ignore-scripts and an environment holding only what npm needs: the app and
+  // its dependencies are code seaLeye has not reviewed, and an install script runs as
+  // the API. On the pilot server that is a process that can reach the server's role and
+  // the database, so it gets neither the API's settings nor a chance to run at all
+  // (DESIGN.md, "Installing an app's dependencies runs none of its code"). A dependency
+  // that builds native code at install is not supported; it would not have run on the
+  // function's runtime anyway unless built for it.
   onStep("Installing production dependencies");
-  await run("npm", ["install", "--omit=dev", "--no-audit", "--no-fund"], { cwd: stageDir });
+  await run("npm", ["install", "--omit=dev", "--no-audit", "--no-fund", "--ignore-scripts"], {
+    cwd: stageDir,
+    env: installEnv()
+  });
 
   // A plan that names an entry point the folder does not have would deploy to
   // CREATE_COMPLETE and then fail on every request, which is a working URL serving an

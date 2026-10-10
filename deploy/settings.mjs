@@ -93,6 +93,9 @@ export function applyServerSettings({ quiet = false } = {}) {
     const password = encodeURIComponent(process.env.POSTGRES_PASSWORD);
     process.env.DATABASE_URL = `postgres://sealeye:${password}@${process.env.SEALEYE_DATABASE_HOST}:5432/sealeye`;
   }
+  // The password has done its job once it is in the address; nothing else in the API,
+  // or anything it starts, needs to see it on its own.
+  delete process.env.POSTGRES_PASSWORD;
   if (process.env.DATABASE_URL) say("seaLeye API: records and interviews are kept in Postgres");
 
   if (process.env.SEALEYE_DEPLOY_ROLE_ARN) {

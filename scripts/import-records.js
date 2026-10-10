@@ -10,18 +10,22 @@ import fs from "node:fs";
 import { pathToFileURL } from "node:url";
 
 import { closeDb, db, migrate } from "../api/db.js";
-import { recordColumns } from "../api/store.js";
+import { forDatabase, recordColumns } from "../api/store.js";
 
 /** @returns {Promise<{ read: number, added: number, skipped: number }>} */
 export async function importRecords(records) {
   await migrate();
   let added = 0;
-  for (const dep of records) {
+  const importedAt = new Date().toISOString();
+  for (const original of records) {
+    // Marked, so the server never acts in AWS on a record another machine was in the
+    // middle of (api/executor/resume.js).
+    const dep = { ...original, importedAt };
     const c = recordColumns(dep);
     const { rowCount } = await db().query(
       `INSERT INTO deployments (deployment_id, org_id, team_id, created_by, surface, trace_id, app, status, started_at, record)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) ON CONFLICT (deployment_id) DO NOTHING`,
-      [dep.deploymentId, c.org_id, c.team_id, c.created_by, c.surface, c.trace_id, c.app, c.status, c.started_at, dep]
+      [dep.deploymentId, c.org_id, c.team_id, c.created_by, c.surface, c.trace_id, c.app, c.status, c.started_at, forDatabase(dep)]
     );
     added += rowCount;
   }

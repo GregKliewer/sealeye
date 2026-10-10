@@ -50,10 +50,12 @@ case "${1:-}" in
     FILE="${2:?usage: deploy/server.sh import <deployments.json>}"
     KEY="import/deployments-$(date +%s).json"
     aws s3 cp "$FILE" "s3://${BUCKET}/${KEY}" --region "$REGION" --sse AES256 --only-show-errors
+    # The copy in S3 is removed from here, whatever happens: the server's role may read
+    # the config bucket but not delete from it. One command with set -e on the server, so
+    # a failed import never goes on to restart the API as if it had worked.
+    trap 'aws s3 rm "s3://${BUCKET}/${KEY}" --region "$REGION" --only-show-errors || echo "Could not remove s3://${BUCKET}/${KEY}; remove it by hand."' EXIT
     run_on_server "seaLeye import" \
-      "cd /opt/sealeye && aws s3 cp s3://${BUCKET}/${KEY} - --region ${REGION} --only-show-errors | docker compose exec -T api node deploy/with-settings.mjs scripts/import-records.js -" \
-      "aws s3 rm s3://${BUCKET}/${KEY} --region ${REGION} --only-show-errors" \
-      "cd /opt/sealeye && docker compose restart api >/dev/null && echo 'The API restarted, so it reads the imported records.'" ;;
+      "set -euo pipefail; cd /opt/sealeye; aws s3 cp s3://${BUCKET}/${KEY} - --region ${REGION} --only-show-errors | docker compose exec -T api node deploy/with-settings.mjs scripts/import-records.js -; docker compose restart api >/dev/null; echo 'The API restarted, so it reads the imported records.'" ;;
   logs)
     run_on_server "seaLeye logs" "cd /opt/sealeye && docker compose logs --tail 100 api" ;;
   *)

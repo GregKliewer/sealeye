@@ -14,7 +14,7 @@ export const INTERVIEW_SCHEMA = "interview_state";
 
 // What of a record is worth keeping: everything but the live parts.
 const KEPT = ["id", "app", "appDir", "ownsDir", "scratchRoot", "user", "trace", "mode", "model",
-  "status", "waitingFor", "result", "approved", "traceId", "createdAt", "endedAt"];
+  "status", "waitingFor", "result", "approved", "failure", "traceId", "createdAt", "endedAt"];
 
 /**
  * The interview schema and its tables, made at every start rather than by a migration:

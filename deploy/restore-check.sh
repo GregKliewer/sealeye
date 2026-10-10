@@ -7,7 +7,9 @@ set -euo pipefail
 cd /opt/sealeye
 source ./server.env
 
-LATEST="$(aws s3 ls "s3://${CONFIG_BUCKET}/backups/" --region "$REGION" | awk '{print $4}' | grep '\.dump$' | sort | tail -1)"
+# An empty folder makes `aws s3 ls` exit 1, and no match makes grep exit 1; both mean
+# "no backup yet", said below, rather than a silent stop.
+LATEST="$({ aws s3 ls "s3://${CONFIG_BUCKET}/backups/" --region "$REGION" || true; } | awk '{print $4}' | { grep '\.dump$' || true; } | sort | tail -1)"
 if [ -z "$LATEST" ]; then
   echo "There is no backup yet. Run deploy/server.sh backup first."
   exit 1

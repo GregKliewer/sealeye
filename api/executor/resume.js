@@ -12,13 +12,42 @@ import { followStack, settersFor, startDestroy } from "./index.js";
 import { removeUpload, uploadDirFor } from "./uploads.js";
 
 const now = () => new Date().toISOString();
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Whether an interrupted record is still this platform's to act on. One that is not
+ * stays marked "interrupted", the last status we knew, and nothing is done in AWS:
+ *
+ * - imported from another machine's store (`deploy/server.sh import`), whose role and
+ *   account may not be this server's;
+ * - more than a day old: whatever it was doing ended long ago, and its stack may since
+ *   belong to a newer deployment;
+ * - not the newest record for its stack: acting on it could tear down or take the
+ *   result of the deployment that came after it.
+ */
+function stillOurs(dep, all, nowMs) {
+  if (dep.importedAt) return "imported from another machine";
+  const started = Date.parse(dep.startedAt || "");
+  if (!Number.isFinite(started) || nowMs - started > DAY_MS) return "older than a day";
+  if (dep.stackName) {
+    const newer = all.some(o => o !== dep && o.stackName === dep.stackName && String(o.startedAt || "") > String(dep.startedAt || ""));
+    if (newer) return "a newer deployment has used the same environment since";
+  }
+  return null;
+}
 
 /** @returns {{ deploymentId: string, as: string }[]} what was picked up, and how */
-export function resumeInFlight() {
+export function resumeInFlight({ nowMs = Date.now() } = {}) {
   const picked = [];
+  const all = listDeployments();
 
-  for (const dep of listDeployments()) {
+  for (const dep of all) {
     if (!dep.interrupted) continue;
+    const notOurs = stillOurs(dep, all, nowMs);
+    if (notOurs) {
+      picked.push({ deploymentId: dep.deploymentId, as: `left as it was (${notOurs})` });
+      continue;
+    }
     delete dep.interrupted;
     dep.resumedAt = now();
     const { set, fail } = settersFor(dep);

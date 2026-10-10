@@ -441,7 +441,10 @@ const restoredInterviews = await interviews.restore();
 for (const signal of ["SIGTERM", "SIGINT"]) {
   process.once(signal, () => {
     Promise.all([flushStore(), interviewPersistence?.flush()])
-      .then(() => closeDb())
+      .then(([unsavedIds]) => {
+        if (unsavedIds?.length) console.error(`stopping with ${unsavedIds.length} deployment records not saved: ${unsavedIds.join(", ")}`);
+        return closeDb();
+      })
       .finally(() => process.exit(0));
     setTimeout(() => process.exit(0), 5000).unref();
   });

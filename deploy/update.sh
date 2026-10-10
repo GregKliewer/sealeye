@@ -42,7 +42,7 @@ cat > /etc/systemd/system/sealeye-backup.timer <<UNIT
 [Unit]
 Description=seaLeye nightly database backup
 [Timer]
-OnCalendar=*-*-* 07:15:00 UTC
+OnCalendar=*-*-* 03:15:00 America/Toronto
 Persistent=true
 [Install]
 WantedBy=timers.target

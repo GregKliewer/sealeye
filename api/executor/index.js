@@ -123,8 +123,12 @@ export async function followStack(record, { plan, appPath, stackName, child, set
   // terminal stack status belongs to a previous deploy, not to this one.
   // After a restart, the last status read before it counts: a change seen under way
   // then is this deployment's, whatever final status it has reached since.
+  // Kept on the record (sawInProgress), so a static site that was being synced when the
+  // API stopped, its stack already complete, is still known to be this deployment's.
   let sawInProgress =
-    resumed && /IN_PROGRESS/.test(record.stackStatus || "") && record.stackStatus !== "REVIEW_IN_PROGRESS";
+    resumed &&
+    (record.sawInProgress === true ||
+      (/IN_PROGRESS/.test(record.stackStatus || "") && record.stackStatus !== "REVIEW_IN_PROGRESS"));
 
   while (true) {
     await sleep(POLL_MS);
@@ -157,7 +161,10 @@ export async function followStack(record, { plan, appPath, stackName, child, set
           : child.result?.stderr?.trim() || "the change was prepared but never run"
       );
     }
-    if (/IN_PROGRESS/.test(described.status || "")) sawInProgress = true;
+    if (/IN_PROGRESS/.test(described.status || "") && described.status !== "REVIEW_IN_PROGRESS") {
+      sawInProgress = true;
+      record.sawInProgress = true;
+    }
 
     // A terminal stack status is only ours once this deployment's operation has
     // started, or once the AWS CLI has exited. Otherwise a redeploy would report the
@@ -249,9 +256,11 @@ export async function followStack(record, { plan, appPath, stackName, child, set
         continue;
       }
       return fail(
-        resumed
-          ? "The platform restarted before your environment was created, so nothing was built. Run it again."
-          : child.result?.stderr?.trim() || "the deploy command exited without creating a stack"
+        resumed && sawInProgress
+          ? "Your environment's stack no longer exists: it was removed after this deployment started. Run it again."
+          : resumed
+            ? "The platform restarted before your environment was created, so nothing was built. Run it again."
+            : child.result?.stderr?.trim() || "the deploy command exited without creating a stack"
       );
     }
 

@@ -83,3 +83,54 @@ test("the first start on a database brings in the API's old deployments.json, on
   assert.equal(second.adopted, undefined);
   assert.equal(second.records, 1);
 });
+
+test("an old deployments.json that cannot all be brought in brings in nothing, and the next start tries again", { skip: !pgAvailable && "no SEALEYE_TEST_DATABASE_URL" }, async () => {
+  const url = await freshDatabase();
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-pgadopt-bad-"));
+  const file = path.join(home, "deployments.json");
+  const good = { deploymentId: "dep_aaaaaaaaaaaa", status: "succeeded", startedAt: "2026-10-10T10:00:00Z", app: { name: "a\u0000b" } };
+  // A start time Postgres will not take makes the second record's insert fail.
+  fs.writeFileSync(file, JSON.stringify([good, { deploymentId: "dep_bbbbbbbbbbbb", status: "failed", startedAt: "not a time" }]));
+  const go = async () => {
+    const { stdout } = await run(process.execPath, ["--input-type=module", "-e", `
+      import { openStore, listDeployments } from "./api/store.js";
+      const opened = await openStore();
+      console.log(JSON.stringify({ opened, apps: listDeployments().map(d => d.app?.name) })); process.exit(0);`],
+      { cwd: root, env: { ...process.env, DATABASE_URL: url, SEALEYE_HOME: home, HOME: home } });
+    return JSON.parse(stdout.trim());
+  };
+
+  const first = await go();
+  assert.equal(first.opened.adopted, undefined);
+  assert.equal(first.opened.records, 0, "not half of it");
+
+  fs.writeFileSync(file, JSON.stringify([good, { deploymentId: "dep_bbbbbbbbbbbb", status: "failed", startedAt: "2026-10-10T11:00:00Z" }]));
+  const second = await go();
+  assert.equal(second.opened.adopted, 2);
+  assert.deepEqual(second.apps.sort(), ["ab", null], "a NUL in a string is dropped rather than refusing the record");
+});
+
+test("a change made while the database was away is saved once it is back", { skip: !pgAvailable && "no SEALEYE_TEST_DATABASE_URL" }, async () => {
+  const url = await freshDatabase();
+  const out = await inChild(url, `
+    import pg from "pg";
+    import { openStore, putDeployment, flushStore } from "./api/store.js";
+    await openStore();
+    const admin = new pg.Client({ connectionString: process.env.DATABASE_URL });
+    await admin.connect();
+    // The table is out of reach, as it would be with the database down.
+    await admin.query("ALTER TABLE deployments RENAME TO deployments_away");
+    putDeployment({ deploymentId: "dep_000000000001", status: "running", startedAt: "2026-10-10T10:00:00Z" });
+    const whileAway = await flushStore();
+    await admin.query("ALTER TABLE deployments_away RENAME TO deployments");
+    const afterwards = await flushStore();
+    const { rows } = await admin.query("SELECT status FROM deployments");
+    await admin.end();
+    console.log(JSON.stringify({ whileAway, afterwards, rows }));
+    process.exit(0);
+  `);
+  const { whileAway, afterwards, rows } = JSON.parse(out.split("\n").at(-1));
+  assert.deepEqual(whileAway, ["dep_000000000001"], "reported as not saved");
+  assert.deepEqual(afterwards, []);
+  assert.deepEqual(rows, [{ status: "running" }]);
+});

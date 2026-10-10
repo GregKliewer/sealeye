@@ -13,7 +13,15 @@ source ./server.env
 STAMP="$(date -u +%Y-%m-%dT%H%M%SZ)"
 KEY="backups/sealeye-${STAMP}.dump"
 
-docker compose exec -T postgres pg_dump -U sealeye -d sealeye --format=custom --no-owner --exclude-schema=interview_state \
-  | aws s3 cp - "s3://${CONFIG_BUCKET}/${KEY}" --region "$REGION" --sse AES256 --only-show-errors
+# To a file first, then up: piped straight to S3, a dump that failed halfway would still
+# be uploaded under a good name, and the newest backup would be a broken one.
+DUMP="$(mktemp /tmp/sealeye-backup.XXXXXX)"
+trap 'rm -f "$DUMP"' EXIT
+docker compose exec -T postgres pg_dump -U sealeye -d sealeye --format=custom --no-owner --exclude-schema=interview_state > "$DUMP"
+if [ ! -s "$DUMP" ]; then
+  echo "The dump came out empty, so nothing was uploaded."
+  exit 1
+fi
+aws s3 cp "$DUMP" "s3://${CONFIG_BUCKET}/${KEY}" --region "$REGION" --sse AES256 --only-show-errors
 
 echo "Backed up to s3://${CONFIG_BUCKET}/${KEY}"

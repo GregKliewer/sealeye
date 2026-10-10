@@ -22,7 +22,15 @@ export function db() {
   if (!pool) {
     const url = databaseUrl();
     if (!url) throw new Error("DATABASE_URL is not set");
-    pool = new pg.Pool({ connectionString: url, max: 5 });
+    pool = new pg.Pool({
+      connectionString: url,
+      max: 5,
+      // A database that is not answering is reported, not waited on forever: a write
+      // that fails is kept and tried again (api/store.js).
+      connectionTimeoutMillis: 10_000,
+      statement_timeout: 30_000,
+      query_timeout: 35_000
+    });
     // A connection that drops while idle is the pool's to replace, not the API's to die of.
     pool.on("error", err => console.error(`database connection lost: ${err.message}`));
   }
