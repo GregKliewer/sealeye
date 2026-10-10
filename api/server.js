@@ -9,6 +9,7 @@ import { backendMappings } from "./mappings.js";
 import { putDeployment, getDeployment, listDeployments, storeFile, count } from "./store.js";
 import { startDeployment, startDestroy } from "./executor/index.js";
 import { acceptSent } from "./executor/settings.js";
+import { removeUpload, stageUpload, sweepUploads } from "./executor/uploads.js";
 import { unsupportedNeeds } from "../core/catalog.js";
 import { assembleEvidence, renderEvidence } from "./executor/evidence.js";
 import { rollupNeeds } from "./needs.js";
@@ -21,7 +22,13 @@ const app = express();
 // takes a larger body than the rest (core/upload.js caps what it may unpack to).
 const smallJson = express.json({ limit: "1mb" });
 const uploadJson = express.json({ limit: "40mb" });
-app.use((req, res, next) => (req.method === "POST" && req.path === "/interviews" ? uploadJson : smallJson)(req, res, next));
+// A deploy upload is the whole app the packager will stage (core/upload.js "deploy").
+const deployJson = express.json({ limit: "150mb" });
+app.use((req, res, next) => {
+  if (req.method === "POST" && req.path === "/interviews") return uploadJson(req, res, next);
+  if (req.method === "POST" && req.path === "/deployments") return deployJson(req, res, next);
+  return smallJson(req, res, next);
+});
 
 // The interviews this process holds (api/interview/service.js). The model key and any
 // LangFuse keys are the API's own; developers hold neither.
@@ -47,7 +54,7 @@ app.post("/plans/validate", (req, res) => {
 
 // POST /deployments
 app.post("/deployments", (req, res) => {
-  const { backend, appPath } = req.body || {};
+  const { backend, appPath, zip } = req.body || {};
   const plan = upgradePlan(req.body?.plan);
 
   // Who asked and how the plan came to be, exactly as the command line sent them, for
@@ -71,26 +78,41 @@ app.post("/deployments", (req, res) => {
       error: { code: "MISSING_PLAN", message: "plan is required" }
     });
   }
-  if (!appPath || typeof appPath !== "string") {
-    return res.status(400).json({
-      error: { code: "MISSING_APP_PATH", message: "appPath is required" }
-    });
+  // The app arrives one of two ways. With `zip`, it is an uploaded copy (DESIGN.md,
+  // "Deployments package an uploaded copy"), and `appPath` is only the developer's own
+  // name for their folder, kept on the record so the CLI can recognise its app again;
+  // the API never reads it. Without `zip`, `appPath` is a folder on the API's own
+  // machine, as before, for the local API and older clients.
+  const uploaded = typeof zip === "string" && zip.length > 0;
+  if (zip !== undefined && !uploaded) {
+    return res.status(400).json({ error: { code: "INVALID_UPLOAD", message: "zip must be the app folder, zipped, as base64" } });
   }
 
-  // Absolute only: the API does not share the developer's working directory, so a
-  // relative path would silently resolve against the server's cwd.
-  if (!path.isAbsolute(appPath)) {
-    return res.status(400).json({
-      error: { code: "INVALID_APP_PATH", message: "appPath must be an absolute path" }
-    });
-  }
+  let resolvedAppPath = null;
+  if (uploaded) {
+    resolvedAppPath = typeof appPath === "string" && appPath ? appPath : null;
+  } else {
+    if (!appPath || typeof appPath !== "string") {
+      return res.status(400).json({
+        error: { code: "MISSING_APP_PATH", message: "appPath is required" }
+      });
+    }
 
-  // Checked once, here, so a bad path fails now instead of halfway through packaging.
-  const resolvedAppPath = path.resolve(appPath);
-  if (!fs.existsSync(resolvedAppPath) || !fs.statSync(resolvedAppPath).isDirectory()) {
-    return res.status(400).json({
-      error: { code: "INVALID_APP_PATH", message: `appPath is not a directory: ${resolvedAppPath}` }
-    });
+    // Absolute only: the API does not share the developer's working directory, so a
+    // relative path would silently resolve against the server's cwd.
+    if (!path.isAbsolute(appPath)) {
+      return res.status(400).json({
+        error: { code: "INVALID_APP_PATH", message: "appPath must be an absolute path" }
+      });
+    }
+
+    // Checked once, here, so a bad path fails now instead of halfway through packaging.
+    resolvedAppPath = path.resolve(appPath);
+    if (!fs.existsSync(resolvedAppPath) || !fs.statSync(resolvedAppPath).isDirectory()) {
+      return res.status(400).json({
+        error: { code: "INVALID_APP_PATH", message: `appPath is not a directory: ${resolvedAppPath}` }
+      });
+    }
   }
 
   const checked = checkUpgraded(plan);
@@ -154,9 +176,24 @@ app.post("/deployments", (req, res) => {
     });
   }
 
+  // An uploaded copy is unpacked now, so a bad upload is a 400 and never a queued
+  // deployment that fails later.
+  let packageFrom = resolvedAppPath;
+  if (uploaded) {
+    try {
+      packageFrom = stageUpload(Buffer.from(zip, "base64"), deploymentId);
+    } catch (err) {
+      if (err instanceof UploadRefused) {
+        return res.status(400).json({ error: { code: "UPLOAD_REFUSED", message: err.message } });
+      }
+      throw err;
+    }
+  }
+
   const record = putDeployment({
     deploymentId,
     status: "queued",
+    source: uploaded ? "upload" : "folder",
     backend,
     planVersion: plan.planVersion,
     app: plan.app,
@@ -179,12 +216,15 @@ app.post("/deployments", (req, res) => {
   // and never put on the record, in a response or in a log.
   const sent = acceptSent(plan, req.body?.settings);
 
-  startDeployment(record, plan, resolvedAppPath, sent).catch(err => {
-    record.status = "failed";
-    record.failureReason = err.message;
-    record.finishedAt = new Date().toISOString();
-    putDeployment(record);
-  });
+  startDeployment(record, plan, packageFrom, sent)
+    .catch(err => {
+      record.status = "failed";
+      record.failureReason = err.message;
+      record.finishedAt = new Date().toISOString();
+      putDeployment(record);
+    })
+    // The uploaded copy goes once the deployment has reached a final status.
+    .finally(() => { if (uploaded) removeUpload(deploymentId); });
 
   return res.status(201).json({ ...record });
 });
@@ -378,6 +418,7 @@ app.get("/interviews/:interviewId/events", (req, res) => {
 
 const port = process.env.PORT || 3000;
 startTracing();
+sweepUploads();
 app.listen(port, () => {
   console.log(`seaLeye API listening on http://localhost:${port}`);
   console.log(`deployment store: ${storeFile} (${listDeployments().length} records loaded)`);

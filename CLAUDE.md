@@ -104,7 +104,7 @@ module ids, and only for that. Changing the contract is a DESIGN.md decision.
 
 ## API
 
-POST /plans/validate, POST /deployments ({ plan, appPath, settings? }), GET /deployments,
+POST /plans/validate, POST /deployments ({ plan, appPath, zip?, settings? }), GET /deployments,
 GET /deployments/{id}, GET /deployments/{id}/evidence, DELETE /deployments/{id},
 GET /needs, GET /health, POST /interviews ({ app, zip }), POST
 /interviews/{id}/answers ({ answer }), GET /interviews/{id}/events (server-sent events),
@@ -120,8 +120,12 @@ break.
 - One template per deployment: http_api_serverless and static_site_edge each have one.
   observability_basic.retention_days becomes RetentionDays; config_basic becomes
   environment variables.
-- Packaging: copy the app to `dist/stage/<deploymentId>/` (excluding node_modules, .git,
-  .github), `npm install --omit=dev` there, add `templates/run.sh`, zip, upload.
+- Packaging: the app arrives as an uploaded copy (`core/upload.js`, purpose `deploy`:
+  no node_modules, .git, .github, .do or .env), unpacked into
+  `~/.sealeye/deploy-uploads/<deploymentId>/` and removed when the deployment ends.
+  Copy it to `dist/stage/<deploymentId>/`, `npm install --omit=dev` there, add
+  `templates/run.sh`, zip, upload. `appPath` with no zip is still a folder on the API's
+  machine.
 - Status map: CREATE/UPDATE_IN_PROGRESS -> running; CREATE/UPDATE_COMPLETE ->
   succeeded; anything with ROLLBACK or FAILED -> failed, with the first CREATE_FAILED
   reason from describe-stack-events, read before any cleanup; DELETE_IN_PROGRESS ->
@@ -181,8 +185,7 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   No CloudFront.
 - The API runs locally on one machine with a JSON file store and no sign-in. Phase 1
   of the roadmap replaces this. Interviews are kept in memory, so an API restart loses
-  any in progress (Step 10 moves them to Postgres). Deploys still package the
-  developer's folder by `appPath`.
+  any in progress (Step 10 moves them to Postgres).
 - Setting values travel with each deploy request, from the developer's `.env`, and are
   never kept. Moving them to the organization's secret store is owed (ROADMAP Phase 1
   item 10); `settingValues` in `api/executor/settings.js` is the one place that decides

@@ -1012,6 +1012,14 @@ async function runDeploy({ apiBaseUrl, backend, plan, appPath, requestedBy: who,
       return null;
     }
 
+    // The uploaded copy broke one of the platform's rules (too big, say). The API's
+    // sentence is the one to show.
+    if (refusal?.code === "UPLOAD_REFUSED") {
+      const sentence = new Error(`seaLeye.run could not take your app: ${refusal.message}.`);
+      sentence.userFacing = true;
+      throw sentence;
+    }
+
     throw err;
   } finally {
     wait.stop();

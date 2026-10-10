@@ -37,9 +37,9 @@ shows what is really there.
 1. **The app reaches the API without a shared disk.** Today `POST /deployments` takes an
    `appPath` on the API's own machine. A hosted API cannot read the developer's laptop,
    so the CLI uploads a snapshot of the folder (or the API reads a connected repo; see
-   OPEN-QUESTIONS Q1) and packaging works from that. *The interview reads the upload
-   since Oct 10, 2026; packaging from the upload is Step 9 (setting values now travel
-   with the deploy request).*
+   OPEN-QUESTIONS Q1) and packaging works from that. *Done Oct 10, 2026: the
+   interview and the packager each read an uploaded copy, and setting values travel
+   with the deploy request (DESIGN.md, "Deployments package an uploaded copy").*
 2. **Host the API** behind seaLeye.online (Q2).
 3. **Sign-in**: the portal signs in through an identity provider; the CLI gets a
    `sealeye login` that does the same and stores a token in `~/.sealeye/` (Q3). Every

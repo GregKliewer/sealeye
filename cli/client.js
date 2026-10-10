@@ -66,7 +66,18 @@ export function loadPlanFromYaml(planPath) {
  * how the plan came to be. The API does not verify them; the evidence says so.
  */
 export async function createDeployment({ apiBaseUrl, backend, plan, appPath, requestedBy, origin }) {
-  const body = { backend, plan, appPath };
+  // The app travels as an uploaded copy, packaged by the API as it would package the
+  // folder (core/upload.js "deploy": no node_modules, .git or .env). appPath goes with
+  // it as the developer's own name for their folder, so their next run recognises the
+  // environment; the API never reads it.
+  let packed;
+  try {
+    packed = zipFolder(appPath, { purpose: "deploy" });
+  } catch (err) {
+    if (err?.constructor?.name === "UploadRefused") err.userFacing = true;
+    throw err;
+  }
+  const body = { backend, plan, appPath, zip: Buffer.from(packed.zip).toString("base64") };
   // The values of the settings this plan asks for, from the developer's .env, and only
   // those. A hosted API cannot read this folder, so they travel with the request, once.
   // Moving them to the organization's secret store is on the roadmap (DESIGN.md,

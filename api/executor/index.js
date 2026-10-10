@@ -156,7 +156,7 @@ export async function startDeployment(record, plan, appPath, sent = {}) {
             `could not upload your files to s3://${bucket}: ${synced.stderr.trim() || `exit ${synced.code}`}`
           );
         }
-        record.syncedFrom = appPath;
+        record.syncedFrom = record.source === "upload" ? "the uploaded copy of your folder" : appPath;
       }
 
       set("succeeded", {

@@ -604,3 +604,40 @@ organization's secret store is on the roadmap, Phase 1 work item 10.
    where an organization turns it on. A team that has no secret store yet is never
    blocked.
 
+## Deployments package an uploaded copy
+
+Decided Sat Oct 10, 2026 (PHASE1-PLAN Step 9, its first part).
+
+`sealeye run` and `sealeye deploy` now send the app with the deploy request as a zip
+(`zip` on `POST /deployments`, base64). The API unpacks it into a folder of that
+deployment's own, packages from it as it used to package the developer's folder, and
+for a static site syncs from it. A hosted API never needs the developer's disk.
+
+**A second upload, not the interview's.** The interview's upload was built for reading
+source: it leaves out what `.gitignore` leaves out and carries secret files as empty
+names. A deploy needs what ships, and build output a `.gitignore` names (a static
+site's `dist/`) is often exactly that. So a deploy upload (`core/upload.js`, purpose
+`deploy`) follows the packager's own rules, unchanged from when it read the folder in
+place: everything but `node_modules`, `.git`, `.github`, `.do`, and `.env` wherever it
+is, whose values travel separately (see "Setting values travel with the deploy, for
+now"). Other files the interview treats as secret, a certificate say, are packaged as
+they always were, because an app may need them to run. The limits are larger: 100 MB
+and 20,000 files, unpacked. The app is sent twice in one `sealeye run`, once for the
+interview and once to deploy, which is the price of keeping the two sets of rules apart.
+
+**`appPath` becomes a name when a zip comes with it.** It is the developer's own path
+to their folder, kept on the record so their next run recognises a live environment
+and so the report can say where the app came from. The API never reads it. A request
+with `appPath` and no `zip` still means a folder on the API's machine, so older clients
+and the local API keep working (add, do not break). Records say which with `source`:
+`upload` or `folder`.
+
+**The copy lives only while the deployment is in flight.** It is in
+`~/.sealeye/deploy-uploads/<deploymentId>/` of the user the API runs as, removed once
+the deployment reaches a final status, and swept after a day if the API stopped first.
+A bad upload is refused with a 400 before any record is written.
+
+Known limit: a zip does not carry file permissions, so a file the app needs to be
+executable loses that bit. The platform's own start script is added after unpacking
+and is unaffected.
+
