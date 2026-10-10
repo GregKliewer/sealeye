@@ -777,3 +777,28 @@ What it does not fix: the metadata service is still reachable from the API's con
 so code that does run inside it (the API's own dependencies) could still reach the
 server's role. Building in a separate, unprivileged container is the full fix, and
 belongs with the move off the single pilot server.
+
+## GitHub tests every change and builds the image
+
+Decided Sat Oct 10, 2026 (PHASE1-PLAN Step 11, ROADMAP Phase 1 item 8).
+
+`.github/workflows/test.yml` runs `npm test` on every push and pull request, with a
+Postgres 16 service so the database tests run rather than skip. A push to main that
+passes then builds the server's image on an arm64 runner, the server's own processor,
+so nothing is emulated and the Dockerfile's `npm test` runs again on the real
+architecture. The image is tagged `main-<commit>` and stored in ECR; a re-run finds it
+and stops, since tags there cannot be overwritten.
+
+**GitHub reaches AWS with no stored keys.** It proves to AWS which repository and branch
+is asking (OpenID Connect), and `deploy/ci-role.yaml` makes a role that accepts only
+this repository's main branch and may only push the `sealeye-api` image. A pull request,
+another branch or a fork gets nothing. The role's address is a repository variable,
+`SEALEYE_CI_ROLE_ARN`; without it, the image step is skipped and the tests still run, so
+the workflow works before the role exists.
+
+**Putting an image live stays a person's decision.** `deploy/release.sh` uses GitHub's
+image for the commit it is run on when there is one, and builds locally otherwise. It
+does not deploy on merge: the pilot server has real environments behind it, and a
+release is still something you choose to do (PHASE1-PLAN Step 11: "manual until there is
+a reason to automate").
+

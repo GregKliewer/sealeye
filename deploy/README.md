@@ -14,7 +14,8 @@ in to the seaLeye account as someone who can create IAM roles.
 | `dns.yaml` | Route 53 for a domain, with the `api` record. |
 | `release.sh` | Build, push and roll out a new version. Run on your Mac. |
 | `update.sh` | The server's half of a release. `release.sh` sends it. It also installs the nightly backup. |
-| `server.sh` | The server's own jobs, run from your Mac: backup, restore check, importing records, logs. |
+| `server.sh` | The server's own jobs, run from your Mac: backup, restore check, importing records, restart, logs. |
+| `ci-role.yaml` | The role GitHub takes to store the image it builds. Stack `platform-sealeye-ci`. |
 | `backup.sh`, `restore-check.sh` | The server's half of those jobs. |
 
 Platform stacks are named `platform-sealeye-*`, never `sealeye-*`, so the deploy role,
@@ -152,18 +153,48 @@ domain), so the records live in CloudFormation with everything else.
 Caddy asks for a certificate the first time the name reaches the server, so the first
 request after this can take 10 to 20 seconds.
 
-## Every release
+## Once: let GitHub store the images it builds
 
-Commit your work, start Docker Desktop, then:
+Every push and pull request runs the tests on GitHub (`.github/workflows/test.yml`). A
+push to main that passes also builds the server's image and stores it in ECR, so a
+release needs no Docker on your Mac. GitHub gets in through a role that trusts only this
+repository's main branch, with no AWS keys stored anywhere:
 
 ```bash
+aws cloudformation deploy --region ca-central-1 \
+  --template-file deploy/ci-role.yaml --stack-name platform-sealeye-ci \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --parameter-overrides GitHubRepository=GregKliewer/sealeye
+
+aws cloudformation describe-stacks --region ca-central-1 --stack-name platform-sealeye-ci \
+  --query "Stacks[0].Outputs[?OutputKey=='ImageRoleArn'].OutputValue" --output text
+```
+
+If the first command fails because the identity provider for
+`token.actions.githubusercontent.com` already exists, the account already trusts GitHub:
+run it again with `CreateOidcProvider=false` added to the overrides.
+
+Then, on GitHub, in the repository's Settings, Secrets and variables, Actions, Variables
+tab, add a repository variable `SEALEYE_CI_ROLE_ARN` with the value the second command
+printed. It is not a secret; the role only accepts this repository's main branch.
+Until it is set, the image step is skipped and the tests still run.
+
+## Every release
+
+Merge to main, wait for the run on GitHub to go green, then on your Mac, on main and up
+to date:
+
+```bash
+git switch main && git pull
 deploy/release.sh
 ```
 
-It builds the image for the server's processor, with `npm test` inside the build, pushes
-it, sends the server its config and restarts it, then waits until the API answers.
-The first release takes longer because the server downloads everything for the first
-time.
+If GitHub built this commit, the release uses that image and needs no Docker. If not
+(GitHub's run is still going, or the role is not set up), it builds the image here,
+with `npm test` inside the build, which needs Docker Desktop running.
+`deploy/release.sh --from-ci` uses GitHub's image or stops. Either way it then sends the
+server its config, restarts it and waits until the API answers. The first release takes
+longer because the server downloads everything for the first time.
 
 Then check:
 
@@ -215,10 +246,11 @@ reaches a local API again.
 
 ## When something is wrong
 
-The API's last lines:
+The API's last lines, or a restart:
 
 ```bash
 deploy/server.sh logs
+deploy/server.sh restart
 ```
 
 Or open a shell on the server, with no SSH key needed:
@@ -228,5 +260,5 @@ aws ssm start-session --region ca-central-1 --target <InstanceId>
 cd /opt/sealeye && sudo docker compose logs --tail 100 api
 ```
 
-To install the Session Manager plugin for the AWS CLI, see AWS's "Install the Session
-Manager plugin for the AWS CLI" page.
+That needs the Session Manager plugin for the AWS CLI (`brew install --cask
+session-manager-plugin`). `server.sh` does not.

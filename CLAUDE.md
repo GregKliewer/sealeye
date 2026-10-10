@@ -200,7 +200,8 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
 
 ## Working here
 
-- `npm test` before every commit. It needs no AWS and no API key. Tests that need
+- `npm test` before every commit; GitHub runs it on every push and pull request
+  (`.github/workflows/test.yml`), with Postgres. It needs no AWS and no API key. Tests that need
   Postgres run only with `SEALEYE_TEST_DATABASE_URL` set (a server they may create
   databases on), and are skipped without it.
 - `npm run eval:interview` before and after any change to `prompts/`. It runs the
