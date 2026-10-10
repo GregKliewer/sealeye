@@ -45,6 +45,7 @@ recommendation for each. Each answer goes in DESIGN.md with its date and reason.
 | D5 | Database (Q2) | Postgres in a container on the same machine, nightly dump to S3 | Step 10 | Yes (A2, stage 1)
 | D6 | Which domain does what | See Step 12 | Step 12 |
 | D7 | Sign-in (Q3) | Defer to its own plan. Part B ships with a temporary per-person token. | Step 13 |
+| D8 | The interview as a LangGraph graph, or hand-rolled | LangGraph, with the Postgres saver from Step 10 (see Step 8, option) | Step 8 |
 
 **Why D1 is Cloud for now, and not for a bank.** LangFuse Cloud offers US, EU and Japan
 regions only, with no Canadian region. A trace holds a developer's questions, answers and
@@ -303,6 +304,59 @@ with it.
 Also done when: with `SEALEYE_MODEL_URL` pointed at a stand-in, the API's model calls go
 there and nowhere else.
 
+#### Option for Step 8: the interview as a LangGraph graph (D8)
+
+Step 8 as written keeps `runInterview` as it is and wraps it by hand: the loop waits in
+memory for the answer endpoint. That works, but it leaves two gaps the plan does not yet
+cover. A paused interview lives only in the API process, so a restart or deploy loses it.
+And an interview is tied to the connection that started it, so the portal cannot pick up
+an interview the CLI began, which the parity rule eventually needs.
+
+LangGraph (`@langchain/langgraph`, the JavaScript version, so no language change) closes
+both. The interview becomes a small graph: read the app, model turn, run tools, ask the
+developer, write the plan, wait for approval. Asking and approval become `interrupt()`
+calls. A checkpointer saves the graph's state at every step under the interview id, and
+`POST /interviews/{id}/answers` resumes it with `Command({ resume: answer })`, from
+whichever surface sent the answer. The endpoints and the events stay as above.
+
+**What it changes elsewhere**
+
+- **Checkpoint store.** Step 8 comes before Postgres (Step 10). Use the in-memory saver in
+  Step 8, then switch to the Postgres saver (`@langchain/langgraph-checkpoint-postgres`) in
+  Step 10, in the same database with its own tables. A restart test goes into Step 10's
+  "done when".
+- **Model calls stay as they are.** Nodes call `createWithOneRetry` and the Anthropic SDK
+  directly. No LangChain model wrappers, so `SEALEYE_MODEL_URL` still works unchanged.
+- **Tracing stays hand-written (D3).** LangFuse's LangGraph callback handler records every
+  node's input and output whole, and the state holds file contents, which D2 rules out.
+  Do not attach it. The trace id goes into the graph's state so the spans of one interview
+  join up across pauses.
+- **The checkpoint holds file contents too.** It is the conversation so far, so it gets the
+  same care as the scratch folder: deleted when the interview ends or after a day, and never
+  copied into backups longer than that. This is a new place secrets could sit, and Step 1's
+  blocked files must already be absent from it.
+- **A resumed node runs again from its start.** LangGraph replays the interrupted node from
+  the top when it resumes. So each interrupt gets a node of its own, and no model call sits
+  in the same node before an `interrupt()`. Otherwise every answer repays for a model turn
+  and can change the question that was just answered.
+
+**The trade-off**
+
+| | Hand-rolled (Step 8 as written) | LangGraph |
+|---|---|---|
+| Survives an API restart | No, unless a resume layer is written | Yes, once the Postgres saver is in |
+| CLI starts, portal finishes | Needs its own state store | Built in, by interview id |
+| New dependencies | None | `@langchain/langgraph`, its Postgres saver, `@langchain/core` |
+| Effort | Two to three days | About one more day, mostly the graph and its tests |
+| Later phases | Rebuild for Phase 3 ingestion and Phase 4 approval gates | Same pattern carries into both |
+
+The hand-rolled route could get restart-safety from a state machine and a row in Postgres.
+That is less code to depend on, but it is the same feature written a second time, and the
+Phase 3 discovery agent and the Phase 4 gates that wait days on a release decision would
+need it again. **Recommendation:** LangGraph, decided before Step 8 starts. If it is not
+chosen, Step 8 ships as written, and "a paused interview is lost on restart" goes into
+OPEN-QUESTIONS.
+
 ### Step 9. One small server in ca-central-1 (D4)
 
 Recommendation for the pilot: **one EC2 t4g.small** (2 vCPU, 2 GB, ARM) in ca-central-1,
@@ -435,7 +489,7 @@ down from the portal. Watch them do it rather than doing it for them.
 | 5 to 6 | Scores and the regression set | a day |
 | 7 | Write-up and draft PR | an hour |
 | | **Interview, Tue Oct 13. Merge decision.** | |
-| 8 | Interview behind the API | two to three days |
+| 8 | Interview behind the API | two to three days (about one more if D8 is LangGraph) |
 | 9 to 12 | Server, Postgres, CI, domains | two to three days |
 | 13 to 15 | Tokens, live portal, second-person test | two to three days |
 
