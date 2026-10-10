@@ -791,7 +791,10 @@ and stops, since tags there cannot be overwritten.
 
 **GitHub reaches AWS with no stored keys.** It proves to AWS which repository and branch
 is asking (OpenID Connect), and `deploy/ci-role.yaml` makes a role that accepts only
-this repository's main branch and may only push the `sealeye-api` image. A pull request,
+this repository's main branch and may only push the `sealeye-api` image. It matches
+GitHub's subject in the form GitHub sends it, `repo:<owner>@<ownerId>/<name>@<repoId>:ref:refs/heads/main`:
+the numeric ids never change, so a renamed repository's old name cannot be claimed by
+someone else and used to push. (Found on the first run: the name-only form was refused.) A pull request,
 another branch or a fork gets nothing. The role's address is a repository variable,
 `SEALEYE_CI_ROLE_ARN`; without it, the image step is skipped and the tests still run, so
 the workflow works before the role exists.

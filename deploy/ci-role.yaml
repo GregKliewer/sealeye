@@ -9,6 +9,17 @@ Parameters:
     Type: String
     Description: owner/name of the repository whose main branch may push, e.g. you/sealeye
     AllowedPattern: "[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+"
+  GitHubOwnerId:
+    Type: String
+    Description: >
+      The owner's numeric id. GitHub names the repository in its tokens by name and
+      id (repo:owner@ownerId/name@repoId), and the ids never change, so a renamed
+      repository's old name cannot be taken over by someone else.
+    AllowedPattern: "[0-9]+"
+  GitHubRepositoryId:
+    Type: String
+    Description: The repository's numeric id.
+    AllowedPattern: "[0-9]+"
   CreateOidcProvider:
     Type: String
     Default: "true"
@@ -47,8 +58,11 @@ Resources:
               StringEquals:
                 token.actions.githubusercontent.com:aud: sts.amazonaws.com
                 # This repository's main branch, and nothing else: not a pull request,
-                # not another branch, not a fork.
-                token.actions.githubusercontent.com:sub: !Sub "repo:${GitHubRepository}:ref:refs/heads/main"
+                # not another branch, not a fork. Matched on its ids as well as its name.
+                token.actions.githubusercontent.com:sub: !Sub
+                  - "repo:${Owner}@${GitHubOwnerId}/${Name}@${GitHubRepositoryId}:ref:refs/heads/main"
+                  - Owner: !Select [0, !Split ["/", !Ref GitHubRepository]]
+                    Name: !Select [1, !Split ["/", !Ref GitHubRepository]]
       Policies:
         - PolicyName: push-the-api-image
           PolicyDocument:

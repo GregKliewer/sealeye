@@ -164,11 +164,17 @@ repository's main branch, with no AWS keys stored anywhere:
 aws cloudformation deploy --region ca-central-1 \
   --template-file deploy/ci-role.yaml --stack-name platform-sealeye-ci \
   --capabilities CAPABILITY_NAMED_IAM \
-  --parameter-overrides GitHubRepository=GregKliewer/sealeye
+  --parameter-overrides GitHubRepository=GregKliewer/sealeye \
+    GitHubOwnerId=4442214 GitHubRepositoryId=1378114164
 
 aws cloudformation describe-stacks --region ca-central-1 --stack-name platform-sealeye-ci \
   --query "Stacks[0].Outputs[?OutputKey=='ImageRoleArn'].OutputValue" --output text
 ```
+
+GitHub names the repository in what it sends AWS by its numeric ids as well as its
+name, and the role checks both, so a renamed repository's old name is no use to anyone
+else. The ids are not secret; for another repository, `gh api repos/<owner>/<name> --jq
+'.owner.id, .id'` prints them.
 
 If the first command fails because the identity provider for
 `token.actions.githubusercontent.com` already exists, the account already trusts GitHub:
