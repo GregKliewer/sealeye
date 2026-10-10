@@ -1,0 +1,199 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  seaLeye pilot server (DESIGN.md, "One small server in ca-central-1"): one t4g.small
+  running the API behind Caddy in Docker Compose, a fixed address, an image repository
+  and a bucket for server config and, from Step 10, backups. Deploy as
+  platform-sealeye-server; deploy/README.md has the steps.
+
+Parameters:
+  InstanceType:
+    Type: String
+    Default: t4g.small
+    AllowedValues: [t4g.small, t4g.medium]
+  LatestAmi:
+    Description: Amazon Linux 2023 for arm64, always the latest
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64
+  ComposeVersion:
+    Description: Docker Compose plugin release installed on the server
+    Type: String
+    Default: v2.29.7
+
+Resources:
+  # Server config (compose.yaml, Caddyfile, update.sh) under server/, and from Step 10
+  # the nightly database dumps under backups/, kept 30 days. Named so the deploy role's
+  # rule for app buckets (<app>-<account>) can never match it.
+  ConfigBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "platform-sealeye-${AWS::AccountId}-${AWS::Region}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: backups-30-days
+            Status: Enabled
+            Prefix: backups/
+            ExpirationInDays: 30
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 1
+          - Id: old-config-versions
+            Status: Enabled
+            Prefix: server/
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 30
+
+  Repository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: sealeye-api
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      ImageTagMutability: IMMUTABLE
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {"rules":[{"rulePriority":1,"description":"keep the last 10 images",
+            "selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":10},
+            "action":{"type":"expire"}}]}
+
+  # The server's own identity. It reads its settings, pulls its image, reads and writes
+  # its bucket, and may become a team's deploy role. It cannot build anything itself:
+  # every deployment goes through a role named sealeye-deploy-* (deploy/deploy-role.yaml).
+  ServerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ec2.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        # Shell access through Session Manager, so the server has no SSH port at all.
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: sealeye-server
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: Settings
+                Effect: Allow
+                Action: [ssm:GetParametersByPath, ssm:GetParameters, ssm:GetParameter]
+                Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/sealeye/*"
+              - Sid: DecryptSettings
+                Effect: Allow
+                Action: kms:Decrypt
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+              - Sid: PullImage
+                Effect: Allow
+                Action: [ecr:BatchGetImage, ecr:GetDownloadUrlForLayer, ecr:BatchCheckLayerAvailability]
+                Resource: !GetAtt Repository.Arn
+              - Sid: RegistryLogin
+                Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: "*"
+              - Sid: ConfigAndBackups
+                Effect: Allow
+                Action: [s3:GetObject, s3:PutObject, s3:ListBucket]
+                Resource:
+                  - !GetAtt ConfigBucket.Arn
+                  - !Sub "${ConfigBucket.Arn}/*"
+              - Sid: BecomeADeployRole
+                Effect: Allow
+                Action: sts:AssumeRole
+                Resource: arn:aws:iam::*:role/sealeye-deploy-*
+
+  ServerProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [!Ref ServerRole]
+
+  ServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: seaLeye pilot server, web traffic only (no SSH; Session Manager instead)
+      SecurityGroupIngress:
+        - { IpProtocol: tcp, FromPort: 80, ToPort: 80, CidrIp: 0.0.0.0/0 }
+        - { IpProtocol: tcp, FromPort: 443, ToPort: 443, CidrIp: 0.0.0.0/0 }
+        - { IpProtocol: udp, FromPort: 443, ToPort: 443, CidrIp: 0.0.0.0/0 }
+        - { IpProtocol: tcp, FromPort: 80, ToPort: 80, CidrIpv6: "::/0" }
+        - { IpProtocol: tcp, FromPort: 443, ToPort: 443, CidrIpv6: "::/0" }
+
+  ServerLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        # Instance credentials only with a session token, and reachable from inside a
+        # container (one extra hop), which is how the API gets the server's role.
+        MetadataOptions:
+          HttpTokens: required
+          HttpPutResponseHopLimit: 2
+          HttpEndpoint: enabled
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs:
+              VolumeSize: 20
+              VolumeType: gp3
+              Encrypted: true
+              DeleteOnTermination: true
+
+  Server:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref LatestAmi
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref ServerProfile
+      SecurityGroupIds: [!GetAtt ServerSecurityGroup.GroupId]
+      LaunchTemplate:
+        LaunchTemplateId: !Ref ServerLaunchTemplate
+        Version: !GetAtt ServerLaunchTemplate.LatestVersionNumber
+      Tags:
+        - { Key: Name, Value: sealeye-pilot }
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -euxo pipefail
+          dnf install -y docker
+          mkdir -p /usr/local/lib/docker/cli-plugins
+          curl -fsSL "https://github.com/docker/compose/releases/download/${ComposeVersion}/docker-compose-linux-aarch64" \
+            -o /usr/local/lib/docker/cli-plugins/docker-compose
+          chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+          systemctl enable --now docker
+          mkdir -p /opt/sealeye
+          cat > /opt/sealeye/server.env <<'ENV'
+          REGION=${AWS::Region}
+          CONFIG_BUCKET=${ConfigBucket}
+          REPOSITORY=${Repository.RepositoryUri}
+          ENV
+
+  ServerAddress:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      InstanceId: !Ref Server
+
+Outputs:
+  PublicIp:
+    Description: Point api.sealeye.online here (an A record at your registrar)
+    Value: !Ref ServerAddress
+  InstanceId:
+    Value: !Ref Server
+  RepositoryUri:
+    Value: !GetAtt Repository.RepositoryUri
+  ConfigBucket:
+    Value: !Ref ConfigBucket
+  ServerRoleArn:
+    Description: Trusted by each team's sealeye-deploy-* role (deploy/deploy-role.yaml)
+    Value: !GetAtt ServerRole.Arn

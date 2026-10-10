@@ -1,0 +1,45 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  DNS for seaLeye in Route 53 (PHASE1-PLAN Step 12, D6): the hosted zone for one of
+  seaLeye's domains, and, for sealeye.online, the record that points the API at the pilot
+  server. Deploy as platform-sealeye-dns-<domain with dashes>, then point the domain's
+  nameservers at the NameServers output, at its registrar. deploy/README.md has the steps.
+
+Parameters:
+  DomainName:
+    Type: String
+    Default: sealeye.online
+    AllowedPattern: "[a-z0-9.-]+"
+  ApiAddress:
+    Description: The PublicIp output of platform-sealeye-server. Leave empty for a domain with no API record.
+    Type: String
+    Default: ""
+
+Conditions:
+  HasApi: !Not [!Equals [!Ref ApiAddress, ""]]
+
+Resources:
+  Zone:
+    Type: AWS::Route53::HostedZone
+    Properties:
+      Name: !Ref DomainName
+      HostedZoneConfig:
+        Comment: seaLeye, managed by CloudFormation
+
+  ApiRecord:
+    Type: AWS::Route53::RecordSet
+    Condition: HasApi
+    Properties:
+      HostedZoneId: !Ref Zone
+      Name: !Sub "api.${DomainName}"
+      Type: A
+      TTL: "300"
+      ResourceRecords:
+        - !Ref ApiAddress
+
+Outputs:
+  NameServers:
+    Description: Set these four as the domain's nameservers at its registrar
+    Value: !Join [" ", !GetAtt Zone.NameServers]
+  HostedZoneId:
+    Value: !Ref Zone

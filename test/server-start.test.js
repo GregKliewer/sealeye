@@ -1,0 +1,77 @@
+// deploy/start.mjs, the way the API starts on the server: settings read from SSM through
+// the server's role, the deploy role made the default for everything after, and no
+// value ever printed. A stand-in `aws` on the PATH plays SSM. No AWS.
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { spawn } from "node:child_process";
+
+const root = path.resolve(import.meta.dirname, "..");
+const KEY = "sk-ant-api03-from-parameter-store";
+
+test("settings come from SSM, values stay out of the log, and AWS calls go through the deploy role", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-start-"));
+  const bin = path.join(dir, "bin");
+  fs.mkdirSync(bin);
+  const calls = path.join(dir, "aws-calls.log");
+  // Records how it was called, with which profile, and answers as SSM would.
+  fs.writeFileSync(path.join(bin, "aws"), `#!/bin/sh
+echo "profile=\${AWS_PROFILE:-none} $*" >> "${calls}"
+cat <<'JSON'
+{"Parameters":[
+  {"Name":"/sealeye/ANTHROPIC_API_KEY","Value":"${KEY}"},
+  {"Name":"/sealeye/SEALEYE_DEPLOY_ROLE_ARN","Value":"arn:aws:iam::123456789012:role/sealeye-deploy-pilot"},
+  {"Name":"/sealeye/not a name","Value":"ignored"}
+]}
+JSON
+`, { mode: 0o755 });
+
+  const port = 4500 + Math.floor(Math.random() * 90);
+  const child = spawn(process.execPath, ["deploy/start.mjs"], {
+    cwd: root,
+    env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, PORT: String(port), HOME: dir, SEALEYE_HOME: dir, AWS_PROFILE: "should-not-be-used-for-ssm" },
+    stdio: ["ignore", "pipe", "pipe"]
+  });
+  let log = "";
+  child.stdout.on("data", d => (log += d));
+  child.stderr.on("data", d => (log += d));
+
+  try {
+    let up = false;
+    for (let i = 0; i < 50 && !up; i++) {
+      try { up = (await fetch(`http://localhost:${port}/health`)).ok; } catch {}
+      if (!up) await new Promise(r => setTimeout(r, 100));
+    }
+    assert.ok(up, `the API started:\n${log}`);
+
+    assert.match(log, /2 settings read from \/sealeye\/: ANTHROPIC_API_KEY, SEALEYE_DEPLOY_ROLE_ARN/);
+    assert.match(log, /AWS actions go through the deploy role/);
+    assert.ok(!log.includes(KEY), "no value in the log");
+    assert.match(fs.readFileSync(calls, "utf8"), /^profile=none ssm get-parameters-by-path --path \/sealeye\/ --recursive --with-decryption/);
+
+    // The key reached the API: an interview no longer says it has none.
+    const res = await fetch(`http://localhost:${port}/interviews`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ app: "x" })
+    });
+    assert.equal((await res.json()).error.code, "MISSING_UPLOAD");
+  } finally {
+    child.kill();
+  }
+});
+
+test("a deploy role that is not a sealeye-deploy-* role stops the server from starting", async () => {
+  const child = spawn(process.execPath, ["deploy/start.mjs"], {
+    cwd: root,
+    env: { ...process.env, SEALEYE_SKIP_SSM: "1", SEALEYE_DEPLOY_ROLE_ARN: "arn:aws:iam::123456789012:role/Admin", PORT: "0" },
+    stdio: ["ignore", "pipe", "pipe"]
+  });
+  let log = "";
+  child.stderr.on("data", d => (log += d));
+  const code = await new Promise(r => child.on("close", r));
+  assert.notEqual(code, 0);
+  assert.match(log, /must be the arn of a role named sealeye-deploy-\*/);
+});

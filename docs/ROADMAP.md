@@ -40,7 +40,9 @@ shows what is really there.
    OPEN-QUESTIONS Q1) and packaging works from that. *Done Oct 10, 2026: the
    interview and the packager each read an uploaded copy, and setting values travel
    with the deploy request (DESIGN.md, "Deployments package an uploaded copy").*
-2. **Host the API** behind seaLeye.online (Q2).
+2. **Host the API** behind seaLeye.online (Q2). *Done Oct 10, 2026: the pilot server
+   answers at https://api.sealeye.online (DESIGN.md, "One small server in
+   ca-central-1"; deploy/README.md).*
 3. **Sign-in**: the portal signs in through an identity provider; the CLI gets a
    `sealeye login` that does the same and stores a token in `~/.sealeye/` (Q3). Every
    record carries who did it and from which surface.

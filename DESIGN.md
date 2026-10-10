@@ -641,3 +641,46 @@ Known limit: a zip does not carry file permissions, so a file the app needs to b
 executable loses that bit. The platform's own start script is added after unpacking
 and is unaffected.
 
+## One small server in ca-central-1
+
+Decided Sat Oct 10, 2026 (PHASE1-PLAN Step 9, D4; built as `deploy/`). The plan's
+choice stands: one EC2 t4g.small running the API behind Caddy in Docker Compose, about
+$20 a month. How it is built, and where it differs from the plan:
+
+- **Two platform stacks, never named `sealeye-*`.** `platform-sealeye-server` is the
+  server and `platform-sealeye-deploy-role` is the deploy role. Apps are
+  `sealeye-<app>`, and the deploy role may only touch stacks with that prefix, so it
+  can never change the platform itself.
+- **The server cannot build anything.** Its own role reads `/sealeye/*` parameters,
+  pulls its image, uses its own bucket, and may assume `sealeye-deploy-*` roles. Every
+  deployment goes through `sealeye-deploy-pilot` (Q4: one account to start). That role
+  can create only what the two module templates contain, under seaLeye's names: stacks
+  `sealeye-*`, function roles `sealeye-*-FunctionRole-*` with Lambda's basic logging
+  policy and nothing else, functions, HTTP APIs, `/aws/lambda/*` log groups, the
+  artifact bucket, and site buckets named `<app>-<account>`. A team's own account is
+  the same template deployed there, trusting the server's role.
+- **No change to the executor.** `deploy/start.mjs` writes an AWS CLI profile that
+  assumes the deploy role from the instance's credentials and makes it the default, so
+  every `aws` the executor runs goes through it. It is the one place outside the
+  executor that runs the AWS CLI, to read the server's settings with the server's own
+  role.
+- **Settings and secrets live in Parameter Store under `/sealeye/`**, SecureStrings for
+  secrets, read into the API's memory at start. They are never in an image, a compose
+  file or a log; the start line names the settings it read, never their values.
+- **No SSH.** The firewall opens 80 and 443 only, and a shell is through Session
+  Manager. Instance metadata needs a session token, with one extra hop so the container
+  can reach it.
+- **Releases from Greg's Mac until CI exists (Step 11).** `deploy/release.sh` refuses
+  uncommitted changes, builds the arm64 image (running `npm test` inside the build),
+  pushes it to the stack's own repository, uploads the server config, and restarts the
+  server through Session Manager, waiting until the API is healthy. Image tags are
+  immutable: the commit and a timestamp.
+- **Differences from the plan.** Postgres is not in the compose file yet; Step 10 adds
+  it with its password in Parameter Store. Uploads are unpacked on the server's own
+  disk, not S3, since they live for minutes. Backups get their place in the config
+  bucket (`backups/`, kept 30 days) for Step 10 to use.
+
+Not tested here: building the image and deploying the templates, which need Docker and
+AWS. Both templates pass `cfn-lint`; `test/server-start.test.js` runs the start script
+against a stand-in for SSM.
+
