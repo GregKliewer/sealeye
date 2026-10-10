@@ -82,7 +82,7 @@ needs something the API has, it belongs in `core/` or behind an endpoint.
 - Stacks are `sealeye-<app>` (lowercase, `[a-z0-9-]` only, `core/names.js`). Artifacts
   are `<app>/<deploymentId>.zip`.
 - Settings are `SEALEYE_<NAME>` (ACCOUNT, BUCKET, LWA_VERSION, REGION, MODEL, DEBUG,
-  HOME, TRACING), read through `setting()` in `core/config.js`.
+  HOME, TRACING, MODEL_URL), read through `setting()` in `core/config.js`.
 - `deployme` was the original name. Until 2.17.0 the plan file was `deployme.yaml`, the
   config folder `~/.deployme`, and settings `DEPLOYME_*`. They are still read, never
   written. Only `core/config.js`, `core/names.js`, `core/schema.js` and `api/store.js`

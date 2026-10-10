@@ -451,3 +451,19 @@ What does not change, and the rules that come with it:
   with no model call before it in that node.
 - Cost: three dependencies (`@langchain/langgraph`, its Postgres saver, `@langchain/core`)
   and about one more day in Step 8.
+
+## The model's address is a setting
+
+Decided Sat Oct 10, 2026 (PHASE1-PLAN Step 8).
+
+`SEALEYE_MODEL_URL`, when set, is the address every interview model call goes to,
+passed to the Anthropic client as its base URL. Unset means Anthropic's own address, so
+nothing changes by default.
+
+Why: a bank will not let a tool send its developers' code straight to
+api.anthropic.com. It will want the traffic to go through the AI gateway it already
+approves, often to Claude on Bedrock in its own AWS account. With the address as a
+setting, seaLeye fits behind that gateway and needs no route of its own to the
+internet. Whether seaLeye runs a gateway of its own is OPEN-QUESTIONS Q14, and is not
+decided here. `test/model-url.test.js` runs one turn against a stand-in at that address
+and checks nothing else was called.

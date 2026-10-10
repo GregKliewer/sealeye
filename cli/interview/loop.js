@@ -302,6 +302,20 @@ function toolRecord(use, content, isError) {
 }
 
 /**
+ * The Anthropic client the interview talks to.
+ *
+ * SEALEYE_MODEL_URL, when set, is where every model call goes instead of Anthropic's
+ * own address. An organization that sends model traffic through its own AI gateway
+ * (often to Claude on Bedrock in its own AWS account) points this at the gateway, and
+ * seaLeye needs no route of its own to api.anthropic.com. Unset changes nothing.
+ * The SDK's own retries are off: one retry, announced, beats three silent ones.
+ */
+export function modelClient(apiKey) {
+  const baseURL = setting("MODEL_URL");
+  return new Anthropic({ apiKey, timeout: TIMEOUT_MS, maxRetries: 0, ...(baseURL ? { baseURL } : {}) });
+}
+
+/**
  * Run the interview.
  *
  * @param {object}   options
@@ -334,9 +348,7 @@ export async function runInterview({
       );
     }
 
-    // The SDK's own retries are off: one retry, announced, beats three silent ones in
-    // front of an audience.
-    client = new Anthropic({ apiKey, timeout: TIMEOUT_MS, maxRetries: 0 });
+    client = modelClient(apiKey);
   }
 
   // One trace per run, when LangFuse is configured. The session is the app's name, so
