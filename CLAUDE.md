@@ -25,7 +25,7 @@ Two surfaces, one product: **seaLeye.run** is the `sealeye` command, and
 cli/        the sealeye command: bin/sealeye, client.js (talks to the API), interview/
             (follow.js streams the interview; render.js, explain.js), doctor.js,
             brand.js (the only place terminal colours live)
-api/        the API: server.js, store.js, needs.js, mappings.js, validate.js, interview/
+api/        the API: server.js, store.js, db.js, migrations/, needs.js, mappings.js, validate.js, interview/
             (the LangGraph graph, the model, the tools, the service), executor/
             (compose, package, deploy, poll, report, evidence)
 core/       what cli/ and api/ must agree on: schema.js (the plan contract), catalog.js,
@@ -186,10 +186,10 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
 - One backend: CloudFormation. No Terraform, GitHub Actions or CodePipeline yet.
 - Region ca-central-1 (`SEALEYE_REGION` is an explicit opt-out). Runtime nodejs20.x.
   No CloudFront.
-- The API runs on one pilot server (https://api.sealeye.online, `deploy/`) or locally,
-  with a JSON file store and no sign-in. Phase 1 of the roadmap replaces the store and
-  adds sign-in. Interviews are kept in memory, so an API restart loses
-  any in progress (Step 10 moves them to Postgres).
+- The API runs on one pilot server (https://api.sealeye.online, `deploy/`), with
+  records and interviews in Postgres, or locally with a JSON file and interviews in
+  memory (no `DATABASE_URL`). No sign-in yet; every record is org and team "default".
+  The store reads from memory, written through to Postgres: one API process only.
 - Setting values travel with each deploy request, from the developer's `.env`, and are
   never kept. Moving them to the organization's secret store is owed (ROADMAP Phase 1
   item 10); `settingValues` in `api/executor/settings.js` is the one place that decides
@@ -200,7 +200,9 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
 
 ## Working here
 
-- `npm test` before every commit. It needs no AWS and no API key.
+- `npm test` before every commit. It needs no AWS and no API key. Tests that need
+  Postgres run only with `SEALEYE_TEST_DATABASE_URL` set (a server they may create
+  databases on), and are skipped without it.
 - `npm run eval:interview` before and after any change to `prompts/`. It runs the
   interview graph in-process on each sample app, grades the plans, and records a
   LangFuse dataset run; it needs ANTHROPIC_API_KEY and LangFuse keys, and deploys

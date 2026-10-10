@@ -684,3 +684,58 @@ Not tested here: building the image and deploying the templates, which need Dock
 AWS. Both templates pass `cfn-lint`; `test/server-start.test.js` runs the start script
 against a stand-in for SSM.
 
+## Deployment records live in Postgres
+
+Decided Sat Oct 10, 2026 (PHASE1-PLAN Step 10, D5; D8 for interviews).
+
+With `DATABASE_URL` set, the API keeps its deployment records and its interviews in
+progress in Postgres. Without it, nothing changes: records in `~/.sealeye/deployments.json`
+and interviews in memory, which is what a laptop API and `npm test` use.
+
+**The store keeps its functions, and its map.** `putDeployment`, `getDeployment`,
+`listDeployments` and `count` stay synchronous, so nothing that calls them changed. The
+map in memory is still what they read. With a database, every change is written through
+to the `deployments` table, one write after another so the table always ends with the
+last change, and the map is filled from the table at start (`openStore`). A stop waits
+for the last write. This is right while the API is one process, which the pilot server
+is. ECS Express Mode (stage 3 of the hosting plan) runs more than one, and the store
+then has to read from Postgres instead; that is a change inside `api/store.js` only.
+
+**Each row is the record as it always was, with columns beside it.** The whole record is
+kept as JSON, so readers, reports and evidence are unchanged. Beside it: `org_id`,
+`team_id`, `created_by`, `surface`, `trace_id`, `app`, `status`, `started_at`. Until
+sign-in (Step 13) every record is org and team "default", with `created_by` from the
+CLI's `requestedBy` and `surface` "cli"; sign-in fills them for real.
+
+**Migrations are plain SQL** in `api/migrations/`, applied in name order at start, each
+in a transaction, recorded in `schema_migrations`.
+
+**Interviews live in their own schema, `interview_state`,** with LangGraph's checkpoint
+tables (through its Postgres saver), the interview records and their events. The API
+makes the schema and tables at every start rather than by migration, because the
+backup leaves the whole schema out and a restored database has to get them back by
+itself. At start, an interview waiting on the developer waits again, one that was
+mid-step carries on from its last saved step, and an ended one stays for a client to
+replay. The model client is made on demand, since a restored interview reaches it
+without `POST /interviews` having run.
+
+**What was in flight is picked up again** (`api/executor/resume.js`), with or without a
+database. A deployment that was running is watched until CloudFormation says how it
+ended, through the same loop a live deployment uses; a final status counts as its own
+only if the change was seen under way before the restart, and otherwise the deployment
+fails with that said plainly. A tear-down is started again; every step of it is safe to
+repeat. One still being prepared fails with the reason. A change set that was made and
+never run now ends a deployment instead of being polled forever.
+
+**On the server:** Postgres 16 in the compose file, reachable only from the API, its
+password from `/sealeye/POSTGRES_PASSWORD`, read by Postgres only when it first creates
+the database. A nightly `pg_dump` at 03:15 Toronto time goes to the config bucket's
+`backups/` (kept 30 days), without `interview_state`: interviews hold developers' code
+and live a day at most. `deploy/server.sh restore-check` restores the newest dump into a
+scratch database and compares counts. The first start on an empty database brings in
+the API's own old `deployments.json`; `deploy/server.sh import` brings in a laptop's.
+
+**Tests:** the ones that need Postgres run when `SEALEYE_TEST_DATABASE_URL` points at a
+server they may create databases on, and are skipped otherwise, so `npm test` still
+needs nothing but Node. CI (Step 11) should set it.
+

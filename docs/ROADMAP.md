@@ -47,7 +47,9 @@ shows what is really there.
    `sealeye login` that does the same and stores a token in `~/.sealeye/` (Q3). Every
    record carries who did it and from which surface.
 4. **A real store**: records move from `~/.sealeye/deployments.json` to a database, with
-   organization and team on every record (Q2).
+   organization and team on every record (Q2). *Done Oct 10, 2026: Postgres on the
+   server, with nightly backups; organization and team are "default" until sign-in
+   fills them (DESIGN.md, "Deployment records live in Postgres").*
 5. **AWS access per team**: the API acts in each team's account through a role it
    assumes, not with one person's credentials (Q4).
 6. **The model key**: the API holds it, not each developer (Q8). *Done Oct 10, 2026:*
