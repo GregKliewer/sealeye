@@ -1,13 +1,14 @@
 # Phase 1 plan: LangFuse tracing, then a hosted API
 
-Written Thu Oct 8, 2026. Work happens on the branch `langfuse-tracing`. Nothing merges to
-`main` until Greg decides, after the Lightworks interview on Tue Oct 13, whether tracing
-stays in the product.
+Written Thu Oct 8, 2026. Part A was built on the branch `langfuse-tracing` and merged to
+`main` on Fri Oct 9 (pull request #4), when Greg decided tracing stays in the product
+(DESIGN.md, "Tracing stays in the product"). The plan first held that decision until after
+the Lightworks interview on Tue Oct 13; it did not need to wait.
 
 The plan has two parts. **Part A** (Steps 0 to 7) adds LangFuse to the interview as it runs
 today, on Greg's machine, and can be finished before Tuesday. **Part B** (Steps 8 to 15) is
 Phase 1 proper: the API is hosted, the interview moves behind it, and tracing moves with
-it. Part B starts only after the merge decision.
+it. Part B starts from `main` on Sat Oct 10.
 
 ## What the code looks like today
 
@@ -63,7 +64,7 @@ answer, and it is the more useful thing to learn.
 ## Part A: tracing the interview (before Tuesday)
 
 **Status:** built and checked by hand on Fri Oct 9, 2026, on `langfuse-tracing` (pull
-request #4, not merged). Where the build differs from the steps below, DESIGN.md says
+request #4, merged Fri Oct 9). Where the build differs from the steps below, DESIGN.md says
 why: LangFuse SDK v5 with a tracer provider of seaLeye's own (Step 3), scores sent one
 bounded request each rather than through `@langfuse/client` (Step 5), and regression
 runs recorded as LangFuse experiments, because dataset runs are off for new
@@ -262,7 +263,7 @@ assumed. It also gives you three things worth saying in the room:
 - **The connection that matters.** Tracing only becomes governance when a trace is joined
   to a real outcome. Step 5 is that join.
 
-## Part B: the hosted API (after the merge decision)
+## Part B: the hosted API (from Sat Oct 10)
 
 This is roadmap Phase 1, work items 1 to 8, in the order the dependencies force.
 
