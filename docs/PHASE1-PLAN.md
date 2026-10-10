@@ -43,7 +43,7 @@ recommendation for each. Each answer goes in DESIGN.md with its date and reason.
 | D3 | Auto-instrumentation or hand-written spans | Hand-written, in `createWithOneRetry` and `runTool` | Step 3 | Hand-written, in createWithOneRetry and runTool
 | D4 | Where the hosted API runs (Q2) | One EC2 t4g.small in ca-central-1 for the pilot; ECS Express Mode later | Step 9 | Yes (A2, stage 1)
 | D5 | Database (Q2) | Postgres in a container on the same machine, nightly dump to S3 | Step 10 | Yes (A2, stage 1)
-| D6 | Which domain does what | See Step 12 | Step 12 |
+| D6 | Which domain does what | See Step 12 | Step 12 | As stated in Step 12
 | D7 | Sign-in (Q3) | Defer to its own plan. Part B ships with a temporary per-person token. | Step 13 |
 | D8 | The interview as a LangGraph graph, or hand-rolled | LangGraph, with the Postgres saver from Step 10 (see Step 8) | Step 8 | LangGraph (Sat Oct 10, DESIGN.md)
 
