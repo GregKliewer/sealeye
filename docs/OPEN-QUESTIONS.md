@@ -52,6 +52,22 @@ Today it is installed with `npm link` from a clone. **Options:** a private npm p
 a public one; a single binary. Matters once anyone outside the repo uses it (Phase 1 if
 Q5 is users).
 
+### Q14. Does seaLeye run an AI gateway of its own in front of the API?
+
+Agent Gateway (agentgateway.dev, open source, in the Agentic AI Foundation) could sit on
+the server between the API and Anthropic. It would give per-person keys and spending caps,
+cost broken down by person (a refused run costs about three times a deployed one), a rate
+limit that stops a looping interview, and OpenTelemetry that LangFuse can read. It does not
+replace the hand-written trace spans, which follow the interview's steps and decide what a
+trace may contain; the gateway only sees individual requests.
+
+**Options:** add it on the pilot server; add it when a second team uses the API; never,
+and rely on the organization's own gateway through `SEALEYE_MODEL_URL` (PHASE1-PLAN
+Step 8). **Leaning:** not for the pilot, since it is one more part to configure on a single
+box. Revisit when a second team uses the API and spend per person matters. Offering
+seaLeye's tools as an MCP server behind a gateway is a separate, later idea (Phase 2 or 3).
+Blocks nothing in Phase 1.
+
 ### Q11. Where do the marketing sites live?
 
 seaLeye.run, seaLeye.online and seaLeye.com are in `archive/`. When the portal becomes

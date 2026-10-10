@@ -288,9 +288,20 @@ with it.
   repository option comes later, for the portal.
 - `core/tracing.js` is now started once by the API. The API holds the only keys, and the
   CLI has none.
+- **The model address is a setting** (`SEALEYE_MODEL_URL`, read with `setting()` like
+  `MODEL`), passed to the Anthropic client as its base URL. Unset means Anthropic's own
+  address, so nothing changes by default. This lets an organization send the interview's
+  model calls through its own AI gateway (Agent Gateway, or whatever it already runs, often
+  in front of Claude on Bedrock in its own AWS account) instead of seaLeye needing its own
+  route to api.anthropic.com. About a day. A test runs one interview turn against a stand-in
+  server at that address. Before saying this in a pitch, check whether the model seaLeye
+  uses is offered on Bedrock in ca-central-1. Whether seaLeye runs a gateway of its own is
+  Q14, and is not part of this step.
 
 **Done when:** `sealeye run` works end to end against a local API with
 `ANTHROPIC_API_KEY` unset on the CLI side, and the trace looks the same as in Part A.
+Also done when: with `SEALEYE_MODEL_URL` pointed at a stand-in, the API's model calls go
+there and nowhere else.
 
 ### Step 9. One small server in ca-central-1 (D4)
 
