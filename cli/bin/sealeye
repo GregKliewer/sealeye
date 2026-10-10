@@ -14,14 +14,16 @@ import {
   listDeployments,
   destroyDeployment,
   getEvidence,
-  getNeeds
+  getNeeds,
+  answerInterview,
+  abandonInterview
 } from "../client.js";
 import { banner, step, ask, answer, typing, typed, c, product, spinner, stopSpinner, animations } from "../brand.js";
 import { safeName, CONFIG_FILE, LEGACY_CONFIG_FILE } from "../../core/names.js";
 import { USER_CONFIG_HINT, setting } from "../../core/config.js";
 import { startTracing, flushTracing, tracingActive, tracingConfigured, tracingSwitchedOff, scoreTrace, scoreDeploymentOutcome, flushScores } from "../../core/tracing.js";
 import { unsupportedNeeds, refusalClosing, orgName } from "../../core/catalog.js";
-import { runInterview, resolveApiKey } from "../interview/loop.js";
+import { interviewThroughApi } from "../interview/follow.js";
 import { runDoctor } from "../doctor.js";
 import { writeInterviewFiles, decisionCard } from "../interview/render.js";
 import { plainValidationErrors } from "../interview/explain.js";
@@ -195,6 +197,7 @@ async function main() {
     // the folder as it was, and go.
     let wrote = false;
     let leaving = false;
+    let interviewId = null;   // set once the API holds an interview for this run
 
     const interrupt = () => {
       if (leaving) return;
@@ -209,11 +212,15 @@ async function main() {
       );
 
       rl.close();
-      // 130 is the conventional code for "interrupted". With tracing on, what the
-      // interview did before Ctrl+C is still worth seeing, so wait for it, briefly;
-      // with tracing off, leave exactly as before.
-      if (!tracingActive()) process.exit(130);
-      flushTracing(1000).finally(() => process.exit(130));
+      // 130 is the conventional code for "interrupted". An interview the API is still
+      // holding is dropped first, briefly, so the platform keeps nothing of the app.
+      const dropping = interviewId
+        ? Promise.race([
+            abandonInterview({ apiBaseUrl, interviewId }).catch(() => {}),
+            new Promise(r => setTimeout(r, 1500))
+          ])
+        : Promise.resolve();
+      dropping.finally(() => process.exit(130));
     };
 
     rl.on("SIGINT", interrupt);
@@ -281,34 +288,23 @@ async function main() {
       }
 
       if (!submission) {
-        // Only the interview needs the model, so the key is only required here: a
-        // reused plan deploys without one.
-        if (!resolveApiKey()) {
-          console.error(
-            c.fail(
-              `ANTHROPIC_API_KEY is not set, so put it in your environment or in ${USER_CONFIG_HINT} and run ${product.command} run again.`
-            )
-          );
-          process.exit(1);
-        }
-
         say("Reading your app");
 
-        // Only the interview is traced, and only when LangFuse keys are set and
-        // neither --no-trace nor SEALEYE_TRACING=off says otherwise (DESIGN.md,
-        // "Turning tracing off for a run"). A switch that turned it off says so, once.
-        const tracing = startTracing({ off: noTraceFlag });
-        if (!tracing && tracingConfigured() && (noTraceFlag || tracingSwitchedOff())) {
-          say("Tracing is off for this run");
-        }
+        // The interview runs in the API, which holds the model key and any tracing keys
+        // (DESIGN.md, "The interview runs as a LangGraph graph"). --no-trace and
+        // SEALEYE_TRACING=off still turn tracing off, for this interview only.
+        const traceOff = noTraceFlag || tracingSwitchedOff();
+        if (traceOff) say("Tracing is off for this run");
 
-        const result = await runInterview({
-          appPath,
+        const result = await interviewThroughApi({
           apiBaseUrl,
+          onStep: say,
+          onStarted: id => { interviewId = id; },
+          appPath,
           user: requestedBy().user,
+          trace: !traceOff,
           // What is running, so the interview asks about what changed and nothing else.
           deployed: live?.record?.plan || null,
-          onStep: say,
           // One question at a time, amber, with whatever the platform found above it.
           ask: async (question, lead = []) => {
             console.log("");
@@ -322,10 +318,6 @@ async function main() {
           }
         });
 
-        // The interview is the only traced part of a run, so its trace is complete here.
-        // Send it now rather than at exit: deploy and watch can end the process in more
-        // ways than are worth guarding one by one.
-        await flushTracing();
         if (result.traceId && setting("DEBUG")) console.error(`  [debug] trace ${result.traceId}`);
 
         if (result.status === "invalid") {
@@ -386,12 +378,12 @@ async function main() {
       console.log("");
       const reply = await askLine(rl, "Deploy this? [y/N]");
 
-      // How the interview's plan landed, against its trace. Only an interviewed plan has
-      // one; a reused plan has no trace to score.
-      if (submission.traceId) {
-        scoreTrace(submission.traceId, "developer_said_yes", reply.toLowerCase() === "y");
-        scoreTrace(submission.traceId, "needs_refused", needs.length > 0);
-        await flushScores();
+      // An interviewed plan is still waiting in the API for this answer, which is where
+      // it is scored against the interview's trace. A reused plan has no interview.
+      if (submission.interviewId) {
+        await answerInterview({ apiBaseUrl, interviewId: submission.interviewId, answer: reply.toLowerCase() === "y" ? "y" : "n" })
+          .catch(err => { if (setting("DEBUG")) console.error(`  [debug] could not send the answer: ${err.message}`); });
+        interviewId = null;   // answered: the API has already let it go
       }
 
       if (reply.toLowerCase() !== "y") {

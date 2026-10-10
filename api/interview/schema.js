@@ -1,4 +1,4 @@
-// src/interview/schema.js
+// api/interview/schema.js
 // The input schema for the submit_plan tool the interview gives the model.
 //
 // The plan half is planSchema itself, not a copy: the contract is frozen and the

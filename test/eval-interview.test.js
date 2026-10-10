@@ -135,7 +135,7 @@ test("one pass grades all three apps and records a dataset run in LangFuse", asy
   const byApp = plans();
   const rows = await evaluate({
     cases: loadCases(),
-    apiBaseUrl: api,
+
     runName: "test run",
     model: "claude-sonnet-5",
     clientFor: app => clientFor(byApp[app])
@@ -200,7 +200,7 @@ test("with the older dataset-run link refused, a run still records as one experi
   const byApp = plans();
   const rows = await evaluate({
     cases: loadCases(),
-    apiBaseUrl: api,
+
     runName: "refused link run",
     model: "claude-sonnet-5",
     clientFor: app => clientFor(byApp[app])

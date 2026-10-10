@@ -1,4 +1,4 @@
-// src/interview/tools.js
+// api/interview/tools.js
 // The two read-only tools the interview gives the model, scoped to one app folder.
 //
 // The developer's folder is read-only to seaLeye.run, and the model only ever sees
@@ -7,38 +7,13 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { secretFileReason } from "../../core/secrets.js";
+
+export { secretFileReason };
+
 const MAX_ENTRIES = 40;          // list_files
 const MAX_BYTES = 20 * 1024;     // read_file
 const BLOCKED = new Set(["node_modules", ".git", ".sealeye", ".deployme"]);
-
-// Files that hold secret values. list_files still shows their names, because knowing a
-// .env exists tells the model the app reads settings, but read_file never returns their
-// contents (principle 6). Matched on the file's own name, case-insensitively, since
-// macOS and Windows folders treat .ENV and .env as the same file.
-const ENV_EXAMPLES = new Set([".env.example", ".env.sample"]);
-const CREDENTIAL_NAMES = new Set([".npmrc", "credentials", ".envrc"]);
-const CREDENTIAL_EXTENSIONS = [".pem", ".key"];
-const SSH_KEY_PREFIXES = ["id_rsa", "id_dsa", "id_ecdsa", "id_ed25519"];
-
-/**
- * Why a file name may not be read, or null when it may. The reason is written for the
- * model: it says what to read instead.
- */
-export function secretFileReason(fileName) {
-  const name = path.basename(fileName).toLowerCase();
-  if (ENV_EXAMPLES.has(name)) return null;
-  if (name === ".env" || name.startsWith(".env.")) {
-    return `${path.basename(fileName)} holds secret values; read .env.example instead, if there is one`;
-  }
-  if (
-    CREDENTIAL_NAMES.has(name) ||
-    CREDENTIAL_EXTENSIONS.some(ext => name.endsWith(ext)) ||
-    SSH_KEY_PREFIXES.some(prefix => name.startsWith(prefix))
-  ) {
-    return `${path.basename(fileName)} is a credential file; its contents are never read`;
-  }
-  return null;
-}
 
 export const listFilesTool = {
   name: "list_files",
@@ -100,7 +75,7 @@ export function resolveInside(appPath, requested) {
     throw new ToolRefusal("that path is outside your app folder");
   }
   for (const segment of segments) {
-    if (BLOCKED.has(segment)) throw new ToolRefusal(`${segment} is not readable`);
+    if (BLOCKED.has(segment.toLowerCase())) throw new ToolRefusal(`${segment} is not readable`);
   }
 
   // Resolve symlinks: the real path has to be inside the folder too. A path that does
@@ -140,7 +115,7 @@ export function listFiles(appPath, requested = ".") {
   }
 
   const visible = entries
-    .filter(e => !BLOCKED.has(e.name))
+    .filter(e => !BLOCKED.has(e.name.toLowerCase()))
     .map(e => (e.isDirectory() ? `${e.name}/` : e.name))
     .sort();
 
@@ -196,7 +171,7 @@ export function runTool(appPath, name, input = {}) {
 }
 
 /**
- * The short digest the CLI sends as the first user message: enough for the model to
+ * The short digest the interview sends as its first user message: enough for the model to
  * skip the questions the folder already answers.
  */
 export function folderDigest(appPath) {

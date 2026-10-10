@@ -22,12 +22,15 @@ Two surfaces, one product: **seaLeye.run** is the `sealeye` command, and
 ## Layout
 
 ```
-cli/        the sealeye command: bin/sealeye, client.js (talks to the API), interview/,
-            doctor.js, brand.js (the only place terminal colours live)
-api/        the API: server.js, store.js, needs.js, mappings.js, executor/ (compose,
-            package, deploy, poll, report, evidence)
+cli/        the sealeye command: bin/sealeye, client.js (talks to the API), interview/
+            (follow.js streams the interview; render.js, explain.js), doctor.js,
+            brand.js (the only place terminal colours live)
+api/        the API: server.js, store.js, needs.js, mappings.js, validate.js, interview/
+            (the LangGraph graph, the model, the tools, the service), executor/
+            (compose, package, deploy, poll, report, evidence)
 core/       what cli/ and api/ must agree on: schema.js (the plan contract), catalog.js,
-            config.js (settings and paths), names.js
+            config.js (settings and paths), names.js, secrets.js (which files hold
+            secrets), upload.js (what travels to the API), tracing.js
 prompts/    system prompt, plan contract, plan, report and evidence templates, catalog
 templates/  one CloudFormation template per buildable module, plus run.sh
 apps/       sample apps for trying seaLeye. plans/ holds test plans.
@@ -82,7 +85,7 @@ needs something the API has, it belongs in `core/` or behind an endpoint.
 - Stacks are `sealeye-<app>` (lowercase, `[a-z0-9-]` only, `core/names.js`). Artifacts
   are `<app>/<deploymentId>.zip`.
 - Settings are `SEALEYE_<NAME>` (ACCOUNT, BUCKET, LWA_VERSION, REGION, MODEL, DEBUG,
-  HOME, TRACING), read through `setting()` in `core/config.js`.
+  HOME, TRACING, MODEL_URL), read through `setting()` in `core/config.js`.
 - `deployme` was the original name. Until 2.17.0 the plan file was `deployme.yaml`, the
   config folder `~/.deployme`, and settings `DEPLOYME_*`. They are still read, never
   written. Only `core/config.js`, `core/names.js`, `core/schema.js` and `api/store.js`
@@ -101,9 +104,11 @@ module ids, and only for that. Changing the contract is a DESIGN.md decision.
 
 ## API
 
-POST /plans/validate, POST /deployments ({ plan, appPath }), GET /deployments,
+POST /plans/validate, POST /deployments ({ plan, appPath, settings? }), GET /deployments,
 GET /deployments/{id}, GET /deployments/{id}/evidence, DELETE /deployments/{id},
-GET /needs, GET /health. Keep existing endpoints and commands working; add, do not
+GET /needs, GET /health, POST /interviews ({ app, zip }), POST
+/interviews/{id}/answers ({ answer }), GET /interviews/{id}/events (server-sent events),
+DELETE /interviews/{id}. Keep existing endpoints and commands working; add, do not
 break.
 
 ## Executor
@@ -127,18 +132,26 @@ break.
 
 ## Interview
 
-- `sealeye run` runs in the app folder with `claude-sonnet-5` (`SEALEYE_MODEL`
-  overrides) via @anthropic-ai/sdk, temperature 0.2. ANTHROPIC_API_KEY missing is a
-  clear message and exit 1.
+- The interview runs in the API (`api/interview/`) as a LangGraph graph with
+  `claude-sonnet-5` (`SEALEYE_MODEL` overrides) via @anthropic-ai/sdk, temperature 0.2,
+  at `SEALEYE_MODEL_URL` when set. The API holds ANTHROPIC_API_KEY; without it,
+  POST /interviews says so. `sealeye run` uploads the folder (`core/upload.js`: without
+  what `.gitignore` leaves out, secret files as names only), follows the events and sends the answers; it holds no keys.
+- Each `interrupt()` (a question, "Deploy this?") is in a node of its own with no model
+  call before it. An interview's scratch folder and saved state are deleted when it
+  ends, or after a day.
 - Tools: list_files and read_file, read-only, inside the app folder only (no `..`, no
   symlinks out, no node_modules, .git, .sealeye); read_file capped at 20 KB,
-  list_files at 40 entries. read_file refuses secret files (`.env`, `.env.*` except
-  `.env.example` and `.env.sample`, `.envrc`, `*.pem`, `*.key`, SSH keys, `.npmrc`,
-  `credentials`); list_files still shows their names. submit_plan(plan, summary,
+  list_files at 40 entries. read_file refuses secret files (`core/secrets.js`: `.env`,
+  `.env.*` except `.env.example` and `.env.sample`, `.envrc`, keys and keystores, SSH
+  keys, package-manager and git credentials, Terraform variables and state,
+  service-account JSON); list_files still shows their names, and the upload carries
+  them as empty files. LangSmith tracing stays off in the API (it would send file
+  contents). submit_plan(plan, summary,
   assumptions) ends it.
-- Tracing (LangFuse, `core/tracing.js`) is on only when LangFuse keys are set, and
-  `sealeye run --no-trace` or `SEALEYE_TRACING=off` turns it off; a switch that does
-  says so in one line. It records the shape of each turn, file paths and sizes, never
+- Tracing (LangFuse, `core/tracing.js`) is on only when the API has LangFuse keys, and
+  `sealeye run --no-trace` or `SEALEYE_TRACING=off` turns it off for that interview; a
+  switch that does says so in one line. An interview is one trace across its pauses. It records the shape of each turn, file paths and sizes, never
   file contents; anything new the interview records goes through those helpers, not
   straight to LangFuse.
   Scores are numbers and yes-or-no values from the fixed list in `core/tracing.js`;
@@ -167,7 +180,14 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
 - Region ca-central-1 (`SEALEYE_REGION` is an explicit opt-out). Runtime nodejs20.x.
   No CloudFront.
 - The API runs locally on one machine with a JSON file store and no sign-in. Phase 1
-  of the roadmap replaces this.
+  of the roadmap replaces this. Interviews are kept in memory, so an API restart loses
+  any in progress (Step 10 moves them to Postgres). Deploys still package the
+  developer's folder by `appPath`.
+- Setting values travel with each deploy request, from the developer's `.env`, and are
+  never kept. Moving them to the organization's secret store is owed (ROADMAP Phase 1
+  item 10); `settingValues` in `api/executor/settings.js` is the one place that decides
+  where they come from, and a record keeps each setting's name and source, never its
+  value.
 - seaLeye.online in `archive/sealeye-online` is a static mock-up with sample data, not
   a client of the API.
 
@@ -175,8 +195,9 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
 
 - `npm test` before every commit. It needs no AWS and no API key.
 - `npm run eval:interview` before and after any change to `prompts/`. It runs the
-  interview on each sample app, grades the plans, and records a LangFuse dataset run;
-  it needs ANTHROPIC_API_KEY and LangFuse keys, and deploys nothing.
+  interview graph in-process on each sample app, grades the plans, and records a
+  LangFuse dataset run; it needs ANTHROPIC_API_KEY and LangFuse keys, and deploys
+  nothing.
 - `npm start` runs the API from the repo root; `npm link` from the repo root installs
   `sealeye`.
 - One decision per commit where possible. A decision goes in DESIGN.md with its date and

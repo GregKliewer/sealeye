@@ -143,7 +143,7 @@ function checkModelKey() {
   // Present or absent. Never its value, and never a request to the model.
   return process.env.ANTHROPIC_API_KEY
     ? ok(name, "present")
-    : bad(name, "absent", `Put it in the environment or in ${USER_CONFIG_HINT}. Only the interview needs it.`);
+    : bad(name, "absent", `Put it in the environment or in ${USER_CONFIG_HINT} on the machine the API runs on. The interview runs in the API and only the API needs it.`);
 }
 
 async function checkNotifier() {

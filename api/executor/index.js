@@ -6,6 +6,7 @@ import { stage, cleanStage, stagePaths, sha256File, sha256Template } from "./pac
 import { deploy, describe, firstFailure, deleteStack, emptyBucket, syncSite } from "./cfn.js";
 import { renderReport } from "./report.js";
 import { putDeployment, listDeployments } from "../store.js";
+import { flushScores, scoreDeploymentOutcome } from "../../core/tracing.js";
 
 const POLL_MS = 5000;
 // Once the deploy command has exited, describe() is the only way to learn anything.
@@ -29,9 +30,16 @@ export function mapStackStatus(stackStatus) {
  * Drive one deployment to a terminal state, mutating `record` in place as it goes.
  * Returns the record; never rejects — a thrown error becomes status "failed".
  */
-export async function startDeployment(record, plan, appPath) {
+export async function startDeployment(record, plan, appPath, sent = {}) {
   const set = (status, patch = {}) => {
     Object.assign(record, { status, ...patch });
+    // The API holds the LangFuse keys now, so it scores how a deployment ended against
+    // the interview that produced it, the moment it knows (core/tracing.js). Same rule
+    // as before: a final status only, never a guess.
+    if (status === "succeeded" || status === "failed") {
+      scoreDeploymentOutcome(record);
+      flushScores().catch(() => {});
+    }
     return putDeployment(record);
   };
   const fail = reason => set("failed", { failureReason: reason, finishedAt: now(), step: null });
@@ -40,7 +48,9 @@ export async function startDeployment(record, plan, appPath) {
   try {
     set("packaging", { step: "Reading your plan and picking the AWS template" });
 
-    composed = compose(plan, record.deploymentId, appPath);
+    // `sent` holds setting values from the deploy request. They go into this
+    // deployment's parameters and nowhere else: compose keeps names and sources only.
+    composed = compose(plan, record.deploymentId, appPath, sent);
     Object.assign(record, {
       kind: composed.kind,
       stackName: composed.stackName,

@@ -15,6 +15,7 @@ import { sha256Text } from "./package.js";
 import { normalizeProfile } from "../../core/schema.js";
 import { patternsFor, loadCatalog } from "../../core/catalog.js";
 import { listDeployments } from "../store.js";
+import { sourceInWords } from "./settings.js";
 
 const TEMPLATE_PATH = path.join(repoRoot, "prompts", "evidence.md");
 const pkg = JSON.parse(fs.readFileSync(new URL("../../package.json", import.meta.url), "utf8"));
@@ -416,7 +417,7 @@ function whatWasBuilt(ev) {
   ];
   if (b.settingNames.length) {
     lines.push("- Settings passed to the app, names only:");
-    for (const s of b.settingNames) lines.push(`  - ${code(s.name)}: ${s.value}, taken from ${s.source === ".env" ? "the .env in the folder" : "the plan"}`);
+    for (const s of b.settingNames) lines.push(`  - ${code(s.name)}: ${s.value}, taken from ${sourceInWords(s.source)}`);
   }
   const outs = Object.entries(b.outputs);
   if (outs.length) {

@@ -8,6 +8,7 @@ import path from "node:path";
 import { repoRoot } from "../../core/config.js";
 import { normalizeProfile } from "../../core/schema.js";
 import { region } from "./cfn.js";
+import { sourceInWords } from "./settings.js";
 
 const TEMPLATE_PATH = path.join(repoRoot, "prompts", "report.md");
 
@@ -103,7 +104,7 @@ function settings(record) {
 
   for (const setting of passed) {
     lines.push(
-      `- \`${setting.name}\`: value redacted, taken from ${setting.source === ".env" ? "the `.env` in your folder" : "your plan"}`
+      `- \`${setting.name}\`: value redacted, taken from ${sourceInWords(setting.source, { forDeveloper: true })}`
     );
   }
 

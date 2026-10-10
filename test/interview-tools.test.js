@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { runTool, secretFileReason } from "../cli/interview/tools.js";
+import { runTool, secretFileReason } from "../api/interview/tools.js";
 
 const SECRET = "sk-live-do-not-leak";
 

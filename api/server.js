@@ -1,32 +1,31 @@
 import express from "express";
-import Ajv from "ajv";
-import addFormats from "ajv-formats";
 import crypto from "crypto";
 import fs from "node:fs";
 import path from "node:path";
 
-import { planSchema, upgradePlan } from "../core/schema.js";
+import { upgradePlan } from "../core/schema.js";
+import { checkPlan, checkUpgraded } from "./validate.js";
 import { backendMappings } from "./mappings.js";
 import { putDeployment, getDeployment, listDeployments, storeFile, count } from "./store.js";
 import { startDeployment, startDestroy } from "./executor/index.js";
+import { acceptSent } from "./executor/settings.js";
 import { unsupportedNeeds } from "../core/catalog.js";
 import { assembleEvidence, renderEvidence } from "./executor/evidence.js";
 import { rollupNeeds } from "./needs.js";
+import { createInterviewService, NotWaiting, UploadRefused } from "./interview/service.js";
+import { startTracing } from "../core/tracing.js";
 
 const app = express();
-app.use(express.json({ limit: "1mb" }));
 
-const ajv = new Ajv({ allErrors: true });
-addFormats(ajv);
-const validatePlan = ajv.compile(planSchema);
+// An interview's upload is the app folder, zipped and sent as base64, so that one route
+// takes a larger body than the rest (core/upload.js caps what it may unpack to).
+const smallJson = express.json({ limit: "1mb" });
+const uploadJson = express.json({ limit: "40mb" });
+app.use((req, res, next) => (req.method === "POST" && req.path === "/interviews" ? uploadJson : smallJson)(req, res, next));
 
-function formatAjvErrors(errors = []) {
-  return errors.map(e => ({
-    code: "SCHEMA_ERROR",
-    message: `${e.instancePath || "/"} ${e.message}`,
-    path: e.instancePath || "/"
-  }));
-}
+// The interviews this process holds (api/interview/service.js). The model key and any
+// LangFuse keys are the API's own; developers hold neither.
+const interviews = createInterviewService();
 
 // The version comes from the package, not from a literal, so it cannot drift from what
 // was actually shipped.
@@ -43,11 +42,7 @@ app.get("/health", (_req, res) => {
 // POST /plans/validate
 app.post("/plans/validate", (req, res) => {
   // A plan written against an older contract is read as what it meant, then checked.
-  const ok = validatePlan(upgradePlan(req.body));
-  return res.status(200).json({
-    valid: !!ok,
-    errors: ok ? [] : formatAjvErrors(validatePlan.errors)
-  });
+  return res.status(200).json(checkPlan(req.body));
 });
 
 // POST /deployments
@@ -98,13 +93,13 @@ app.post("/deployments", (req, res) => {
     });
   }
 
-  const ok = validatePlan(plan);
-  if (!ok) {
+  const checked = checkUpgraded(plan);
+  if (!checked.valid) {
     return res.status(400).json({
       error: {
         code: "INVALID_PLAN",
         message: "plan failed validation",
-        details: formatAjvErrors(validatePlan.errors)
+        details: checked.errors
       }
     });
   }
@@ -179,7 +174,12 @@ app.post("/deployments", (req, res) => {
 
   // Runs to completion in the background against real CloudFormation; the record is
   // mutated in place, so GET /deployments/:id always reads the live state.
-  startDeployment(record, plan, resolvedAppPath).catch(err => {
+  // Setting values sent with the request (DESIGN.md, "Setting values travel with the
+  // deploy, for now"): only for settings this plan asks for, handed to this deployment
+  // and never put on the record, in a response or in a log.
+  const sent = acceptSent(plan, req.body?.settings);
+
+  startDeployment(record, plan, resolvedAppPath, sent).catch(err => {
     record.status = "failed";
     record.failureReason = err.message;
     record.finishedAt = new Date().toISOString();
@@ -275,7 +275,109 @@ app.delete("/deployments/:deploymentId", (req, res) => {
   return res.status(202).json({ ...dep });
 });
 
+// POST /interviews: start an interview over an uploaded app folder.
+// Body: { app, zip (base64), deployed?, user?, trace? }. The zip is made by the CLI's
+// zipFolder (core/upload.js): no dependencies, no git, secret files as names only.
+app.post("/interviews", (req, res) => {
+  const { app: appName, zip, deployed, user, trace } = req.body || {};
+
+  if (!interviews.ready()) {
+    return res.status(503).json({
+      error: { code: "NO_MODEL_KEY", message: "the seaLeye API has no model key set, so it cannot run an interview" }
+    });
+  }
+  if (typeof zip !== "string" || !zip) {
+    return res.status(400).json({ error: { code: "MISSING_UPLOAD", message: "zip is required: the app folder, zipped, as base64" } });
+  }
+
+  try {
+    const started = interviews.startFromUpload({
+      zip: Buffer.from(zip, "base64"),
+      app: appName,
+      deployed: deployed && typeof deployed === "object" ? upgradePlan(deployed) : null,
+      user: typeof user === "string" ? user : undefined,
+      trace: trace !== false
+    });
+    return res.status(201).json(started);
+  } catch (err) {
+    if (err instanceof UploadRefused) {
+      return res.status(400).json({ error: { code: "UPLOAD_REFUSED", message: err.message } });
+    }
+    return res.status(500).json({ error: { code: "INTERVIEW_FAILED", message: err.message } });
+  }
+});
+
+// POST /interviews/{id}/answers: the developer's answer to what the interview is waiting
+// on, a question or "Deploy this?". Body: { answer }. Any client may send it.
+app.post("/interviews/:interviewId/answers", (req, res) => {
+  const value = req.body?.answer;
+  if (typeof value !== "string" && typeof value !== "boolean") {
+    return res.status(400).json({ error: { code: "MISSING_ANSWER", message: "answer is required" } });
+  }
+  try {
+    const result = interviews.answer(req.params.interviewId, value);
+    if (!result) return res.status(404).json({ error: { code: "NOT_FOUND", message: "interviewId not found" } });
+    return res.status(202).json(result);
+  } catch (err) {
+    if (err instanceof NotWaiting) {
+      return res.status(409).json({ error: { code: "NOT_WAITING", message: "the interview is not waiting for an answer" } });
+    }
+    return res.status(500).json({ error: { code: "INTERVIEW_FAILED", message: err.message } });
+  }
+});
+
+// DELETE /interviews/{id}: the developer left. The interview, its saved state and the
+// uploaded copy of their app go now rather than after a day.
+app.delete("/interviews/:interviewId", async (req, res) => {
+  const removed = await interviews.remove(req.params.interviewId);
+  if (!removed) return res.status(404).json({ error: { code: "NOT_FOUND", message: "interviewId not found" } });
+  return res.status(200).json({ interviewId: req.params.interviewId, removed: true });
+});
+
+// GET /interviews/{id}/events: progress lines, questions, the plan and how it ended, as
+// server-sent events. Every event so far is sent first, so a client that reconnects
+// (with Last-Event-ID, or ?after=) misses nothing. The stream ends with the interview.
+app.get("/interviews/:interviewId/events", (req, res) => {
+  const after = Number(req.get("Last-Event-ID") ?? req.query.after ?? 0) || 0;
+  const id = req.params.interviewId;
+  if (!interviews.get(id)) {
+    return res.status(404).json({ error: { code: "NOT_FOUND", message: "interviewId not found" } });
+  }
+
+  res.writeHead(200, {
+    "content-type": "text/event-stream",
+    "cache-control": "no-cache, no-transform",
+    connection: "keep-alive",
+    "x-accel-buffering": "no"
+  });
+  res.write(": seaLeye interview events\n\n");
+
+  let closed = false;
+  let unsubscribe = () => {};
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    clearInterval(keepAlive);
+    unsubscribe();
+    res.end();
+  };
+
+  // A comment line now and then keeps proxies from closing a stream that is waiting on
+  // the developer.
+  const keepAlive = setInterval(() => res.write(": still here\n\n"), 15_000);
+
+  unsubscribe = interviews.subscribe(id, after, event => {
+    if (closed) return;
+    if (!event) return close();
+    res.write(`id: ${event.seq}\nevent: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
+    if (event.type === "finished" || event.type === "failed") close();
+  }) || (() => {});
+
+  req.on("close", close);
+});
+
 const port = process.env.PORT || 3000;
+startTracing();
 app.listen(port, () => {
   console.log(`seaLeye API listening on http://localhost:${port}`);
   console.log(`deployment store: ${storeFile} (${listDeployments().length} records loaded)`);

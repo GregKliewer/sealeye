@@ -1,0 +1,64 @@
+// api/executor/settings.js
+// Where an app's setting values come from: the one place that decides (DESIGN.md,
+// "Setting values travel with the deploy, for now"). When values move to the
+// organization's secret store (ROADMAP, Phase 1 work item 10), that is a new source
+// here, and the rest of the executor does not change.
+//
+// Sources, first match wins:
+//   "sent"  the developer's .env, read by the CLI and sent with this deploy request
+//   ".env"  the .env in the app folder, read here; only when the API shares the
+//           developer's machine (the local API), and kept so older clients still work
+//   "plan"  the placeholder the interview wrote into the plan
+//
+// Values are used for this deployment's parameters and dropped. A deployment record
+// keeps each setting's name and source, never its value.
+import path from "node:path";
+
+import { readEnvFile } from "../../core/config.js";
+import { ENV_NAME, settingNamesFor } from "../../core/settings.js";
+
+const MAX_VALUE_LENGTH = 4096;
+
+/**
+ * @param {object} plan
+ * @param {object} [options]
+ * @param {Record<string, string>} [options.sent]  values sent with the deploy request
+ * @param {string} [options.appPath]               the app folder, when the API can read it
+ * @returns {{name: string, value: string, source: "sent"|".env"|"plan"}[]}
+ */
+export function settingValues(plan, { sent = {}, appPath } = {}) {
+  const module = (plan?.modules || []).find(m => m && m.enabled !== false && m.id === "config_basic");
+  const placeholders = module?.inputs?.variables || {};
+  const fromFolder = appPath ? readEnvFile(path.join(appPath, ".env")) : {};
+  const has = (obj, name) => Object.prototype.hasOwnProperty.call(obj, name);
+
+  return settingNamesFor(plan).map(name => {
+    if (!ENV_NAME.test(name)) {
+      throw new Error(`config_basic asks for a setting called "${name}", which is not a name an environment variable can have`);
+    }
+    if (has(sent, name)) return { name, value: String(sent[name]), source: "sent" };
+    if (has(fromFolder, name)) return { name, value: String(fromFolder[name]), source: ".env" };
+    return { name, value: String(placeholders[name] ?? ""), source: "plan" };
+  });
+}
+
+/**
+ * The values a deploy request may carry: strings, for settings this plan asks for,
+ * within a sane length. Anything else is dropped, not stored, not echoed back.
+ */
+export function acceptSent(plan, body) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return {};
+  const wanted = new Set(settingNamesFor(plan));
+  const out = {};
+  for (const [name, value] of Object.entries(body)) {
+    if (wanted.has(name) && typeof value === "string" && value.length <= MAX_VALUE_LENGTH) out[name] = value;
+  }
+  return out;
+}
+
+/** Where a setting's value came from, in words, for the report and the evidence. */
+export function sourceInWords(source, { forDeveloper = false } = {}) {
+  if (source === "sent") return forDeveloper ? "the `.env` in your folder" : "the .env in the folder, sent with the deploy request";
+  if (source === ".env") return forDeveloper ? "the `.env` in your folder" : "the .env in the folder";
+  return forDeveloper ? "your plan" : "the plan";
+}

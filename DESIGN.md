@@ -451,3 +451,156 @@ What does not change, and the rules that come with it:
   with no model call before it in that node.
 - Cost: three dependencies (`@langchain/langgraph`, its Postgres saver, `@langchain/core`)
   and about one more day in Step 8.
+
+## The model's address is a setting
+
+Decided Sat Oct 10, 2026 (PHASE1-PLAN Step 8).
+
+`SEALEYE_MODEL_URL`, when set, is the address every interview model call goes to,
+passed to the Anthropic client as its base URL. Unset means Anthropic's own address, so
+nothing changes by default.
+
+Why: a bank will not let a tool send its developers' code straight to
+api.anthropic.com. It will want the traffic to go through the AI gateway it already
+approves, often to Claude on Bedrock in its own AWS account. With the address as a
+setting, seaLeye fits behind that gateway and needs no route of its own to the
+internet. Whether seaLeye runs a gateway of its own is OPEN-QUESTIONS Q14, and is not
+decided here. `test/model-url.test.js` runs one turn against a stand-in at that address
+and checks nothing else was called.
+
+## The interview runs in the API
+
+Decided Sat Oct 10, 2026 (PHASE1-PLAN Step 8, built on D8).
+
+The interview moved from `cli/interview/loop.js` to `api/interview/`, as the LangGraph
+graph DESIGN.md already describes: `begin`, `model_turn`, `tools`, `ask`, `approve`.
+`sealeye run` uploads the folder, follows the interview's events and sends the answers.
+It holds no model key and no LangFuse keys.
+
+**The endpoints.** `POST /interviews` takes `{ app, zip, deployed?, user?, trace? }`,
+with the zip as base64, and returns an interview id. `POST /interviews/{id}/answers`
+takes `{ answer }`, which is the text of an answer or y/n to "Deploy this?", from any
+client. `GET /interviews/{id}/events` is a server-sent event stream. It carries
+`started`, `step`, `question`, `answered`, `plan`, `finished` and `failed`, each with a
+sequence number. A client that reconnects gets everything after the last one it saw.
+`plan` means the interview is waiting on "Deploy this?". `finished` says whether it was
+approved. `DELETE /interviews/{id}` drops an interview the developer left; `sealeye
+run` calls it on Ctrl+C, so the API keeps nothing of their app.
+
+**What travels in the upload (`core/upload.js`).** The folder travels without
+node_modules, .git, .github, .do, seaLeye's own folders and symlinks. Secret files
+(`core/secrets.js`, the same list `read_file` refuses) travel as empty files with
+their names. That keeps `list_files` showing that a `.env` exists, which tells the
+model the app reads settings, while the contents never leave the laptop. The API checks
+every rule again when it unpacks, because it cannot trust the client: no absolute
+paths, no `..`, at most 25 MB unpacked and 5,000 files (checked before inflating), and
+a secret file that arrives with contents is written empty. Excluded folders match
+whatever their case, as macOS and Windows folders do.
+
+Because the whole folder now travels, not only the files the model chose to read, the
+list of secret files was widened the same day (`core/secrets.js`): `.netrc`,
+`.git-credentials`, `.pgpass`, `.yarnrc.yml`, `.pypirc`, `.dockercfg`, keystores
+(`.p12`, `.pfx`, `.jks`, `.keystore`), Terraform variables and state, and
+service-account JSON files. `read_file` refuses the same list.
+
+The upload also leaves out what the folder's `.gitignore` files leave out (decided the
+same day). Before, the interview read the folder in place with no limit; with a 25 MB
+and 5,000-file cap, a Python `.venv` or a build folder would otherwise stop an
+interview that used to run. What a developer has told git is not their source is
+almost never what the interview needs to read. Nested `.gitignore` files apply to their
+own folders, and a deeper rule wins, as in git. Secret files still travel as names even
+when ignored, because `.env` is nearly always ignored and its name is how the model
+learns the app reads settings. A folder still over the cap after that is refused with
+a sentence saying so. The trade-off: a file that is ignored but would have helped the
+interview (a generated config, say) is no longer visible to the model.
+
+**Each interview has its own scratch folder.** It is named after the app, so the
+model's view is the same as before, and it lives in `~/.sealeye/interviews` of the
+user the API runs as, not in a shared temp folder another user could tamper with. The
+scratch folder and the saved state are both deleted when the interview ends, or after a
+day if it never does. A sweep also removes scratch folders no live interview owns,
+which covers an API that was stopped mid-interview.
+
+**One trace across pauses.** Each stretch of work after a pause opens a span named
+`interview resumed`. Its parent is the first stretch's `sealeye run` span, whose trace
+id and span id are kept in the graph's state (`traceRun`'s `continueFrom`). Each
+stretch's output says what it ended on: `asked a question`, `submitted`, `approved`,
+`declined` or `stopped`.
+
+**Tracing off is per interview.** `--no-trace` and a CLI-side `SEALEYE_TRACING=off`
+send `trace: false`, and the API runs that interview under `withoutTracing`, so every
+helper in `core/tracing.js` is a no-op for it alone. One developer's choice must not
+turn tracing off for everyone else on a shared API. It must also not leave their turns
+as stray traces of their own.
+
+**LangSmith stays off.** LangChain sends every graph run to LangSmith when
+`LANGSMITH_TRACING` (or `LANGSMITH_TRACING_V2`, `LANGCHAIN_TRACING`,
+`LANGCHAIN_TRACING_V2`) is "true". That would send each node's whole state, file
+contents included, past the mask and past `--no-trace`. The interview service sets all
+four to "false" for its process. LangGraph's own step limit is raised above the
+interview's 24 turns, so the interview's limit is the one that stops a long read.
+
+**The model is the API's choice.** `SEALEYE_MODEL` and `SEALEYE_MODEL_URL` are read where
+the API runs. A developer's own `SEALEYE_MODEL` no longer changes anything.
+"Tracing is off for this run" prints whenever the developer turns tracing off, even if
+the API has no LangFuse keys and would not have traced anyway; the CLI cannot know.
+
+**Scores moved with the keys.** The approve node scores `developer_said_yes` and
+`needs_refused`. The executor scores `deployment_succeeded` when a deployment reaches
+a final status, and never from a tear-down, which would overwrite how the deployment
+itself went. The CLI's own scoring calls do nothing without keys, so they were left in place.
+
+**What did not move yet: deploying from the upload.** `sealeye run` still deploys with
+`appPath`, the developer's folder, as `sealeye deploy` does. Setting values no longer
+stand in the way (see "Setting values travel with the deploy, for now"), so packaging
+from an upload is Step 9's to build. This is fine for Step 8, which is done against a
+local API.
+
+`npm run eval:interview` runs the same graph in-process (`runInterview` in
+`api/interview/service.js`) and checks plans in-process, so it no longer starts an API.
+
+## Setting values travel with the deploy, for now
+
+Decided Sat Oct 10, 2026, by Greg. This answers OPEN-QUESTIONS Q15. **The retrofit to
+the organization's secret store is owed: ROADMAP, Phase 1 work item 10.**
+
+When the API deploys an app with config_basic, it needs each setting's value (a Stripe
+key, say). It used to read them from the `.env` in the app folder, which only works
+while the API runs on the developer's machine. A hosted API has only the upload, which
+carries `.env` as an empty name. There were three options:
+
+- (a) the CLI sends the values with the deploy request;
+- (b) the values live in the organization's secret store, and the deployed app reads
+  them when it starts;
+- (c) hosted deploys use the plan's placeholders.
+
+**Chosen: (a) now, (b) later.** (a) is about half a day and keeps the developer
+experience exactly as it is: edit `.env`, run again. (b) is three to five days, changes
+the plan contract, and adds a step to a developer's first deploy, and it is what a bank
+will require. Most of (b) is the same work whether or not (a) came first, so (a) costs
+little to retire.
+
+**How (a) works.** `createDeployment` in the CLI reads the developer's `.env` and sends
+`settings` with `POST /deployments`: the values of the settings the plan names, and only
+those (`core/settings.js`). The API accepts only strings for those names
+(`acceptSent`), hands them to that one deployment's NoEcho parameters, and never puts
+them on the record, in a response or in a log. They travel over the API's TLS once per
+deploy. The honest limit: values do leave the laptop, which the interview upload was
+designed not to do. When asked about it, the answer is that moving them to the
+organization's secret store is on the roadmap, Phase 1 work item 10.
+
+**Three choices that keep the retrofit cheap:**
+
+1. *Every deployment records where each setting came from, by name.* A record's
+   `settings` list holds `{ name, source }`, where source is `sent`, `.env` (the local
+   API reading the folder) or `plan`, never the value. The apps still to move to the
+   store are the records with a `sent` or `.env` source.
+2. *One function decides where values come from.* `settingValues` in
+   `api/executor/settings.js` is the only place that knows the sources and their order.
+   (b) adds a `store` source there, and the executor, the report and the evidence stay
+   as they are; their wording for a source also comes from that file
+   (`sourceInWords`).
+3. *(a) stays after (b) exists,* for dev and the sample apps, so (b) is required only
+   where an organization turns it on. A team that has no secret store yet is never
+   blocked.
+
