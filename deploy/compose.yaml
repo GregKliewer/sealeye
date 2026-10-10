@@ -1,11 +1,17 @@
 # The pilot server: the API behind Caddy, which obtains and renews the TLS certificate
-# itself. Postgres joins in Step 10. Started by deploy/update.sh on the server.
+# itself, and Postgres for records and interviews (Step 10), reachable only from the API
+# on this machine's own network. Started by deploy/update.sh on the server.
 services:
   api:
     image: ${SEALEYE_IMAGE:?set SEALEYE_IMAGE to the image to run}
     restart: unless-stopped
     environment:
       SEALEYE_SSM_PATH: /sealeye/
+      # start.mjs builds DATABASE_URL from this and /sealeye/POSTGRES_PASSWORD.
+      SEALEYE_DATABASE_HOST: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
     volumes:
       - sealeye-data:/data
     expose:
@@ -15,6 +21,24 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sealeye
+      POSTGRES_DB: sealeye
+      # Written from /sealeye/POSTGRES_PASSWORD by update.sh; read once, when the
+      # database is first created.
+      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./secrets/pg_password:/run/secrets/pg_password:ro
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "sealeye", "-d", "sealeye"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
 
   caddy:
     image: caddy:2
@@ -33,6 +57,7 @@ services:
       - caddy-config:/config
 
 volumes:
+  pgdata:
   sealeye-data:
   caddy-data:
   caddy-config:

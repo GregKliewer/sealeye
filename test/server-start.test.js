@@ -23,6 +23,7 @@ cat <<'JSON'
 {"Parameters":[
   {"Name":"/sealeye/ANTHROPIC_API_KEY","Value":"${KEY}"},
   {"Name":"/sealeye/SEALEYE_DEPLOY_ROLE_ARN","Value":"arn:aws:iam::123456789012:role/sealeye-deploy-pilot"},
+  {"Name":"/sealeye/POSTGRES_PASSWORD","Value":"pg-pass/with:odd@chars"},
   {"Name":"/sealeye/not a name","Value":"ignored"}
 ]}
 JSON
@@ -46,7 +47,9 @@ JSON
     }
     assert.ok(up, `the API started:\n${log}`);
 
-    assert.match(log, /2 settings read from \/sealeye\/: ANTHROPIC_API_KEY, SEALEYE_DEPLOY_ROLE_ARN/);
+    assert.match(log, /3 settings read from \/sealeye\/: ANTHROPIC_API_KEY, POSTGRES_PASSWORD, SEALEYE_DEPLOY_ROLE_ARN/);
+    assert.ok(!log.includes("pg-pass"), "no password in the log");
+    assert.doesNotMatch(log, /kept in Postgres/, "no database host given, so no database");
     assert.match(log, /AWS actions go through the deploy role/);
     assert.ok(!log.includes(KEY), "no value in the log");
     assert.match(fs.readFileSync(calls, "utf8"), /^profile=none ssm get-parameters-by-path --path \/sealeye\/ --recursive --with-decryption/);
@@ -74,4 +77,14 @@ test("a deploy role that is not a sealeye-deploy-* role stops the server from st
   const code = await new Promise(r => child.on("close", r));
   assert.notEqual(code, 0);
   assert.match(log, /must be the arn of a role named sealeye-deploy-\*/);
+});
+
+test("with a database host, the password from Parameter Store becomes the database address", async () => {
+  const { spawnSync } = await import("node:child_process");
+  const r = spawnSync(process.execPath, ["--input-type=module", "-e", `
+    import { applyServerSettings } from "./deploy/settings.mjs";
+    applyServerSettings({ quiet: true });
+    console.log(process.env.DATABASE_URL);
+  `], { cwd: root, encoding: "utf8", env: { ...process.env, SEALEYE_SKIP_SSM: "1", SEALEYE_DATABASE_HOST: "postgres", POSTGRES_PASSWORD: "a/b:c@d", DATABASE_URL: "" } });
+  assert.equal(r.stdout.trim(), "postgres://sealeye:a%2Fb%3Ac%40d@postgres:5432/sealeye");
 });

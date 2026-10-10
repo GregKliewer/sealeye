@@ -16,8 +16,31 @@ export const INTERVIEW_SCHEMA = "interview_state";
 const KEPT = ["id", "app", "appDir", "ownsDir", "scratchRoot", "user", "trace", "mode", "model",
   "status", "waitingFor", "result", "approved", "traceId", "createdAt", "endedAt"];
 
+/**
+ * The interview schema and its tables, made at every start rather than by a migration:
+ * the nightly backup leaves the schema out, so a database restored from it has to get
+ * them back without anyone remembering to.
+ */
+export async function ensureInterviewSchema() {
+  await db().query(`
+    CREATE SCHEMA IF NOT EXISTS ${INTERVIEW_SCHEMA};
+    CREATE TABLE IF NOT EXISTS ${INTERVIEW_SCHEMA}.interviews (
+      interview_id text PRIMARY KEY,
+      record       jsonb NOT NULL,
+      created_at   timestamptz NOT NULL,
+      updated_at   timestamptz NOT NULL DEFAULT now()
+    );
+    CREATE TABLE IF NOT EXISTS ${INTERVIEW_SCHEMA}.interview_events (
+      interview_id text NOT NULL REFERENCES ${INTERVIEW_SCHEMA}.interviews (interview_id) ON DELETE CASCADE,
+      seq          integer NOT NULL,
+      event        jsonb NOT NULL,
+      PRIMARY KEY (interview_id, seq)
+    );`);
+}
+
 /** LangGraph's saver, on the shared pool, in the interview schema. */
 export async function postgresCheckpointer() {
+  await ensureInterviewSchema();
   const saver = new PostgresSaver(db(), undefined, { schema: INTERVIEW_SCHEMA });
   await saver.setup();
   return saver;

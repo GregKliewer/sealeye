@@ -449,6 +449,7 @@ for (const signal of ["SIGTERM", "SIGINT"]) {
 
 app.listen(port, () => {
   console.log(`seaLeye API listening on http://localhost:${port}`);
+  if (opened.adopted) console.log(`deployment store: brought ${opened.adopted} records in from ${opened.from}`);
   for (const r of resumed) console.log(`${r.deploymentId}: ${r.as}`);
   for (const r of restoredInterviews) console.log(`${r.interviewId}: ${r.as}`);
   console.log(`deployment store: ${storeFile} (${listDeployments().length} records loaded${opened.migrations?.length ? `, applied ${opened.migrations.join(", ")}` : ""})`);

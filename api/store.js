@@ -152,10 +152,29 @@ export function flushStore() {
 export async function openStore() {
   if (!usingDatabase) return { kind: "file", records: deployments.size };
   const applied = await migrate();
+
+  // The first start on a database, where this API kept a deployments.json before: its
+  // records come with it, so an API moving to Postgres loses nothing it knew. Only into
+  // an empty table, so it happens once. The file is left as it was.
+  let adopted = 0;
+  const existing = Number((await db().query("SELECT count(*) AS n FROM deployments")).rows[0].n);
+  if (existing === 0 && fs.existsSync(STORE_FILE)) {
+    try {
+      for (const dep of readStoreFile(STORE_FILE)) {
+        putDeployment(dep);
+        adopted++;
+      }
+      await flushStore();
+      deployments.clear();
+    } catch (err) {
+      console.error(`could not bring ${STORE_FILE} into the database: ${err.message}`);
+    }
+  }
+
   const { rows } = await db().query("SELECT record FROM deployments");
   deployments.clear();
   for (const { record } of rows) deployments.set(record.deploymentId, markInterrupted(record));
-  return { kind: "postgres", records: deployments.size, migrations: applied };
+  return { kind: "postgres", records: deployments.size, migrations: applied, ...(adopted ? { adopted, from: STORE_FILE } : {}) };
 }
 
 export function putDeployment(dep) {

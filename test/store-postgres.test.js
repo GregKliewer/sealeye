@@ -62,3 +62,24 @@ test("records outlive the process that wrote them, with their columns", { skip: 
     surface: "cli", trace_id: "abc", app: "site", status: "destroyed"
   });
 });
+
+test("the first start on a database brings in the API's old deployments.json, once", { skip: !pgAvailable && "no SEALEYE_TEST_DATABASE_URL" }, async () => {
+  const url = await freshDatabase();
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-pgadopt-"));
+  fs.writeFileSync(path.join(home, "deployments.json"), JSON.stringify([
+    { deploymentId: "dep_aaaaaaaaaaaa", status: "succeeded", startedAt: "2026-10-10T10:00:00Z" }
+  ]));
+  const go = async () => {
+    const { stdout } = await run(process.execPath, ["--input-type=module", "-e", `
+      import { openStore } from "./api/store.js";
+      console.log(JSON.stringify(await openStore())); process.exit(0);`],
+      { cwd: root, env: { ...process.env, DATABASE_URL: url, SEALEYE_HOME: home, HOME: home } });
+    return JSON.parse(stdout.trim());
+  };
+  const first = await go();
+  assert.equal(first.adopted, 1);
+  assert.equal(first.records, 1);
+  const second = await go();
+  assert.equal(second.adopted, undefined);
+  assert.equal(second.records, 1);
+});
