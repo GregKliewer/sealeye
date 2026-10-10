@@ -186,8 +186,9 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
 - One backend: CloudFormation. No Terraform, GitHub Actions or CodePipeline yet.
 - Region ca-central-1 (`SEALEYE_REGION` is an explicit opt-out). Runtime nodejs20.x.
   No CloudFront.
-- The API runs locally on one machine with a JSON file store and no sign-in. Phase 1
-  of the roadmap replaces this. Interviews are kept in memory, so an API restart loses
+- The API runs on one pilot server (https://api.sealeye.online, `deploy/`) or locally,
+  with a JSON file store and no sign-in. Phase 1 of the roadmap replaces the store and
+  adds sign-in. Interviews are kept in memory, so an API restart loses
   any in progress (Step 10 moves them to Postgres).
 - Setting values travel with each deploy request, from the developer's `.env`, and are
   never kept. Moving them to the organization's secret store is owed (ROADMAP Phase 1
