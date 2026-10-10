@@ -6,6 +6,7 @@ import { stage, cleanStage, stagePaths, sha256File, sha256Template } from "./pac
 import { deploy, describe, firstFailure, deleteStack, emptyBucket, syncSite } from "./cfn.js";
 import { renderReport } from "./report.js";
 import { putDeployment, listDeployments } from "../store.js";
+import { flushScores, scoreDeploymentOutcome } from "../../core/tracing.js";
 
 const POLL_MS = 5000;
 // Once the deploy command has exited, describe() is the only way to learn anything.
@@ -32,6 +33,13 @@ export function mapStackStatus(stackStatus) {
 export async function startDeployment(record, plan, appPath) {
   const set = (status, patch = {}) => {
     Object.assign(record, { status, ...patch });
+    // The API holds the LangFuse keys now, so it scores how a deployment ended against
+    // the interview that produced it, the moment it knows (core/tracing.js). Same rule
+    // as before: a final status only, never a guess.
+    if (status === "succeeded" || status === "failed") {
+      scoreDeploymentOutcome(record);
+      flushScores().catch(() => {});
+    }
     return putDeployment(record);
   };
   const fail = reason => set("failed", { failureReason: reason, finishedAt: now(), step: null });
@@ -252,6 +260,13 @@ function closeSiblings(record) {
 export async function startDestroy(record) {
   const set = (status, patch = {}) => {
     Object.assign(record, { status, ...patch });
+    // The API holds the LangFuse keys now, so it scores how a deployment ended against
+    // the interview that produced it, the moment it knows (core/tracing.js). Same rule
+    // as before: a final status only, never a guess.
+    if (status === "succeeded" || status === "failed") {
+      scoreDeploymentOutcome(record);
+      flushScores().catch(() => {});
+    }
     return putDeployment(record);
   };
   const fail = reason => set("failed", { failureReason: reason, step: null });

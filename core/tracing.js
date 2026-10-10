@@ -15,6 +15,7 @@
 //
 // It lives in core/ because the interview moves from cli/ to api/ in Phase 1, and the
 // rules about what a trace may hold should not have to move with it.
+import { AsyncLocalStorage } from "node:async_hooks";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -37,6 +38,21 @@ const MAX_EVENT_STRING = 2000;
 const TOOL_NAMES = new Set(["list_files", "read_file", "submit_plan"]);
 
 let provider = null;
+
+// A run that asked for no tracing, in a process where tracing is on: the hosted API
+// serves many interviews, and one developer's --no-trace must not turn it off for the
+// rest, nor leave that interview's turns as stray traces of their own.
+const untraced = new AsyncLocalStorage();
+
+/** Run `fn` with every helper in this file a no-op for it and anything it awaits. */
+export function withoutTracing(fn) {
+  return untraced.run(true, fn);
+}
+
+/** Tracing is on for the code running now. */
+function live() {
+  return provider !== null && untraced.getStore() !== true;
+}
 
 // ---------------------------------------------------------------------------------
 // Masking: the backstop.
@@ -296,7 +312,7 @@ export async function flushTracing(timeoutMs = 3000) {
 
 /** The id of the trace the current code is running inside, if any. */
 export function currentTraceId() {
-  if (!provider) return undefined;
+  if (!live()) return undefined;
   try {
     return getActiveTraceId();
   } catch {
@@ -314,16 +330,25 @@ export function currentTraceId() {
  * `fn(run)` gets a handle: `run.set({ status, questions })` records the outcome, and
  * `run.traceId` is the trace's id (undefined when tracing is off).
  */
-export function traceRun({ app, mode, model, promptSha, user }, fn) {
-  const noop = { set() {}, traceId: undefined };
-  if (!provider) return fn(noop);
+export function traceRun({ app, mode, model, promptSha, user, continueFrom }, fn) {
+  const noop = { set() {}, traceId: undefined, spanId: undefined };
+  if (!live()) return fn(noop);
+
+  // A hosted interview pauses for the developer between requests, and each stretch of
+  // work after a pause runs here again. `continueFrom` is the first stretch's root
+  // ({ traceId, spanId }, kept in the interview's saved state), so every stretch joins
+  // the same trace under it instead of starting a new one.
+  const parent = continueFrom && /^[0-9a-f]{32}$/.test(continueFrom.traceId) && /^[0-9a-f]{16}$/.test(continueFrom.spanId)
+    ? { traceId: continueFrom.traceId, spanId: continueFrom.spanId, traceFlags: 1, isRemote: true }
+    : null;
 
   const outcome = {};
   return guarded(wrapped =>
-    startActiveObservation("sealeye run", async span => {
+    startActiveObservation(parent ? "interview resumed" : "sealeye run", async span => {
       span.update({ metadata: eventAttributes({ app, mode, model, promptSha }) });
       const handle = {
         traceId: currentTraceId(),
+        spanId: span.id,
         set(fields) {
           Object.assign(outcome, eventAttributes(fields));
           quietly(() => span.update({ output: outcome }));
@@ -338,7 +363,7 @@ export function traceRun({ app, mode, model, promptSha, user }, fn) {
         },
         () => wrapped(span, handle)
       );
-    }, { asType: "agent" }), fn, noop);
+    }, { asType: "agent", ...(parent ? { parentSpanContext: parent } : {}) }), fn, noop);
 }
 
 /**
@@ -348,7 +373,7 @@ export function traceRun({ app, mode, model, promptSha, user }, fn) {
  */
 export function traceTurn({ turn, model, messages }, fn) {
   const noop = { retried() {} };
-  if (!provider) return fn(noop);
+  if (!live()) return fn(noop);
 
   const meta = { turn };
   return guarded(wrapped =>
@@ -378,7 +403,7 @@ export function traceTurn({ turn, model, messages }, fn) {
  */
 export function traceStep(name, fn) {
   const noop = { set() {} };
-  if (!provider) return fn(noop);
+  if (!live()) return fn(noop);
 
   const recorded = {};
   return guarded(wrapped =>
@@ -455,7 +480,7 @@ export async function traceExperimentItem({ experimentId, runName, description, 
 
 /** One list_files or read_file call: its path and size, never its contents. */
 export function traceTool(fields) {
-  if (!provider) return;
+  if (!live()) return;
   quietly(() => {
     const attrs = toolAttributes(fields);
     const { name, ...rest } = attrs;
@@ -469,7 +494,7 @@ export function traceTool(fields) {
  * masked.
  */
 export function traceEvent(name, attrs = {}) {
-  if (!provider) return;
+  if (!live()) return;
   quietly(() => {
     startObservation(safeId(name), { input: eventAttributes(attrs) }, { asType: "event" });
   });

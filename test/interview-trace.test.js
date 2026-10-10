@@ -1,42 +1,16 @@
-// The real interview loop, with tracing on, against a scripted model: what a run sends
+// The real interview graph, with tracing on, against a scripted model: what a run sends
 // to LangFuse, read from LangFuse's own span processor through an in-memory exporter.
-// The API runs on a spare port for plan validation. No AWS, no model calls, no network
-// beyond localhost.
-import { test, before, after } from "node:test";
+// The plan is checked in-process, as the API checks it. No AWS, no model calls, no
+// network.
+import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawn } from "node:child_process";
 import YAML from "yaml";
 import { InMemorySpanExporter } from "@opentelemetry/sdk-trace-node";
 
 const root = path.resolve(import.meta.dirname, "..");
-const port = 3990 + Math.floor(Math.random() * 9);
-const api = `http://localhost:${port}`;
-const home = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-trace-api-"));
-let server;
-
-before(async () => {
-  server = spawn(process.execPath, ["api/server.js"], {
-    cwd: root,
-    env: { ...process.env, PORT: String(port), SEALEYE_HOME: home, HOME: home },
-    stdio: ["ignore", "pipe", "pipe"]
-  });
-  let log = "";
-  server.stdout.on("data", d => (log += d));
-  server.stderr.on("data", d => (log += d));
-  for (let i = 0; i < 50; i++) {
-    try {
-      if ((await fetch(`${api}/health`)).ok) return;
-    } catch {}
-    await new Promise(r => setTimeout(r, 100));
-  }
-  throw new Error(`API did not start:\n${log}`);
-});
-
-after(() => server?.kill());
-
 const ENV_SECRET = "sk-live-from-the-dotenv";
 const ANSWER_SECRET = "sk-ant-api03-answeranswer";
 
@@ -76,7 +50,7 @@ test("one run sends one trace, and nothing from the folder's files is in it", as
   process.env.LANGFUSE_PUBLIC_KEY ||= "pk-lf-test";
   process.env.LANGFUSE_SECRET_KEY ||= "sk-lf-test-only";
   const { startTracing, flushTracing, flushScores, useLangfuseTransport } = await import("../core/tracing.js");
-  const { runInterview } = await import("../cli/interview/loop.js");
+  const { runInterview } = await import("../api/interview/service.js");
 
   const exporter = new InMemorySpanExporter();
   assert.equal(startTracing({ exporter }), true);
@@ -89,7 +63,6 @@ test("one run sends one trace, and nothing from the folder's files is in it", as
 
   const result = await runInterview({
     appPath: app,
-    apiBaseUrl: api,
     model: "claude-sonnet-5",
     user: "greg",
     client: scriptedClient(plan),
@@ -105,8 +78,11 @@ test("one run sends one trace, and nothing from the folder's files is in it", as
   assert.ok(spans.every(s => s.spanContext().traceId === result.traceId), "one trace");
 
   const names = spans.map(s => s.name).sort();
+  // Two stretches of one trace: the first up to the question, the second from the
+  // answer to the plan.
   assert.deepEqual(names, [
     "answer given",
+    "interview resumed",
     "list_files",
     "plan checked",
     "question asked",
@@ -136,7 +112,12 @@ test("one run sends one trace, and nothing from the folder's files is in it", as
   const [root_] = attrs("sealeye run");
   assert.equal(root_["session.id"], "static-website");
   assert.equal(root_["user.id"], "greg");
-  assert.deepEqual(JSON.parse(root_["langfuse.observation.output"]), { status: "submitted", questions: 1 });
+  assert.deepEqual(JSON.parse(root_["langfuse.observation.output"]), { status: "asked a question", questions: 1 });
+  const [resumed] = attrs("interview resumed");
+  assert.deepEqual(JSON.parse(resumed["langfuse.observation.output"]), { status: "submitted", questions: 1 });
+  const rootSpan = spans.find(sp => sp.name === "sealeye run");
+  const resumedSpan = spans.find(sp => sp.name === "interview resumed");
+  assert.equal(resumedSpan.parentSpanContext?.spanId ?? resumedSpan.parentSpanId, rootSpan.spanContext().spanId, "the resumed stretch hangs off the first");
 
   const [turn1] = attrs("turn 1");
   assert.equal(turn1["langfuse.observation.metadata.retried"], "true", "the retry is on the same turn");

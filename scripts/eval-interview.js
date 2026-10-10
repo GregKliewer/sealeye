@@ -14,12 +14,11 @@
 // The API it validates plans against is started here, on a spare port with an empty
 // store of its own, so nothing is added to your deployment records.
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
-import { spawn } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
-import { runInterview, resolveApiKey, DEFAULT_MODEL } from "../cli/interview/loop.js";
+import { DEFAULT_MODEL, resolveApiKey } from "../api/interview/model.js";
+import { runInterview } from "../api/interview/service.js";
 import { loadEnv, loadUserConfig, repoRoot, setting } from "../core/config.js";
 import {
   flushScores,
@@ -115,7 +114,7 @@ async function ensureDataset() {
  *
  * @returns {Promise<object[]>} one graded row per app
  */
-export async function evaluate({ cases, apiBaseUrl, runName, model, clientFor, log = () => {} }) {
+export async function evaluate({ cases, runName, model, clientFor, log = () => {} }) {
   const datasetId = await ensureDataset();
   const description = `Interview prompt ${promptVersion()}, model ${model}`;
   const experimentId = newExperimentId();
@@ -144,7 +143,6 @@ export async function evaluate({ cases, apiBaseUrl, runName, model, clientFor, l
         async () => {
           const result = await runInterview({
             appPath: path.join(repoRoot, "apps", app),
-            apiBaseUrl,
             model,
             user: "eval",
             ask: async () => (queue.length ? queue.shift() : FALLBACK_ANSWER),
@@ -193,25 +191,6 @@ export function summaryLines(rows) {
 
 // ---------------------------------------------------------------------------------
 
-async function startApi() {
-  const port = 3800 + Math.floor(Math.random() * 90);
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-eval-"));
-  const server = spawn(process.execPath, ["api/server.js"], {
-    cwd: repoRoot,
-    env: { ...process.env, PORT: String(port), SEALEYE_HOME: home },
-    stdio: "ignore"
-  });
-  const apiBaseUrl = `http://localhost:${port}`;
-  for (let i = 0; i < 50; i++) {
-    try {
-      if ((await fetch(`${apiBaseUrl}/health`)).ok) return { server, apiBaseUrl };
-    } catch {}
-    await new Promise(r => setTimeout(r, 100));
-  }
-  server.kill();
-  throw new Error("the API did not start");
-}
-
 async function main() {
   loadEnv();
   loadUserConfig();
@@ -256,13 +235,9 @@ async function main() {
   console.log(`Dataset run: ${runName}`);
   console.log("");
 
-  const { server, apiBaseUrl } = await startApi();
-  let rows;
-  try {
-    rows = await evaluate({ cases, apiBaseUrl, runName, model, log: line => console.log(`  ${line}`) });
-  } finally {
-    server.kill();
-  }
+  // The interview runs in this process, the way the API runs it, with the plan checked
+  // in-process too: there is no API to start.
+  const rows = await evaluate({ cases, runName, model, log: line => console.log(`  ${line}`) });
 
   console.log("");
   for (const line of summaryLines(rows)) console.log(line);

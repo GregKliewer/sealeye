@@ -1,6 +1,9 @@
-// lib/run.js
+// cli/client.js
 import fs from "fs";
+import path from "node:path";
 import YAML from "yaml";
+
+import { zipFolder } from "../core/upload.js";
 
 /**
  * The platform did not answer at all: wrong port, API not started, machine asleep.
@@ -102,4 +105,121 @@ export async function destroyDeployment({ apiBaseUrl, deploymentId }) {
 
 export async function getDeployment({ apiBaseUrl, deploymentId }) {
   return platformFetch(apiBaseUrl, `/deployments/${deploymentId}`, { method: "GET" });
+}
+
+// ---------------------------------------------------------------------------------
+// The interview, which runs in the API (DESIGN.md, "The interview runs as a LangGraph
+// graph"). The CLI uploads the folder, streams what happens, and sends the answers.
+
+/** An API refusal as the one sentence it carries, for the CLI to print. */
+async function interviewFetch(apiBaseUrl, route, options) {
+  try {
+    return await platformFetch(apiBaseUrl, route, options);
+  } catch (err) {
+    const message = err?.details?.error?.message;
+    if (message) {
+      const sentence = new Error(`seaLeye.run could not run the interview: ${message}.`);
+      sentence.userFacing = true;
+      sentence.code = err.details.error.code;
+      throw sentence;
+    }
+    throw err;
+  }
+}
+
+/**
+ * Upload the app folder and start an interview over it. Secret files travel as names
+ * only (core/upload.js), so their contents never leave this machine.
+ *
+ * @returns {Promise<{interviewId, status, withheld: string[]}>}
+ */
+export async function startInterview({ apiBaseUrl, appPath, deployed, user, trace = true }) {
+  let packed;
+  try {
+    packed = zipFolder(appPath);
+  } catch (err) {
+    if (err?.name === "UploadRefused" || err?.constructor?.name === "UploadRefused") err.userFacing = true;
+    throw err;
+  }
+
+  const started = await interviewFetch(apiBaseUrl, "/interviews", asJson({
+    app: path.basename(path.resolve(appPath)),
+    zip: Buffer.from(packed.zip).toString("base64"),
+    ...(deployed ? { deployed } : {}),
+    ...(user ? { user } : {}),
+    ...(trace ? {} : { trace: false })
+  }));
+  return { ...started, withheld: packed.withheld };
+}
+
+/** The developer's answer to a question, or y/n to "Deploy this?". */
+export async function answerInterview({ apiBaseUrl, interviewId, answer }) {
+  return interviewFetch(apiBaseUrl, `/interviews/${interviewId}/answers`, asJson({ answer }));
+}
+
+/**
+ * Follow an interview's events until it ends or `onEvent` returns "stop". Events are
+ * handled one at a time, in order; `onEvent` may be async (a question waits for the
+ * developer). A dropped stream is picked up again from the last event seen.
+ *
+ * @returns {Promise<object|null>} the event that ended the follow
+ */
+export async function followInterview({ apiBaseUrl, interviewId, onEvent, after = 0 }) {
+  let last = after;
+  let drops = 0;
+
+  while (true) {
+    let res;
+    try {
+      res = await fetch(`${apiBaseUrl}/interviews/${interviewId}/events`, {
+        headers: { accept: "text/event-stream", "last-event-id": String(last) }
+      });
+    } catch (err) {
+      if (++drops > 3) throw new PlatformUnreachableError(apiBaseUrl, err);
+      await new Promise(r => setTimeout(r, 500 * drops));
+      continue;
+    }
+
+    if (res.status === 404) {
+      const gone = new Error("The platform no longer has this interview. Run sealeye run again.");
+      gone.userFacing = true;
+      throw gone;
+    }
+    if (!res.ok || !res.body) throw new Error(`seaLeye.run API error: ${res.status}`);
+
+    const decoder = new TextDecoder();
+    let buffer = "";
+    try {
+      for await (const chunk of res.body) {
+        buffer += decoder.decode(chunk, { stream: true });
+        let cut;
+        while ((cut = buffer.indexOf("\n\n")) !== -1) {
+          const block = buffer.slice(0, cut);
+          buffer = buffer.slice(cut + 2);
+          const data = block.split("\n").filter(l => l.startsWith("data: ")).map(l => l.slice(6)).join("\n");
+          if (!data) continue;
+          const event = JSON.parse(data);
+          if (event.seq <= last) continue;
+          last = event.seq;
+          drops = 0;
+
+          let verdict;
+          try {
+            verdict = await onEvent(event);
+          } catch (err) {
+            // The handler's own failure is the caller's, not a dropped stream.
+            throw Object.assign(err instanceof Error ? err : new Error(String(err)), { fromHandler: true });
+          }
+          if (verdict === "stop" || event.type === "finished" || event.type === "failed") {
+            try { await res.body.cancel(); } catch {}
+            return { ...event, lastSeq: last };
+          }
+        }
+      }
+    } catch (err) {
+      if (err?.fromHandler || err?.userFacing) throw err;
+      if (++drops > 3) throw new PlatformUnreachableError(apiBaseUrl, err);
+    }
+    // The stream ended without the interview ending: pick it up again.
+  }
 }

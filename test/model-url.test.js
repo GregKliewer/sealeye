@@ -47,17 +47,16 @@ after(() => {
 
 test("unset, the client uses Anthropic's own address", async () => {
   delete process.env.SEALEYE_MODEL_URL;
-  const { modelClient } = await import("../cli/interview/loop.js");
+  const { modelClient } = await import("../api/interview/model.js");
   assert.match(modelClient("k").baseURL, /^https:\/\/api\.anthropic\.com/);
 });
 
 test("set, one interview turn goes to the stand-in and nowhere else", async () => {
   process.env.SEALEYE_MODEL_URL = standIn;
-  const { runInterview } = await import("../cli/interview/loop.js");
+  const { runInterview } = await import("../api/interview/service.js");
 
   const result = await runInterview({
     appPath: path.join(root, "apps", "static-website"),
-    apiBaseUrl: "http://127.0.0.1:1",   // never called: the stand-in stops without a plan
     ask: () => { throw new Error("no question expected"); }
   });
 
