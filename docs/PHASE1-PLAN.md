@@ -45,7 +45,7 @@ recommendation for each. Each answer goes in DESIGN.md with its date and reason.
 | D5 | Database (Q2) | Postgres in a container on the same machine, nightly dump to S3 | Step 10 | Yes (A2, stage 1)
 | D6 | Which domain does what | See Step 12 | Step 12 |
 | D7 | Sign-in (Q3) | Defer to its own plan. Part B ships with a temporary per-person token. | Step 13 |
-| D8 | The interview as a LangGraph graph, or hand-rolled | LangGraph, with the Postgres saver from Step 10 (see Step 8, option) | Step 8 |
+| D8 | The interview as a LangGraph graph, or hand-rolled | LangGraph, with the Postgres saver from Step 10 (see Step 8) | Step 8 | LangGraph (Sat Oct 10, DESIGN.md)
 
 **Why D1 is Cloud for now, and not for a bank.** LangFuse Cloud offers US, EU and Japan
 regions only, with no Canadian region. A trace holds a developer's questions, answers and
@@ -304,11 +304,13 @@ with it.
 Also done when: with `SEALEYE_MODEL_URL` pointed at a stand-in, the API's model calls go
 there and nowhere else.
 
-#### Option for Step 8: the interview as a LangGraph graph (D8)
+#### The interview as a LangGraph graph (D8, decided)
 
-Step 8 as written keeps `runInterview` as it is and wraps it by hand: the loop waits in
-memory for the answer endpoint. That works, but it leaves two gaps the plan does not yet
-cover. A paused interview lives only in the API process, so a restart or deploy loses it.
+Greg chose LangGraph on Sat Oct 10 (DESIGN.md, "The interview runs as a LangGraph graph").
+This section is how Step 8 is built; the endpoints and events above stay as written.
+
+Read the bullets above with one change: `runInterview` does not move unchanged. Wrapped by
+hand, the loop would wait in memory for the answer endpoint, which leaves two gaps. A paused interview lives only in the API process, so a restart or deploy loses it.
 And an interview is tied to the connection that started it, so the portal cannot pick up
 an interview the CLI began, which the parity rule eventually needs.
 
@@ -353,9 +355,11 @@ whichever surface sent the answer. The endpoints and the events stay as above.
 The hand-rolled route could get restart-safety from a state machine and a row in Postgres.
 That is less code to depend on, but it is the same feature written a second time, and the
 Phase 3 discovery agent and the Phase 4 gates that wait days on a release decision would
-need it again. **Recommendation:** LangGraph, decided before Step 8 starts. If it is not
-chosen, Step 8 ships as written, and "a paused interview is lost on restart" goes into
-OPEN-QUESTIONS.
+need it again. That is why LangGraph was chosen.
+
+**Done when (added to Step 8's):** an interview paused at a question resumes from the
+answer endpoint with no model call repeated, and its trace is one trace across the pause.
+Step 10 adds: it also resumes after the API restarts.
 
 ### Step 9. One small server in ca-central-1 (D4)
 
@@ -422,8 +426,12 @@ A traced run is roughly 30 to 40 LangFuse units (turns, tool spans and scores), 
 - `pg_dump` runs nightly to the S3 bucket, with a 30-day lifecycle rule. Test a restore once
   before anyone else's data is in it.
 - A one-off importer for Greg's existing `~/.sealeye/deployments.json`.
+- The interview's checkpointer moves from the in-memory saver to the Postgres saver (D8).
+  Its tables are left out of the nightly dump (`pg_dump --exclude-table`), because a
+  checkpoint holds file contents and is kept for a day at most.
 
-**Done when:** the API restarts without losing or faking a status, and a restore from last
+**Done when:** an interview paused at a question resumes after the API restarts, the API
+restarts without losing or faking a status, and a restore from last
 night's dump works.
 
 ### Step 11. CI
@@ -489,7 +497,7 @@ down from the portal. Watch them do it rather than doing it for them.
 | 5 to 6 | Scores and the regression set | a day |
 | 7 | Write-up and draft PR | an hour |
 | | **Interview, Tue Oct 13. Merge decision.** | |
-| 8 | Interview behind the API | two to three days (about one more if D8 is LangGraph) |
+| 8 | Interview behind the API, as a LangGraph graph | three to four days |
 | 9 to 12 | Server, Postgres, CI, domains | two to three days |
 | 13 to 15 | Tokens, live portal, second-person test | two to three days |
 

@@ -411,3 +411,43 @@ doing nothing Node does not, and removing it took 27 packages out of the install
 rest of that audit (Express's `body-parser`, `proxy-addr` and `qs`, and ajv's
 `fast-uri`) was patch and minor updates within the ranges already in package.json.
 `npm audit` reports nothing after this.
+
+## The interview runs as a LangGraph graph
+
+Decided Sat Oct 10, 2026, by Greg. This was D8 in PHASE1-PLAN.
+
+When Step 8 moves the interview behind the API, it is built as a LangGraph.js graph
+(`@langchain/langgraph`), not as the hand-written loop wrapped in endpoints. Asking the
+developer and the "Deploy this?" confirmation are `interrupt()` calls. A checkpointer
+saves the interview's state under its id: in memory in Step 8, then in Postgres from Step
+10 (`@langchain/langgraph-checkpoint-postgres`, same database, its own tables).
+
+Why:
+
+- *A paused interview has to outlive the process.* Hosted, the API restarts and redeploys.
+  The hand-written loop waits in memory, so a restart loses every interview mid-question.
+- *Parity.* An interview the CLI starts has to be answerable from the portal. With the
+  state checkpointed under the interview id, either surface resumes it.
+- *It is needed again.* The Phase 3 discovery agent is long-running and stateful, and the
+  Phase 4 approval gates wait days on a release decision. Writing pause-and-resume once
+  by hand for Step 8 would mean writing it again for each. A state machine and a Postgres
+  row would do for Step 8 alone, with fewer dependencies; it was not chosen for that
+  reason.
+- *Learning.* Like LangFuse, LangGraph is something Greg is learning by building seaLeye
+  with it.
+
+What does not change, and the rules that come with it:
+
+- Model calls stay on the Anthropic SDK through `createWithOneRetry`. No LangChain model
+  wrappers, so `SEALEYE_MODEL_URL` still works.
+- Tracing stays hand-written (D3). LangFuse's LangGraph callback handler records every
+  node's input and output whole, which would put file contents in traces (D2). It is not
+  attached. The trace id lives in the graph state so one interview's spans join up across
+  pauses.
+- A checkpoint holds the conversation, including file contents. It is deleted when the
+  interview ends or after a day, never kept in backups longer than that, and never holds
+  a file `read_file` refuses.
+- A resumed node runs again from its first line. Each `interrupt()` gets a node of its own,
+  with no model call before it in that node.
+- Cost: three dependencies (`@langchain/langgraph`, its Postgres saver, `@langchain/core`)
+  and about one more day in Step 8.
