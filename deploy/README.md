@@ -34,17 +34,25 @@ aws cloudformation describe-stacks --region ca-central-1 --stack-name platform-s
 
 ## Once: create the deploy role
 
-`ARTIFACT_BUCKET` is the bucket you already use as `SEALEYE_BUCKET`. `SERVER_ROLE_ARN`
-is the `ServerRoleArn` output above.
+It may write function code only to your artifact bucket, so it needs that bucket's exact
+name: the value of `SEALEYE_BUCKET` (or `DEPLOYME_BUCKET`) in your repo `.env`. A wrong
+name shows up only at the first deploy, as AccessDenied on `s3:PutObject`. These read
+both values for you:
 
 ```bash
+BUCKET=$(grep -hE '^(SEALEYE|DEPLOYME)_BUCKET=' .env | head -1 | cut -d= -f2-)
+SERVER_ROLE=$(aws cloudformation describe-stacks --region ca-central-1 --stack-name platform-sealeye-server \
+  --query "Stacks[0].Outputs[?OutputKey=='ServerRoleArn'].OutputValue" --output text)
+echo "bucket: $BUCKET"; echo "server role: $SERVER_ROLE"
+
 aws cloudformation deploy --region ca-central-1 \
   --template-file deploy/deploy-role.yaml --stack-name platform-sealeye-deploy-role \
   --capabilities CAPABILITY_NAMED_IAM \
-  --parameter-overrides ServerRoleArn=SERVER_ROLE_ARN ArtifactBucket=ARTIFACT_BUCKET
+  --parameter-overrides ServerRoleArn="$SERVER_ROLE" ArtifactBucket="$BUCKET"
 ```
 
-Its output `DeployRoleArn` is `arn:aws:iam::<account>:role/sealeye-deploy-pilot`.
+Both `echo` lines should print a real value before you run the deploy. Its output
+`DeployRoleArn` is `arn:aws:iam::<account>:role/sealeye-deploy-pilot`.
 
 ## Once: the API's settings
 
