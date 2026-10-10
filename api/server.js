@@ -15,6 +15,8 @@ import { unsupportedNeeds } from "../core/catalog.js";
 import { assembleEvidence, renderEvidence } from "./executor/evidence.js";
 import { rollupNeeds } from "./needs.js";
 import { createInterviewService, NotWaiting, UploadRefused } from "./interview/service.js";
+import { postgresCheckpointer, postgresInterviewStore } from "./interview/pgstore.js";
+import { databaseUrl, closeDb } from "./db.js";
 import { startTracing } from "../core/tracing.js";
 
 const app = express();
@@ -31,9 +33,10 @@ app.use((req, res, next) => {
   return smallJson(req, res, next);
 });
 
-// The interviews this process holds (api/interview/service.js). The model key and any
-// LangFuse keys are the API's own; developers hold neither.
-const interviews = createInterviewService();
+// The interviews this process holds (api/interview/service.js), created once the store
+// is open. The model key and any LangFuse keys are the API's own; developers hold
+// neither.
+let interviews;
 
 // The version comes from the package, not from a literal, so it cannot drift from what
 // was actually shipped.
@@ -422,13 +425,24 @@ startTracing();
 sweepUploads();
 // Records first: nothing is served until the store has everything it knew.
 const opened = await openStore();
-// Then whatever was in flight when the API last stopped is picked up again.
+// Then whatever was in flight when the API last stopped is picked up again: deployments,
+// and, with a database, interviews.
 const resumed = resumeInFlight();
+let interviewPersistence = null;
+if (databaseUrl()) {
+  interviewPersistence = postgresInterviewStore();
+  interviews = createInterviewService({ checkpointer: await postgresCheckpointer(), persistence: interviewPersistence });
+} else {
+  interviews = createInterviewService();
+}
+const restoredInterviews = await interviews.restore();
 
 // A stop (a release, a reboot) waits for the last record to be written.
 for (const signal of ["SIGTERM", "SIGINT"]) {
   process.once(signal, () => {
-    flushStore().finally(() => process.exit(0));
+    Promise.all([flushStore(), interviewPersistence?.flush()])
+      .then(() => closeDb())
+      .finally(() => process.exit(0));
     setTimeout(() => process.exit(0), 5000).unref();
   });
 }
@@ -436,5 +450,6 @@ for (const signal of ["SIGTERM", "SIGINT"]) {
 app.listen(port, () => {
   console.log(`seaLeye API listening on http://localhost:${port}`);
   for (const r of resumed) console.log(`${r.deploymentId}: ${r.as}`);
+  for (const r of restoredInterviews) console.log(`${r.interviewId}: ${r.as}`);
   console.log(`deployment store: ${storeFile} (${listDeployments().length} records loaded${opened.migrations?.length ? `, applied ${opened.migrations.join(", ")}` : ""})`);
 });

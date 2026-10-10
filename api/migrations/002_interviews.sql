@@ -1,17 +1,20 @@
--- Interviews in progress (DESIGN.md, "The interview runs as a LangGraph graph"). The
--- conversation itself is in LangGraph's own checkpoint tables; these hold what the API
--- needs to pick an interview up again after a restart, and the events a client replays.
--- Both are deleted with the interview, and left out of the nightly backup, because an
--- interview's questions can quote the developer's code.
-CREATE TABLE interviews (
+-- Interviews in progress (DESIGN.md, "The interview runs as a LangGraph graph"). Their
+-- own schema, interview_state, which also holds LangGraph's checkpoint tables (the
+-- conversation, file contents included). Everything in it lives a day at most, and the
+-- nightly backup leaves the whole schema out.
+CREATE SCHEMA IF NOT EXISTS interview_state;
+
+-- What the API needs to pick an interview up again after a restart.
+CREATE TABLE interview_state.interviews (
   interview_id text PRIMARY KEY,
   record       jsonb NOT NULL,
   created_at   timestamptz NOT NULL,
   updated_at   timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE TABLE interview_events (
-  interview_id text NOT NULL REFERENCES interviews (interview_id) ON DELETE CASCADE,
+-- The events a client replays when it reconnects.
+CREATE TABLE interview_state.interview_events (
+  interview_id text NOT NULL REFERENCES interview_state.interviews (interview_id) ON DELETE CASCADE,
   seq          integer NOT NULL,
   event        jsonb NOT NULL,
   PRIMARY KEY (interview_id, seq)
