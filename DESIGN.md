@@ -367,7 +367,9 @@ for one command did not turn it off, so there was no way to say "not this run".
 - *The cost is the join.* An untraced run has no trace id, so its deployment record has
   no `origin.traceId` and its outcome is never scored.
 - *The regression set refuses.* `npm run eval:interview` exists to record a run in
-  LangFuse, so with `SEALEYE_TRACING` off it stops with a plain message instead.
+  LangFuse, so with `SEALEYE_TRACING` off or `--no-trace` it stops with a plain message
+  instead. Without `--`, npm keeps `--no-trace` for itself and sets `npm_config_trace`,
+  so the script reads that too.
 - *The default stays on when keys are set.* An organization may want it the other way,
   off unless turned on; that belongs with Q13, where traces live for an organization.
 

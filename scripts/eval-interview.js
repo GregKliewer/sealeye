@@ -221,7 +221,15 @@ async function main() {
     process.exit(1);
   }
   // The regression set exists to record a run in LangFuse, so with tracing switched
-  // off it stops rather than grading apps nobody will see.
+  // off it stops rather than grading apps nobody will see. --no-trace counts whether it
+  // arrives after `--` or not: without `--`, npm keeps the flag for itself and leaves
+  // npm_config_trace set to "" or "false" instead.
+  const noTraceFlag =
+    process.argv.includes("--no-trace") || ["", "false"].includes(process.env.npm_config_trace);
+  if (noTraceFlag) {
+    console.error("--no-trace turns tracing off, and the regression set only records with it on. Run it without --no-trace.");
+    process.exit(1);
+  }
   if (tracingSwitchedOff()) {
     console.error("SEALEYE_TRACING turns tracing off, and the regression set only records with it on. Unset it and run this again.");
     process.exit(1);

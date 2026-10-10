@@ -104,6 +104,26 @@ test("the regression set refuses to run with tracing switched off", () => {
   assert.match(failed.stderr, /SEALEYE_TRACING turns tracing off/);
 });
 
+for (const [how, args] of [
+  ["npm run eval:interview -- --no-trace", ["run", "--silent", "eval:interview", "--", "--no-trace"]],
+  ["npm run eval:interview --no-trace", ["run", "--silent", "eval:interview", "--no-trace"]]
+]) {
+  test(`the regression set refuses ${how}`, () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-switch-"));
+    const env = { ...process.env, ...KEYS, ANTHROPIC_API_KEY: "sk-ant-test-only", HOME: home, SEALEYE_HOME: home };
+    delete env.SEALEYE_TRACING;
+    let failed = null;
+    try {
+      execFileSync("npm", args, { cwd: root, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    } catch (err) {
+      failed = err;
+    }
+    assert.ok(failed, "it should have stopped");
+    assert.equal(failed.status, 1);
+    assert.match(failed.stderr, /--no-trace turns tracing off/);
+  });
+}
+
 test("--no-trace is in the help, with run", () => {
   const out = execFileSync(process.execPath, ["cli/bin/sealeye", "--help"], { cwd: root, encoding: "utf8" });
   assert.match(out, /run \[[^\n]*--no-trace/);
