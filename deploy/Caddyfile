@@ -1,0 +1,10 @@
+# Caddy obtains a certificate for each address below as soon as its DNS points here.
+# seaLeye.online (the portal) and sealeye.run join in Steps 12 and 14.
+{$API_DOMAIN} {
+	encode gzip
+	# An interview streams for minutes and uploads can be large: no time limit on the
+	# stream, and Caddy passes server-sent events through as they are written.
+	reverse_proxy api:3000 {
+		flush_interval -1
+	}
+}

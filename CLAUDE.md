@@ -33,6 +33,8 @@ core/       what cli/ and api/ must agree on: schema.js (the plan contract), cat
             secrets), upload.js (what travels to the API), tracing.js
 prompts/    system prompt, plan contract, plan, report and evidence templates, catalog
 templates/  one CloudFormation template per buildable module, plus run.sh
+deploy/     the pilot server: Dockerfile's start script, its CloudFormation (server,
+            deploy role), compose, Caddy, and the release scripts. deploy/README.md
 apps/       sample apps for trying seaLeye. plans/ holds test plans.
 test/       npm test. No AWS, no model calls.
 archive/    the October 2026 demo: marketing sites, transcripts, day notes. Read-only.
@@ -82,7 +84,8 @@ needs something the API has, it belongs in `core/` or behind an endpoint.
 - The product is seaLeye. The command is `sealeye`. Its subcommand that interviews and
   deploys is `run`; `init` is a hidden alias that does the same thing and never prints a
   deprecation notice.
-- Stacks are `sealeye-<app>` (lowercase, `[a-z0-9-]` only, `core/names.js`). Artifacts
+- Stacks are `sealeye-<app>` (lowercase, `[a-z0-9-]` only, `core/names.js`). seaLeye's own
+  infrastructure is `platform-sealeye-*`, which the deploy role cannot touch. Artifacts
   are `<app>/<deploymentId>.zip`.
 - Settings are `SEALEYE_<NAME>` (ACCOUNT, BUCKET, LWA_VERSION, REGION, MODEL, DEBUG,
   HOME, TRACING, MODEL_URL), read through `setting()` in `core/config.js`.

@@ -1,0 +1,38 @@
+# The pilot server: the API behind Caddy, which obtains and renews the TLS certificate
+# itself. Postgres joins in Step 10. Started by deploy/update.sh on the server.
+services:
+  api:
+    image: ${SEALEYE_IMAGE:?set SEALEYE_IMAGE to the image to run}
+    restart: unless-stopped
+    environment:
+      SEALEYE_SSM_PATH: /sealeye/
+    volumes:
+      - sealeye-data:/data
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      API_DOMAIN: ${API_DOMAIN:-api.sealeye.online}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  sealeye-data:
+  caddy-data:
+  caddy-config:
