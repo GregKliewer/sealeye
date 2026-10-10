@@ -102,3 +102,51 @@ test("the wider list of credential files travels as names only", () => {
   assert.equal(withheld.length, 6);
   assert.ok(!Buffer.from(zip).toString("latin1").includes(SECRET));
 });
+
+test("what .gitignore leaves out stays home, except secret files, which go as names", () => {
+  const dir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-upload-")), "app");
+  const put = (rel, body = "x") => {
+    fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
+    fs.writeFileSync(path.join(dir, rel), body);
+  };
+  put(".gitignore", ".venv/\ndist\n*.log\n.env\n");
+  put("app.py", "print('hi')");
+  put(".venv/lib/site.py");
+  put("dist/bundle.js");
+  put("server.log");
+  put(".env", `KEY=${SECRET}`);
+  put("web/.gitignore", "cache/\n!keep.log\n");
+  put("web/cache/blob.bin");
+  put("web/index.html");
+  put("web/keep.log");
+
+  const { zip, withheld, ignored } = zipFolder(dir);
+  const dest = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-unzip-")), "app");
+  unzipInto(zip, dest);
+
+  const all = [];
+  const walk = (d, rel = "") => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const r = rel ? `${rel}/${e.name}` : e.name;
+      if (e.isDirectory()) walk(path.join(d, e.name), r);
+      else all.push(r);
+    }
+  };
+  walk(dest);
+
+  assert.deepEqual(all.sort(), [".env", ".gitignore", "app.py", "web/.gitignore", "web/index.html", "web/keep.log"]);
+  assert.deepEqual(withheld, [".env"]);
+  assert.equal(fs.readFileSync(path.join(dest, ".env"), "utf8"), "");
+  assert.equal(ignored, 4);
+});
+
+test("a big virtual environment no longer stops an interview when .gitignore names it", () => {
+  const dir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-upload-")), "app");
+  fs.mkdirSync(path.join(dir, ".venv"), { recursive: true });
+  for (let i = 0; i < 5100; i++) fs.writeFileSync(path.join(dir, ".venv", `f${i}.py`), "");
+  fs.writeFileSync(path.join(dir, "app.py"), "print('hi')");
+  assert.throws(() => zipFolder(dir), /more than 5000 files/);
+
+  fs.writeFileSync(path.join(dir, ".gitignore"), ".venv/\n");
+  assert.equal(zipFolder(dir).files, 2);
+});

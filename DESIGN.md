@@ -503,10 +503,16 @@ list of secret files was widened the same day (`core/secrets.js`): `.netrc`,
 (`.p12`, `.pfx`, `.jks`, `.keystore`), Terraform variables and state, and
 service-account JSON files. `read_file` refuses the same list.
 
-A folder over 25 MB or 5,000 files outside the excluded folders is refused with a
-sentence saying so. Before, the interview read the folder in place with no limit, so a
-Python `.venv` or a large build folder now stops an interview that used to run.
-Skipping what `.gitignore` names would fix most of these, and is not built yet.
+The upload also leaves out what the folder's `.gitignore` files leave out (decided the
+same day). Before, the interview read the folder in place with no limit; with a 25 MB
+and 5,000-file cap, a Python `.venv` or a build folder would otherwise stop an
+interview that used to run. What a developer has told git is not their source is
+almost never what the interview needs to read. Nested `.gitignore` files apply to their
+own folders, and a deeper rule wins, as in git. Secret files still travel as names even
+when ignored, because `.env` is nearly always ignored and its name is how the model
+learns the app reads settings. A folder still over the cap after that is refused with
+a sentence saying so. The trade-off: a file that is ignored but would have helped the
+interview (a generated config, say) is no longer visible to the model.
 
 **Each interview has its own scratch folder.** It is named after the app, so the
 model's view is the same as before, and it lives in `~/.sealeye/interviews` of the

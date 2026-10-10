@@ -135,8 +135,8 @@ break.
 - The interview runs in the API (`api/interview/`) as a LangGraph graph with
   `claude-sonnet-5` (`SEALEYE_MODEL` overrides) via @anthropic-ai/sdk, temperature 0.2,
   at `SEALEYE_MODEL_URL` when set. The API holds ANTHROPIC_API_KEY; without it,
-  POST /interviews says so. `sealeye run` uploads the folder (`core/upload.js`: secret
-  files as names only), follows the events and sends the answers; it holds no keys.
+  POST /interviews says so. `sealeye run` uploads the folder (`core/upload.js`: without
+  what `.gitignore` leaves out, secret files as names only), follows the events and sends the answers; it holds no keys.
 - Each `interrupt()` (a question, "Deploy this?") is in a node of its own with no model
   call before it. An interview's scratch folder and saved state are deleted when it
   ends, or after a day.

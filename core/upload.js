@@ -6,14 +6,17 @@
 // unpacks with unzipInto, and the rules about what may travel are written once.
 //
 // What travels: the folder, minus what packaging leaves out (node_modules, .git,
-// .github, .do), seaLeye's own folders, and symlinks. Secret files (core/secrets.js)
-// travel as their names only: each is an empty file in the zip, so the interview's
-// list_files still shows that a .env exists, while its contents never leave the
-// developer's machine.
+// .github, .do), seaLeye's own folders, symlinks, and whatever the folder's .gitignore
+// files leave out (build output, virtual environments, caches: what the developer has
+// already said is not their source). Secret files (core/secrets.js) travel as their
+// names only, even when a .gitignore names them: each is an empty file in the zip, so
+// the interview's list_files still shows that a .env exists, while its contents never
+// leave the developer's machine.
 import fs from "node:fs";
 import path from "node:path";
 
 import { unzipSync, zipSync } from "fflate";
+import ignore from "ignore";
 
 import { secretFileReason } from "./secrets.js";
 
@@ -30,8 +33,9 @@ export class UploadRefused extends Error {}
 /**
  * Zip an app folder for an interview.
  *
- * @returns {{ zip: Uint8Array, files: number, bytes: number, withheld: string[] }}
- *          withheld lists the secret files sent as empty names.
+ * @returns {{ zip: Uint8Array, files: number, bytes: number, withheld: string[], ignored: number }}
+ *          withheld lists the secret files sent as empty names; ignored counts what a
+ *          .gitignore left out.
  */
 export function zipFolder(dir) {
   const root = path.resolve(dir);
@@ -39,8 +43,35 @@ export function zipFolder(dir) {
   const withheld = [];
   let files = 0;
   let bytes = 0;
+  let ignored = 0;
 
-  const walk = (abs, rel) => {
+  // Every .gitignore from the root down to the folder being read, each applied to paths
+  // relative to its own folder, as git applies them: a deeper file's rule wins, so its
+  // "!keep.log" brings back what a parent's "*.log" left out.
+  const gitignored = (rules, rel, isDir) => {
+    let ignoredHere = false;
+    for (const { base, matcher } of rules) {
+      const own = base ? rel.slice(base.length + 1) : rel;
+      if (own === "") continue;
+      const verdict = matcher.test(isDir ? `${own}/` : own);
+      if (verdict.ignored) ignoredHere = true;
+      else if (verdict.unignored) ignoredHere = false;
+    }
+    return ignoredHere;
+  };
+
+  const rulesFor = (abs, rel, inherited) => {
+    try {
+      const text = fs.readFileSync(path.join(abs, ".gitignore"), "utf8");
+      return [...inherited, { base: rel, matcher: ignore().add(text) }];
+    } catch {
+      return inherited;
+    }
+  };
+
+  const walk = (abs, rel, inherited) => {
+    const rules = rulesFor(abs, rel, inherited);
+
     for (const entry of fs.readdirSync(abs, { withFileTypes: true })) {
       const childAbs = path.join(abs, entry.name);
       const childRel = rel ? `${rel}/${entry.name}` : entry.name;
@@ -48,33 +79,42 @@ export function zipFolder(dir) {
       if (entry.isSymbolicLink()) continue;
       if (entry.isDirectory()) {
         if (EXCLUDED_FOLDERS.has(entry.name.toLowerCase())) continue;
-        walk(childAbs, childRel);
+        if (gitignored(rules, childRel, true)) { ignored++; continue; }
+        walk(childAbs, childRel, rules);
         continue;
       }
       if (!entry.isFile()) continue;
 
-      files++;
-      if (files > MAX_UPLOAD_FILES) {
-        throw new UploadRefused(`Your folder has more than ${MAX_UPLOAD_FILES} files outside node_modules and .git, which is more than an interview can read.`);
-      }
-
+      // A secret file is listed by name whatever .gitignore says: .env is almost always
+      // ignored, and knowing it exists is how the model learns the app reads settings.
       if (secretFileReason(entry.name)) {
+        countFile();
         entries[childRel] = new Uint8Array(0);
         withheld.push(childRel);
         continue;
       }
 
+      if (gitignored(rules, childRel, false)) { ignored++; continue; }
+      countFile();
+
       const data = fs.readFileSync(childAbs);
       bytes += data.length;
       if (bytes > MAX_UPLOAD_BYTES) {
-        throw new UploadRefused(`Your folder is bigger than ${MAX_UPLOAD_BYTES / 1024 / 1024} MB outside node_modules and .git, which is more than an interview can read.`);
+        throw new UploadRefused(`Your folder is bigger than ${MAX_UPLOAD_BYTES / 1024 / 1024} MB, leaving out node_modules, .git and what your .gitignore leaves out, which is more than an interview can read.`);
       }
       entries[childRel] = new Uint8Array(data.buffer, data.byteOffset, data.length);
     }
   };
 
-  walk(root, "");
-  return { zip: zipSync(entries, { level: 6 }), files, bytes, withheld };
+  function countFile() {
+    files++;
+    if (files > MAX_UPLOAD_FILES) {
+      throw new UploadRefused(`Your folder has more than ${MAX_UPLOAD_FILES} files, leaving out node_modules, .git and what your .gitignore leaves out, which is more than an interview can read.`);
+    }
+  }
+
+  walk(root, "", []);
+  return { zip: zipSync(entries, { level: 6 }), files, bytes, withheld, ignored };
 }
 
 /**
