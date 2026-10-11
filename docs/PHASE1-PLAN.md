@@ -445,7 +445,8 @@ night's dump works.
 
 DNS can stay with the current registrar: point an A record at the Elastic IP and Caddy
 obtains certificates itself. Route 53 is only worth it ($0.50 per zone per month) if you
-want the DNS in the CloudFormation template too.
+want the DNS in the CloudFormation template too. *Done Oct 10, 2026, with Route 53 for
+all three domains (DESIGN.md, "Each domain has one job"; deploy/README.md).*
 
 | Address | Serves | Why |
 |---|---|---|

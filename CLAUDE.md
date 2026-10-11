@@ -35,6 +35,8 @@ prompts/    system prompt, plan contract, plan, report and evidence templates, c
 templates/  one CloudFormation template per buildable module, plus run.sh
 deploy/     the pilot server: Dockerfile's start script, its CloudFormation (server,
             deploy role), compose, Caddy, and the release scripts. deploy/README.md
+sites/      the pages Caddy serves: online/ (seaLeye.online, until the portal) and run/
+            (seaLeye.run, its installer). release.sh adds the package and the version
 apps/       sample apps for trying seaLeye. plans/ holds test plans.
 test/       npm test. No AWS, no model calls.
 archive/    the October 2026 demo: marketing sites, transcripts, day notes. Read-only.
@@ -209,6 +211,10 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   LangFuse dataset run; it needs ANTHROPIC_API_KEY and LangFuse keys, and deploys
   nothing.
 - `npm start` runs the API from the repo root; `npm link` from the repo root installs
-  `sealeye`.
+  `sealeye`. The command talks to https://api.sealeye.online unless `SEALEYE_API` or
+  `--api` says otherwise, so point it at `http://localhost:3000` for a local API.
+- Developers install with `curl -fsSL https://sealeye.run/install | sh`: the package
+  release.sh packs, limited by package.json "files" to the command and what it reads.
+  `test/package-contents.test.js` keeps the API and the interview prompt out of it.
 - One decision per commit where possible. A decision goes in DESIGN.md with its date and
   reason; a finished roadmap row is updated in the same commit as the work.

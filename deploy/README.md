@@ -112,46 +112,67 @@ parameter afterwards: the database would keep the old password and the API could
 longer connect. (To change it on purpose, change it inside Postgres first, with
 `ALTER USER sealeye PASSWORD ...`, then the parameter, then release.)
 
-## Once: the address
+## Once: the addresses
 
-DNS for seaLeye's domains is in Route 53 (`dns.yaml`, about $0.50 a month per
-domain), so the records live in CloudFormation with everything else.
+Each of seaLeye's domains has one job, all served by the one server's Caddy, which gets
+each certificate itself (PHASE1-PLAN Step 12, DESIGN.md "Each domain has one job"):
 
-1. Create the zone and the `api` record, with the server's address:
+| Address | Serves |
+|---|---|
+| `api.sealeye.online` | the API |
+| `sealeye.online` | the portal: a page saying what it will be, until Step 14 |
+| `sealeye.run` | the command's home page, `sealeye.run/install` and the package it installs |
+| `sealeye.org` | a redirect to `sealeye.run` |
+
+The pages are in `sites/`; `release.sh` sends them, with the package, every release.
+
+DNS for each is a Route 53 zone (`dns.yaml`, about $0.50 a month per domain), so the
+records live in CloudFormation with everything else.
+
+1. Read the server's address once:
 
    ```bash
    IP=$(aws cloudformation describe-stacks --region ca-central-1 --stack-name platform-sealeye-server \
-     --query "Stacks[0].Outputs[?OutputKey=='PublicIp'].OutputValue" --output text)
+     --query "Stacks[0].Outputs[?OutputKey=='PublicIp'].OutputValue" --output text); echo $IP
+   ```
+
+2. Create or update each zone. `sealeye.online` keeps its `api` record and gains the
+   domain itself and `www`; the other two get the domain and `www`:
+
+   ```bash
    aws cloudformation deploy --region ca-central-1 \
      --template-file deploy/dns.yaml --stack-name platform-sealeye-dns-sealeye-online \
-     --parameter-overrides DomainName=sealeye.online ApiAddress=$IP
+     --parameter-overrides DomainName=sealeye.online ApiAddress=$IP SiteAddress=$IP
+
+   for d in sealeye.run sealeye.org; do
+     aws cloudformation deploy --region ca-central-1 \
+       --template-file deploy/dns.yaml --stack-name "platform-sealeye-dns-${d//./-}" \
+       --parameter-overrides DomainName=$d SiteAddress=$IP
+   done
    ```
 
-2. Read the four nameservers it was given:
+3. Read the four nameservers each new zone was given:
 
    ```bash
-   aws cloudformation describe-stacks --region ca-central-1 --stack-name platform-sealeye-dns-sealeye-online \
-     --query "Stacks[0].Outputs[?OutputKey=='NameServers'].OutputValue" --output text
+   for d in sealeye-run sealeye-org; do
+     echo "$d:"; aws cloudformation describe-stacks --region ca-central-1 --stack-name "platform-sealeye-dns-$d" \
+       --query "Stacks[0].Outputs[?OutputKey=='NameServers'].OutputValue" --output text
+   done
    ```
 
-3. At the domain's registrar, replace the domain's nameservers with those four (the
-   setting is usually called "custom nameservers"). If the domain was bought through
-   Route 53 itself, do it in the Route 53 console under Registered domains, or:
+4. At the registrar, set each domain's nameservers to its four. At Namecheap: Domain
+   List, Manage beside the domain, Nameservers, choose "Custom DNS", enter the four
+   (without any trailing dot), and save. Each domain has its own four; do not mix them.
+
+5. Wait until each name resolves to the server. Usually minutes, sometimes a few hours:
 
    ```bash
-   aws route53domains update-domain-nameservers --region us-east-1 --domain-name sealeye.online \
-     --nameservers Name=ns-1.example Name=ns-2.example Name=ns-3.example Name=ns-4.example
+   for n in sealeye.online sealeye.run sealeye.org api.sealeye.online; do echo "$n: $(dig +short $n)"; done
    ```
 
-4. Wait until the name resolves to the server. Usually minutes, sometimes a few hours:
-
-   ```bash
-   dig +short NS sealeye.online      # the four Route 53 names
-   dig +short api.sealeye.online     # the server's address
-   ```
-
-Caddy asks for a certificate the first time the name reaches the server, so the first
-request after this can take 10 to 20 seconds.
+Caddy asks for a certificate the first time a name reaches the server, so the first
+request to each can take 10 to 20 seconds. Until a name resolves, Caddy keeps retrying
+it quietly; the others are unaffected.
 
 ## Once: let GitHub store the images it builds
 
@@ -239,14 +260,15 @@ across the restart.
 
 ## Using it
 
-Point the CLI at it once, for every command:
+The command talks to `https://api.sealeye.online` by default, so a developer installs
+it and runs it, nothing else:
 
 ```bash
-echo "SEALEYE_API=https://api.sealeye.online" >> ~/.sealeye/config
+curl -fsSL https://sealeye.run/install | sh
 ```
 
-`--api <url>` still overrides it for one command, and `--api http://localhost:3000`
-reaches a local API again.
+`SEALEYE_API` in `~/.sealeye/config` or `--api <url>` points it elsewhere, and
+`--api http://localhost:3000` reaches a local API.
 
 `sealeye run` no longer needs an Anthropic or LangFuse key on your machine.
 

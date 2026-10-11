@@ -7,6 +7,15 @@
   "bin": {
     "sealeye": "./cli/bin/sealeye"
   },
+  "files": [
+    "cli/",
+    "core/",
+    "prompts/banner.txt",
+    "prompts/module-catalog.yaml",
+    "prompts/plan-template.md",
+    "prompts/refusal.md",
+    "templates/http_api_serverless.yaml"
+  ],
   "engines": {
     "node": ">=20"
   },

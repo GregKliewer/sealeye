@@ -137,6 +137,13 @@ export function requireSetting(name) {
 }
 
 /** Hard rule: ca-central-1. SEALEYE_REGION is an explicit opt-out, nothing else. */
+/**
+ * The API the command talks to when nothing says otherwise: seaLeye's own (PHASE1-PLAN
+ * Step 12). SEALEYE_API or --api points it elsewhere, `http://localhost:3000` for an API
+ * run from the repo with `npm start`.
+ */
+export const DEFAULT_API = "https://api.sealeye.online";
+
 export function region() {
   return setting("REGION") || "ca-central-1";
 }

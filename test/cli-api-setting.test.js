@@ -1,6 +1,6 @@
 // Which API the command talks to: --api for one command, SEALEYE_API for every command,
-// the local API otherwise. Checked against addresses nothing listens on, so the answer
-// is in the "not reachable" line. No network.
+// seaLeye's own API otherwise. Checked against addresses nothing listens on, so the
+// answer is in the "not reachable" line. No network: the default is checked by name.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -34,6 +34,9 @@ test("--api still wins for one command", async () => {
   assert.match(await listWith({ config: "SEALEYE_API=http://127.0.0.1:1\n", args: ["--api", "http://127.0.0.1:2"] }), /not reachable at http:\/\/127\.0\.0\.1:2/);
 });
 
-test("with neither, it is the local API", async () => {
-  assert.match(await listWith({}), /not reachable at http:\/\/localhost:3000/);
+test("with neither, it is seaLeye's own API", async () => {
+  const { DEFAULT_API } = await import("../core/config.js");
+  assert.equal(DEFAULT_API, "https://api.sealeye.online");
+  const help = (await run(process.execPath, ["cli/bin/sealeye", "--help"], { cwd: root })).stdout;
+  assert.match(help, /else https:\/\/api\.sealeye\.online/);
 });

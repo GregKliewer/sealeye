@@ -1,5 +1,7 @@
-# Caddy obtains a certificate for each address below as soon as its DNS points here.
-# seaLeye.online (the portal) and sealeye.run join in Steps 12 and 14.
+# Caddy obtains a certificate for each address below as soon as its DNS points here
+# (PHASE1-PLAN Step 12, D6). The pages are files in /srv, sent by deploy/release.sh;
+# the API is the container next door.
+
 {$API_DOMAIN} {
 	encode gzip
 	# An interview streams for minutes and uploads can be large: no time limit on the
@@ -7,4 +9,37 @@
 	reverse_proxy api:3000 {
 		flush_interval -1
 	}
+}
+
+# seaLeye.online: the portal. A page saying what it will be, until Step 14 builds it.
+{$PORTAL_DOMAIN} {
+	encode gzip
+	root * /srv/online
+	file_server
+}
+
+# seaLeye.run: the command's home page, its installer and the package it installs.
+{$RUN_DOMAIN} {
+	encode gzip
+	root * /srv/run
+	@installer path /install /install.sh
+	header @installer {
+		Content-Type "text/plain; charset=utf-8"
+		Cache-Control "no-cache"
+	}
+	rewrite /install /install.sh
+	file_server
+}
+
+# sealeye.org: kept, and sent to seaLeye.run for now.
+{$ORG_DOMAIN} {
+	redir https://{$RUN_DOMAIN}{uri} 302
+}
+
+www.{$PORTAL_DOMAIN} {
+	redir https://{$PORTAL_DOMAIN}{uri} permanent
+}
+
+www.{$RUN_DOMAIN}, www.{$ORG_DOMAIN} {
+	redir https://{$RUN_DOMAIN}{uri} permanent
 }

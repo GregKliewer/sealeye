@@ -38,6 +38,20 @@ else
   docker buildx build --platform linux/arm64 -t "${REPOSITORY}:${TAG}" --push .
 fi
 
+echo "Building the sites and the package sealeye.run installs"
+SITES="$(mktemp -d)"
+trap 'rm -rf "$SITES"' EXIT
+VERSION="$(node -p 'require("./package.json").version')"
+cp -R sites/. "$SITES/"
+# The package is what `npm install -g` gets: the command, core and the few prompt
+# files it reads (package.json "files"), never the API.
+npm pack --silent --pack-destination "$SITES/run" >/dev/null
+for f in "$SITES/run/index.html" "$SITES/run/install.sh"; do
+  sed -i.bak "s/{{VERSION}}/${VERSION}/g" "$f" && rm -f "$f.bak"
+done
+[ -f "$SITES/run/sealeye-${VERSION}.tgz" ] || { echo "npm pack did not make sealeye-${VERSION}.tgz"; exit 1; }
+aws s3 sync "$SITES/" "s3://${BUCKET}/server/sites/" --region "$REGION" --delete --only-show-errors
+
 echo "Sending the server its config"
 for f in compose.yaml Caddyfile update.sh backup.sh restore-check.sh; do
   aws s3 cp "deploy/$f" "s3://${BUCKET}/server/$f" --region "$REGION" --only-show-errors
