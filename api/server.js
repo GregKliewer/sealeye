@@ -37,12 +37,15 @@ const refuse = (res, code, message) =>
   res.status(401).set("WWW-Authenticate", 'Bearer realm="seaLeye"').json({ error: { code, message } });
 
 // The portal's session cookie (PHASE1-PLAN Step 14), read without a cookie library.
+// More than one cookie of the name is refused rather than one picked: a browser sends
+// two only when something other than the portal set one.
 function cookieValue(req, name) {
+  const found = [];
   for (const part of String(req.get("cookie") || "").split(";")) {
     const i = part.indexOf("=");
-    if (i > 0 && part.slice(0, i).trim() === name) return part.slice(i + 1).trim();
+    if (i > 0 && part.slice(0, i).trim() === name) found.push(part.slice(i + 1).trim());
   }
-  return null;
+  return found.length === 1 ? found[0] : found.length ? "" : null;
 }
 
 // HttpOnly so no script on the page can read it, Secure so it never travels in clear,
@@ -57,7 +60,7 @@ const PORTAL_HEADER = "x-sealeye-portal";
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 app.use(async (req, res, next) => {
-  if (req.method === "GET" && req.path === "/health") return next();
+  if ((req.method === "GET" || req.method === "HEAD") && req.path === "/health") return next();
   // Signing in and out are how a browser gets and drops a session; each checks its own way.
   if (req.path === "/sessions" && (req.method === "POST" || req.method === "DELETE")) return next();
   if (AUTH === "off") {
@@ -68,7 +71,7 @@ app.use(async (req, res, next) => {
 
   const bearer = /^Bearer\s+(\S+)$/i.exec(req.get("authorization") || "");
   const session = bearer ? null : cookieValue(req, SESSION_COOKIE);
-  if (!bearer && !session) {
+  if (!bearer && session === null) {
     return refuse(res, "NOT_SIGNED_IN", "This platform needs to know who is calling. Run sealeye login with the token your platform team gave you.");
   }
   if (session && !SAFE_METHODS.has(req.method) && req.get(PORTAL_HEADER) !== "1") {
@@ -125,6 +128,11 @@ app.get("/health", (_req, res) => {
 // traded for a session cookie good for SESSION_HOURS; the token itself is not kept by
 // the browser. The response says who signed in and when the session ends.
 app.post("/sessions", async (req, res) => {
+  // From the portal only, like every other change made for a browser: so a page on
+  // another site can never sign a browser in as someone else.
+  if (req.get(PORTAL_HEADER) !== "1") {
+    return res.status(403).json({ error: { code: "NOT_FROM_THE_PORTAL", message: "Signing in to the portal must come from the portal itself." } });
+  }
   if (AUTH === "off") return res.status(200).json({ auth: "off" });
   let caller;
   try {

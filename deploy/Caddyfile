@@ -18,6 +18,15 @@
 	encode gzip
 
 	handle_path /api/* {
+		# The API answers JSON. Should it ever answer anything else on the portal's
+		# origin, the browser renders none of it as a page.
+		header {
+			Content-Security-Policy "default-src 'none'; frame-ancestors 'none'"
+			X-Content-Type-Options nosniff
+			X-Frame-Options DENY
+			Referrer-Policy same-origin
+			Strict-Transport-Security "max-age=31536000"
+		}
 		reverse_proxy api:3000 {
 			flush_interval -1
 		}

@@ -884,8 +884,10 @@ can be read by any script that ever runs on the page. So the portal's sign-in pa
 the token once to `POST /sessions`, and the API answers with a session cookie in its
 place. The browser never keeps the token.
 
-- **The cookie** is a random value, `HttpOnly` (no script can read it), `Secure`,
-  `SameSite=Strict`, for twelve hours. The API keeps only its hash (Postgres
+- **The cookie**, `__Host-sealeye_session`, is a random value, `HttpOnly` (no script
+  can read it), `Secure`, `SameSite=Strict`, for twelve hours. The `__Host-` prefix
+  makes the browser refuse any cookie of that name that names a domain or a narrower
+  path, and the API refuses a request carrying two, so nothing else can shadow it. The API keeps only its hash (Postgres
   `sessions`, or `sessions.json` beside a laptop API), and a session ends when it
   expires, when its person signs out (`DELETE /sessions`), or when the token it came
   from is revoked.
@@ -893,7 +895,7 @@ place. The browser never keeps the token.
   passes to the API, so the cookie never crosses to another site and no cross-origin
   rules are needed. The command line keeps using `api.sealeye.online` with its token.
 - **Changes need the portal's header.** A request that changes something with the
-  cookie must also carry `x-sealeye-portal: 1`. A page on another site cannot add that
+  cookie must also carry `x-sealeye-portal: 1`, and so must signing in and out. A page on another site cannot add that
   header without the API agreeing to it first, which it never does. Together with
   `SameSite=Strict`, that is the defence against another site acting through a signed-in
   browser.
@@ -928,6 +930,8 @@ same API the command uses, at `/api` on the same origin.
   theme values in `src/index.css`.
 - **A strict content security policy.** Caddy sends one that allows only this site's own
   scripts and no framing, which is what makes a cookie no script can read worth having.
+  Responses under `/api` get one that allows nothing at all, so no API answer on the
+  portal's origin can ever render as a page.
 - **Tested in a browser.** `portal/tests/` drives the built portal in Chromium against
   the real API with sample records: sign-in refuses a wrong token and keeps nothing a
   script can read, each page shows the API's data and no other organization's, tear

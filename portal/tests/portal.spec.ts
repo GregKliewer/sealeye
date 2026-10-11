@@ -28,7 +28,7 @@ test("signing in keeps a session the page cannot read, never the token", async (
   const stored = await page.evaluate(() => JSON.stringify({ ...localStorage }) + JSON.stringify({ ...sessionStorage }));
   expect(stored).not.toContain("sl_");
   const cookies = await page.context().cookies();
-  const session = cookies.find(c => c.name === "sealeye_session");
+  const session = cookies.find(c => c.name === "__Host-sealeye_session");
   expect(session?.httpOnly).toBe(true);
   expect(session?.sameSite).toBe("Strict");
 });
