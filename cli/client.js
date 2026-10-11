@@ -279,6 +279,38 @@ export async function followInterview({ apiBaseUrl, interviewId, onEvent, after 
  * Who a token belongs to, as the platform says (GET /whoami). `token` defaults to the
  * one in ~/.sealeye/config; `sealeye login` passes the one being checked.
  */
+// ---------------------------------------------------------------------------------
+// An app's settings in the organization's store (PHASE2-PLAN Step 8). A value goes up
+// once and never comes back: the list is names, whether each is set, and who changed
+// it when. A refusal is one sentence, from the API.
+
+const settingsRoute = (app, name, team) =>
+  `/apps/${encodeURIComponent(app)}/settings${name ? `/${encodeURIComponent(name)}` : ""}${team ? `?team=${encodeURIComponent(team)}` : ""}`;
+
+async function settingsCall(apiBaseUrl, route, options) {
+  try {
+    return await platformFetch(apiBaseUrl, route, options);
+  } catch (err) {
+    const message = err.details?.error?.message;
+    if (message) throw Object.assign(new Error(message), { userFacing: true, code: err.details.error.code });
+    throw err;
+  }
+}
+
+export function getSettings({ apiBaseUrl, app, team }) {
+  return settingsCall(apiBaseUrl, settingsRoute(app, null, team), { method: "GET" });
+}
+
+export function putSetting({ apiBaseUrl, app, name, value, team }) {
+  return settingsCall(apiBaseUrl, settingsRoute(app, name, team), {
+    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ value })
+  });
+}
+
+export function deleteSetting({ apiBaseUrl, app, name, team }) {
+  return settingsCall(apiBaseUrl, settingsRoute(app, name, team), { method: "DELETE" });
+}
+
 export async function whoAmI({ apiBaseUrl, token }) {
   return platformFetch(apiBaseUrl, "/whoami", { token });
 }

@@ -55,7 +55,27 @@ fs.writeFileSync(path.join(home, "deployments.json"), JSON.stringify([
 // The stand-in `aws`: deleting a stack works, and afterwards it is gone.
 const bin = path.join(home, "bin");
 fs.mkdirSync(bin);
+// Its settings calls keep parameters in a file, names and values, so a test can check a
+// value reached the store and never came back to the page.
+fs.writeFileSync(path.join(bin, "ssm.cjs"), `const fs = require("fs");
+const store = ${JSON.stringify(path.join(home, "ssm.json"))};
+const read = () => { try { return JSON.parse(fs.readFileSync(store, "utf8")); } catch { return {}; } };
+const args = process.argv.slice(2), opt = n => args[args.indexOf(n) + 1], s = read();
+if (args[1] === "get-parameters-by-path") {
+  const p = opt("--path");
+  process.stdout.write(JSON.stringify(Object.keys(s).filter(k => k.startsWith(p)).map(k => ({ name: k, changedAt: s[k].at }))));
+} else if (args[1] === "put-parameter") {
+  const input = JSON.parse(fs.readFileSync(0, "utf8"));
+  s[input.Name] = { value: input.Value, at: new Date().toISOString() };
+  fs.writeFileSync(store, JSON.stringify(s));
+  process.stdout.write("{}");
+} else if (args[1] === "delete-parameter") {
+  delete s[opt("--name")];
+  fs.writeFileSync(store, JSON.stringify(s));
+}
+`);
 fs.writeFileSync(path.join(bin, "aws"), `#!/bin/sh
+[ "$1" = ssm ] && exec node "${path.join(bin, "ssm.cjs")}" "$@"
 case "$2" in
   delete-stack) touch "${home}/deleted"; echo '{}' ;;
   describe-stacks)

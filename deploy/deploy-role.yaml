@@ -171,6 +171,16 @@ Resources:
                 Action: [s3:PutObject, s3:GetObject, s3:DeleteObject]
                 Resource: !Sub "arn:aws:s3:::sealeye-*-${AWS::AccountId}/*"
 
+              # An app's settings (PHASE2-PLAN Step 8, D3): put in, listed by name and
+              # removed, under /sealeye-apps/ only. Never /sealeye/, the platform's own
+              # keys. No KMS permission: values are encrypted with the account's default
+              # key for Parameter Store, which its own key policy lets this account use
+              # through Parameter Store (PHASE2-PLAN Step 7 checks the reading side).
+              - Sid: AppSettings
+                Effect: Allow
+                Action: [ssm:PutParameter, ssm:DeleteParameter, ssm:GetParametersByPath]
+                Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/sealeye-apps/*"
+
 Outputs:
   DeployRoleArn:
     Description: Store as /sealeye/SEALEYE_DEPLOY_ROLE_ARN

@@ -66,6 +66,20 @@ export interface NeedsLedger {
   needs: { kind: string; line: string; count: number; apps: { name: string; team?: string; deploymentId: string | null; when: string | null }[]; firstSeen: string | null; lastSeen: string | null }[];
 }
 
+// An app's settings in the organization's store (PHASE2-PLAN Step 8): names, whether
+// each is set, and who changed it. A value goes up once and never comes back.
+export interface AppSetting {
+  name: string;
+  wanted: boolean;
+  set: boolean;
+  changedAt: string | null;
+  changedBy: { name: string | null; email: string | null; surface: string; action: "set" | "removed" } | null;
+}
+export interface AppSettings { app: string; team: string; settings: AppSetting[] }
+
+const settingsPath = (app: string, team: string, name?: string) =>
+  `/apps/${encodeURIComponent(app)}/settings${name ? `/${encodeURIComponent(name)}` : ""}?team=${encodeURIComponent(team)}`;
+
 export const api = {
   signIn: (token: string) => request<Person & { expiresAt: string }>("/sessions", { method: "POST", body: { token } }),
   signOut: () => request<{ signedOut: boolean }>("/sessions", { method: "DELETE" }),
@@ -74,5 +88,10 @@ export const api = {
   deployment: (id: string) => request<DeploymentRecord>(`/deployments/${encodeURIComponent(id)}`),
   destroy: (id: string) => request<DeploymentRecord>(`/deployments/${encodeURIComponent(id)}`, { method: "DELETE" }),
   catalog: () => request<Catalog>("/catalog"),
-  needs: () => request<NeedsLedger>("/needs")
+  needs: () => request<NeedsLedger>("/needs"),
+  settings: (app: string, team: string) => request<AppSettings>(settingsPath(app, team)),
+  setSetting: (app: string, team: string, name: string, value: string) =>
+    request<{ set: boolean }>(settingsPath(app, team, name), { method: "PUT", body: { value } }),
+  removeSetting: (app: string, team: string, name: string) =>
+    request<{ set: boolean }>(settingsPath(app, team, name), { method: "DELETE" })
 };

@@ -18,6 +18,9 @@ import {
   answerInterview,
   abandonInterview,
   whoAmI,
+  getSettings,
+  putSetting,
+  deleteSetting,
   NotSignedInError,
   getCatalog
 } from "../client.js";
@@ -110,6 +113,9 @@ Usage:
   ${product.command} login [--api <url>]
   ${product.command} whoami [--json] [--api <url>]
   ${product.command} logout
+  ${product.command} settings [--app <path>] [--team <team>] [--json] [--api <url>]
+  ${product.command} settings set <NAME> [--app <path>] [--team <team>] [--api <url>]
+  ${product.command} settings unset <NAME> [--app <path>] [--team <team>] [--api <url>]
 
 Options:
   -f, --file      path to your plan YAML
@@ -676,6 +682,65 @@ async function main() {
     for (const n of catalog.needs) console.log(`  ${c.dim("·")} ${n.line}`);
     console.log("");
     say(`${product.command} needs shows which of these your organization's apps are waiting on.`);
+    return;
+  }
+
+  // An app's settings in the organization's store (PHASE2-PLAN Step 8). The app is the
+  // folder's, named the way its environment is. A value is read without echoing it, or
+  // from a pipe, and never taken as an argument, so it stays out of shell history.
+  if (command === "settings") {
+    const folder = getArg("--app") || process.cwd();
+    const app = appNameFor(folder);
+    const team = getArg("--team");
+    const action = process.argv[3] && !process.argv[3].startsWith("-") ? process.argv[3] : "list";
+    const name = process.argv[4] && !process.argv[4].startsWith("-") ? process.argv[4] : null;
+    const usage = `${product.command} settings set <NAME>, then type or paste its value`;
+
+    if (action === "set" || action === "unset") {
+      if (!name) throw Object.assign(new Error(`Name the setting: ${usage}.`), { userFacing: true });
+      if (action === "set" && process.argv[5] && !process.argv[5].startsWith("-")) {
+        throw Object.assign(new Error(`A value is never given on the command line, where your shell history keeps it. Run ${usage}.`), { userFacing: true });
+      }
+    } else if (action !== "list") {
+      throw Object.assign(new Error(`${product.command} settings knows set and unset. ${usage}.`), { userFacing: true });
+    }
+
+    if (action === "set") {
+      const value = await readSecret(ask(`Value for ${name} (it is not shown):`));
+      if (!value) throw Object.assign(new Error("Nothing was typed, so nothing was stored."), { userFacing: true });
+      const done = await putSetting({ apiBaseUrl, app, name, value, team });
+      console.log(c.accent(`✓ ${name} is stored for ${done.app}, team ${done.team}`));
+      say(`Your environment reads it the next time it is deployed.`);
+      return;
+    }
+
+    if (action === "unset") {
+      const done = await deleteSetting({ apiBaseUrl, app, name, team });
+      say(`${name} is no longer stored for ${done.app}, team ${done.team}.`);
+      return;
+    }
+
+    const listed = await getSettings({ apiBaseUrl, app, team });
+    if (jsonOut) {
+      console.log(JSON.stringify(listed, null, 2));
+      return;
+    }
+    console.log("");
+    if (!listed.settings.length) {
+      say(`${listed.app} (team ${listed.team}) has no settings stored, and its latest plan asks for none.`);
+      return;
+    }
+    const width = Math.max("NAME".length, ...listed.settings.map(x => x.name.length));
+    console.log(c.dim(`${pad("NAME", width)}  ${pad("STATUS", 7)}  CHANGED`));
+    for (const x of listed.settings) {
+      const status = x.set ? c.accent(pad("set", 7)) : c.prompt(pad("not set", 7));
+      const by = x.changedBy?.name ? ` by ${x.changedBy.name}` : "";
+      const changed = x.changedAt ? `${relativeTime(x.changedAt)}${by}` : "-";
+      const note = x.wanted ? "" : c.dim("  (the latest plan does not use it)");
+      console.log(`${pad(x.name, width)}  ${status}  ${c.dim(changed)}${note}`);
+    }
+    console.log("");
+    say(`For ${listed.app}, team ${listed.team}. ${usage} to set one.`);
     return;
   }
 

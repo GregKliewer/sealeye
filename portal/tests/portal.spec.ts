@@ -70,6 +70,25 @@ test("an organization-wide token sees every team's environments, each saying who
   await expect(page.getByText("An API, designed for dev, team payments")).toBeVisible();
 });
 
+test("a setting can be stored from Control, and its value is never shown again", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("link", { name: "payments-api", exact: true }).click();
+  const card = page.getByTestId("settings");
+  await expect(card).toContainText("No settings are stored");
+  await card.getByLabel("Setting name").fill("API_KEY");
+  await card.getByLabel("Setting value").fill("a-value-for-the-portal-test");
+  await card.getByRole("button", { name: "Store it" }).click();
+  await expect(card.getByRole("status")).toContainText("API_KEY is stored");
+  await expect(card.getByLabel("Setting value")).toHaveValue("", { timeout: 1000 });
+  const row = card.getByTestId("setting-row").filter({ hasText: "API_KEY" });
+  await expect(row).toContainText("Set");
+  await expect(row).toContainText("by Greg Kliewer");
+  expect(await page.content()).not.toContain("a-value-for-the-portal-test");
+
+  await row.getByRole("button", { name: "Remove" }).click();
+  await expect(card.getByRole("status")).toContainText("API_KEY is no longer stored");
+});
+
 test("Catalog shows the modules and what apps are waiting on", async ({ page }) => {
   await signIn(page);
   await page.getByRole("link", { name: "Catalog" }).click();

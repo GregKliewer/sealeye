@@ -15,9 +15,31 @@
 import path from "node:path";
 
 import { readEnvFile } from "../../core/config.js";
-import { ENV_NAME, settingNamesFor } from "../../core/settings.js";
+import { safeName } from "../../core/names.js";
+import { ENV_NAME, PLATFORM_OWNED, settingNamesFor } from "../../core/settings.js";
 
 const MAX_VALUE_LENGTH = 4096;
+
+/**
+ * Where one team's app keeps its settings in the organization's store (PHASE2-PLAN D3):
+ * /sealeye-apps/<team>/<app>/, one entry per setting, named as the app reads it. Its
+ * function may read this folder and no other (Step 10). Never /sealeye/, which holds
+ * the platform's own keys.
+ */
+export function storeFolder({ team = "default", app }) {
+  const appName = safeName(app);
+  const teamName = safeName(team);
+  if (!appName || !teamName) throw new Error("a settings folder needs a team and an app name");
+  return `/sealeye-apps/${teamName}/${appName}/`;
+}
+
+/** Whether a name can be a setting the platform stores: an environment variable's, not the platform's own. */
+export function storableName(name) {
+  return typeof name === "string" && name.length <= 128 && ENV_NAME.test(name) && !PLATFORM_OWNED.has(name);
+}
+
+/** The largest value the store keeps (Parameter Store's standard tier: 4 KB). */
+export const MAX_STORED_BYTES = 4096;
 
 /**
  * @param {object} plan
