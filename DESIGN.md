@@ -1040,3 +1040,48 @@ that meant nothing. Now, when the API is not on this machine (`isLocalApi` in
 and whether a Mac can show a notice when a deploy finishes (advice, never a failure).
 When the API does not answer, the fix it offers is to tell the platform team, not to
 start it. With an API on this machine, every check runs as before.
+
+## Settings live in the organization's store
+
+Decided Sun Oct 11, 2026 (PHASE2-PLAN D3 to D5, Greg chose each as recommended). Being
+built in PHASE2-PLAN Part B; this entry grows as it lands. It replaces "Setting values
+travel with the deploy, for now" for every app that moves over.
+
+**Where (D3).** Parameter Store, encrypted with the account's default key, in the
+account and region the app runs in, at `/sealeye-apps/<team>/<app>/<NAME>`. Standard
+entries cost nothing and stay in ca-central-1, and a folder per app is what lets each
+function read its own and no other. Secrets Manager was not chosen: about $0.40 a value
+a month, for rotation these values do not need yet. A bank's own Vault or Secrets
+Manager would be another source in `settingValues`, not a rewrite. The folder is the
+team's and the app's, not the organization's: each organization will run in its own
+account (ROADMAP Phase 1 item 5), as with environment names. Never `/sealeye/`, which
+holds the platform's own keys.
+
+**Putting values in (Step 8, built Oct 11).** `PUT /apps/{app}/settings/{name}`,
+`sealeye settings set NAME` and the Settings card on the portal's Control page. The name
+was settled before building: `sealeye settings` rather than the plan's `sealeye secrets`,
+because seaLeye calls these settings everywhere else and not every one is a secret.
+Guarantees, each tested:
+
+- A value travels once, inward. The command reads it hidden or from a pipe, never as an
+  argument; the API hands it to the AWS CLI on standard input, never on a command line;
+  listing asks the store for names and dates only. No answer, log, record or the change
+  log ever holds one.
+- A refused write is reported by the error's name alone (`AccessDeniedException`),
+  because AWS's validation messages quote the value they refused. For the same reason the
+  API answers any body it cannot read without quoting it, and logs only the error's name
+  on the settings routes.
+- Who changed which setting, when and from which surface is kept (`setting_changes`):
+  names, never values.
+- A team reaches only its own folder; an organization-wide token may name a team.
+
+**Reading at start (D4).** A `node --import` preload in the packaged app reads the folder
+in one call with the AWS SDK that Lambda's Node runtime already carries, sets the values
+as environment variables, then the app starts. No layer to track, no shell quoting of
+values. CloudFormation's own lookups were ruled out: an encrypted one cannot feed a
+function's environment, and a Secrets Manager one leaves the value in the function's
+configuration. PHASE2-PLAN Step 7 checks it on a real function before Step 10 builds it.
+
+**Apps already deployed with sent values (D5).** Nothing moves by itself. The next
+`sealeye run` of such an app offers once to store what its `.env` holds, naming the
+settings and never showing a value.

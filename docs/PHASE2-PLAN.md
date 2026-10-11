@@ -68,9 +68,9 @@ recommendation. Each answer goes in DESIGN.md with its date and reason, and the
 |---|---|---|---|---|
 | D1 | Who sees what | A person sees their own team's environments. A token marked organization-wide (Greg's) sees them all. The needs ledger stays organization-wide. | Step 1 | As recommended (Sun Oct 11) |
 | D2 | Two teams, one app name | Each team's environment gets an internal name, `<team>-<app>`, and every name in AWS comes from it. The developer still sees only the app name. | Step 2 | Two teams can each have an app of the same name. Within a team, one app name is one dev environment and one path to production. Organizations are not considered, since each will run in its own account. (Sun Oct 11) |
-| D3 | Which secret store | Parameter Store, SecureString, under `/sealeye-apps/<team>/<app>/`, in the team's account and region | Step 7 | |
-| D4 | How the app reads its values at start | The start script runs a small reader before the app, using the AWS SDK that ships in the Node 20 runtime. Confirm it in Step 7 before building. | Step 7 | |
-| D5 | Apps already deployed with sent values | Not moved automatically. Their next `sealeye run` offers to store what `.env` holds. A list for Greg shows who is still on sent values. | Step 11 | |
+| D3 | Which secret store | Parameter Store, SecureString, under `/sealeye-apps/<team>/<app>/`, in the team's account and region | Step 7 || As recommended (Sun Oct 11) |
+| D4 | How the app reads its values at start | The start script runs a small reader before the app, using the AWS SDK that ships in the Node 20 runtime. Confirm it in Step 7 before building. | Step 7 || As recommended, as a `node --import` preload (Sun Oct 11); Step 7 confirms it |
+| D5 | Apps already deployed with sent values | Not moved automatically. Their next `sealeye run` offers to store what `.env` holds. A list for Greg shows who is still on sent values. | Step 11 || As recommended (Sun Oct 11) |
 | D6 | Where the portal's interview gets the app | A folder chosen in the browser, zipped there under the same rules as the command's upload. Connecting a repository comes later. | Step 15 | |
 | D7 | What pause means | API apps only, for now: the function stops taking requests, and resume undoes it. A static site says plainly it cannot be paused. | Step 17 | |
 | D8 | Integrations | Move it to Phase 4, where ServiceNow, Jira and Teams are. Drop it from Phase 2. | Step 13 | |
@@ -292,7 +292,12 @@ Half a day, before anything else in Part B.
   one. It never shows a value back.
 - The deploy role gets `ssm:PutParameter`, `ssm:GetParametersByPath` and
   `ssm:DeleteParameter` on `/sealeye-apps/*` only, and the KMS permission to encrypt.
-- Settle the command name in DESIGN.md first, as ROADMAP asks.
+- Settle the command name in DESIGN.md first, as ROADMAP asks. *Settled Oct 11:
+  `sealeye settings`, `settings set NAME`, `settings unset NAME` (DESIGN.md, "Settings
+  live in the organization's store").*
+- *Built Oct 11. Two additions: every change is logged with who and from where
+  (migration 005), and the API answers a body it cannot read without quoting it, on
+  every route.*
 
 ### Step 9. The plan says where each value lives
 
