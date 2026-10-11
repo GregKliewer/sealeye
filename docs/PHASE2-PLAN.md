@@ -6,7 +6,7 @@ Written Sun Oct 11, 2026, after PHASE1-PLAN Steps 8 to 14 shipped (pull requests
 The plan has three parts, in the order the dependencies force.
 
 - **Part A** (Steps 1 to 6) finishes Phase 1 for a friendly team. Each team sees only its
-  own environments, and two teams cannot fight over one app name. Then come the three
+  own environments, and two teams can each have an app of the same name. Then come the three
   pieces of preparation for the second-person test, and the test itself (PHASE1-PLAN
   Step 15).
 - **Part B** (Steps 7 to 12) is ROADMAP Phase 1 item 10, the one item owed: setting
@@ -34,6 +34,8 @@ These facts shape every step below.
   who deploys `apps/static-website` while Greg has one live updates Greg's environment.
   Both records then point at one stack, and tearing down either removes both. This must
   be fixed before Step 15, because the welcome note sends the tester to the sample apps.
+  The app name also becomes the function, log group and static site bucket names (the
+  templates take it as `AppName`), so every one of those collides the same way.
 - **Interviews are already personal.** An interview is its starter's, and anyone else
   gets "not found" for it. Nothing changes there.
 - **The needs ledger is organization-wide on purpose.** It is the platform team's view of
@@ -64,8 +66,8 @@ recommendation. Each answer goes in DESIGN.md with its date and reason, and the
 
 | # | Decision | Recommendation | Needed by | Decided |
 |---|---|---|---|---|
-| D1 | Who sees what | A person sees their own team's environments. A token marked organization-wide (Greg's) sees them all. The needs ledger stays organization-wide. | Step 1 | |
-| D2 | Two teams, one app name | Refuse the second team's deploy with a plain sentence while the first team's environment is live. Leave stack names as they are. | Step 2 | |
+| D1 | Who sees what | A person sees their own team's environments. A token marked organization-wide (Greg's) sees them all. The needs ledger stays organization-wide. | Step 1 | As recommended (Sun Oct 11) |
+| D2 | Two teams, one app name | Each team's environment gets an internal name, `<team>-<app>`, and every name in AWS comes from it. The developer still sees only the app name. | Step 2 | Two teams can each have an app of the same name. Within a team, one app name is one dev environment and one path to production. Organizations are not considered, since each will run in its own account. (Sun Oct 11) |
 | D3 | Which secret store | Parameter Store, SecureString, under `/sealeye-apps/<team>/<app>/`, in the team's account and region | Step 7 | |
 | D4 | How the app reads its values at start | The start script runs a small reader before the app, using the AWS SDK that ships in the Node 20 runtime. Confirm it in Step 7 before building. | Step 7 | |
 | D5 | Apps already deployed with sent values | Not moved automatically. Their next `sealeye run` offers to store what `.env` holds. A list for Greg shows who is still on sent values. | Step 11 | |
@@ -78,11 +80,17 @@ sign-in (Q3, Cognito groups). A token is either team-scoped or organization-wide
 it is issued, and that is enough for a pilot run by one administrator. The shape is
 `req.caller.scope`, which a Cognito group can fill later without changing the checks.
 
-**Why D2 refuses rather than renaming stacks.** Putting the team in the stack name
-(`sealeye-<team>-<app>`) is cleaner, but it changes a naming rule in CLAUDE.md, leaves
-every existing stack under the old name, and needs a migration. With one shared account,
-a refusal is a few lines and keeps every rule as it is. Team-named stacks fit better
-with item 5, when a team brings its own account and the question changes anyway.
+**Why D2 names environments by team rather than refusing a second team.** The first
+recommendation was to refuse a second team's deploy while the first team's environment
+was live. Greg chose otherwise on Oct 11: common names such as `test-app` would collide
+often, and a developer should not have to rename their app because of a team they cannot
+see. It costs about a day more than the refusal. No migration is needed, because every
+record already keeps its `stackName`: existing environments keep their names, a re-run
+uses the name on the team's latest record for that app, and only new environments get
+the new names. The organization is left out of the name, because each organization will
+deploy into its own account (item 5), where names only need to be unique within that
+account. If two organizations ever share one account before then, the rule gains the
+organization in one line.
 
 **Why D3 is Parameter Store and not Secrets Manager.** Standard SecureString parameters
 cost nothing to store, encrypt with the account's KMS key, live in ca-central-1, and can
@@ -130,23 +138,46 @@ Steps 3 to 5 are documents and can share a second pull request.
 **Done when:** two tokens on two teams each see only their own environments in
 `sealeye list` and in the portal, and Greg's organization-wide token sees both.
 
-### Step 2. One app name belongs to one team at a time (D2)
+### Step 2. Each team's environments have names of their own (D2)
 
-- `POST /deployments` looks for a record with the same stack name whose environment is
-  live (anything but `destroyed`, `drafted` or `failed` with the stack gone). If that
-  record's team is not the caller's, it refuses with `409 APP_NAME_TAKEN` and saves
-  nothing. The sentence names the app, never the other team: "Another team already has
-  an environment called static-website. Choose another name for your app in
-  sealeye.yaml, then run sealeye run again."
-- `sealeye run` checks the same thing before the interview starts, so a tester does not
-  answer four questions and then hear no. `GET /apps/{name}` is a small read endpoint that
-  says only "yours", "free" or "taken".
-- Within a team, a re-run of a teammate's environment is still allowed, and the record
-  says who did it, as it does today.
-- DESIGN.md: why a refusal now, and team-named stacks with item 5.
+About a day and a half to two days. Today the app name becomes these names in the one
+shared account, and the first four collide between teams:
 
-**Done when:** the tester's deploy of a sample app Greg has live is refused in one
-sentence, before the interview, and Greg's environment is untouched.
+| What | Named today | Named after this step |
+|---|---|---|
+| Stack | `sealeye-<app>` | `sealeye-<team>-<app>` |
+| Function | `<app>` | `sealeye-<team>-<app>` |
+| Log group | `/aws/lambda/<app>` | `/aws/lambda/sealeye-<team>-<app>` |
+| Static site bucket | `<app>-<account>` | `sealeye-<team>-<app>-<account>` |
+| API | `<app>` | `sealeye-<team>-<app>` (API names need not be unique; this is for clarity) |
+| Uploaded artifact | `<app>/<deploymentId>.zip` | `<team>/<app>/<deploymentId>.zip` |
+
+- `core/names.js` gets one rule for the environment's internal name from the team and the
+  app, with a length cap and a short hash, because function names stop at 64 characters
+  and bucket names at 63. Team ids are already lowercase letters, digits and hyphens
+  (`checkHolder`). A test covers the longest team and app names.
+- `api/executor/compose.js` and both templates take that name instead of the bare app
+  name. The deploy role's patterns follow, and the function permission narrows from any
+  function in the account to `sealeye-*`, which it should have been anyway.
+- **No migration.** A deploy looks up the caller's team's latest record for the app. If
+  it has a `stackName`, that name is reused, so Greg's existing environments keep their
+  old names. Only a first deploy gets the new name. A test covers both.
+- **Within a team, one app name is one environment.** A teammate's `sealeye run` in their
+  copy of the app updates the team's environment, and the record says who did it, as
+  today.
+- `sealeye destroy`, `status` and `watch` given an app name look within the caller's team
+  (today they match `sealeye-<target>` across everyone). The portal already groups by
+  `stackName`. The needs ledger counts the same app name on two teams as two apps.
+- The developer sees only the app name, in the command, the portal and every file
+  seaLeye writes. The one place the team shows is a static site's address, which comes
+  from its bucket's name.
+- CLAUDE.md "Names" changes from `sealeye-<app>` to the new rule, in the same commit.
+  DESIGN.md already has the decision ("Each team's environments have names of their own").
+- Check it for real: deploy one static site and one API on two teams with the same app
+  name, then tear each down from the other surface.
+
+**Done when:** the tester deploys a sample app Greg also has live, both environments
+work side by side, and tearing down either leaves the other untouched.
 
 ### Step 3. The welcome note
 
@@ -159,8 +190,8 @@ terms, no em dashes, and nothing a token holder could not already see.
 - Sign in: `sealeye login`, then paste the token. Never put it on the command line.
   `sealeye whoami` shows who you are.
 - A first run: copy a sample app out of the repo (they get a zip of `apps/`, since the
-  repo is private). Give it a name of your own in the interview, then `sealeye run` in
-  that folder. Expect up to four questions, a plan, and "Deploy this?".
+  repo is private), then `sealeye run` in that folder. The name can stay as it is, since
+  another team's app of the same name is a separate environment (Step 2). Expect up to four questions, a plan, and "Deploy this?".
 - The portal: sign in at https://sealeye.online with the same token, find the
   environment, then tear it down from Control.
 - Try `apps/payment-events-processor` too, to see a refusal with evidence.
@@ -367,7 +398,7 @@ Notes on these:
 
 | Steps | What | Effort |
 |---|---|---|
-| 1 to 2 | Team visibility, one app name per team | one to one and a half days |
+| 1 to 2 | Team visibility, environment names per team | two to three days |
 | 3 to 5 | Welcome note, checklist, review of what is owed | half a day |
 | 6 | **The second-person test.** Phase 1 "done when" | an hour to watch, then fixes |
 | 7 | Prove the read path | half a day |
@@ -386,7 +417,7 @@ Step 5 records a decision next to each.
 
 | Item | Where it stands | Bring it forward when |
 |---|---|---|
-| **ROADMAP Phase 1 item 5: AWS access per team** | Every deploy goes through `sealeye-deploy-pilot` in the one pilot account. It is designed for a role per team account (DESIGN.md, "Phase 1: who it is for"), so adding one is configuration, not a rewrite. Team-named stacks (D2) belong with it. | A team brings its own AWS account, or any bank pilot. |
+| **ROADMAP Phase 1 item 5: AWS access per team** | Every deploy goes through `sealeye-deploy-pilot` in the one pilot account. It is designed for a role per team account (DESIGN.md, "Phase 1: who it is for"), so adding one is configuration, not a rewrite. | A team brings its own AWS account, or any bank pilot. |
 | **ROADMAP Phase 1 item 3: real sign-in** | Cognito was chosen on Oct 9 (DESIGN.md, "Phase 1: who it is for"). How it replaces tokens and portal sessions is open (OPEN-QUESTIONS Q15). Tokens fill `req.caller` in the shape Cognito will. | More than a handful of people, anyone outside Greg's reach to issue a token by hand, or any bank pilot. It gets its own plan. |
 | **Q10: publishing the command** | Installed from a tarball on sealeye.run. | Someone needs to pin a version, or the pilot grows past people Greg sends the link to. |
 | **Q13: where traces live** | Tracing is fine on the sample apps. The leaning is tracing off for real code. | Any pilot on real code with tracing on. |

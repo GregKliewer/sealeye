@@ -938,3 +938,19 @@ same API the command uses, at `/api` on the same origin.
   down finishes and is recorded as the portal's, and sign-out ends the session. GitHub
   runs it on every change, beside `npm test`.
 
+
+## Each team sees its own environments
+
+Decided Sun Oct 11, 2026 (PHASE2-PLAN D1). To be built in PHASE2-PLAN Step 1.
+
+A person sees, watches, gets evidence for and tears down only their own team's
+environments. A token issued as organization-wide sees every team's, which is how the
+administrator keeps an overview. Another team's record answers "not found", as another
+person's interview already does, so its existence is not given away. The needs ledger
+stays organization-wide on purpose: it is the platform team's view of what drafted plans
+wait on, and it names apps and needs, not people.
+
+Why a scope on the token rather than real roles: roles belong to sign-in (Q15, Cognito
+groups). A token is either team-scoped or organization-wide when it is issued, which is
+enough for a pilot run by one administrator. The checks read `req.caller.scope`, which a
+Cognito group can fill later without the checks changing.
