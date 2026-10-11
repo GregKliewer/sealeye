@@ -8,6 +8,7 @@ import { checkPlan, checkUpgraded } from "./validate.js";
 import { backendMappings } from "./mappings.js";
 import { putDeployment, getDeployment, listDeployments, storeFile, count, openStore, flushStore } from "./store.js";
 import { startDeployment, startDestroy } from "./executor/index.js";
+import { sharedWithAnotherTeam } from "./executor/compose.js";
 import { acceptSent } from "./executor/settings.js";
 import { removeUpload, stageUpload, sweepUploads } from "./executor/uploads.js";
 import { resumeInFlight } from "./executor/resume.js";
@@ -468,6 +469,21 @@ app.delete("/deployments/:deploymentId", (req, res) => {
   // tear-down of the same stack.
   if (dep.status === "destroyed" || dep.status === "destroying") {
     return res.status(200).json(dep);
+  }
+
+  // A stack from before teams had names of their own can be another team's too
+  // (DESIGN.md, "Each team's environments have names of their own"). Tearing it down
+  // would take their environment with it, so only someone who can see both may: an
+  // organization-wide token, and never across organizations.
+  const whose = { org: orgOf(dep), team: teamOf(dep), records: listDeployments() };
+  const sharedAcrossOrgs = listDeployments().some(r => r.stackName && r.stackName === dep.stackName && r.status !== "destroyed" && orgOf(r) !== orgOf(dep));
+  if (req.caller && sharedWithAnotherTeam(dep.stackName, whose) && (req.caller.scope !== "org" || sharedAcrossOrgs)) {
+    return res.status(409).json({
+      error: {
+        code: "SHARED_ENVIRONMENT",
+        message: "Another team uses this environment too, from before each team's environments had names of their own, so tearing it down would take theirs with it. Ask your platform team to tear it down."
+      }
+    });
   }
 
   // Who asked for it, and from where: the command line or the portal.

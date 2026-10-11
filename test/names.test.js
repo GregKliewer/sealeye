@@ -101,3 +101,24 @@ test("the needs ledger counts two teams' drafts of the same app name as two apps
   assert.equal(ledger.apps, 2, "one app per team, however often it drafted");
   assert.deepEqual(ledger.needs[0].apps.map(a => a.deploymentId), ["dep_3", "dep_2"], "each team's newest draft");
 });
+
+test("a stack another team also uses, or one being torn down, is not reused", () => {
+  // From before teams had names of their own: both teams' foo landed on sealeye-foo.
+  const shared = [
+    { app: { name: "foo" }, teamId: "default", status: "succeeded", stackName: "sealeye-foo", parameters: { AppName: "foo" }, startedAt: at(5) },
+    { app: { name: "foo" }, teamId: "payments", status: "failed", stackName: "sealeye-foo", parameters: { AppName: "foo" }, startedAt: at(0) }
+  ];
+  const payments = namingFor({ app: "foo", team: "payments", records: shared });
+  assert.equal(payments.reused, false, "deploying there would change the other team's environment");
+  assert.equal(payments.stackName, environmentName({ team: "payments", app: "foo" }));
+  // Once the other team's environment there is torn down, the stack is this team's alone.
+  const theirsGone = [{ ...shared[0], status: "destroyed" }, shared[1]];
+  assert.equal(namingFor({ app: "foo", team: "payments", records: theirsGone }).stackName, "sealeye-foo");
+
+  const tearingDown = [{ app: { name: "x" }, status: "destroying", stackName: "sealeye-x", parameters: { AppName: "x" }, startedAt: at(0) }];
+  assert.equal(namingFor({ app: "x", records: tearingDown }).reused, false);
+
+  // The newest record decides among those with a stack; a newer draft has none.
+  const draftAfter = [{ app: { name: "x" }, status: "drafted", startedAt: at(9) }, { app: { name: "x" }, status: "succeeded", stackName: "sealeye-x", parameters: { AppName: "x" }, startedAt: at(0) }];
+  assert.equal(namingFor({ app: "x", records: draftAfter }).stackName, "sealeye-x");
+});

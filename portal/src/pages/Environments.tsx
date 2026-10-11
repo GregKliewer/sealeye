@@ -27,6 +27,9 @@ export function Environments() {
   const [showPast, setShowPast] = useState(false);
 
   const environments = useMemo(() => groupEnvironments(deployments.data || []), [deployments.data]);
+  // An organization-wide token sees every team's, and two teams can share an app name,
+  // so then each row says whose it is.
+  const severalTeams = new Set(environments.map(e => e.latest.teamId || "default")).size > 1;
   const shown = environments
     .filter(env => showPast || !PAST.has(env.latest.status))
     .filter(env => {
@@ -89,6 +92,7 @@ export function Environments() {
                 <TableRow key={env.key} data-testid="environment-row">
                   <TableCell>
                     <Link to={`/environments/${encodeURIComponent(env.key)}`} className="font-mono font-bold text-ink hover:text-phosphor">{env.app}</Link>
+                    {severalTeams ? <span className="ml-2 text-xs text-dim" data-testid="team">team {env.latest.teamId || "default"}</span> : null}
                   </TableCell>
                   <TableCell>{who(env.latest.requestedBy)}</TableCell>
                   <TableCell><Badge tone={status.tone}>{status.label}</Badge></TableCell>

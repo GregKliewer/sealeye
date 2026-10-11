@@ -70,10 +70,15 @@ case "${1:-}" in
         NAME="${4:?usage: deploy/server.sh token add <email> \"<name>\" [team] [--org-wide]}"
         # A token sees its own team's environments; --org-wide sees every team's
         # (DESIGN.md, "Each team sees its own environments").
-        TEAM="default"; SCOPE="team"
+        TEAM=""; SCOPE="team"
         for ARG in "${@:5}"; do
-          if [ "$ARG" = "--org-wide" ]; then SCOPE="org"; else TEAM="$ARG"; fi
+          case "$ARG" in
+            --org-wide) SCOPE="org" ;;
+            -*) echo "Unknown option: $ARG. The only option is --org-wide."; exit 1 ;;
+            *) [ -z "$TEAM" ] || { echo "One team only: got $TEAM and $ARG."; exit 1; }; TEAM="$ARG" ;;
+          esac
         done
+        TEAM="${TEAM:-default}"
         PAIR="$(EMAIL="$EMAIL" NAME="$NAME" TEAM="$TEAM" SCOPE="$SCOPE" node -e '
           const crypto = require("node:crypto");
           const token = "sl_" + crypto.randomBytes(32).toString("base64url");

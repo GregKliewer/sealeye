@@ -649,8 +649,9 @@ $20 a month. How it is built, and where it differs from the plan:
 
 - **Two platform stacks, never named `sealeye-*`.** `platform-sealeye-server` is the
   server and `platform-sealeye-deploy-role` is the deploy role. Apps are
-  `sealeye-<app>`, and the deploy role may only touch stacks with that prefix, so it
-  can never change the platform itself.
+  `sealeye-<app>` (since Oct 11, `sealeye-<team>-<app>-<hash>`: "Each team's
+  environments have names of their own"), and the deploy role may only touch stacks with
+  that prefix, so it can never change the platform itself.
 - **The server cannot build anything.** Its own role reads `/sealeye/*` parameters,
   pulls its image, uses its own bucket, and may assume `sealeye-deploy-*` roles. Every
   deployment goes through `sealeye-deploy-pilot` (Q4: one account to start). That role
@@ -988,6 +989,20 @@ for that app, unless it was torn down, so environments made before this keep
 only a first deploy, or the first after a tear down, gets the new name. Another team's
 records never count. The needs ledger counts an app per team, and a draft, which has no
 stack, is grouped by team and app on both surfaces.
+
+**A stack two teams already share stays out of reach of either alone.** Before this,
+two teams' apps called foo both landed on `sealeye-foo`. So a stack is not reused when
+another team's record, not torn down, also points at it: that team's next deploy gets a
+name of its own instead. A team-scoped token cannot tear such a stack down
+(`409 SHARED_ENVIRONMENT`, asking the platform team to); an organization-wide token,
+which sees both, can, but never across organizations. A stack being torn down is not
+reused either.
+
+**Both surfaces say whose it is when it could be either.** An organization-wide token
+sees every team's environments, so when they span more than one team the command's
+tables and the portal's Environments rows add the team, and the portal's Control page
+names it. `sealeye run` with such a token matches a folder only to an environment in the
+person's own team.
 
 **The deploy role keeps "any function in the account" for now.** Functions are now
 `sealeye-*`, but those made before this are named after the bare app, and narrowing the

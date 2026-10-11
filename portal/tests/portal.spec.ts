@@ -53,6 +53,23 @@ test("Environments shows your team's environments, read live from the API", asyn
   await expect(rows).toHaveCount(2);
 });
 
+test("an organization-wide token sees every team's environments, each saying whose", async ({ page }) => {
+  await page.goto("/");
+  await page.fill("#token", `sl_${"z".repeat(43)}`);
+  await page.click("button[type=submit]");
+  await expect(page.getByTestId("person")).toHaveText("Lee Admin");
+  await expect(page.getByText("built for every team in your organization")).toBeVisible();
+  const rows = page.getByTestId("environment-row");
+  const theirs = rows.filter({ hasText: "another-teams-api" });
+  await expect(theirs).toHaveCount(1);
+  await expect(theirs.getByTestId("team")).toHaveText("team payments");
+  await expect(rows.filter({ hasText: "payments-api" }).first().getByTestId("team")).toHaveText("team default");
+  await expect(page.getByText("not-yours")).toHaveCount(0);
+
+  await theirs.getByRole("link").click();
+  await expect(page.getByText("An API, designed for dev, team payments")).toBeVisible();
+});
+
 test("Catalog shows the modules and what apps are waiting on", async ({ page }) => {
   await signIn(page);
   await page.getByRole("link", { name: "Catalog" }).click();

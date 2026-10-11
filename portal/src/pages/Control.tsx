@@ -17,6 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 const POLL_MS = 5000;
 
 export function Control() {
+  const { person } = useSession();
   const key = decodeURIComponent(useParams().key || "");
   const deployments = useLoad(api.deployments, [key]);
   const env = useMemo(() => groupEnvironments(deployments.data || []).find(e => e.key === key) || null, [deployments.data, key]);
@@ -49,7 +50,12 @@ export function Control() {
       <div className="mb-2 text-sm"><Link to="/" className="text-dim hover:text-ink">Environments</Link></div>
       <PageTitle
         title={<span className="font-mono">{env.app}</span>}
-        sub={[latest.kind === "static" ? "A static site" : latest.kind === "api" ? "An API" : null, latest.profile ? `designed for ${latest.profile}` : null].filter(Boolean).join(", ") || undefined}
+        sub={[
+          latest.kind === "static" ? "A static site" : latest.kind === "api" ? "An API" : null,
+          latest.profile ? `designed for ${latest.profile}` : null,
+          // An organization-wide token sees every team's: say whose this one is.
+          person?.scope === "org" ? `team ${latest.teamId || "default"}` : null
+        ].filter(Boolean).join(", ") || undefined}
       />
 
       <div className="grid gap-6 lg:grid-cols-3">

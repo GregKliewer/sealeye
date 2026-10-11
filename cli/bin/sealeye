@@ -989,11 +989,14 @@ async function liveEnvironmentFor({ apiBaseUrl, appPath }) {
     .filter(env => env.rawStatus === "succeeded" || env.rawStatus === "running")
     .filter(env => safeName(env.app) === appName || env.stackName === `sealeye-${appName}`);
 
-  // A team sees only its own environments, so there is one. An organization-wide token
-  // sees every team's, and this folder's is the one in the developer's own team.
-  if (candidates.length > 1) {
+  // A team sees only its own environments, so there is at most one. An
+  // organization-wide token sees every team's, and this folder's is the one in the
+  // developer's own team, even when another team's is the only one of that name.
+  if (candidates.length) {
     const me = await whoAmI({ apiBaseUrl }).catch(() => null);
-    candidates = me?.team ? candidates.filter(env => (env.latest.teamId || "default") === me.team) : [];
+    if (me?.scope === "org" || candidates.length > 1) {
+      candidates = me?.team ? candidates.filter(env => (env.latest.teamId || "default") === me.team) : [];
+    }
   }
   const environment = candidates.length === 1 ? candidates[0] : null;
 
@@ -1807,6 +1810,7 @@ function groupEnvironments(deployments) {
 const publicEnvironment = env => ({
   app: env.app,
   stackName: env.stackName,
+  team: env.latest.teamId || "default",
   status: env.rawStatus,
   ...(env.interrupted ? { interrupted: true } : {}),
   url: env.url === "-" ? null : env.url,
@@ -1834,10 +1838,21 @@ function relativeTime(iso) {
   return `${Math.round(hours / 24)}d ago`;
 }
 
+/**
+ * The app as a table shows it. A team sees only its own environments; an
+ * organization-wide token sees every team's, where two can share an app name, so then
+ * each says whose it is.
+ */
+function appLabeller(records) {
+  const teams = new Set(records.map(dep => dep.teamId || "default"));
+  return (name, dep) => (teams.size > 1 ? `${name} (${dep.teamId || "default"})` : name);
+}
+
 function printEnvironmentTable(environments) {
+  const label = appLabeller(environments.map(env => env.latest));
   const rows = environments.map(env => ({
     env,
-    app: env.app,
+    app: label(env.app, env.latest),
     status: env.status,
     url: env.url,
     deploys: String(env.deploys),
@@ -1867,10 +1882,11 @@ function printEnvironmentTable(environments) {
 }
 
 function printDeploymentTable(deployments) {
+  const label = appLabeller(deployments);
   const rows = deployments.map(dep => ({
     dep,
     id: dep.deploymentId,
-    app: dep.app?.name || "-",
+    app: label(dep.app?.name || "-", dep),
     // An interrupted record is the last status we knew, not a live one. Say so.
     status: dep.interrupted ? `${dep.status} (interrupted)` : dep.status,
     url: publicUrl(dep) || "-"
