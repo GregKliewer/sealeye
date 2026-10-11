@@ -171,3 +171,82 @@ test("sealeye login checks the token, keeps it for you alone; logout removes it"
   assert.match(cli(["whoami"]).stdout, /Not signed in/);
   assert.match(cli(["list"]).stderr + cli(["list"]).stdout, /Run sealeye login/);
 });
+
+// ---------------------------------------------------------------------------------
+// The portal's sign-in (PHASE1-PLAN Step 14): the token is traded for a session cookie.
+
+const cookieFrom = res => /sealeye_session=([^;]*)/.exec(res.headers.get("set-cookie") || "")?.[1];
+
+test("the portal trades a token for a 12-hour cookie no script can read", async () => {
+  const bad = await call("/sessions", { method: "POST", body: { token: `sl_${"C".repeat(43)}` } });
+  assert.equal(bad.status, 401);
+  assert.equal(bad.headers.get("set-cookie"), null);
+
+  const res = await call("/sessions", { method: "POST", body: { token: greg } });
+  assert.equal(res.status, 201);
+  const set = res.headers.get("set-cookie");
+  for (const attr of ["HttpOnly", "Secure", "SameSite=Strict", "Max-Age=43200", "Path=/"]) assert.ok(set.includes(attr), `${attr} in ${set}`);
+  const body = await res.json();
+  assert.equal(body.email, "greg@example.com");
+  assert.ok(!JSON.stringify(body).includes(greg), "the token is not sent back");
+
+  const value = cookieFrom(res);
+  const who = await (await call("/whoami", { headers: { cookie: `sealeye_session=${value}` } })).json();
+  assert.equal(who.email, "greg@example.com");
+  assert.equal(who.surface, "portal");
+  assert.ok(!fs.readFileSync(path.join(home, "sessions.json"), "utf8").includes(value), "only the session's hash is kept");
+});
+
+test("a change made with the cookie must come from the portal, and the record says so", async () => {
+  const value = cookieFrom(await call("/sessions", { method: "POST", body: { token: greg } }));
+  const cookie = { cookie: `sealeye_session=${value}` };
+  const list = await (await call("/deployments", { headers: cookie })).json();
+  const dep = list.deployments[0];
+  assert.ok(dep, "the portal reads the same list the command does");
+
+  const forged = await call(`/deployments/${dep.deploymentId}`, { method: "DELETE", headers: cookie });
+  assert.equal(forged.status, 403);
+  assert.equal((await forged.json()).error.code, "NOT_FROM_THE_PORTAL");
+
+  const torn = await call(`/deployments/${dep.deploymentId}`, { method: "DELETE", headers: { ...cookie, "x-sealeye-portal": "1" } });
+  assert.equal(torn.status, 202);
+  const record = await (await call(`/deployments/${dep.deploymentId}`, { headers: cookie })).json();
+  assert.equal(record.destroyRequestedBy.surface, "portal");
+  assert.equal(record.destroyRequestedBy.user, "greg@example.com");
+});
+
+test("signing out ends the session; so does revoking the token behind it", async () => {
+  const value = cookieFrom(await call("/sessions", { method: "POST", body: { token: greg } }));
+  const cookie = { cookie: `sealeye_session=${value}` };
+  assert.equal((await call("/whoami", { headers: cookie })).status, 200);
+  const out = await call("/sessions", { method: "DELETE", headers: { ...cookie, "x-sealeye-portal": "1" } });
+  assert.equal(out.status, 200);
+  assert.match(out.headers.get("set-cookie"), /Max-Age=0/);
+  const after = await call("/whoami", { headers: cookie });
+  assert.equal((await after.json()).error.code, "SESSION_ENDED");
+
+  const temp = issue("temp2@example.com", "Temp Two");
+  const v2 = cookieFrom(await call("/sessions", { method: "POST", body: { token: temp } }));
+  assert.equal((await call("/whoami", { headers: { cookie: `sealeye_session=${v2}` } })).status, 200);
+  execFileSync(process.execPath, ["scripts/tokens.js", "revoke", "temp2@example.com"], { cwd: root, env: env() });
+  assert.equal((await call("/whoami", { headers: { cookie: `sealeye_session=${v2}` } })).status, 401);
+});
+
+test("a session ends after twelve hours", async () => {
+  const r = spawnSync(process.execPath, ["--input-type=module", "-e", `
+    import { addToken, hashToken, startSession, callerForSession } from "./api/tokens.js";
+    const t = await addToken({ tokenHash: hashToken("sl_x"), email: "clock@example.com", name: "Clock" });
+    const s = await startSession(t, Date.now());
+    const now = await callerForSession(s.value, Date.now() + 11 * 3600_000);
+    const later = await callerForSession(s.value, Date.now() + 13 * 3600_000);
+    console.log(JSON.stringify([Boolean(now), Boolean(later)]));`],
+    { cwd: root, env: { ...env(), SEALEYE_HOME: fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-clock-")) }, encoding: "utf8" });
+  assert.deepEqual(JSON.parse(r.stdout.trim()), [true, false], r.stderr);
+});
+
+test("the catalog says what the platform builds and what apps can need", async () => {
+  const catalog = await (await call("/catalog", { token: ana })).json();
+  assert.deepEqual(catalog.modules.map(m => m.id), ["static_site_edge", "http_api_serverless", "observability_basic", "config_basic"]);
+  assert.ok(catalog.needs.length >= 5);
+  for (const n of catalog.needs) assert.ok(n.kind && n.line && !n.line.includes("—"));
+});

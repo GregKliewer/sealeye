@@ -874,3 +874,33 @@ server cannot be left open by a stray setting.
 `req.caller` (person, organization, team) is what an identity provider will fill, so the
 records, the checks and the change record stay as they are.
 
+## The portal signs in with a session cookie
+
+Decided Sun Oct 11, 2026 (PHASE1-PLAN Step 14; Greg chose this over keeping the token in
+the browser's storage).
+
+A browser cannot keep a token the way `~/.sealeye/config` does: anything in its storage
+can be read by any script that ever runs on the page. So the portal's sign-in page sends
+the token once to `POST /sessions`, and the API answers with a session cookie in its
+place. The browser never keeps the token.
+
+- **The cookie** is a random value, `HttpOnly` (no script can read it), `Secure`,
+  `SameSite=Strict`, for twelve hours. The API keeps only its hash (Postgres
+  `sessions`, or `sessions.json` beside a laptop API), and a session ends when it
+  expires, when its person signs out (`DELETE /sessions`), or when the token it came
+  from is revoked.
+- **One origin.** The portal calls the API at `sealeye.online/api/...`, which Caddy
+  passes to the API, so the cookie never crosses to another site and no cross-origin
+  rules are needed. The command line keeps using `api.sealeye.online` with its token.
+- **Changes need the portal's header.** A request that changes something with the
+  cookie must also carry `x-sealeye-portal: 1`. A page on another site cannot add that
+  header without the API agreeing to it first, which it never does. Together with
+  `SameSite=Strict`, that is the defence against another site acting through a signed-in
+  browser.
+- **Records say which surface.** A deployment's `surface` and a tear-down's
+  `destroyRequestedBy.surface` are `cli` or `portal`, from how the request was signed in,
+  not from anything the client says.
+
+Real sign-in (Q3) replaces the token paste on the sign-in page with an identity
+provider's redirect. The session, the cookie and everything behind them stay.
+

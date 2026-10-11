@@ -144,7 +144,7 @@ and does nothing real. A blank is not started.
 | Evidence | `sealeye evidence` | `GET /deployments/{id}/evidence` | built | | 2 |
 | Needs ledger | `sealeye needs` | `GET /needs` | built | mock-up (in Catalog) | 1 |
 | Health check | `sealeye doctor` | `GET /health` | built | | 2 |
-| Catalog | `sealeye catalog` | | | mock-up | 2 |
+| Catalog | `sealeye catalog` | `GET /catalog` | built | mock-up | 1 |
 | Pause and resume | `sealeye pause`, `resume` | | | mock-up | 2 |
 | Configure | `sealeye config` | | | mock-up | 2 |
 | Logs | `sealeye logs` | | | mock-up | 2 |
@@ -152,7 +152,7 @@ and does nothing real. A blank is not started.
 | Costs | `sealeye costs` | | | mock-up | 2 |
 | Team and access | `sealeye team` | | | mock-up | 2 |
 | Integrations | `sealeye integrations` | | | mock-up (report) | 2 |
-| Sign in | `sealeye login` | | | | 1 |
+| Sign in | `sealeye login` | tokens; `POST /sessions`, `DELETE /sessions` for the portal; `GET /whoami` | built | | 1 |
 | Settings in the secret store | `sealeye secrets set` | | | | 1 (owed, item 10) |
 | Onboard and ingest | `sealeye admin ingest` | | | | 3 |
 | Promote | `sealeye promote` | | | | 4 |
