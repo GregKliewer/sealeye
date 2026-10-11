@@ -147,8 +147,8 @@ deployment ids, as Greg decided after the independent review.*
 
 *Built Sun Oct 11, 2026 (DESIGN.md, "Each team's environments have names of their
 own"). Some things differ from the plan below, and DESIGN.md says why: the name always
-ends in a short hash; the deploy role keeps "any function" until no environment from
-before this is left; a stack two teams already share stays with the team that deployed to it
+ends in a short hash; the deploy role kept "any function" until no API from before
+this was left, and was narrowed to `sealeye-*` the same day; a stack two teams already share stays with the team that deployed to it
 last; and an organization-wide token's views say whose each environment
 is.*
 

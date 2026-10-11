@@ -1010,10 +1010,13 @@ tables and the portal's Environments rows add the team, and the portal's Control
 names it. `sealeye run` with such a token matches a folder only to an environment in the
 person's own team.
 
-**The deploy role keeps "any function in the account" for now.** Functions are now
-`sealeye-*`, but those made before this are named after the bare app, and narrowing the
-role would stop it updating or tearing them down. Narrow it to `sealeye-*` once no
-environment from before this is left (PHASE2-PLAN, "Owed after this plan").
+**The deploy role reaches only `sealeye-*` functions, log groups and site buckets.** At
+first it kept "any function in the account", because functions made before this were
+named after the bare app. Once Greg's last such API was torn down (Oct 11, 2026), the
+only environments left from before were the static sites `sealeye-com`, `sealeye-run`
+and `sealeye-online`, whose buckets already start with `sealeye-`, so the role was
+narrowed the same day. An environment from before whose function or bucket does not
+start with `sealeye-` would now have to be torn down by hand.
 
 **Why not refuse the second team.** That was the first recommendation: refuse a second
 team's deploy while the first team's environment is live. Greg chose against it, because
