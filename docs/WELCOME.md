@@ -40,7 +40,7 @@ sealeye login
 
 Paste your token when it asks. It is not shown as you paste. You should see
 "Signed in as" with your name and your team. `sealeye whoami` shows the same at any
-time.
+time, and `sealeye doctor` checks everything this machine needs.
 
 ## 3. Your first environment
 
@@ -91,9 +91,9 @@ yours.
 
 ## If something goes wrong
 
-Note the deployment id (it starts with `dep_`, and `sealeye list --deployments` shows
-them), take a screenshot, and send both to Greg. Please do not run `sealeye doctor` yet:
-some of its checks are for a different setup and will report problems you do not have.
+Run `sealeye doctor` first: it checks what this machine needs and says what to fix.
+Then note the deployment id (it starts with `dep_`, and `sealeye list --deployments`
+shows them), take a screenshot, and send both to Greg.
 
 ## What seaLeye keeps
 

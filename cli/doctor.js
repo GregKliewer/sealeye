@@ -1,8 +1,13 @@
-// src/doctor.js
-// Preflight for a demo machine on a strange network. Every check answers one question
-// a person can act on, and a check that fails says what to do rather than what went
-// wrong internally. Nothing here creates anything, and nothing here prints a secret:
-// a key is present or absent, and an account is its last four digits.
+// cli/doctor.js
+// What this machine needs, checked. Every check answers one question a person can act
+// on, and a check that fails says what to do rather than what went wrong internally.
+// Nothing here creates anything, and nothing here prints a secret: a key is present or
+// absent, and an account is its last four digits.
+//
+// Which checks run depends on where the API is. A developer using the hosted API needs
+// only Node, the API and a token: the platform does the building. An API on this
+// machine (localhost) builds from here, so it also needs the AWS CLI, credentials, the
+// bucket, the adapter layer and the model key.
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -42,15 +47,28 @@ const bad = (name, detail, fix) => ({ name, ok: false, detail, fix });
 /** The last four digits only. An account id is not something to put on a screen. */
 const lastFour = id => `ending ${String(id).slice(-4)}`;
 
-async function checkApi(apiBaseUrl) {
+/** Whether the API runs on this machine, as a laptop API does. */
+export function isLocalApi(apiBaseUrl) {
+  try {
+    const host = new URL(apiBaseUrl).hostname.replace(/^\[|\]$/g, "");
+    return host === "localhost" || host === "::1" || /^127\./.test(host);
+  } catch {
+    return false;
+  }
+}
+
+async function checkApi(apiBaseUrl, local) {
   const name = "Platform API";
+  const fix = local
+    ? "Start it: npm start, from the repo root"
+    : "Check this machine is online. If it still does not answer, tell your platform team.";
   try {
     const res = await fetch(`${apiBaseUrl}/health`, { signal: AbortSignal.timeout(TIMEOUT_MS) });
-    if (!res.ok) return bad(name, `${apiBaseUrl} answered ${res.status}`, `Restart it: npm start, from the repo root`);
+    if (!res.ok) return bad(name, `${apiBaseUrl} answered ${res.status}`, fix);
     const body = await res.json();
-    return ok(name, `${apiBaseUrl}, version ${body.version}, ${body.deployments} records`);
+    return ok(name, local ? `${apiBaseUrl}, version ${body.version}, ${body.deployments} records` : `${apiBaseUrl}, version ${body.version}`);
   } catch (err) {
-    return bad(name, `${apiBaseUrl} did not answer (${err.message})`, `Start it: npm start, from the repo root`);
+    return bad(name, `${apiBaseUrl} did not answer (${err.message})`, fix);
   }
 }
 
@@ -171,10 +189,31 @@ async function checkNotifier() {
       );
 }
 
-/** Every check, in the order a person would want them. */
-export async function runDoctor({ apiBaseUrl }) {
+/**
+ * A notice when a deploy finishes, on a Mac. Nice to have, so with the hosted API its
+ * absence is advice, not a failure.
+ */
+async function checkNotice() {
+  const name = "Notices";
+  if (process.platform !== "darwin") return ok(name, "not on a Mac: follow a deploy with sealeye watch");
+  const r = await run("which", ["terminal-notifier"]);
+  return r.ok
+    ? ok(name, "a notice when a deploy finishes")
+    : ok(name, "none when a deploy finishes; brew install terminal-notifier for one, or follow it with sealeye watch");
+}
+
+/**
+ * Every check this machine needs, in the order a person would want them.
+ * @param {{ apiBaseUrl: string, local?: boolean }} options  local: the API runs here
+ */
+export async function runDoctor({ apiBaseUrl, local = isLocalApi(apiBaseUrl) }) {
+  if (!local) {
+    const checks = [await checkApi(apiBaseUrl, false), await checkSignedIn(apiBaseUrl), checkNode(), await checkNotice()];
+    return { host: os.hostname(), local: false, checks, ok: checks.every(c => c.ok) };
+  }
+
   const checks = [
-    await checkApi(apiBaseUrl),
+    await checkApi(apiBaseUrl, true),
     await checkSignedIn(apiBaseUrl),
     checkNode(),
     await checkTool("aws", ["--version"], "Install the AWS CLI, then run this again."),
@@ -188,5 +227,5 @@ export async function runDoctor({ apiBaseUrl }) {
     await checkNotifier()
   ];
 
-  return { host: os.hostname(), checks, ok: checks.every(c => c.ok) };
+  return { host: os.hostname(), local: true, checks, ok: checks.every(c => c.ok) };
 }
