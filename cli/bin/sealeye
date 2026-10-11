@@ -21,7 +21,7 @@ import {
   NotSignedInError,
   getCatalog
 } from "../client.js";
-import { looksLikeToken } from "../../core/token.js";
+import { looksLikeToken, seesInWords } from "../../core/token.js";
 import { banner, step, ask, answer, typing, typed, c, product, spinner, stopSpinner, animations } from "../brand.js";
 import { safeName, CONFIG_FILE, LEGACY_CONFIG_FILE } from "../../core/names.js";
 import { USER_CONFIG_HINT, setting, loadUserConfig, DEFAULT_API, saveUserSetting } from "../../core/config.js";
@@ -655,7 +655,7 @@ async function main() {
       return;
     }
     const file = saveUserSetting("SEALEYE_TOKEN", token);
-    console.log(c.accent(`✓ Signed in as ${me.name} (${me.email}), team ${me.team}`));
+    console.log(c.accent(`✓ Signed in as ${me.name} (${me.email}), ${seesInWords(me)}`));
     say(`Your token is kept in ${file.replace(os.homedir(), "~")}, readable by you alone.`);
     return;
   }
@@ -698,7 +698,7 @@ async function main() {
       return;
     }
     if (me.auth === "off") say("This platform does not ask who is calling.");
-    else console.log(c.fg(`${me.name} (${me.email}), team ${me.team}, at ${apiBaseUrl}`));
+    else console.log(c.fg(`${me.name} (${me.email}), ${seesInWords(me)}, at ${apiBaseUrl}`));
     return;
   }
 

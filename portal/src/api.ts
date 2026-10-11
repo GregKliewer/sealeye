@@ -26,7 +26,9 @@ async function request<T>(path: string, init: { method?: string; body?: unknown 
   return body as T;
 }
 
-export interface Person { email: string; name: string; org: string; team: string; organizationName?: string; auth?: "off" }
+// scope: "team" sees that team's environments, "org" every team's in the organization
+// (DESIGN.md, "Each team sees its own environments").
+export interface Person { email: string; name: string; org: string; team: string; scope?: "team" | "org"; organizationName?: string; auth?: "off" }
 
 export interface RequestedBy { user?: string; name?: string; host?: string | null; verified?: string; surface?: string; at?: string }
 

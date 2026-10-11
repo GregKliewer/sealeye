@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router";
 import { api } from "../api";
-import { useLoad } from "../session";
+import { useLoad, useSession } from "../session";
 import { ago, groupEnvironments, PAST, publicUrl, statusOf, who } from "../model";
 import { PageTitle, Problem } from "../Layout";
 import { Badge } from "../components/ui/badge";
@@ -13,7 +13,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 
 const WEEK_MS = 7 * 24 * 3600_000;
 
+/** Whose environments these are, as the platform decides what this person sees. */
+function whose(person: { team?: string; scope?: string; auth?: string } | null | undefined) {
+  if (!person || person.auth === "off" || person.scope === "org") return "every team in your organization";
+  return `your team, ${person.team}`;
+}
+
 export function Environments() {
+  const { person } = useSession();
   const deployments = useLoad(api.deployments);
   const catalog = useLoad(api.catalog);
   const [search, setSearch] = useState("");
@@ -39,7 +46,7 @@ export function Environments() {
 
   return (
     <>
-      <PageTitle title="Environments" sub="Every environment seaLeye has built for your organization, as the platform reports it now." />
+      <PageTitle title="Environments" sub={`Every environment seaLeye has built for ${whose(person)}, as the platform reports it now.`} />
       {deployments.error ? <Problem message={deployments.error} /> : null}
 
       {stats ? (

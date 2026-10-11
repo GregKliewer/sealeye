@@ -44,6 +44,8 @@ fs.writeFileSync(path.join(home, "deployments.json"), JSON.stringify([
     startedAt: ago(40 * 60_000) },
   { ...base, deploymentId: "dep_eeeeeeeeeee1", app: { name: "old-demo" }, kind: "static", status: "destroyed", stackName: "sealeye-old-demo",
     plan: { profile: "poc" }, outputs: {}, requestedBy: by("Greg Kliewer", "greg@example.com"), startedAt: ago(9 * 86400_000) },
+  { ...base, teamId: "payments", deploymentId: "dep_99999999999a", app: { name: "another-teams-api" }, kind: "api", status: "succeeded", stackName: "sealeye-payments-another-teams-api",
+    plan: { profile: "dev" }, outputs: {}, requestedBy: by("Pat Other", "pat@example.com"), startedAt: ago(3600_000) },
   { ...base, orgId: "other-org", deploymentId: "dep_fffffffffff1", app: { name: "not-yours" }, kind: "api", status: "succeeded", stackName: "sealeye-not-yours",
     plan: { profile: "dev" }, outputs: {}, requestedBy: by("Other Org", "x@other.example"), startedAt: ago(3600_000) }
 ]));

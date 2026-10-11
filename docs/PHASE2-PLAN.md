@@ -118,6 +118,10 @@ Steps 3 to 5 are documents and can share a second pull request.
 
 ### Step 1. Each team sees its own environments (D1)
 
+*Built Sun Oct 11, 2026 (DESIGN.md, "Each team sees its own environments"). Evidence
+history also stays within the record's team, so another team's draft of the same app
+name never shows in it.*
+
 - `api/migrations/004_token_scope.sql` adds `scope` to `tokens` (`team` or `org`, default
   `team`). `fromRow` and the file store read it; a token without one is `team`.
 - `deploy/server.sh token add` takes `--org-wide`. `token list` shows the scope.

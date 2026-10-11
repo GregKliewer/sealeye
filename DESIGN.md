@@ -941,7 +941,7 @@ same API the command uses, at `/api` on the same origin.
 
 ## Each team sees its own environments
 
-Decided Sun Oct 11, 2026 (PHASE2-PLAN D1). To be built in PHASE2-PLAN Step 1.
+Decided Sun Oct 11, 2026 (PHASE2-PLAN D1). Built the same day (PHASE2-PLAN Step 1).
 
 A person sees, watches, gets evidence for and tears down only their own team's
 environments. A token issued as organization-wide sees every team's, which is how the

@@ -94,12 +94,22 @@ app.use(async (req, res, next) => {
   return next();
 });
 
-// Records belong to an organization. Until sign-in issues more than one, every record
-// and every token is "default", so this changes nothing yet; it is here so that the day
-// there are two, neither sees the other's.
+// Records belong to an organization and a team (DESIGN.md, "Each team sees its own
+// environments"). A caller sees their own team's, or with an organization-wide token
+// every team's in their organization; never another organization's. Anything else
+// answers "not found", as another person's interview does, so a record's existence is
+// not given away. A laptop API with no tokens (SEALEYE_AUTH=off) has one person and sees
+// everything.
 const orgOf = dep => dep?.orgId || "default";
-const canSee = (req, dep) => Boolean(dep) && (!req.caller || orgOf(dep) === req.caller.org);
+const teamOf = dep => dep?.teamId || "default";
+const inOrg = (req, dep) => Boolean(dep) && (!req.caller || orgOf(dep) === req.caller.org);
+const canSee = (req, dep) =>
+  inOrg(req, dep) && (!req.caller || req.caller.scope === "org" || teamOf(dep) === req.caller.team);
 const visibleDeployments = req => listDeployments().filter(dep => canSee(req, dep));
+// The needs ledger is the platform team's view of what drafted plans across the
+// organization wait on. It names apps and needs, never people, and it stays
+// organization-wide on purpose: do not narrow it to visibleDeployments.
+const orgDeployments = req => listDeployments().filter(dep => inOrg(req, dep));
 
 app.use((req, res, next) => {
   if (req.method === "POST" && req.path === "/interviews") return uploadJson(req, res, next);
@@ -145,8 +155,8 @@ app.post("/sessions", async (req, res) => {
   }
   const { value, expiresAt } = await startSession(caller);
   res.set("Set-Cookie", sessionCookie(value, SESSION_HOURS * 3600));
-  const { email, name, org, team } = caller;
-  return res.status(201).json({ email, name, org, team, expiresAt });
+  const { email, name, org, team, scope } = caller;
+  return res.status(201).json({ email, name, org, team, scope, expiresAt });
 });
 
 // DELETE /sessions: the portal's "Sign out". Ends the session and clears the cookie.
@@ -179,8 +189,8 @@ app.get("/catalog", (_req, res) => {
 // GET /whoami: who the token belongs to. `sealeye login` checks a token with it.
 app.get("/whoami", (req, res) => {
   if (!req.caller) return res.status(200).json({ auth: "off", surface: req.surface });
-  const { email, name, org, team, tokenId } = req.caller;
-  return res.status(200).json({ email, name, org, team, tokenId, surface: req.surface, organizationName: orgName() });
+  const { email, name, org, team, scope, tokenId } = req.caller;
+  return res.status(200).json({ email, name, org, team, scope, tokenId, surface: req.surface, organizationName: orgName() });
 });
 
 // POST /plans/validate
@@ -435,7 +445,7 @@ app.get("/deployments/:deploymentId/evidence", async (req, res) => {
 // Store only; no AWS call.
 app.get("/needs", (req, res) => {
   try {
-    return res.status(200).json(rollupNeeds(visibleDeployments(req)));
+    return res.status(200).json(rollupNeeds(orgDeployments(req)));
   } catch (err) {
     return res.status(500).json({ error: { code: "NEEDS_FAILED", message: err.message } });
   }
