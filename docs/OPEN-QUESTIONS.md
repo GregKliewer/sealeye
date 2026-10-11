@@ -30,6 +30,17 @@ a bank's code: LangFuse Cloud has no Canadian region.
 agreed with the organization, and LangFuse in their network for a bank. Blocks any
 Phase 1 pilot on real code with tracing on.
 
+### Q15. How does Cognito sign-in replace tokens?
+
+Cognito was chosen for sign-in on Oct 9, 2026 (DESIGN.md, "Phase 1: who it is for").
+Until it is built, each person has a token issued by the administrator, and the portal
+trades it for a session (DESIGN.md, "Every caller has a token, until sign-in"). Still to
+decide: how `sealeye login` signs in through the browser and what it keeps; whether
+tokens survive for automation; how a person's team and an organization-wide scope
+(PHASE2-PLAN D1) come from Cognito groups; and how existing token holders move over.
+**Leaning:** its own plan, once seaLeye goes past a handful of people or to a bank.
+Deferred past PHASE2-PLAN. Blocks a wider pilot, not the friendly team.
+
 ## Later
 
 ### Q6. How are hardcoded secrets detected during ingestion?

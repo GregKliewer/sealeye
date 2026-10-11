@@ -5,6 +5,11 @@ the API, the command and the portal. Pick work from the current phase. Update a 
 the same commit as the work that changes it. Questions that block a phase are in
 OPEN-QUESTIONS.md.
 
+**Plans.** `docs/PHASE1-PLAN.md` built Phase 1 up to the second-person test (done Oct
+11, 2026). `docs/PHASE2-PLAN.md` is current: it finishes Phase 1 for a friendly team
+(Part A), builds item 10 (Part B), then Phase 2 (Part C). What it leaves for later, and
+what brings each item forward, is its last section, "Owed after this plan".
+
 ## Phases
 
 ### Phase 0: Foundation (done Oct 8, 2026)
@@ -33,6 +38,11 @@ shows what is really there.
   team's environments without the rights to.
 - `npm test` runs on every push.
 
+*Status Oct 11, 2026:* the second and fourth lines are met. Team separation is not yet:
+visibility stops at the organization, and every token is organization "default", so
+anyone with a token sees every environment. PHASE2-PLAN Steps 1 and 2 close that, and
+Step 6 is the second-person test.
+
 **Work:**
 1. **The app reaches the API without a shared disk.** Today `POST /deployments` takes an
    `appPath` on the API's own machine. A hosted API cannot read the developer's laptop,
@@ -48,13 +58,18 @@ shows what is really there.
    record carries who did it and from which surface. *Stand-in done Oct 11, 2026: a
    token per person, issued by an administrator, kept by `sealeye login`; every record
    and interview carries the token's person, organization and team (DESIGN.md, "Every
-   caller has a token, until sign-in"). The identity provider is still Q3.*
+   caller has a token, until sign-in"). The identity provider is Cognito (DESIGN.md,
+   "Phase 1: who it is for"); how it replaces tokens is Q15. Deferred past
+   PHASE2-PLAN, until more than a handful of people or a bank pilot.*
 4. **A real store**: records move from `~/.sealeye/deployments.json` to a database, with
    organization and team on every record (Q2). *Done Oct 10, 2026: Postgres on the
    server, with nightly backups; organization and team are "default" until sign-in
    fills them (DESIGN.md, "Deployment records live in Postgres").*
 5. **AWS access per team**: the API acts in each team's account through a role it
-   assumes, not with one person's credentials (Q4).
+   assumes, not with one person's credentials (Q4). *Designed for, not built: every
+   deploy goes through `sealeye-deploy-pilot` in one shared account (DESIGN.md, "Phase
+   1: who it is for"). Deferred past PHASE2-PLAN, until a team brings its own account
+   or a bank pilot.*
 6. **The model key**: the API holds it, not each developer (Q8). *Done Oct 10, 2026:*
    the interview runs in the API as a LangGraph graph, and `sealeye run` streams it
    (DESIGN.md, "The interview runs in the API").
@@ -86,7 +101,8 @@ shows what is really there.
     - apps already deployed with sent values are moved: the records with a `sent` or
       `.env` setting source are the list.
     The sent-values path stays for dev and the sample apps. **Due before any pilot that
-    deploys an organization's real secrets.**
+    deploys an organization's real secrets.** Planned as PHASE2-PLAN Part B, before
+    Phase 2, so the portal's re-run, interview and Configure are built on the store.
 
 ### Phase 2: Day-two parity
 
@@ -97,6 +113,7 @@ shows what is really there.
 - In the portal: New environment (the interview), re-run on an existing environment,
   Evidence, the needs ledger, Health.
 - Each starts as an API endpoint.
+- Planned as PHASE2-PLAN Part C. Its D8 proposes moving `integrations` to Phase 4.
 
 ### Phase 3: Learn the platform
 
