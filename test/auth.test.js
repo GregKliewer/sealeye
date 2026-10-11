@@ -57,6 +57,26 @@ before(async () => {
 
 after(() => server?.kill());
 
+test("an idle connection stays open longer than Node's default five seconds", async () => {
+  // A client that reuses a connection the API has just closed gets "socket closed" for
+  // a request the API never saw: a 502 through Caddy, or a flaky test on a slow runner.
+  const http = await import("node:http");
+  const agent = new http.Agent({ keepAlive: true, maxSockets: 1 });
+  const get = () => new Promise((resolve, reject) => {
+    http.get(`${api}/health`, { agent }, res => {
+      const port = res.socket.localPort;
+      res.resume();
+      res.on("end", () => resolve({ status: res.statusCode, port }));
+    }).on("error", reject);
+  });
+  const first = await get();
+  await new Promise(r => setTimeout(r, 6000));
+  const second = await get();
+  agent.destroy();
+  assert.equal(second.status, 200);
+  assert.equal(second.port, first.port, "the same connection, still open after six idle seconds");
+});
+
 test("the health check is open; everything else asks who is calling", async () => {
   assert.equal((await call("/health")).status, 200);
   assert.equal((await call("/health", { method: "HEAD" })).status, 200, "a load balancer may check with HEAD");

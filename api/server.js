@@ -652,10 +652,18 @@ for (const signal of ["SIGTERM", "SIGINT"]) {
   });
 }
 
-app.listen(port, () => {
+const listening = app.listen(port, () => {
   console.log(`seaLeye API listening on http://localhost:${port}`);
   if (opened.adopted) console.log(`deployment store: brought ${opened.adopted} records in from ${opened.from}`);
   for (const r of resumed) console.log(`${r.deploymentId}: ${r.as}`);
   for (const r of restoredInterviews) console.log(`${r.interviewId}: ${r.as}`);
   console.log(`deployment store: ${storeFile} (${listDeployments().length} records loaded${opened.migrations?.length ? `, applied ${opened.migrations.join(", ")}` : ""})`);
 });
+
+// An idle kept-alive connection stays open longer than anything in front of the API
+// keeps one. Node closes them after five seconds by default, and a client or proxy that
+// reuses a connection just as it closes gets "socket closed" (a 502 through Caddy, or a
+// failed request in the tests) for a request the API never saw.
+const KEEP_ALIVE_MS = 130_000;
+listening.keepAliveTimeout = KEEP_ALIVE_MS;
+listening.headersTimeout = KEEP_ALIVE_MS + 1_000;
