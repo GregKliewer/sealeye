@@ -990,13 +990,14 @@ only a first deploy, or the first after a tear down, gets the new name. Another 
 records never count. The needs ledger counts an app per team, and a draft, which has no
 stack, is grouped by team and app on both surfaces.
 
-**A stack two teams already share stays out of reach of either alone.** Before this,
-two teams' apps called foo both landed on `sealeye-foo`. So a stack is not reused when
-another team's record, not torn down, also points at it: that team's next deploy gets a
-name of its own instead. A team-scoped token cannot tear such a stack down
-(`409 SHARED_ENVIRONMENT`, asking the platform team to); an organization-wide token,
-which sees both, can, but never across organizations. A stack being torn down is not
-reused either.
+**A stack two teams already share belongs to whoever deployed to it last.** Before this,
+two teams' apps called foo both landed on `sealeye-foo`, and each deploy replaced the
+other's code, so the stack holds the last deployer's environment. That team keeps using
+it as before. The other team's next deploy gets a name of its own instead of changing
+it, and a team-scoped token of the other team cannot tear it down
+(`409 SHARED_ENVIRONMENT`, asking the platform team to). An organization-wide token,
+which sees both, can, but never a stack another organization deployed to last. A stack
+being torn down is not reused either.
 
 **Both surfaces say whose it is when it could be either.** An organization-wide token
 sees every team's environments, so when they span more than one team the command's

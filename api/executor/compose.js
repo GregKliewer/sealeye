@@ -48,10 +48,10 @@ export function artifactKeyFor(resourceName, deploymentId) {
  * - otherwise: a new name from environmentName() for the stack and everything in it.
  *
  * Another team's records never count: theirs is another environment. Nor is a stack
- * reused that another team's records also point at, as a "sealeye-<app>" stack from
- * before teams had names of their own can be: deploying to it would change their
- * environment, so this team gets a name of its own instead. A stack that is being torn
- * down is not reused either.
+ * reused that another team deployed to last, as a "sealeye-<app>" stack from before
+ * teams had names of their own can be: deploying to it would change their environment,
+ * so this team gets a name of its own instead. A stack that is being torn down is not
+ * reused either.
  *
  * @param {object} args
  * @param {string} args.app        the plan's app name
@@ -61,15 +61,17 @@ export function artifactKeyFor(resourceName, deploymentId) {
  * @returns {{ stackName: string, resourceName: string, reused: boolean }}
  */
 /**
- * Whether a stack is also another team's: another organization's or team's record, not
- * torn down, points at it. Only a stack from before teams had names of their own can be.
+ * Whether a stack is another team's now. Only a stack from before teams had names of
+ * their own can hold more than one team's records. Whoever deployed to it last is in it
+ * (an earlier team's code was replaced), so it is that record's team's unless that
+ * record is torn down. Records are newest first; a draft has no stack.
  */
 export function sharedWithAnotherTeam(stackName, { org = "default", team = "default", records = [] }) {
   if (!stackName) return false;
-  return records.some(r =>
-    r.stackName === stackName &&
-    r.status !== "destroyed" &&
-    ((r.orgId || "default") !== org || (r.teamId || "default") !== team));
+  const occupant = records.find(r => r.stackName === stackName);
+  return Boolean(occupant) &&
+    occupant.status !== "destroyed" &&
+    ((occupant.orgId || "default") !== org || (occupant.teamId || "default") !== team);
 }
 
 export function namingFor({ app, org = "default", team = "default", records = [] }) {

@@ -147,8 +147,8 @@ name never shows in it.*
 *Built Sun Oct 11, 2026 (DESIGN.md, "Each team's environments have names of their
 own"). Some things differ from the plan below, and DESIGN.md says why: the name always
 ends in a short hash; the deploy role keeps "any function" until no environment from
-before this is left; a stack two teams already share is neither reused nor torn down by
-either team alone; and an organization-wide token's views say whose each environment
+before this is left; a stack two teams already share stays with the team that deployed to it
+last; and an organization-wide token's views say whose each environment
 is.*
 
 About a day and a half to two days. Today the app name becomes these names in the one

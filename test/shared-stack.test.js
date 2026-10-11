@@ -1,8 +1,8 @@
-// A stack from before each team's environments had names of their own can be two teams'
-// at once: both deployed an app called foo, and both landed on sealeye-foo. Neither team
-// may then change or tear down the other's environment through it (DESIGN.md, "Each
-// team's environments have names of their own"). A laptop API seeded with such records;
-// no AWS.
+// A stack from before each team's environments had names of their own can hold two
+// teams' records: both deployed an app called foo, and both landed on sealeye-foo. The
+// team that deployed there last is in it. The other may then neither change nor tear it
+// down (DESIGN.md, "Each team's environments have names of their own"). A laptop API
+// seeded with such records, and a stand-in aws; no AWS.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -37,11 +37,18 @@ before(async () => {
   const legacy = { backend: "cloudformation", kind: "static", stackName: "sealeye-foo", parameters: { AppName: "foo" }, app: { name: "foo" }, outputs: {}, orgId: "default" };
   fs.writeFileSync(path.join(home, "deployments.json"), JSON.stringify([
     { ...legacy, deploymentId: "dep_000000000ana", teamId: "payments", status: "succeeded", startedAt: at(0), finishedAt: at(1) },
-    { ...legacy, deploymentId: "dep_00000000greg", teamId: "default", status: "succeeded", startedAt: at(5), finishedAt: at(6) }
+    { ...legacy, deploymentId: "dep_00000000greg", teamId: "default", status: "succeeded", startedAt: at(5), finishedAt: at(6) },
+    // Another organization deployed to sealeye-bar last.
+    { ...legacy, stackName: "sealeye-bar", parameters: { AppName: "bar" }, app: { name: "bar" }, deploymentId: "dep_0000000bar01", teamId: "default", status: "succeeded", startedAt: at(0) },
+    { ...legacy, stackName: "sealeye-bar", parameters: { AppName: "bar" }, app: { name: "bar" }, deploymentId: "dep_0000000bar02", orgId: "other-org", teamId: "default", status: "succeeded", startedAt: at(5) }
   ]));
+  // A stand-in aws: every stack is already gone, so a tear down finishes at once.
+  const bin = path.join(home, "bin");
+  fs.mkdirSync(bin);
+  fs.writeFileSync(path.join(bin, "aws"), "#!/bin/sh\necho 'Stack does not exist' >&2\nexit 254\n", { mode: 0o755 });
   const port = 5100 + Math.floor(Math.random() * 90);
   api = `http://localhost:${port}`;
-  const e = { ...env(), PORT: String(port), SEALEYE_TRACING: "off" };
+  const e = { ...env(), PORT: String(port), SEALEYE_TRACING: "off", PATH: `${path.join(home, "bin")}:${process.env.PATH}` };
   server = spawn(process.execPath, ["api/server.js"], { cwd: root, env: e, stdio: ["ignore", "pipe", "pipe"] });
   server.stdout.on("data", d => (log += d));
   server.stderr.on("data", d => (log += d));
@@ -85,8 +92,40 @@ test("a team's next deploy of that app gets a name of its own, not the shared st
   assert.equal(record.parameters.AppName, record.stackName, "nor the other team's function or bucket");
 });
 
-test("an organization-wide token, which sees both, may tear the shared stack down", async () => {
-  const res = await call("/deployments/dep_00000000greg", { method: "DELETE", token: boss });
-  assert.notEqual(res.status, 409);
+test("the team that deployed last is in the stack: its next deploy updates it", async () => {
+  const { createDeployment } = await import("../cli/client.js");
+  const plan = YAML.parse(fs.readFileSync(path.join(root, "plans", "static-plan.yaml"), "utf8"));
+  const folder = path.join(home, "foo-greg");
+  fs.cpSync(path.join(root, "apps", "static-website"), folder, { recursive: true });
+  process.env.SEALEYE_TOKEN = greg;
+  let deploymentId;
+  try {
+    ({ deploymentId } = await createDeployment({ apiBaseUrl: api, backend: "cloudformation", plan: { ...plan, app: { ...plan.app, name: "foo" } }, appPath: folder }));
+  } finally {
+    delete process.env.SEALEYE_TOKEN;
+  }
+  let record;
+  for (let i = 0; i < 50 && !record?.stackName; i++) {
+    record = await (await call(`/deployments/${deploymentId}`, { token: greg })).json();
+    if (!record.stackName) await new Promise(r => setTimeout(r, 100));
+  }
+  assert.equal(record.stackName, "sealeye-foo", "not a second copy beside the one already live");
+});
+
+test("an organization-wide token, which sees both teams, may tear the shared stack down", async () => {
+  const res = await call("/deployments/dep_000000000ana", { method: "DELETE", token: boss });
   assert.ok(res.ok, `${res.status}`);
+  let gregs;
+  for (let i = 0; i < 50; i++) {
+    gregs = await (await call("/deployments/dep_00000000greg", { token: greg })).json();
+    if (gregs.status === "destroyed") break;
+    await new Promise(r => setTimeout(r, 100));
+  }
+  assert.equal(gregs.status, "destroyed", "the other team's record on that stack is closed too, since the stack is gone");
+});
+
+test("but never a stack another organization deployed to last", async () => {
+  const res = await call("/deployments/dep_0000000bar01", { method: "DELETE", token: boss });
+  assert.equal(res.status, 409);
+  assert.equal((await res.json()).error.code, "SHARED_ENVIRONMENT");
 });

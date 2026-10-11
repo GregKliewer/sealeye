@@ -471,13 +471,14 @@ app.delete("/deployments/:deploymentId", (req, res) => {
     return res.status(200).json(dep);
   }
 
-  // A stack from before teams had names of their own can be another team's too
-  // (DESIGN.md, "Each team's environments have names of their own"). Tearing it down
-  // would take their environment with it, so only someone who can see both may: an
-  // organization-wide token, and never across organizations.
-  const whose = { org: orgOf(dep), team: teamOf(dep), records: listDeployments() };
-  const sharedAcrossOrgs = listDeployments().some(r => r.stackName && r.stackName === dep.stackName && r.status !== "destroyed" && orgOf(r) !== orgOf(dep));
-  if (req.caller && sharedWithAnotherTeam(dep.stackName, whose) && (req.caller.scope !== "org" || sharedAcrossOrgs)) {
+  // A stack from before teams had names of their own can hold another team's records
+  // too, and whoever deployed to it last is in it (DESIGN.md, "Each team's environments
+  // have names of their own"). When that is another team, tearing it down would take
+  // their environment with it, so only someone who can see both may: an
+  // organization-wide token, and never another organization's.
+  const occupant = listDeployments().find(r => r.stackName && r.stackName === dep.stackName);
+  const theirs = sharedWithAnotherTeam(dep.stackName, { org: orgOf(dep), team: teamOf(dep), records: listDeployments() });
+  if (req.caller && theirs && (req.caller.scope !== "org" || orgOf(occupant) !== req.caller.org)) {
     return res.status(409).json({
       error: {
         code: "SHARED_ENVIRONMENT",

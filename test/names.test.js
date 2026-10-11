@@ -109,8 +109,10 @@ test("a stack another team also uses, or one being torn down, is not reused", ()
     { app: { name: "foo" }, teamId: "payments", status: "failed", stackName: "sealeye-foo", parameters: { AppName: "foo" }, startedAt: at(0) }
   ];
   const payments = namingFor({ app: "foo", team: "payments", records: shared });
-  assert.equal(payments.reused, false, "deploying there would change the other team's environment");
+  assert.equal(payments.reused, false, "default deployed there last: deploying there would change their environment");
   assert.equal(payments.stackName, environmentName({ team: "payments", app: "foo" }));
+  // Default is in it, so default's next deploy updates it rather than making a second one.
+  assert.deepEqual(namingFor({ app: "foo", team: "default", records: shared }), { stackName: "sealeye-foo", resourceName: "foo", reused: true });
   // Once the other team's environment there is torn down, the stack is this team's alone.
   const theirsGone = [{ ...shared[0], status: "destroyed" }, shared[1]];
   assert.equal(namingFor({ app: "foo", team: "payments", records: theirsGone }).stackName, "sealeye-foo");
