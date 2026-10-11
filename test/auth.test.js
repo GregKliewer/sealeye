@@ -25,6 +25,11 @@ const call = (route, { token, method = "GET", body, headers = {} } = {}) =>
     method,
     headers: { ...(body ? { "content-type": "application/json" } : {}), ...(token ? { authorization: `Bearer ${token}` } : {}), ...headers },
     ...(body ? { body: typeof body === "string" ? body : JSON.stringify(body) } : {})
+  }).catch(err => {
+    // A request that never got an answer says why, and whether the API was still
+    // running, so a failure on CI explains itself without its logs.
+    const state = server.exitCode !== null || server.signalCode ? `exited (${server.exitCode ?? server.signalCode})` : "still running";
+    throw new Error(`${method} ${route}: ${err.message} (${err.cause?.code || err.cause?.message || "no cause"}); the API is ${state}. Its last output:\n${log.slice(-1500)}`);
   });
 
 let greg, ana, outsider, boss;
