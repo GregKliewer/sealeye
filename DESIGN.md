@@ -954,3 +954,32 @@ Why a scope on the token rather than real roles: roles belong to sign-in (Q15, C
 groups). A token is either team-scoped or organization-wide when it is issued, which is
 enough for a pilot run by one administrator. The checks read `req.caller.scope`, which a
 Cognito group can fill later without the checks changing.
+
+## Each team's environments have names of their own
+
+Decided Sun Oct 11, 2026 (PHASE2-PLAN D2). To be built in PHASE2-PLAN Step 2.
+
+Two teams can each have an app of the same name, each with its own environment. Within
+a team, one app name is one dev environment and one path to production: a teammate's
+`sealeye run` of the same app updates the team's environment, and the record says who
+did it.
+
+**How.** Each environment has an internal name, `<team>-<app>`, and every name it has in
+AWS comes from it: the stack `sealeye-<team>-<app>`, and the function, log group, API and
+static site bucket after it. The developer sees only the app name, in the command, the
+portal and every file seaLeye writes; the one place the team shows is a static site's
+address. The rule lives in `core/names.js`, with a length cap and a short hash for the
+64- and 63-character limits on function and bucket names.
+
+**No migration.** Every record keeps its `stackName`. A deploy reuses the name on the
+team's latest record for that app, so environments made before this keep their old
+names, and only a first deploy gets the new one.
+
+**Why not refuse the second team.** That was the first recommendation: refuse a second
+team's deploy while the first team's environment is live. Greg chose against it, because
+common names such as `test-app` would collide often, and a developer should not have to
+rename an app because of a team they cannot see. It costs about a day more.
+
+**Why the organization is not in the name.** Each organization will deploy into its own
+account (ROADMAP Phase 1 item 5), where names need only be unique within the account. If
+two organizations ever share one account before then, the rule gains the organization.
