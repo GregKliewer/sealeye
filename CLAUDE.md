@@ -36,8 +36,11 @@ prompts/    system prompt, plan contract, plan, report and evidence templates, c
 templates/  one CloudFormation template per buildable module, plus run.sh
 deploy/     the pilot server: Dockerfile's start script, its CloudFormation (server,
             deploy role), compose, Caddy, and the release scripts. deploy/README.md
-sites/      the pages Caddy serves: online/ (seaLeye.online, until the portal) and run/
-            (seaLeye.run, its installer). release.sh adds the package and the version
+portal/     seaLeye.online: React, TypeScript, Vite, Tailwind, shadcn-style components in
+            src/components/ui. Its own package.json. Calls the API at /api and nothing
+            else. tests/ holds the Playwright tests and the test API they run against
+sites/      the pages Caddy serves beside the portal: run/ (seaLeye.run, its installer).
+            release.sh adds the package, the version, and the built portal
 apps/       sample apps for trying seaLeye. plans/ holds test plans.
 test/       npm test. No AWS, no model calls.
 archive/    the October 2026 demo: marketing sites, transcripts, day notes. Read-only.
@@ -209,8 +212,9 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   item 10); `settingValues` in `api/executor/settings.js` is the one place that decides
   where they come from, and a record keeps each setting's name and source, never its
   value.
-- seaLeye.online in `archive/sealeye-online` is a static mock-up with sample data, not
-  a client of the API.
+- seaLeye.online (`portal/`) has Environments, Control (state, history, tear down) and
+  Catalog (modules and the needs ledger). Pause, Configure, Logs, Performance, Costs and
+  Team are drawn in the archived mock-up only; the portal shows nothing it cannot do.
 
 ## Working here
 
@@ -225,6 +229,11 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
 - `npm start` runs the API from the repo root; `npm link` from the repo root installs
   `sealeye`. The command talks to https://api.sealeye.online unless `SEALEYE_API` or
   `--api` says otherwise, so point it at `http://localhost:3000` for a local API.
+- The portal: `cd portal && npm ci && npm run build`, then `npm run test:e2e`
+  (Playwright starts `tests/test-api.mjs`, the real API with sample records, and the
+  built portal). `npm run dev` with `SEALEYE_PORTAL_API` set runs it against any API.
+  Every value on a page comes from an API call; colours and type from
+  `brand/BRAND-ONLINE.md` (`src/index.css`).
 - Developers install with `curl -fsSL https://sealeye.run/install | sh`: the package
   release.sh packs, limited by package.json "files" to the command and what it reads.
   `test/package-contents.test.js` keeps the API and the interview prompt out of it.

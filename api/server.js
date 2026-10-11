@@ -19,8 +19,7 @@ import { postgresCheckpointer, postgresInterviewStore } from "./interview/pgstor
 import { databaseUrl, closeDb } from "./db.js";
 import { startTracing } from "../core/tracing.js";
 import { authMode, callerFor, callerForSession, endSession, SESSION_COOKIE, SESSION_HOURS, startSession } from "./tokens.js";
-import { loadCatalog, needKinds } from "../core/catalog.js";
-import { setting } from "../core/config.js";
+import { loadCatalog, needKinds, orgName } from "../core/catalog.js";
 
 const app = express();
 
@@ -173,7 +172,7 @@ app.get("/catalog", (_req, res) => {
 app.get("/whoami", (req, res) => {
   if (!req.caller) return res.status(200).json({ auth: "off", surface: req.surface });
   const { email, name, org, team, tokenId } = req.caller;
-  return res.status(200).json({ email, name, org, team, tokenId, surface: req.surface, organizationName: setting("ORG") || "your organization" });
+  return res.status(200).json({ email, name, org, team, tokenId, surface: req.surface, organizationName: orgName() });
 });
 
 // POST /plans/validate

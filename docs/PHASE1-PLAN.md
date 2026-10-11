@@ -484,6 +484,8 @@ seaLeye.com stays a name only, as DESIGN.md says.
 - Tear down from the portal calls `DELETE /deployments/{id}`, the same endpoint
   `sealeye destroy` uses, and the record says which surface did it.
 - Update the parity table rows for List, Status, Tear down and Needs ledger.
+- *Done Oct 11, 2026 (DESIGN.md, "The portal signs in with a session cookie" and "The
+  portal is a client of the API"). Catalog got its endpoint and command on the way.*
 
 ### Step 15. The Phase 1 "done when", tested by someone else
 

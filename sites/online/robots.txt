@@ -1,3 +1,0 @@
-# Not indexed while seaLeye is a pilot.
-User-agent: *
-Disallow: /

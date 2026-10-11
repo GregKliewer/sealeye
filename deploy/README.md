@@ -120,11 +120,13 @@ each certificate itself (PHASE1-PLAN Step 12, DESIGN.md "Each domain has one job
 | Address | Serves |
 |---|---|
 | `api.sealeye.online` | the API |
-| `sealeye.online` | the portal: a page saying what it will be, until Step 14 |
+| `sealeye.online` | the portal (`portal/`, built by every release), with the API under `/api` |
 | `sealeye.run` | the command's home page, `sealeye.run/install` and the package it installs |
 | `sealeye.org` | a redirect to `sealeye.run` |
 
-The pages are in `sites/`; `release.sh` sends them, with the package, every release.
+The pages are in `sites/` and the portal in `portal/`; `release.sh` builds the portal
+and sends both, with the package, every release. A release now needs Node on your Mac
+for that, as `npm pack` already did.
 
 DNS for each is a Route 53 zone (`dns.yaml`, about $0.50 a month per domain), so the
 records live in CloudFormation with everything else.
@@ -277,6 +279,12 @@ the old one first.
 
 After the release that brings tokens, every `sealeye` without one is refused until it
 logs in, yours included, so issue your own first.
+
+## The portal
+
+`https://sealeye.online` asks for the same token `sealeye login` takes, once, and keeps
+a twelve-hour session in its place; "Sign out" ends it, and revoking the token ends it
+too. Tearing an environment down there is recorded as coming from the portal.
 
 ## Using it
 
