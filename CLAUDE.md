@@ -116,8 +116,11 @@ POST /plans/validate, POST /deployments ({ plan, appPath, zip?, settings? }), GE
 GET /deployments/{id}, GET /deployments/{id}/evidence, DELETE /deployments/{id},
 GET /needs, GET /health, POST /interviews ({ app, zip }), POST
 /interviews/{id}/answers ({ answer }), GET /interviews/{id}/events (server-sent events),
-DELETE /interviews/{id}, GET /whoami. Every endpoint but GET /health needs
-`Authorization: Bearer <token>` (`api/tokens.js`); a laptop API may run with
+DELETE /interviews/{id}, GET /whoami, GET /catalog, POST /sessions ({ token }) and
+DELETE /sessions (the portal's sign-in and sign-out). Every endpoint but GET /health
+and the two /sessions needs `Authorization: Bearer <token>` (`api/tokens.js`) or the
+portal's session cookie; a change made with the cookie must also carry
+`x-sealeye-portal: 1`. A record says which surface made it. A laptop API may run with
 `SEALEYE_AUTH=off`, an API with a database never can. The person on a record is the
 token's, never what the command line says. An interview is its starter's; records are
 their organization's. Keep existing endpoints and commands working; add, do not

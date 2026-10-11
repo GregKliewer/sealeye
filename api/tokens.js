@@ -188,3 +188,86 @@ export function authMode() {
   }
   return off ? "off" : "tokens";
 }
+
+// ---------------------------------------------------------------------------------
+// Portal sessions (PHASE1-PLAN Step 14). A browser cannot keep a token the way
+// ~/.sealeye/config does without any script on the page being able to read it, so the
+// portal trades the token for a session: a random value in an HttpOnly cookie that page
+// scripts cannot read, good for SESSION_HOURS, ending at once if the token is revoked.
+
+export const SESSION_HOURS = 12;
+export const SESSION_COOKIE = "sealeye_session";
+
+const sessionsFile = () => path.join(sealeyeHome(), "sessions.json");
+
+function readSessions() {
+  try {
+    const rows = JSON.parse(fs.readFileSync(sessionsFile(), "utf8"));
+    return Array.isArray(rows) ? rows : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeSessions(rows) {
+  fs.mkdirSync(path.dirname(sessionsFile()), { recursive: true });
+  const tmp = `${sessionsFile()}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(rows, null, 2), { mode: 0o600 });
+  fs.renameSync(tmp, sessionsFile());
+}
+
+/**
+ * A new session for a caller, from their token. The value goes in the cookie and is
+ * returned only here; what is kept is its hash.
+ *
+ * @returns {Promise<{ value: string, expiresAt: string }>}
+ */
+export async function startSession(caller, nowMs = Date.now()) {
+  const value = crypto.randomBytes(32).toString("base64url");
+  const sessionHash = hashToken(value);
+  const expiresAt = new Date(nowMs + SESSION_HOURS * 3600_000).toISOString();
+  if (databaseUrl()) {
+    await db().query("DELETE FROM sessions WHERE expires_at < now()");
+    await db().query("INSERT INTO sessions (session_hash, token_id, expires_at) VALUES ($1, $2, $3)", [sessionHash, caller.tokenId, expiresAt]);
+  } else {
+    const now = new Date(nowMs).toISOString();
+    writeSessions([...readSessions().filter(s => s.expiresAt > now), { sessionHash, tokenId: caller.tokenId, createdAt: now, expiresAt }]);
+  }
+  return { value, expiresAt };
+}
+
+/** Who a session belongs to, or null when it is unknown, expired or its token revoked. */
+export async function callerForSession(value, nowMs = Date.now()) {
+  if (typeof value !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(value)) return null;
+  const sessionHash = hashToken(value);
+  if (databaseUrl()) {
+    const { rows } = await db().query(
+      `SELECT t.* FROM sessions s JOIN tokens t ON t.token_id = s.token_id
+        WHERE s.session_hash = $1 AND s.expires_at > $2 AND t.revoked_at IS NULL`,
+      [sessionHash, new Date(nowMs).toISOString()]
+    );
+    if (!rows[0]) return null;
+    const { tokenId, email, name, org, team } = fromRow(rows[0]);
+    return { tokenId, email, name, org, team };
+  }
+  const now = new Date(nowMs).toISOString();
+  const session = readSessions().find(s => s.sessionHash === sessionHash && s.expiresAt > now);
+  if (!session) return null;
+  const token = readFile().find(r => r.tokenId === session.tokenId && !r.revokedAt);
+  if (!token) return null;
+  const { tokenId, email, name, org, team } = fromRow(token);
+  return { tokenId, email, name, org, team };
+}
+
+/** End a session (sign out). Never throws for one that is already gone. */
+export async function endSession(value) {
+  if (typeof value !== "string" || !value) return;
+  const sessionHash = hashToken(value);
+  if (databaseUrl()) {
+    await db().query("DELETE FROM sessions WHERE session_hash = $1", [sessionHash]);
+    return;
+  }
+  const rows = readSessions();
+  const kept = rows.filter(s => s.sessionHash !== sessionHash);
+  if (kept.length !== rows.length) writeSessions(kept);
+}

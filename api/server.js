@@ -18,7 +18,9 @@ import { createInterviewService, NotWaiting, UploadRefused } from "./interview/s
 import { postgresCheckpointer, postgresInterviewStore } from "./interview/pgstore.js";
 import { databaseUrl, closeDb } from "./db.js";
 import { startTracing } from "../core/tracing.js";
-import { authMode, callerFor } from "./tokens.js";
+import { authMode, callerFor, callerForSession, endSession, SESSION_COOKIE, SESSION_HOURS, startSession } from "./tokens.js";
+import { loadCatalog, needKinds } from "../core/catalog.js";
+import { setting } from "../core/config.js";
 
 const app = express();
 
@@ -35,26 +37,58 @@ const AUTH = authMode();
 const refuse = (res, code, message) =>
   res.status(401).set("WWW-Authenticate", 'Bearer realm="seaLeye"').json({ error: { code, message } });
 
+// The portal's session cookie (PHASE1-PLAN Step 14), read without a cookie library.
+function cookieValue(req, name) {
+  for (const part of String(req.get("cookie") || "").split(";")) {
+    const i = part.indexOf("=");
+    if (i > 0 && part.slice(0, i).trim() === name) return part.slice(i + 1).trim();
+  }
+  return null;
+}
+
+// HttpOnly so no script on the page can read it, Secure so it never travels in clear,
+// SameSite=Strict so no other site's page can make the browser send it.
+const sessionCookie = (value, maxAgeSeconds) =>
+  `${SESSION_COOKIE}=${value}; Path=/; Max-Age=${maxAgeSeconds}; HttpOnly; Secure; SameSite=Strict`;
+
+// A change made with the portal's cookie must also carry this header. A page on another
+// site cannot add a custom header to a request here without the API agreeing first,
+// which it never does, so a request carrying it came from the portal itself.
+const PORTAL_HEADER = "x-sealeye-portal";
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
 app.use(async (req, res, next) => {
   if (req.method === "GET" && req.path === "/health") return next();
+  // Signing in and out are how a browser gets and drops a session; each checks its own way.
+  if (req.path === "/sessions" && (req.method === "POST" || req.method === "DELETE")) return next();
   if (AUTH === "off") {
     req.caller = null;
+    req.surface = req.get(PORTAL_HEADER) ? "portal" : "cli";
     return next();
   }
+
   const bearer = /^Bearer\s+(\S+)$/i.exec(req.get("authorization") || "");
-  if (!bearer) {
+  const session = bearer ? null : cookieValue(req, SESSION_COOKIE);
+  if (!bearer && !session) {
     return refuse(res, "NOT_SIGNED_IN", "This platform needs to know who is calling. Run sealeye login with the token your platform team gave you.");
   }
+  if (session && !SAFE_METHODS.has(req.method) && req.get(PORTAL_HEADER) !== "1") {
+    return res.status(403).json({ error: { code: "NOT_FROM_THE_PORTAL", message: "A change made with the portal's sign-in must come from the portal itself." } });
+  }
+
   let caller;
   try {
-    caller = await callerFor(bearer[1]);
+    caller = bearer ? await callerFor(bearer[1]) : await callerForSession(session);
   } catch (err) {
-    return res.status(503).json({ error: { code: "SIGN_IN_UNAVAILABLE", message: `The platform could not check your token just now: ${err.message}` } });
+    return res.status(503).json({ error: { code: "SIGN_IN_UNAVAILABLE", message: `The platform could not check your sign-in just now: ${err.message}` } });
   }
   if (!caller) {
-    return refuse(res, "TOKEN_REFUSED", "The platform does not accept this token: it is not one it issued, or it has been revoked. Ask your platform team for a new one, then run sealeye login.");
+    return bearer
+      ? refuse(res, "TOKEN_REFUSED", "The platform does not accept this token: it is not one it issued, or it has been revoked. Ask your platform team for a new one, then run sealeye login.")
+      : refuse(res, "SESSION_ENDED", "Your sign-in has ended. Sign in again with your token.");
   }
   req.caller = caller;
+  req.surface = bearer ? "cli" : "portal";
   return next();
 });
 
@@ -88,11 +122,58 @@ app.get("/health", (_req, res) => {
   return res.status(200).json({ ok: true, version: pkg.version, deployments: count() });
 });
 
+// POST /sessions: the portal's sign-in. Body: { token }. The token is checked and
+// traded for a session cookie good for SESSION_HOURS; the token itself is not kept by
+// the browser. The response says who signed in and when the session ends.
+app.post("/sessions", async (req, res) => {
+  if (AUTH === "off") return res.status(200).json({ auth: "off" });
+  let caller;
+  try {
+    caller = await callerFor(req.body?.token);
+  } catch (err) {
+    return res.status(503).json({ error: { code: "SIGN_IN_UNAVAILABLE", message: `The platform could not check your token just now: ${err.message}` } });
+  }
+  if (!caller) {
+    return refuse(res, "TOKEN_REFUSED", "The platform does not accept this token: it is not one it issued, or it has been revoked. Ask your platform team for a new one.");
+  }
+  const { value, expiresAt } = await startSession(caller);
+  res.set("Set-Cookie", sessionCookie(value, SESSION_HOURS * 3600));
+  const { email, name, org, team } = caller;
+  return res.status(201).json({ email, name, org, team, expiresAt });
+});
+
+// DELETE /sessions: the portal's "Sign out". Ends the session and clears the cookie.
+app.delete("/sessions", async (req, res) => {
+  if (req.get(PORTAL_HEADER) !== "1") {
+    return res.status(403).json({ error: { code: "NOT_FROM_THE_PORTAL", message: "Signing out of the portal must come from the portal itself." } });
+  }
+  await endSession(cookieValue(req, SESSION_COOKIE)).catch(() => {});
+  res.set("Set-Cookie", sessionCookie("", 0));
+  return res.status(200).json({ signedOut: true });
+});
+
+// GET /catalog: what the platform can build, and the fixed list of needs it cannot yet,
+// in the catalog's own words (prompts/module-catalog.yaml).
+app.get("/catalog", (_req, res) => {
+  const catalog = loadCatalog();
+  return res.status(200).json({
+    catalogVersion: catalog.catalogVersion,
+    modules: (catalog.modules || []).map(m => ({
+      id: m.id,
+      availability: m.availability,
+      role: m.role,
+      line: String(m.line || "").trim(),
+      shortLine: String(m.short_line || "").trim() || null
+    })),
+    needs: needKinds(catalog).map(n => ({ kind: n.key, line: String(n.line || "").trim() }))
+  });
+});
+
 // GET /whoami: who the token belongs to. `sealeye login` checks a token with it.
 app.get("/whoami", (req, res) => {
-  if (!req.caller) return res.status(200).json({ auth: "off" });
+  if (!req.caller) return res.status(200).json({ auth: "off", surface: req.surface });
   const { email, name, org, team, tokenId } = req.caller;
-  return res.status(200).json({ email, name, org, team, tokenId });
+  return res.status(200).json({ email, name, org, team, tokenId, surface: req.surface, organizationName: setting("ORG") || "your organization" });
 });
 
 // POST /plans/validate
@@ -119,6 +200,7 @@ app.post("/deployments", (req, res) => {
   const planSha256 = plan ? crypto.createHash("sha256").update(JSON.stringify(plan), "utf8").digest("hex") : undefined;
   const provenance = {
     ...(req.caller ? { orgId: req.caller.org, teamId: req.caller.team, tokenId: req.caller.tokenId } : {}),
+    surface: req.surface || "cli",
     ...(requestedBy ? { requestedBy } : {}),
     ...(origin ? { origin } : {}),
     ...(planSha256 ? { planSha256 } : {})
@@ -298,7 +380,13 @@ app.get("/deployments", (req, res) => {
     startedAt: dep.startedAt || null,
     finishedAt: dep.finishedAt || null,
     failureReason: dep.failureReason || null,
-    interrupted: dep.interrupted === true
+    interrupted: dep.interrupted === true,
+    kind: dep.kind || null,
+    profile: dep.plan?.profile || null,
+    requestedBy: dep.requestedBy || null,
+    surface: dep.surface || "cli",
+    destroyRequestedBy: dep.destroyRequestedBy || null,
+    needs: Array.isArray(dep.needs) ? dep.needs.length : 0
   }));
 
   return res.status(200).json({ deployments });
@@ -361,6 +449,14 @@ app.delete("/deployments/:deploymentId", (req, res) => {
   if (dep.status === "destroyed" || dep.status === "destroying") {
     return res.status(200).json(dep);
   }
+
+  // Who asked for it, and from where: the command line or the portal.
+  if (req.caller) {
+    dep.destroyRequestedBy = { user: req.caller.email, name: req.caller.name, surface: req.surface, at: new Date().toISOString() };
+  } else {
+    dep.destroyRequestedBy = { surface: req.surface || "cli", at: new Date().toISOString() };
+  }
+  putDeployment(dep);
 
   startDestroy(dep).catch(err => {
     dep.status = "failed";

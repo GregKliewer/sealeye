@@ -134,3 +134,35 @@ test("a change made while the database was away is saved once it is back", { ski
   assert.deepEqual(afterwards, []);
   assert.deepEqual(rows, [{ status: "running" }]);
 });
+
+test("tokens and portal sessions in Postgres: hashes only, revocation ends both", { skip: !pgAvailable && "no SEALEYE_TEST_DATABASE_URL" }, async () => {
+  const url = await freshDatabase();
+  const out = await inChild(url, `
+    import { migrate, db } from "./api/db.js";
+    import { addToken, hashToken, newToken, callerFor, startSession, callerForSession, endSession, revokeTokens } from "./api/tokens.js";
+    await migrate();
+    const token = newToken();
+    const added = await addToken({ tokenHash: hashToken(token), email: "Pg@Example.com", name: "Pg Person", team: "payments" });
+    const byToken = await callerFor(token);
+    const s = await startSession(byToken);
+    const bySession = await callerForSession(s.value);
+    const expired = await callerForSession(s.value, Date.now() + 13 * 3600_000);
+    const s2 = await startSession(byToken);
+    await endSession(s.value);
+    const afterSignOut = await callerForSession(s.value);
+    await revokeTokens("pg@example.com");
+    const afterRevoke = [await callerFor(token), await callerForSession(s2.value)];
+    const stored = JSON.stringify((await db().query("SELECT * FROM tokens")).rows) + JSON.stringify((await db().query("SELECT * FROM sessions")).rows);
+    console.log(JSON.stringify({ added: added.email, byToken: byToken.team, bySession: bySession?.email, expired, afterSignOut, afterRevoke,
+      leaked: stored.includes(token) || stored.includes(s.value) || stored.includes(s2.value) }));
+    process.exit(0);
+  `);
+  const r = JSON.parse(out.split("\n").at(-1));
+  assert.equal(r.added, "pg@example.com");
+  assert.equal(r.byToken, "payments");
+  assert.equal(r.bySession, "pg@example.com");
+  assert.equal(r.expired, null);
+  assert.equal(r.afterSignOut, null);
+  assert.deepEqual(r.afterRevoke, [null, null]);
+  assert.equal(r.leaked, false);
+});

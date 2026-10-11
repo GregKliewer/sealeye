@@ -18,7 +18,8 @@ import {
   answerInterview,
   abandonInterview,
   whoAmI,
-  NotSignedInError
+  NotSignedInError,
+  getCatalog
 } from "../client.js";
 import { looksLikeToken } from "../../core/token.js";
 import { banner, step, ask, answer, typing, typed, c, product, spinner, stopSpinner, animations } from "../brand.js";
@@ -105,6 +106,7 @@ Usage:
   ${product.command} evidence <app | deploymentId> [--json] [--out <file>] [--api <url>]
   ${product.command} needs [--json] [--request <kind>] [--api <url>]
   ${product.command} doctor [--json] [--api <url>]
+  ${product.command} catalog [--json] [--api <url>]
   ${product.command} login [--api <url>]
   ${product.command} whoami [--json] [--api <url>]
   ${product.command} logout
@@ -655,6 +657,25 @@ async function main() {
     const file = saveUserSetting("SEALEYE_TOKEN", token);
     console.log(c.accent(`✓ Signed in as ${me.name} (${me.email}), team ${me.team}`));
     say(`Your token is kept in ${file.replace(os.homedir(), "~")}, readable by you alone.`);
+    return;
+  }
+
+  // What the platform can build, and the needs it cannot yet, as the portal's Catalog
+  // page shows them.
+  if (command === "catalog") {
+    const catalog = await getCatalog({ apiBaseUrl });
+    if (jsonOut) {
+      console.log(JSON.stringify(catalog, null, 2));
+      return;
+    }
+    console.log("");
+    console.log(c.fg("What the platform builds"));
+    for (const m of catalog.modules) console.log(`  ${c.accent(m.id)}  ${c.dim(m.shortLine || m.line)}`);
+    console.log("");
+    console.log(c.fg("What apps can need that it does not build yet"));
+    for (const n of catalog.needs) console.log(`  ${c.dim("·")} ${n.line}`);
+    console.log("");
+    say(`${product.command} needs shows which of these your organization's apps are waiting on.`);
     return;
   }
 

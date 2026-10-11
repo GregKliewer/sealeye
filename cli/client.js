@@ -282,3 +282,8 @@ export async function followInterview({ apiBaseUrl, interviewId, onEvent, after 
 export async function whoAmI({ apiBaseUrl, token }) {
   return platformFetch(apiBaseUrl, "/whoami", { token });
 }
+
+/** What the platform can build, and the needs it cannot yet (GET /catalog). */
+export async function getCatalog({ apiBaseUrl }) {
+  return platformFetch(apiBaseUrl, "/catalog");
+}
