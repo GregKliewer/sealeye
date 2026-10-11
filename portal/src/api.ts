@@ -26,7 +26,9 @@ async function request<T>(path: string, init: { method?: string; body?: unknown 
   return body as T;
 }
 
-export interface Person { email: string; name: string; org: string; team: string; organizationName?: string; auth?: "off" }
+// scope: "team" sees that team's environments, "org" every team's in the organization
+// (DESIGN.md, "Each team sees its own environments").
+export interface Person { email: string; name: string; org: string; team: string; scope?: "team" | "org"; organizationName?: string; auth?: "off" }
 
 export interface RequestedBy { user?: string; name?: string; host?: string | null; verified?: string; surface?: string; at?: string }
 
@@ -44,6 +46,7 @@ export interface DeploymentSummary {
   profile: string | null;
   requestedBy: RequestedBy | null;
   surface: string;
+  teamId?: string;
   destroyRequestedBy: RequestedBy | null;
   needs: number;
 }
@@ -60,7 +63,7 @@ export interface Catalog {
 
 export interface NeedsLedger {
   apps: number;
-  needs: { kind: string; line: string; count: number; apps: { name: string; deploymentId: string; when: string | null }[]; firstSeen: string | null; lastSeen: string | null }[];
+  needs: { kind: string; line: string; count: number; apps: { name: string; team?: string; deploymentId: string | null; when: string | null }[]; firstSeen: string | null; lastSeen: string | null }[];
 }
 
 export const api = {

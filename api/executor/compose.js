@@ -5,7 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { backendMappings } from "../mappings.js";
-import { safeName } from "../../core/names.js";
+import { environmentName, safeName } from "../../core/names.js";
 import { repoRoot, loadEnv, requireSetting } from "../../core/config.js";
 import { settingValues } from "./settings.js";
 
@@ -24,14 +24,76 @@ const CORE_MODULE_KINDS = {
 // safeName() lives in core/names.js so the CLI and the API name things the same way.
 export { safeName };
 
-/** Stacks are sealeye-<app>. */
+/**
+ * What stacks were called before teams had names of their own: sealeye-<app>, with
+ * everything in them named after the bare app. Environments made then keep these names
+ * (see namingFor); nothing new is named this way.
+ */
 export function stackNameFor(appName) {
   return `sealeye-${safeName(appName)}`;
 }
 
-/** <app>/<deploymentId>.zip — a new key every deploy, so S3Key always changes. */
-export function artifactKeyFor(appName, deploymentId) {
-  return `${safeName(appName)}/${deploymentId}.zip`;
+/** <name>/<deploymentId>.zip: a new key every deploy, so S3Key always changes. */
+export function artifactKeyFor(resourceName, deploymentId) {
+  return `${safeName(resourceName)}/${deploymentId}.zip`;
+}
+
+/**
+ * Which names a deployment of this app, for this team, uses (DESIGN.md, "Each team's
+ * environments have names of their own"):
+ *
+ * - the team already has an environment of this app that is not torn down: its names,
+ *   as its record keeps them, so an environment made before teams had names of their
+ *   own keeps "sealeye-<app>", and nothing is renamed or moved;
+ * - otherwise: a new name from environmentName() for the stack and everything in it.
+ *
+ * Another team's records never count: theirs is another environment. Nor is a stack
+ * reused that another team deployed to last, as a "sealeye-<app>" stack from before
+ * teams had names of their own can be: deploying to it would change their environment,
+ * so this team gets a name of its own instead. A stack that is being torn down is not
+ * reused either.
+ *
+ * @param {object} args
+ * @param {string} args.app        the plan's app name
+ * @param {string} [args.org]      the caller's organization ("default" without tokens)
+ * @param {string} [args.team]     the caller's team
+ * @param {object[]} [args.records] every record, newest first
+ * @returns {{ stackName: string, resourceName: string, reused: boolean }}
+ */
+/**
+ * Whether a stack is another team's now. Only a stack from before teams had names of
+ * their own can hold more than one team's records. Whoever deployed to it last is in it
+ * (an earlier team's code was replaced), so it is that record's team's unless that
+ * record is torn down. Records are newest first; a draft has no stack.
+ */
+export function sharedWithAnotherTeam(stackName, { org = "default", team = "default", records = [] }) {
+  if (!stackName) return false;
+  const occupant = records.find(r => r.stackName === stackName);
+  return Boolean(occupant) &&
+    occupant.status !== "destroyed" &&
+    ((occupant.orgId || "default") !== org || (occupant.teamId || "default") !== team);
+}
+
+export function namingFor({ app, org = "default", team = "default", records = [] }) {
+  const appName = safeName(app);
+  const sameEnvironment = r =>
+    Boolean(r.stackName) &&
+    safeName(r.app?.name) === appName &&
+    (r.orgId || "default") === org &&
+    (r.teamId || "default") === team;
+
+  const latest = records.find(sameEnvironment);
+  const reusable = latest &&
+    latest.status !== "destroyed" &&
+    latest.status !== "destroying" &&
+    !sharedWithAnotherTeam(latest.stackName, { org, team, records });
+  if (reusable) {
+    // Records from before this kept the bare app name only as the AppName parameter.
+    const resourceName = latest.resourceName || latest.parameters?.AppName || latest.stackName.replace(/^sealeye-/, "");
+    return { stackName: latest.stackName, resourceName, reused: true };
+  }
+  const name = environmentName({ org, team, app });
+  return { stackName: name, resourceName: name, reused: false };
 }
 
 function enabledModules(plan) {
@@ -119,16 +181,23 @@ function withoutSecrets(parameters) {
  * @param {string} deploymentId  required for kind "api" (it names the artifact)
  * @param {string} [appPath]      the developer's folder, read for its .env only
  * @param {Record<string,string>} [sent] setting values sent with the deploy request
- * @returns {{kind: "api"|"static", templatePath: string, stackName: string, parameters: object,
- *            safeParameters: object, settings: {name: string, source: string}[], entryPoint?: string}}
+ * @param {{stackName: string, resourceName: string}} [naming] from namingFor(); without
+ *        it, a new name for the "default" team, as a laptop API with no tokens has
+ * @returns {{kind: "api"|"static", templatePath: string, stackName: string, resourceName: string,
+ *            parameters: object, safeParameters: object, settings: {name: string, source: string}[],
+ *            entryPoint?: string}}
  */
-export function compose(plan, deploymentId, appPath, sent = {}) {
+export function compose(plan, deploymentId, appPath, sent = {}, naming) {
   loadEnv();
 
   const appName = safeName(plan?.app?.name);
   if (!appName) {
     throw new Error("plan.app.name is required and must contain at least one [a-z0-9] character");
   }
+  // The templates' AppName parameter is the name every resource is called after: the
+  // environment's name, never the bare app name, except for an environment made before
+  // teams had names of their own, which keeps the one it has.
+  const { stackName, resourceName } = naming || namingFor({ app: appName });
 
   const core = enabledModules(plan)
     .map(m => m.id)
@@ -174,9 +243,9 @@ export function compose(plan, deploymentId, appPath, sent = {}) {
     }
 
     parameters = {
-      AppName: appName,
+      AppName: resourceName,
       ArtifactBucket: requireSetting("BUCKET"),
-      ArtifactKey: artifactKeyFor(appName, deploymentId),
+      ArtifactKey: artifactKeyFor(resourceName, deploymentId),
       AdapterLayerVersion: adapterLayerVersion,
       RetentionDays: retentionDays(plan)
     };
@@ -186,13 +255,14 @@ export function compose(plan, deploymentId, appPath, sent = {}) {
     resolvedTemplate = renderTemplate(templatePath, settings, deploymentId);
   } else {
     // static_site_edge takes AppName only; the files are synced after the stack exists.
-    parameters = { AppName: appName };
+    parameters = { AppName: resourceName };
   }
 
   return {
     kind,
     templatePath: resolvedTemplate,
-    stackName: stackNameFor(appName),
+    stackName,
+    resourceName,
     parameters,
     // What may be written down: the record is a file on the developer's machine and an
     // API response, and neither is a place for their values.

@@ -3,6 +3,7 @@ Description: seaLeye http_api_serverless - Lambda + HTTP API + logs, app runs un
 Parameters:
   AppName:
     Type: String
+    Description: The name everything here is called after, the environment's name (core/names.js)
   ArtifactBucket:
     Type: String
   ArtifactKey:

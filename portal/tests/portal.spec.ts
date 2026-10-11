@@ -33,15 +33,17 @@ test("signing in keeps a session the page cannot read, never the token", async (
   expect(session?.sameSite).toBe("Strict");
 });
 
-test("Environments shows the organization's environments, read live from the API", async ({ page }) => {
+test("Environments shows your team's environments, read live from the API", async ({ page }) => {
   await signIn(page);
   await expect(page.getByRole("heading", { name: "Environments" })).toBeVisible();
+  await expect(page.getByText("built for your team, default")).toBeVisible();
   await expect(page.getByText("Northwind Payments")).toBeVisible();
   const rows = page.getByTestId("environment-row");
   await expect(rows).toHaveCount(3);
   await expect(rows.filter({ hasText: "payments-api" })).toContainText("Live");
   await expect(rows.filter({ hasText: "report-builder" })).toContainText("Failed");
   await expect(page.getByText("not-yours")).toHaveCount(0);
+  await expect(page.getByText("another-teams-api")).toHaveCount(0);
 
   await page.getByLabel("Include drafted and torn down").check();
   await expect(rows).toHaveCount(5);
@@ -49,6 +51,23 @@ test("Environments shows the organization's environments, read live from the API
 
   await page.getByLabel("Search apps and people").fill("ana");
   await expect(rows).toHaveCount(2);
+});
+
+test("an organization-wide token sees every team's environments, each saying whose", async ({ page }) => {
+  await page.goto("/");
+  await page.fill("#token", `sl_${"z".repeat(43)}`);
+  await page.click("button[type=submit]");
+  await expect(page.getByTestId("person")).toHaveText("Lee Admin");
+  await expect(page.getByText("built for every team in your organization")).toBeVisible();
+  const rows = page.getByTestId("environment-row");
+  const theirs = rows.filter({ hasText: "another-teams-api" });
+  await expect(theirs).toHaveCount(1);
+  await expect(theirs.getByTestId("team")).toHaveText("team payments");
+  await expect(rows.filter({ hasText: "payments-api" }).first().getByTestId("team")).toHaveText("team default");
+  await expect(page.getByText("not-yours")).toHaveCount(0);
+
+  await theirs.getByRole("link").click();
+  await expect(page.getByText("An API, designed for dev, team payments")).toBeVisible();
 });
 
 test("Catalog shows the modules and what apps are waiting on", async ({ page }) => {

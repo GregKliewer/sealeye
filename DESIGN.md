@@ -649,8 +649,9 @@ $20 a month. How it is built, and where it differs from the plan:
 
 - **Two platform stacks, never named `sealeye-*`.** `platform-sealeye-server` is the
   server and `platform-sealeye-deploy-role` is the deploy role. Apps are
-  `sealeye-<app>`, and the deploy role may only touch stacks with that prefix, so it
-  can never change the platform itself.
+  `sealeye-<app>` (since Oct 11, `sealeye-<team>-<app>-<hash>`: "Each team's
+  environments have names of their own"), and the deploy role may only touch stacks with
+  that prefix, so it can never change the platform itself.
 - **The server cannot build anything.** Its own role reads `/sealeye/*` parameters,
   pulls its image, uses its own bucket, and may assume `sealeye-deploy-*` roles. Every
   deployment goes through `sealeye-deploy-pilot` (Q4: one account to start). That role
@@ -941,14 +942,17 @@ same API the command uses, at `/api` on the same origin.
 
 ## Each team sees its own environments
 
-Decided Sun Oct 11, 2026 (PHASE2-PLAN D1). To be built in PHASE2-PLAN Step 1.
+Decided Sun Oct 11, 2026 (PHASE2-PLAN D1). Built the same day (PHASE2-PLAN Step 1).
 
 A person sees, watches, gets evidence for and tears down only their own team's
 environments. A token issued as organization-wide sees every team's, which is how the
 administrator keeps an overview. Another team's record answers "not found", as another
 person's interview already does, so its existence is not given away. The needs ledger
 stays organization-wide on purpose: it is the platform team's view of what drafted plans
-wait on, and it names apps and needs, not people.
+wait on, and it names apps and needs, not people. What shows a need, file names and lines
+from an app's code, is that app's team's, as is its deployment id: another team sees the
+app, its team and its needs without them, and an organization-wide token sees all of it
+(decided by Greg the same day, after the independent review raised it).
 
 Why a scope on the token rather than real roles: roles belong to sign-in (Q15, Cognito
 groups). A token is either team-scoped or organization-wide when it is issued, which is
@@ -957,29 +961,64 @@ Cognito group can fill later without the checks changing.
 
 ## Each team's environments have names of their own
 
-Decided Sun Oct 11, 2026 (PHASE2-PLAN D2). To be built in PHASE2-PLAN Step 2.
+Decided Sun Oct 11, 2026 (PHASE2-PLAN D2). Built the same day (PHASE2-PLAN Step 2).
 
 Two teams can each have an app of the same name, each with its own environment. Within
 a team, one app name is one dev environment and one path to production: a teammate's
 `sealeye run` of the same app updates the team's environment, and the record says who
 did it.
 
-**How.** Each environment has an internal name, `<team>-<app>`, and every name it has in
-AWS comes from it: the stack `sealeye-<team>-<app>`, and the function, log group, API and
-static site bucket after it. The developer sees only the app name, in the command, the
-portal and every file seaLeye writes; the one place the team shows is a static site's
-address. The rule lives in `core/names.js`, with a length cap and a short hash for the
-64- and 63-character limits on function and bucket names.
+**How.** Each environment has a name, `sealeye-<team>-<app>-<hash>`, and every name it
+has in AWS comes from it: the stack, and the function, log group, API and static site
+bucket in it. The developer sees only the app name, in the command, the portal and every
+file seaLeye writes; the one place the team shows is a static site's address. The rule
+is `environmentName` in `core/names.js`.
 
-**No migration.** Every record keeps its `stackName`. A deploy reuses the name on the
-team's latest record for that app, so environments made before this keep their old
-names, and only a first deploy gets the new one.
+- **The hash is always there**, six hex characters of the organization, team and app.
+  The plan first had a hash only for names cut short, but hyphens alone are ambiguous:
+  team `a` with app `b-c` and team `a-b` with app `c` would both be `sealeye-a-b-c`, and
+  team `payments` with app `foo` would be the `sealeye-payments-foo` that an app called
+  payments-foo already had. The hash ends both.
+- **It fits.** The readable part stops at 34 characters, so a name is at most 49: a
+  function name may be 64, and a static site's bucket, `<name>-<account>`, 63.
+- **The templates did not change shape.** Their `AppName` parameter was always the name
+  everything is called after; it is now the environment's name rather than the bare app
+  name.
+
+**No migration.** Every record keeps its `stackName`, and now its `resourceName`.
+`namingFor` in `api/executor/compose.js` reuses the names on the team's latest record
+for that app, unless it was torn down, so environments made before this keep
+`sealeye-<app>` (their bare app name is read from the record's `AppName` parameter), and
+only a first deploy, or the first after a tear down, gets the new name. Another team's
+records never count. The needs ledger counts an app per team, and a draft, which has no
+stack, is grouped by team and app on both surfaces.
+
+**A stack two teams already share belongs to whoever deployed to it last.** Before this,
+two teams' apps called foo both landed on `sealeye-foo`, and each deploy replaced the
+other's code, so the stack holds the last deployer's environment. That team keeps using
+it as before. The other team's next deploy gets a name of its own instead of changing
+it, and a team-scoped token of the other team cannot tear it down
+(`409 SHARED_ENVIRONMENT`, asking the platform team to). An organization-wide token,
+which sees both, can, but never a stack another organization deployed to last. A stack
+being torn down is not reused either.
+
+**Both surfaces say whose it is when it could be either.** An organization-wide token
+sees every team's environments, so when they span more than one team the command's
+tables and the portal's Environments rows add the team, and the portal's Control page
+names it. `sealeye run` with such a token matches a folder only to an environment in the
+person's own team.
+
+**The deploy role keeps "any function in the account" for now.** Functions are now
+`sealeye-*`, but those made before this are named after the bare app, and narrowing the
+role would stop it updating or tearing them down. Narrow it to `sealeye-*` once no
+environment from before this is left (PHASE2-PLAN, "Owed after this plan").
 
 **Why not refuse the second team.** That was the first recommendation: refuse a second
 team's deploy while the first team's environment is live. Greg chose against it, because
 common names such as `test-app` would collide often, and a developer should not have to
 rename an app because of a team they cannot see. It costs about a day more.
 
-**Why the organization is not in the name.** Each organization will deploy into its own
-account (ROADMAP Phase 1 item 5), where names need only be unique within the account. If
-two organizations ever share one account before then, the rule gains the organization.
+**Why the organization is not in the readable name.** Each organization will deploy into
+its own account (ROADMAP Phase 1 item 5), where names need only be unique within the
+account. It is in the hash, so two organizations sharing one account before then would
+still not meet.

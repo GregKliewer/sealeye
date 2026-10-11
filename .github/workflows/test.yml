@@ -38,7 +38,12 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       # The executor stages with rsync and zips with zip; the runner image has both.
-      - run: npm test
+      # The output is kept so a failure can be annotated: these annotations, unlike the
+      # log, can be read from a coding session (check-runs/{id}/annotations).
+      - run: npm test 2>&1 | tee test-output.txt
+        shell: bash
+      - if: failure()
+        run: .github/scripts/annotate-failures.sh test-output.txt
 
   portal:
     # The portal (portal/) built and driven in a browser against the real API with

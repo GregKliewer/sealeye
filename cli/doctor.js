@@ -9,6 +9,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 
 import { repoRoot, loadEnv, loadUserConfig, region, setting, USER_CONFIG_HINT } from "../core/config.js";
+import { seesInWords } from "../core/token.js";
 import { whoAmI } from "./client.js";
 
 const TIMEOUT_MS = 15_000;
@@ -58,7 +59,7 @@ async function checkSignedIn(apiBaseUrl) {
   if (!setting("TOKEN")) return bad(name, "no token on this machine", "Run sealeye login with the token your platform team gave you.");
   try {
     const me = await whoAmI({ apiBaseUrl });
-    return me.auth === "off" ? ok(name, "this platform does not ask who is calling") : ok(name, `${me.name} (${me.email}), team ${me.team}`);
+    return me.auth === "off" ? ok(name, "this platform does not ask who is calling") : ok(name, `${me.name} (${me.email}), ${seesInWords(me)}`);
   } catch (err) {
     return bad(name, err.message, "Ask your platform team for a new token, then run sealeye login.");
   }

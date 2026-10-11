@@ -1,7 +1,7 @@
 // src/executor/index.js
 // The deployment lifecycle: compose -> package -> deploy -> poll until CloudFormation
 // says it is done. Status is never invented; it mirrors the stack.
-import { compose } from "./compose.js";
+import { compose, namingFor } from "./compose.js";
 import { stage, cleanStage, stagePaths, sha256File, sha256Template } from "./package.js";
 import { deploy, describe, firstFailure, deleteStack, emptyBucket, syncSite } from "./cfn.js";
 import { renderReport } from "./report.js";
@@ -58,10 +58,19 @@ export async function startDeployment(record, plan, appPath, sent = {}) {
 
     // `sent` holds setting values from the deploy request. They go into this
     // deployment's parameters and nowhere else: compose keeps names and sources only.
-    composed = compose(plan, record.deploymentId, appPath, sent);
+    // The names this environment has in AWS: its own team's, kept from its record when
+    // it already exists (DESIGN.md, "Each team's environments have names of their own").
+    const naming = namingFor({
+      app: plan?.app?.name,
+      org: record.orgId || "default",
+      team: record.teamId || "default",
+      records: listDeployments()
+    });
+    composed = compose(plan, record.deploymentId, appPath, sent, naming);
     Object.assign(record, {
       kind: composed.kind,
       stackName: composed.stackName,
+      resourceName: composed.resourceName,
       templatePath: composed.templatePath,
       // The values belong to the developer; the record keeps the names and where they
       // came from, and nothing else.

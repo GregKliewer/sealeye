@@ -1,6 +1,7 @@
 // Who is calling (PHASE1-PLAN Step 13): every request but the health check needs a
 // token issued to a person; the person, not the command line, is who the record says
-// asked; an interview is its starter's; an organization sees only its own records; and
+// asked; an interview is its starter's; a team sees only its own records, an
+// organization-wide token every team's, and no organization another's; and
 // `sealeye login` keeps the token for the developer. A laptop API with tokens in a
 // file, no AWS, no model calls.
 import { test, before, after } from "node:test";
@@ -24,15 +25,21 @@ const call = (route, { token, method = "GET", body, headers = {} } = {}) =>
     method,
     headers: { ...(body ? { "content-type": "application/json" } : {}), ...(token ? { authorization: `Bearer ${token}` } : {}), ...headers },
     ...(body ? { body: typeof body === "string" ? body : JSON.stringify(body) } : {})
+  }).catch(err => {
+    // A request that never got an answer says why, and whether the API was still
+    // running, so a failure on CI explains itself without its logs.
+    const state = server.exitCode !== null || server.signalCode ? `exited (${server.exitCode ?? server.signalCode})` : "still running";
+    throw new Error(`${method} ${route}: ${err.message} (${err.cause?.code || err.cause?.message || "no cause"}); the API is ${state}. Its last output:\n${log.slice(-1500)}`);
   });
 
-let greg, ana, outsider;
+let greg, ana, outsider, boss;
 
 before(async () => {
   home = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-auth-"));
   greg = issue("greg@example.com", "Greg K");
   ana = issue("ana@example.com", "Ana P", "--team", "payments");
   outsider = issue("x@other.example", "Other Org", "--org", "other-org");
+  boss = issue("boss@example.com", "Boss Person", "--org-wide");
   const port = 4900 + Math.floor(Math.random() * 90);
   api = `http://localhost:${port}`;
   const e = { ...env(), PORT: String(port), SEALEYE_TRACING: "off", ANTHROPIC_API_KEY: "sk-ant-test", SEALEYE_MODEL_URL: "http://127.0.0.1:9" };
@@ -49,6 +56,26 @@ before(async () => {
 });
 
 after(() => server?.kill());
+
+test("an idle connection stays open longer than Node's default five seconds", async () => {
+  // A client that reuses a connection the API has just closed gets "socket closed" for
+  // a request the API never saw: a 502 through Caddy, or a flaky test on a slow runner.
+  const http = await import("node:http");
+  const agent = new http.Agent({ keepAlive: true, maxSockets: 1 });
+  const get = () => new Promise((resolve, reject) => {
+    http.get(`${api}/health`, { agent }, res => {
+      const port = res.socket.localPort;
+      res.resume();
+      res.on("end", () => resolve({ status: res.statusCode, port }));
+    }).on("error", reject);
+  });
+  const first = await get();
+  await new Promise(r => setTimeout(r, 6000));
+  const second = await get();
+  agent.destroy();
+  assert.equal(second.status, 200);
+  assert.equal(second.port, first.port, "the same connection, still open after six idle seconds");
+});
 
 test("the health check is open; everything else asks who is calling", async () => {
   assert.equal((await call("/health")).status, 200);
@@ -96,11 +123,154 @@ test("the person on a deployment is the token's, whatever the command line says"
     assert.equal((await call(`/deployments/${created.deploymentId}`, { token: outsider })).status, 404);
     assert.deepEqual((await (await call("/deployments", { token: outsider })).json()).deployments, []);
     assert.equal((await call(`/deployments/${created.deploymentId}`, { method: "DELETE", token: outsider })).status, 404);
-    // The same organization does.
-    assert.equal((await call(`/deployments/${created.deploymentId}`, { token: ana })).status, 200);
+    // Another team in the same organization does not either; an organization-wide token does.
+    assert.equal((await call(`/deployments/${created.deploymentId}`, { token: ana })).status, 404);
+    assert.equal((await call(`/deployments/${created.deploymentId}`, { token: boss })).status, 200);
   } finally {
     delete process.env.SEALEYE_TOKEN;
   }
+});
+
+test("a team sees its own environments; an organization-wide token sees every team's", async () => {
+  const { createDeployment } = await import("../cli/client.js");
+  const plan = YAML.parse(fs.readFileSync(path.join(root, "plans", "static-plan.yaml"), "utf8"));
+  const deploy = async (token, app) => {
+    const folder = path.join(home, app);
+    fs.cpSync(path.join(root, "apps", "static-website"), folder, { recursive: true });
+    process.env.SEALEYE_TOKEN = token;
+    try {
+      return (await createDeployment({ apiBaseUrl: api, backend: "cloudformation", plan: { ...plan, app: { ...plan.app, name: app } }, appPath: folder })).deploymentId;
+    } finally {
+      delete process.env.SEALEYE_TOKEN;
+    }
+  };
+  const ours = await deploy(greg, "team-default-site");
+  const theirs = await deploy(ana, "team-payments-site");
+  const ids = async token => (await (await call("/deployments", { token })).json()).deployments.map(d => d.deploymentId);
+
+  assert.ok((await ids(greg)).includes(ours));
+  assert.ok(!(await ids(greg)).includes(theirs), "the list leaves out another team's");
+  assert.ok((await ids(ana)).includes(theirs));
+  assert.ok(!(await ids(ana)).includes(ours));
+  assert.ok((await ids(boss)).includes(ours) && (await ids(boss)).includes(theirs), "organization-wide sees both");
+  assert.ok(!(await ids(outsider)).includes(theirs), "never another organization's");
+
+  // Status, evidence and tear down answer as if the record were not there.
+  for (const [route, method] of [[`/deployments/${theirs}`, "GET"], [`/deployments/${theirs}/evidence`, "GET"], [`/deployments/${theirs}`, "DELETE"]]) {
+    const res = await call(route, { method, token: greg });
+    assert.equal(res.status, 404, `${method} ${route}`);
+    assert.equal((await res.json()).error.code, "NOT_FOUND");
+  }
+  const after = await (await call(`/deployments/${theirs}`, { token: ana })).json();
+  assert.equal(after.destroyRequestedBy, undefined, "the refused tear down changed nothing");
+
+  // whoami says what each token sees.
+  assert.equal((await (await call("/whoami", { token: ana })).json()).scope, "team");
+  assert.equal((await (await call("/whoami", { token: boss })).json()).scope, "org");
+  const listed = execFileSync(process.execPath, ["scripts/tokens.js", "list"], { cwd: root, env: env(), encoding: "utf8" });
+  assert.match(listed, /Boss Person \(boss@example.com\)  team default \(sees every team\)/);
+  assert.match(listed, /Ana P \(ana@example.com\)  team payments  issued/);
+});
+
+test("two teams can each have an app of the same name, as two environments", async () => {
+  const { createDeployment } = await import("../cli/client.js");
+  const plan = YAML.parse(fs.readFileSync(path.join(root, "plans", "static-plan.yaml"), "utf8"));
+  const deploy = async token => {
+    const folder = fs.mkdtempSync(path.join(home, "test-app-"));
+    fs.cpSync(path.join(root, "apps", "static-website"), folder, { recursive: true });
+    process.env.SEALEYE_TOKEN = token;
+    try {
+      const { deploymentId } = await createDeployment({ apiBaseUrl: api, backend: "cloudformation", plan: { ...plan, app: { ...plan.app, name: "test-app" } }, appPath: folder });
+      // The name is decided before anything reaches AWS; wait for it on the record.
+      for (let i = 0; i < 50; i++) {
+        const record = await (await call(`/deployments/${deploymentId}`, { token })).json();
+        if (record.stackName) return record;
+        await new Promise(r => setTimeout(r, 100));
+      }
+      throw new Error(`no stack name on ${deploymentId}:\n${log}`);
+    } finally {
+      delete process.env.SEALEYE_TOKEN;
+    }
+  };
+  const gregs = await deploy(greg);
+  const anas = await deploy(ana);
+  assert.match(gregs.stackName, /^sealeye-default-test-app-[0-9a-f]{6}$/);
+  assert.match(anas.stackName, /^sealeye-payments-test-app-[0-9a-f]{6}$/);
+  assert.equal(gregs.parameters.AppName, gregs.stackName, "the bucket and everything else are named after it too");
+  assert.equal(gregs.app.name, "test-app", "the developer's app keeps its own name");
+
+  // The same team deploying the same app again is the same environment.
+  assert.equal((await deploy(greg)).stackName, gregs.stackName);
+});
+
+test("the needs ledger is the organization's; another team's evidence is left out of it", async () => {
+  const plan = YAML.parse(fs.readFileSync(path.join(root, "plans", "api-plan.yaml"), "utf8"));
+  // A plan with a need is drafted and saved, and creates nothing.
+  const drafted = {
+    ...plan,
+    app: { ...plan.app, name: "payments-needs-queue" },
+    status: "drafted",
+    needs: [{ kind: "work_queue", line: "a queue between it and the work it hands off", evidence: [{ file: "index.js", shows: "hands work to a queue" }] }]
+  };
+  const res = await call("/deployments", { method: "POST", token: ana, body: { backend: "cloudformation", plan: drafted, appPath: root } });
+  assert.equal(res.status, 422, await res.clone().text());
+  const ledger = async token => {
+    const { generatedAt, ...rest } = await (await call("/needs", { token })).json();
+    return rest;
+  };
+  const forAna = await ledger(ana);
+  assert.ok(forAna.apps >= 1);
+  const apps = (l, name) => l.needs.flatMap(n => n.apps).filter(a => a.name === name);
+  const [own] = apps(forAna, "payments-needs-queue");
+  assert.equal(own.team, "payments");
+  assert.match(own.deploymentId, /^dep_/);
+  assert.equal(own.evidence[0].shows, "hands work to a queue", "a team sees its own app's evidence");
+
+  // Another team sees the same apps and needs, without the evidence or the id.
+  const forGreg = await ledger(greg);
+  assert.equal(forGreg.apps, forAna.apps);
+  assert.deepEqual(forGreg.needs.map(n => [n.kind, n.count]), forAna.needs.map(n => [n.kind, n.count]));
+  const [seen] = apps(forGreg, "payments-needs-queue");
+  assert.deepEqual([seen.team, seen.deploymentId, seen.evidence], ["payments", null, []]);
+  assert.ok(!JSON.stringify(forGreg).includes("hands work to a queue"), "another team's code is not in it");
+
+  // An organization-wide token sees all of it.
+  assert.deepEqual(await ledger(boss), forAna);
+  assert.equal((await ledger(outsider)).apps, 0, "another organization's ledger is its own");
+});
+
+test("evidence shows only the record's own team's history, even for the same app name", async () => {
+  const plan = YAML.parse(fs.readFileSync(path.join(root, "plans", "api-plan.yaml"), "utf8"));
+  const drafted = {
+    ...plan,
+    app: { ...plan.app, name: "shared-name-app" },
+    status: "drafted",
+    needs: [{ kind: "work_queue", line: "a queue between it and the work it hands off", evidence: [{ file: "index.js", shows: "hands work to a queue" }] }]
+  };
+  const draft = async token => (await (await call("/deployments", { method: "POST", token, body: { backend: "cloudformation", plan: drafted, appPath: root } })).json()).error.details.deploymentId;
+  const gregs = await draft(greg);
+  const anas = await draft(ana);
+  const res = await call(`/deployments/${anas}/evidence`, { token: ana });
+  assert.equal(res.status, 200, await res.clone().text());
+  const { evidence, markdown } = await res.json();
+  const ids = evidence.history.map(h => h.deploymentId);
+  assert.ok(ids.includes(anas));
+  assert.ok(!ids.includes(gregs), "another team's draft of the same name is not in the history");
+  assert.ok(!markdown.includes("greg@example.com"), "nor is its person");
+});
+
+test("a token issued before scopes existed sees its own team", async () => {
+  const before = issue("before@example.com", "Before Scopes", "--team", "payments");
+  const file = path.join(home, "tokens.json");
+  const rows = JSON.parse(fs.readFileSync(file, "utf8")).map(r => {
+    if (r.email !== "before@example.com") return r;
+    const { scope, ...rest } = r;
+    return rest;
+  });
+  fs.writeFileSync(file, JSON.stringify(rows), { mode: 0o600 });
+  const me = await (await call("/whoami", { token: before })).json();
+  assert.deepEqual([me.team, me.scope], ["payments", "team"]);
+  assert.throws(() => execFileSync(process.execPath, ["scripts/tokens.js", "add-hash", Buffer.from(JSON.stringify({ tokenHash: "a".repeat(64), email: "y@example.com", name: "Y", scope: "admin" })).toString("base64")], { cwd: root, env: env(), stdio: "pipe" }), /scope is team or org/);
 });
 
 test("an interview is its starter's: anyone else gets not found", async () => {

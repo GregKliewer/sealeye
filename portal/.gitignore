@@ -2,3 +2,5 @@ node_modules/
 dist/
 test-results/
 playwright-report/
+# TypeScript's incremental build cache, rewritten by every build
+*.tsbuildinfo

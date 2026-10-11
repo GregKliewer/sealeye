@@ -90,9 +90,15 @@ needs something the API has, it belongs in `core/` or behind an endpoint.
 - The product is seaLeye. The command is `sealeye`. Its subcommand that interviews and
   deploys is `run`; `init` is a hidden alias that does the same thing and never prints a
   deprecation notice.
-- Stacks are `sealeye-<app>` (lowercase, `[a-z0-9-]` only, `core/names.js`). seaLeye's own
-  infrastructure is `platform-sealeye-*`, which the deploy role cannot touch. Artifacts
-  are `<app>/<deploymentId>.zip`.
+- An environment's name is `sealeye-<team>-<app>-<hash>` (`environmentName` in
+  `core/names.js`: lowercase, `[a-z0-9-]` only, at most 49 characters, the hash of the
+  organization, team and app). Its stack, function, log group, API and static site
+  bucket are all named after it, so two teams' apps of the same name are two
+  environments; the developer sees only the app name. `namingFor` in
+  `api/executor/compose.js` keeps an existing environment's names from its record, so
+  ones made before this keep `sealeye-<app>`. seaLeye's own infrastructure is
+  `platform-sealeye-*`, which the deploy role cannot touch. Artifacts are
+  `<name>/<deploymentId>.zip`.
 - Settings are `SEALEYE_<NAME>` (ACCOUNT, BUCKET, LWA_VERSION, REGION, MODEL, DEBUG,
   HOME, TRACING, MODEL_URL, API, TOKEN, AUTH), read through `setting()` in
   `core/config.js`. SEALEYE_TOKEN is a secret: it lives in `~/.sealeye/config` (0600),
@@ -125,8 +131,10 @@ and the two /sessions needs `Authorization: Bearer <token>` (`api/tokens.js`) or
 portal's session cookie; a change made with the cookie must also carry
 `x-sealeye-portal: 1`. A record says which surface made it. A laptop API may run with
 `SEALEYE_AUTH=off`, an API with a database never can. The person on a record is the
-token's, never what the command line says. An interview is its starter's; records are
-their organization's. Keep existing endpoints and commands working; add, do not
+token's, never what the command line says. An interview is its starter's; a record is
+its team's, seen by that team and by an organization-wide token, never by another
+organization; the needs ledger is the whole organization's, but an app's evidence and
+deployment id in it are its team's (and an organization-wide token's). Keep existing endpoints and commands working; add, do not
 break.
 
 ## Executor
@@ -205,7 +213,8 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   records and interviews in Postgres, or locally with a JSON file and interviews in
   memory (no `DATABASE_URL`). No sign-in yet: each person has a token, issued with
   `deploy/server.sh token add` and kept by `sealeye login`, a stand-in until Q3 (ROADMAP
-  Phase 1 item 3). Every token is org "default" until there is a second organization.
+  Phase 1 item 3, Q15). Every token is org "default" until there is a second
+  organization. A token is for one team, or issued `--org-wide` to see every team's.
   The store reads from memory, written through to Postgres: one API process only.
 - Setting values travel with each deploy request, from the developer's `.env`, and are
   never kept. Moving them to the organization's secret store is owed (ROADMAP Phase 1

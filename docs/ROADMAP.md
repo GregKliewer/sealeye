@@ -38,10 +38,10 @@ shows what is really there.
   team's environments without the rights to.
 - `npm test` runs on every push.
 
-*Status Oct 11, 2026:* the second and fourth lines are met. Team separation is not yet:
-visibility stops at the organization, and every token is organization "default", so
-anyone with a token sees every environment. PHASE2-PLAN Steps 1 and 2 close that, and
-Step 6 is the second-person test.
+*Status Oct 11, 2026:* the second and fourth lines are met. Each team now sees only its
+own environments, and an organization-wide token sees every team's (PHASE2-PLAN Step 1).
+Each team's environments also have names of their own, so two teams can use the same
+app name (Step 2). Step 6 is the second-person test.
 
 **Work:**
 1. **The app reaches the API without a shared disk.** Today `POST /deployments` takes an

@@ -8,3 +8,12 @@ export const TOKEN_PREFIX = "sl_";
 export function looksLikeToken(value) {
   return typeof value === "string" && /^sl_[A-Za-z0-9_-]{43}$/.test(value);
 }
+
+/**
+ * Whose environments a signed-in person sees, in words, the same on every surface:
+ * "team payments", or for an organization-wide token "team default, and every team's
+ * environments" (DESIGN.md, "Each team sees its own environments").
+ */
+export function seesInWords({ team, scope } = {}) {
+  return scope === "org" ? `team ${team}, and every team's environments` : `team ${team}`;
+}

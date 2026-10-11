@@ -8,6 +8,7 @@ import { checkPlan, checkUpgraded } from "./validate.js";
 import { backendMappings } from "./mappings.js";
 import { putDeployment, getDeployment, listDeployments, storeFile, count, openStore, flushStore } from "./store.js";
 import { startDeployment, startDestroy } from "./executor/index.js";
+import { sharedWithAnotherTeam } from "./executor/compose.js";
 import { acceptSent } from "./executor/settings.js";
 import { removeUpload, stageUpload, sweepUploads } from "./executor/uploads.js";
 import { resumeInFlight } from "./executor/resume.js";
@@ -94,12 +95,23 @@ app.use(async (req, res, next) => {
   return next();
 });
 
-// Records belong to an organization. Until sign-in issues more than one, every record
-// and every token is "default", so this changes nothing yet; it is here so that the day
-// there are two, neither sees the other's.
+// Records belong to an organization and a team (DESIGN.md, "Each team sees its own
+// environments"). A caller sees their own team's, or with an organization-wide token
+// every team's in their organization; never another organization's. Anything else
+// answers "not found", as another person's interview does, so a record's existence is
+// not given away. A laptop API with no tokens (SEALEYE_AUTH=off) has one person and sees
+// everything.
 const orgOf = dep => dep?.orgId || "default";
-const canSee = (req, dep) => Boolean(dep) && (!req.caller || orgOf(dep) === req.caller.org);
+const teamOf = dep => dep?.teamId || "default";
+const inOrg = (req, dep) => Boolean(dep) && (!req.caller || orgOf(dep) === req.caller.org);
+const canSee = (req, dep) =>
+  inOrg(req, dep) && (!req.caller || req.caller.scope === "org" || teamOf(dep) === req.caller.team);
 const visibleDeployments = req => listDeployments().filter(dep => canSee(req, dep));
+// The needs ledger is the platform team's view of what drafted plans across the
+// organization wait on. It names apps and needs, never people, and it stays
+// organization-wide on purpose: do not narrow it to visibleDeployments. Another team's
+// evidence and deployment ids are left out of it (rollupNeeds).
+const orgDeployments = req => listDeployments().filter(dep => inOrg(req, dep));
 
 app.use((req, res, next) => {
   if (req.method === "POST" && req.path === "/interviews") return uploadJson(req, res, next);
@@ -145,8 +157,8 @@ app.post("/sessions", async (req, res) => {
   }
   const { value, expiresAt } = await startSession(caller);
   res.set("Set-Cookie", sessionCookie(value, SESSION_HOURS * 3600));
-  const { email, name, org, team } = caller;
-  return res.status(201).json({ email, name, org, team, expiresAt });
+  const { email, name, org, team, scope } = caller;
+  return res.status(201).json({ email, name, org, team, scope, expiresAt });
 });
 
 // DELETE /sessions: the portal's "Sign out". Ends the session and clears the cookie.
@@ -179,8 +191,8 @@ app.get("/catalog", (_req, res) => {
 // GET /whoami: who the token belongs to. `sealeye login` checks a token with it.
 app.get("/whoami", (req, res) => {
   if (!req.caller) return res.status(200).json({ auth: "off", surface: req.surface });
-  const { email, name, org, team, tokenId } = req.caller;
-  return res.status(200).json({ email, name, org, team, tokenId, surface: req.surface, organizationName: orgName() });
+  const { email, name, org, team, scope, tokenId } = req.caller;
+  return res.status(200).json({ email, name, org, team, scope, tokenId, surface: req.surface, organizationName: orgName() });
 });
 
 // POST /plans/validate
@@ -392,6 +404,9 @@ app.get("/deployments", (req, res) => {
     profile: dep.plan?.profile || null,
     requestedBy: dep.requestedBy || null,
     surface: dep.surface || "cli",
+    // Whose environment it is. A team only ever sees its own; an organization-wide
+    // token sees several, and two of them can share an app name.
+    teamId: dep.teamId || "default",
     destroyRequestedBy: dep.destroyRequestedBy || null,
     needs: Array.isArray(dep.needs) ? dep.needs.length : 0
   }));
@@ -435,7 +450,7 @@ app.get("/deployments/:deploymentId/evidence", async (req, res) => {
 // Store only; no AWS call.
 app.get("/needs", (req, res) => {
   try {
-    return res.status(200).json(rollupNeeds(visibleDeployments(req)));
+    return res.status(200).json(rollupNeeds(orgDeployments(req), { viewer: req.caller }));
   } catch (err) {
     return res.status(500).json({ error: { code: "NEEDS_FAILED", message: err.message } });
   }
@@ -455,6 +470,22 @@ app.delete("/deployments/:deploymentId", (req, res) => {
   // tear-down of the same stack.
   if (dep.status === "destroyed" || dep.status === "destroying") {
     return res.status(200).json(dep);
+  }
+
+  // A stack from before teams had names of their own can hold another team's records
+  // too, and whoever deployed to it last is in it (DESIGN.md, "Each team's environments
+  // have names of their own"). When that is another team, tearing it down would take
+  // their environment with it, so only someone who can see both may: an
+  // organization-wide token, and never another organization's.
+  const occupant = listDeployments().find(r => r.stackName && r.stackName === dep.stackName);
+  const theirs = sharedWithAnotherTeam(dep.stackName, { org: orgOf(dep), team: teamOf(dep), records: listDeployments() });
+  if (req.caller && theirs && (req.caller.scope !== "org" || orgOf(occupant) !== req.caller.org)) {
+    return res.status(409).json({
+      error: {
+        code: "SHARED_ENVIRONMENT",
+        message: "Another team uses this environment too, from before each team's environments had names of their own, so tearing it down would take theirs with it. Ask your platform team to tear it down."
+      }
+    });
   }
 
   // Who asked for it, and from where: the command line or the portal.
@@ -621,10 +652,18 @@ for (const signal of ["SIGTERM", "SIGINT"]) {
   });
 }
 
-app.listen(port, () => {
+const listening = app.listen(port, () => {
   console.log(`seaLeye API listening on http://localhost:${port}`);
   if (opened.adopted) console.log(`deployment store: brought ${opened.adopted} records in from ${opened.from}`);
   for (const r of resumed) console.log(`${r.deploymentId}: ${r.as}`);
   for (const r of restoredInterviews) console.log(`${r.interviewId}: ${r.as}`);
   console.log(`deployment store: ${storeFile} (${listDeployments().length} records loaded${opened.migrations?.length ? `, applied ${opened.migrations.join(", ")}` : ""})`);
 });
+
+// An idle kept-alive connection stays open longer than anything in front of the API
+// keeps one. Node closes them after five seconds by default, and a client or proxy that
+// reuses a connection just as it closes gets "socket closed" (a 502 through Caddy, or a
+// failed request in the tests) for a request the API never saw.
+const KEEP_ALIVE_MS = 130_000;
+listening.keepAliveTimeout = KEEP_ALIVE_MS;
+listening.headersTimeout = KEEP_ALIVE_MS + 1_000;

@@ -11,6 +11,7 @@ import { createHash } from "node:crypto";
 
 export const TEST_TOKEN = `sl_${"t".repeat(43)}`;
 export const OTHER_ORG_TOKEN = `sl_${"o".repeat(43)}`;
+export const ORG_WIDE_TOKEN = `sl_${"z".repeat(43)}`;
 const PORT = Number(process.env.SEALEYE_TEST_API_PORT || 3999);
 
 const root = path.resolve(import.meta.dirname, "..", "..");
@@ -21,6 +22,7 @@ const ago = ms => new Date(now - ms).toISOString();
 
 fs.writeFileSync(path.join(home, "tokens.json"), JSON.stringify([
   { tokenId: "tok_greg", tokenHash: hash(TEST_TOKEN), email: "greg@example.com", name: "Greg Kliewer", org: "default", team: "default", createdAt: ago(0), revokedAt: null, lastUsedAt: null },
+  { tokenId: "tok_wide", tokenHash: hash(ORG_WIDE_TOKEN), email: "lead@example.com", name: "Lee Admin", org: "default", team: "default", scope: "org", createdAt: ago(0), revokedAt: null, lastUsedAt: null },
   { tokenId: "tok_other", tokenHash: hash(OTHER_ORG_TOKEN), email: "x@other.example", name: "Other Org", org: "other-org", team: "default", createdAt: ago(0), revokedAt: null, lastUsedAt: null }
 ]));
 
@@ -44,6 +46,8 @@ fs.writeFileSync(path.join(home, "deployments.json"), JSON.stringify([
     startedAt: ago(40 * 60_000) },
   { ...base, deploymentId: "dep_eeeeeeeeeee1", app: { name: "old-demo" }, kind: "static", status: "destroyed", stackName: "sealeye-old-demo",
     plan: { profile: "poc" }, outputs: {}, requestedBy: by("Greg Kliewer", "greg@example.com"), startedAt: ago(9 * 86400_000) },
+  { ...base, teamId: "payments", deploymentId: "dep_99999999999a", app: { name: "another-teams-api" }, kind: "api", status: "succeeded", stackName: "sealeye-payments-another-teams-api-0a1b2c",
+    plan: { profile: "dev" }, outputs: {}, requestedBy: by("Pat Other", "pat@example.com"), startedAt: ago(3600_000) },
   { ...base, orgId: "other-org", deploymentId: "dep_fffffffffff1", app: { name: "not-yours" }, kind: "api", status: "succeeded", stackName: "sealeye-not-yours",
     plan: { profile: "dev" }, outputs: {}, requestedBy: by("Other Org", "x@other.example"), startedAt: ago(3600_000) }
 ]));

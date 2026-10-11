@@ -9,7 +9,9 @@
 // every request rather than cached, so a revoked token stops working at once.
 //
 // What a token resolves to, the caller, is the shape sign-in will fill later: a
-// person, their organization and their team.
+// person, their organization, their team, and the token's scope: "team" sees that
+// team's environments, "org" sees every team's in the organization (DESIGN.md, "Each
+// team sees its own environments").
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -33,13 +35,16 @@ const EMAIL = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
 const NAME = /^[\p{L}\p{M} .'-]{1,80}$/u;
 const SLUG = /^[a-z0-9][a-z0-9-]{0,39}$/;
 
+export const SCOPES = ["team", "org"];
+
 /** Check what a token is issued to. Throws with a sentence when something is off. */
-export function checkHolder({ email, name, org = "default", team = "default" }) {
+export function checkHolder({ email, name, org = "default", team = "default", scope = "team" }) {
   if (!EMAIL.test(String(email || ""))) throw new Error(`not an email address: ${email}`);
   if (!NAME.test(String(name || ""))) throw new Error("a name is letters, spaces, dots, apostrophes and hyphens, up to 80");
   if (!SLUG.test(org)) throw new Error(`an organization id is lowercase letters, digits and hyphens: ${org}`);
   if (!SLUG.test(team)) throw new Error(`a team id is lowercase letters, digits and hyphens: ${team}`);
-  return { email: String(email).toLowerCase(), name: String(name).trim(), org, team };
+  if (!SCOPES.includes(scope)) throw new Error(`a token's scope is team or org: ${scope}`);
+  return { email: String(email).toLowerCase(), name: String(name).trim(), org, team, scope };
 }
 
 // ---------------------------------------------------------------------------------
@@ -69,6 +74,8 @@ const fromRow = r => ({
   name: r.name,
   org: r.org_id ?? r.org,
   team: r.team_id ?? r.team,
+  // A token from before scopes existed is for its team, which is what it always was.
+  scope: SCOPES.includes(r.scope) ? r.scope : "team",
   createdAt: r.created_at ? new Date(r.created_at).toISOString() : r.createdAt,
   revokedAt: r.revoked_at ? new Date(r.revoked_at).toISOString() : (r.revokedAt ?? null),
   lastUsedAt: r.last_used_at ? new Date(r.last_used_at).toISOString() : (r.lastUsedAt ?? null)
@@ -89,8 +96,8 @@ export async function addToken({ tokenHash, ...holder }) {
   const tokenId = `tok_${crypto.randomBytes(6).toString("hex")}`;
   if (databaseUrl()) {
     const { rows } = await db().query(
-      `INSERT INTO tokens (token_id, token_hash, email, name, org_id, team_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [tokenId, tokenHash, who.email, who.name, who.org, who.team]
+      `INSERT INTO tokens (token_id, token_hash, email, name, org_id, team_id, scope) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [tokenId, tokenHash, who.email, who.name, who.org, who.team, who.scope]
     );
     return fromRow(rows[0]);
   }
@@ -127,6 +134,9 @@ export async function revokeTokens(emailOrId) {
   return n;
 }
 
+/** The caller a token row resolves to: who, and what they may see. Nothing else. */
+const callerOf = ({ tokenId, email, name, org, team, scope }) => ({ tokenId, email, name, org, team, scope });
+
 /** Every token issued, newest first, without hashes. */
 export async function listTokens() {
   if (databaseUrl()) {
@@ -143,7 +153,7 @@ const NOTE_EVERY_MS = 60_000;
 
 /**
  * Who a token belongs to, or null for a token that is unknown, revoked or malformed.
- * @returns {Promise<{ tokenId, email, name, org, team } | null>}
+ * @returns {Promise<{ tokenId, email, name, org, team, scope } | null>}
  */
 export async function callerFor(token) {
   if (!looksLikeToken(token)) return null;
@@ -163,8 +173,7 @@ export async function callerFor(token) {
     lastNoted.set(found.tokenId, now);
     noteUse(found.tokenId).catch(() => {});
   }
-  const { tokenId, email, name, org, team } = found;
-  return { tokenId, email, name, org, team };
+  return callerOf(found);
 }
 
 async function noteUse(tokenId) {
@@ -252,16 +261,14 @@ export async function callerForSession(value, nowMs = Date.now()) {
       [sessionHash, new Date(nowMs).toISOString()]
     );
     if (!rows[0]) return null;
-    const { tokenId, email, name, org, team } = fromRow(rows[0]);
-    return { tokenId, email, name, org, team };
+    return callerOf(fromRow(rows[0]));
   }
   const now = new Date(nowMs).toISOString();
   const session = readSessions().find(s => s.sessionHash === sessionHash && s.expiresAt > now);
   if (!session) return null;
   const token = readFile().find(r => r.tokenId === session.tokenId && !r.revokedAt);
   if (!token) return null;
-  const { tokenId, email, name, org, team } = fromRow(token);
-  return { tokenId, email, name, org, team };
+  return callerOf(fromRow(token));
 }
 
 /** End a session (sign out). Never throws for one that is already gone. */

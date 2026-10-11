@@ -166,3 +166,30 @@ test("tokens and portal sessions in Postgres: hashes only, revocation ends both"
   assert.deepEqual(r.afterRevoke, [null, null]);
   assert.equal(r.leaked, false);
 });
+
+test("a token's scope in Postgres: team unless issued organization-wide, and older tokens are team", { skip: !pgAvailable && "no SEALEYE_TEST_DATABASE_URL" }, async () => {
+  const url = await freshDatabase();
+  const out = await inChild(url, `
+    import { migrate, db } from "./api/db.js";
+    import { addToken, hashToken, newToken, callerFor, startSession, callerForSession } from "./api/tokens.js";
+    await migrate();
+    // A token as Step 13 wrote it, before the scope column had a value of its own.
+    const old = newToken();
+    await db().query("INSERT INTO tokens (token_id, token_hash, email, name, org_id, team_id) VALUES ('tok_000000000old', $1, 'old@example.com', 'Old', 'default', 'payments')", [hashToken(old)]);
+    const wide = newToken();
+    await addToken({ tokenHash: hashToken(wide), email: "boss@example.com", name: "Boss", scope: "org" });
+    let refused = null;
+    try { await addToken({ tokenHash: hashToken(newToken()), email: "x@example.com", name: "X", scope: "admin" }); } catch (err) { refused = err.message; }
+    let checked = null;
+    try { await db().query("UPDATE tokens SET scope = 'everything' WHERE email = 'boss@example.com'"); } catch (err) { checked = err.message; }
+    const s = await startSession(await callerFor(wide));
+    console.log(JSON.stringify({ old: (await callerFor(old)).scope, wide: (await callerFor(wide)).scope, session: (await callerForSession(s.value)).scope, refused, checked }));
+    process.exit(0);
+  `);
+  const r = JSON.parse(out.split("\n").at(-1));
+  assert.equal(r.old, "team");
+  assert.equal(r.wide, "org");
+  assert.equal(r.session, "org", "a portal session carries its token's scope");
+  assert.match(r.refused, /scope is team or org/);
+  assert.match(r.checked, /check constraint/, "the database itself refuses any other scope");
+});

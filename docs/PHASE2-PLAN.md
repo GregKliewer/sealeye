@@ -118,6 +118,11 @@ Steps 3 to 5 are documents and can share a second pull request.
 
 ### Step 1. Each team sees its own environments (D1)
 
+*Built Sun Oct 11, 2026 (DESIGN.md, "Each team sees its own environments"). Evidence
+history also stays within the record's team, so another team's draft of the same app
+name never shows in it. The needs ledger leaves out another team's evidence and
+deployment ids, as Greg decided after the independent review.*
+
 - `api/migrations/004_token_scope.sql` adds `scope` to `tokens` (`team` or `org`, default
   `team`). `fromRow` and the file store read it; a token without one is `team`.
 - `deploy/server.sh token add` takes `--org-wide`. `token list` shows the scope.
@@ -140,41 +145,48 @@ Steps 3 to 5 are documents and can share a second pull request.
 
 ### Step 2. Each team's environments have names of their own (D2)
 
+*Built Sun Oct 11, 2026 (DESIGN.md, "Each team's environments have names of their
+own"). Some things differ from the plan below, and DESIGN.md says why: the name always
+ends in a short hash; the deploy role keeps "any function" until no environment from
+before this is left; a stack two teams already share stays with the team that deployed to it
+last; and an organization-wide token's views say whose each environment
+is.*
+
 About a day and a half to two days. Today the app name becomes these names in the one
 shared account, and the first four collide between teams:
 
-| What | Named today | Named after this step |
+| What | Named before this step | Named after it |
 |---|---|---|
-| Stack | `sealeye-<app>` | `sealeye-<team>-<app>` |
-| Function | `<app>` | `sealeye-<team>-<app>` |
-| Log group | `/aws/lambda/<app>` | `/aws/lambda/sealeye-<team>-<app>` |
-| Static site bucket | `<app>-<account>` | `sealeye-<team>-<app>-<account>` |
-| API | `<app>` | `sealeye-<team>-<app>` (API names need not be unique; this is for clarity) |
-| Uploaded artifact | `<app>/<deploymentId>.zip` | `<team>/<app>/<deploymentId>.zip` |
+| Stack | `sealeye-<app>` | `sealeye-<team>-<app>-<hash>` |
+| Function | `<app>` | the same name |
+| Log group | `/aws/lambda/<app>` | `/aws/lambda/<the same name>` |
+| Static site bucket | `<app>-<account>` | `<the same name>-<account>` |
+| API | `<app>` | the same name (API names need not be unique; this is for clarity) |
+| Uploaded artifact | `<app>/<deploymentId>.zip` | `<the same name>/<deploymentId>.zip` |
 
-- `core/names.js` gets one rule for the environment's internal name from the team and the
-  app, with a length cap and a short hash, because function names stop at 64 characters
-  and bucket names at 63. Team ids are already lowercase letters, digits and hyphens
-  (`checkHolder`). A test covers the longest team and app names.
-- `api/executor/compose.js` and both templates take that name instead of the bare app
-  name. The deploy role's patterns follow, and the function permission narrows from any
-  function in the account to `sealeye-*`, which it should have been anyway.
-- **No migration.** A deploy looks up the caller's team's latest record for the app. If
-  it has a `stackName`, that name is reused, so Greg's existing environments keep their
-  old names. Only a first deploy gets the new name. A test covers both.
+- `environmentName` in `core/names.js` is the one rule: the team, the app, and six hex
+  characters of a hash of the organization, team and app, which keeps names that
+  hyphens make ambiguous apart. The readable part stops at 34 characters, so a name is at
+  most 49, inside the 64-character limit on function names and 63 on bucket names. Team
+  ids are already lowercase letters, digits and hyphens (`checkHolder`).
+- `api/executor/compose.js` gives both templates that name as `AppName` instead of the
+  bare app name. The deploy role needs no change: its patterns already match.
+- **No migration.** `namingFor` reuses the names on the caller's team's latest record for
+  the app, unless it was torn down, so Greg's existing environments keep their old names.
+  Only a first deploy gets the new name. Tests cover both.
 - **Within a team, one app name is one environment.** A teammate's `sealeye run` in their
   copy of the app updates the team's environment, and the record says who did it, as
   today.
-- `sealeye destroy`, `status` and `watch` given an app name look within the caller's team
-  (today they match `sealeye-<target>` across everyone). The portal already groups by
-  `stackName`. The needs ledger counts the same app name on two teams as two apps.
+- `sealeye run` finds a folder's environment by its app name rather than by
+  `sealeye-<app>`. `sealeye destroy`, `status`, `watch` and `evidence` given an app name
+  already match it, among the environments the caller can see (Step 1). Both surfaces
+  group a draft by team and app. The needs ledger counts the same app name on two teams
+  as two apps.
 - The developer sees only the app name, in the command, the portal and every file
   seaLeye writes. The one place the team shows is a static site's address, which comes
   from its bucket's name.
-- CLAUDE.md "Names" changes from `sealeye-<app>` to the new rule, in the same commit.
-  DESIGN.md already has the decision ("Each team's environments have names of their own").
-- Check it for real: deploy one static site and one API on two teams with the same app
-  name, then tear each down from the other surface.
+- Check it for real after the release: deploy one static site and one API on two teams
+  with the same app name, then tear each down from the other surface.
 
 **Done when:** the tester deploys a sample app Greg also has live, both environments
 work side by side, and tearing down either leaves the other untouched.
@@ -426,4 +438,5 @@ Step 5 records a decision next to each.
 | **Q14: an AI gateway** | Not for the pilot. | A second team uses the API and spend per person matters. |
 | **Install scripts** | Dependencies install with `--ignore-scripts`. Raised to Greg, not confirmed. | Step 5. |
 | **Small gaps** | Expired portal sessions are cleared only at sign-in. A race between token writes in file mode is narrowed, not removed. The package still installs the API's dependencies. `sealeye doctor` checks laptop AWS tools (unless Step 5 fixes it). The pages ask not to be indexed. | Any of them causing trouble, or the end of the pilot. |
+| **Narrow the deploy role to `sealeye-*` functions** | Functions made since Step 2 are `sealeye-*`; older ones are named after the bare app, so the role still allows any function in the account. | No environment from before Step 2 is left: tear down and redeploy Greg's older API environments. |
 | **Old remote branches** | Merged branches are still on GitHub. These sessions cannot delete them. | Greg prunes them when convenient. |

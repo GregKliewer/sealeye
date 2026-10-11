@@ -268,9 +268,17 @@ Issue one from your Mac, then send it to the person privately:
 ```bash
 deploy/server.sh token add ana@example.com "Ana Pereira"            # team "default"
 deploy/server.sh token add ana@example.com "Ana Pereira" payments   # or a team
+deploy/server.sh token add you@example.com "Your Name" --org-wide   # sees every team
 deploy/server.sh token list                                          # never shows tokens
 deploy/server.sh token revoke ana@example.com                        # stops working at once
 ```
+
+A token sees only its own team's environments: their list, status, evidence and tear
+down. Another team's environment answers "not found". A token issued with `--org-wide`
+sees every team's, which is what the administrator's own token should be. The needs
+ledger lists every app in the organization, but the lines of code that show an app's
+needs only to its own team and to organization-wide tokens (DESIGN.md, "Each team sees
+its own environments").
 
 The token is made on your Mac and shown once, there. The server is sent only its hash,
 so it is in no log, no command history and no Session Manager record, and a copy of the

@@ -273,7 +273,12 @@ async function checkedNowOf(record, events, siblings) {
 }
 
 function historyOf(record) {
-  const all = listDeployments();
+  // The history is the record's own team's: whoever can read this evidence can see
+  // those records, and no other team's (DESIGN.md, "Each team sees its own
+  // environments"). Two teams' drafts of the same app name are two histories.
+  const sameTeam = d => (d.orgId || "default") === (record.orgId || "default")
+    && (d.teamId || "default") === (record.teamId || "default");
+  const all = listDeployments().filter(sameTeam);
   const same = record.stackName
     ? all.filter(d => d.stackName === record.stackName)
     : all.filter(d => d.app?.name && d.app.name === record.app?.name);
