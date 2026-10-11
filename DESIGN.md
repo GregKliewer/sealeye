@@ -838,3 +838,39 @@ give. But the API takes requests without asking who is calling, and each intervi
 spends model credit and each deploy builds in the pilot account. The pages ask not to be
 indexed (robots.txt and noindex) until Step 13 puts a token in front of the API.
 
+## Every caller has a token, until sign-in
+
+Decided Sun Oct 11, 2026 (PHASE1-PLAN Step 13, D7; a stand-in until Q3).
+
+Every request but `GET /health` carries `Authorization: Bearer sl_...`. A token is 32
+random bytes, issued to one person, with an organization and a team. The check runs
+before a request's body is read, so nobody uploads anything without one.
+
+**Only a hash is kept.** The API stores the token's SHA-256 (Postgres `tokens`, or
+`tokens.json` beside a laptop API, 0600), and looks it up on every request, so a revoked
+token stops at once. `deploy/server.sh token add` makes the token on the administrator's
+Mac and sends the server only the hash: the token is in no log, shell history or Session
+Manager record. SHA-256 rather than a slow password hash, because a token is random and
+long, not something a person chose.
+
+**The person is the token's.** A deployment's `requestedBy` is the token's email and
+name, marked `verified: "token"`; the machine is still as the command line reported it,
+and the change record says which is which. The record gets the token's organization and
+team, the columns Step 10 left waiting. An interview belongs to the person who started
+it: anyone else's token gets "not found" for it, as for one that does not exist.
+Records are their organization's; with one organization, "default", nothing changes yet.
+
+**The command keeps the token.** `sealeye login` reads it without echoing it (or from a
+pipe, never as an argument, so it stays out of shell history), checks it with
+`GET /whoami`, and saves it as `SEALEYE_TOKEN` in `~/.sealeye/config`, readable by the
+developer alone. `sealeye logout` removes it; `sealeye whoami` and `sealeye doctor` say
+who you are. A refused token is one sentence saying to ask for a new one.
+
+**An API with a database always asks.** `SEALEYE_AUTH=off` exists for a laptop API and
+the tests, and the API refuses to start with it when `DATABASE_URL` is set, so the
+server cannot be left open by a stray setting.
+
+**What sign-in replaces.** The admin script and `sealeye login`'s paste. Not the shape:
+`req.caller` (person, organization, team) is what an identity provider will fill, so the
+records, the checks and the change record stay as they are.
+

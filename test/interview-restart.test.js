@@ -8,7 +8,7 @@ import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import YAML from "yaml";
 
 import { answerInterview, followInterview, startInterview } from "../cli/client.js";
@@ -60,6 +60,11 @@ test("an interview paused at a question resumes after the API restarts", { skip:
   };
   const stopApi = child => new Promise(r => { child.once("close", r); child.kill("SIGTERM"); });
 
+  // An API with a database always asks who is calling: issue a token the way an
+  // administrator would, and use it as `sealeye login` would.
+  const issued = execFileSync(process.execPath, ["scripts/tokens.js", "add", "dev@example.com", "Dev Person"], { cwd: root, env, encoding: "utf8" });
+  process.env.SEALEYE_TOKEN = issued.match(/sl_[A-Za-z0-9_-]{43}/)[0];
+
   let api = await startApi();
   try {
     const app = path.join(home, "site");
@@ -94,6 +99,7 @@ test("an interview paused at a question resumes after the API restarts", { skip:
     assert.deepEqual(replay.filter(t => t !== "step"), ["started", "question", "answered", "plan", "answered", "finished"]);
     assert.deepEqual(fs.readdirSync(path.join(home, "interviews")), [], "the uploaded copy is gone");
   } finally {
+    delete process.env.SEALEYE_TOKEN;
     await stopApi(api);
     model.close();
   }

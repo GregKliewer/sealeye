@@ -109,6 +109,29 @@ export function loadUserConfig(configPath) {
 }
 
 /**
+ * Write one line of ~/.sealeye/config, or remove it (value null), leaving every other
+ * line as it was. The file holds the developer's token, so it is theirs alone (0600).
+ * Also sets or clears it for the rest of this process.
+ */
+export function saveUserSetting(key, value) {
+  const file = path.join(sealeyeHome(), "config");
+  let lines = [];
+  try {
+    lines = fs.readFileSync(file, "utf8").split(/\r?\n/);
+  } catch {}
+  const mine = line => new RegExp(`^\\s*(export\\s+)?${key}\\s*=`).test(line);
+  const kept = lines.filter(line => !mine(line));
+  while (kept.length && kept[kept.length - 1].trim() === "") kept.pop();
+  if (value !== null && value !== undefined) kept.push(`${key}=${value}`);
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+  fs.writeFileSync(file, kept.length ? `${kept.join("\n")}\n` : "", { mode: 0o600 });
+  fs.chmodSync(file, 0o600);
+  if (value === null || value === undefined) delete process.env[key];
+  else process.env[key] = String(value);
+  return file;
+}
+
+/**
  * A seaLeye setting by its short name: setting("BUCKET") reads SEALEYE_BUCKET, then the
  * older DEPLOYME_BUCKET. Loads .env first.
  *

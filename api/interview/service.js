@@ -110,10 +110,12 @@ export function createInterviewService({
    * @param {string}  [options.scratchRoot] the folder to delete (defaults to appDir)
    * @param {object}  [options.deployed] the plan the live environment was built from
    * @param {string}  [options.user]    who asked, for the trace
+   * @param {string}  [options.owner]   the caller's email when the API checks tokens: only
+   *                                     they may answer, follow or end it
    * @param {string}  [options.model]
    * @param {boolean} [options.trace]   false turns tracing off for this interview only
    */
-  function start({ appDir, ownsDir = false, scratchRoot, deployed = null, user, model, trace = true }) {
+  function start({ appDir, ownsDir = false, scratchRoot, deployed = null, user, owner = null, model, trace = true }) {
     const id = `int_${crypto.randomBytes(8).toString("hex")}`;
     const record = {
       id,
@@ -122,6 +124,7 @@ export function createInterviewService({
       ownsDir,
       scratchRoot: scratchRoot || appDir,
       user,
+      owner,
       trace,
       mode: deployed ? "re-run" : "first run",
       model: model || setting("MODEL") || DEFAULT_MODEL,
@@ -314,6 +317,11 @@ export function createInterviewService({
     return record ? summary(record) : null;
   }
 
+  /** Whose interview this is: the caller's email when it was started with a token. */
+  function ownerOf(id) {
+    return interviews.get(id)?.owner ?? null;
+  }
+
   /**
    * The developer left (Ctrl+C, or quit at a question): drop the interview now rather
    * than keep their code for a day. A stretch still running finishes first.
@@ -402,7 +410,7 @@ export function createInterviewService({
   const timer = setInterval(() => sweep().catch(() => {}), SWEEP_EVERY_MS);
   timer.unref();
 
-  return { start, startFromUpload, answer, remove, restore, subscribe, get, settled, sweep, ready, close: () => clearInterval(timer) };
+  return { start, startFromUpload, answer, remove, restore, subscribe, get, ownerOf, settled, sweep, ready, close: () => clearInterval(timer) };
 }
 
 function summary(record) {

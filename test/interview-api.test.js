@@ -58,6 +58,7 @@ before(async () => {
       HOME: tmp,
       SEALEYE_HOME: tmp,
       SEALEYE_TRACING: "off",
+      SEALEYE_AUTH: "off",
       ANTHROPIC_API_KEY: "sk-ant-the-apis-own-key",
       SEALEYE_MODEL_URL: `http://127.0.0.1:${model.address().port}`
     },

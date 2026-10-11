@@ -79,7 +79,7 @@ before(async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-eval-api-"));
   server = spawn(process.execPath, ["api/server.js"], {
     cwd: root,
-    env: { ...process.env, PORT: String(port), SEALEYE_HOME: home, HOME: home },
+    env: { ...process.env, PORT: String(port), SEALEYE_HOME: home, HOME: home, SEALEYE_AUTH: "off" },
     stdio: "ignore"
   });
   for (let i = 0; i < 50; i++) {

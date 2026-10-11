@@ -16,11 +16,14 @@ import {
   getEvidence,
   getNeeds,
   answerInterview,
-  abandonInterview
+  abandonInterview,
+  whoAmI,
+  NotSignedInError
 } from "../client.js";
+import { looksLikeToken } from "../../core/token.js";
 import { banner, step, ask, answer, typing, typed, c, product, spinner, stopSpinner, animations } from "../brand.js";
 import { safeName, CONFIG_FILE, LEGACY_CONFIG_FILE } from "../../core/names.js";
-import { USER_CONFIG_HINT, setting, loadUserConfig, DEFAULT_API } from "../../core/config.js";
+import { USER_CONFIG_HINT, setting, loadUserConfig, DEFAULT_API, saveUserSetting } from "../../core/config.js";
 import { startTracing, flushTracing, tracingActive, tracingConfigured, tracingSwitchedOff, scoreTrace, scoreDeploymentOutcome, flushScores } from "../../core/tracing.js";
 import { unsupportedNeeds, refusalClosing, orgName } from "../../core/catalog.js";
 import { interviewThroughApi } from "../interview/follow.js";
@@ -102,6 +105,9 @@ Usage:
   ${product.command} evidence <app | deploymentId> [--json] [--out <file>] [--api <url>]
   ${product.command} needs [--json] [--request <kind>] [--api <url>]
   ${product.command} doctor [--json] [--api <url>]
+  ${product.command} login [--api <url>]
+  ${product.command} whoami [--json] [--api <url>]
+  ${product.command} logout
 
 Options:
   -f, --file      path to your plan YAML
@@ -139,7 +145,48 @@ Examples:
   ${product.command} evidence my-app
   ${product.command} needs --request relational_database
   ${product.command} doctor
+  ${product.command} login
 `);
+}
+
+/**
+ * One line typed without being shown, for a token. From a terminal, characters are read
+ * one at a time and nothing is echoed; piped in (`pbpaste | sealeye login`), the first
+ * line is read as it comes.
+ */
+function readSecret(prompt) {
+  const input = process.stdin;
+  if (!input.isTTY) {
+    return new Promise(resolve => {
+      let text = "";
+      input.setEncoding("utf8");
+      input.on("data", chunk => { text += chunk; });
+      input.on("end", () => resolve(text.split(/\r?\n/)[0] || ""));
+    });
+  }
+  process.stdout.write(prompt);
+  return new Promise((resolve, reject) => {
+    let text = "";
+    input.setRawMode(true);
+    input.setEncoding("utf8");
+    input.resume();
+    const done = value => {
+      input.setRawMode(false);
+      input.pause();
+      input.removeListener("data", onData);
+      process.stdout.write("\n");
+      value === null ? reject(Object.assign(new Error("Stopped. Nothing was saved."), { userFacing: true })) : resolve(value);
+    };
+    const onData = chunk => {
+      for (const ch of chunk) {
+        if (ch === "\r" || ch === "\n") return done(text);
+        if (ch === "\u0003") return done(null);                     // Ctrl+C
+        if (ch === "\u007f" || ch === "\b") text = text.slice(0, -1);  // backspace
+        else if (ch >= " ") text += ch;
+      }
+    };
+    input.on("data", onData);
+  });
 }
 
 function getArg(longFlag, shortFlag) {
@@ -577,6 +624,60 @@ async function main() {
 
     printNeedsTable(ledger);
     say(`${product.command} needs --request <kind> writes a module request the platform team can paste into a ticket.`);
+    return;
+  }
+
+  // Who you are to the platform (PHASE1-PLAN Step 13). The token your platform team
+  // gives you is kept in ~/.sealeye/config, readable by you alone, and sent with every
+  // request. Typed without being shown, or piped in, never as an argument, so it stays
+  // out of shell history.
+  if (command === "login") {
+    const token = (await readSecret(ask("Paste your seaLeye token (it is not shown):"))).trim();
+    if (!looksLikeToken(token)) {
+      const err = new Error("That is not a seaLeye token: a token starts with sl_ and is 46 characters long. Copy it again from where your platform team sent it.");
+      err.userFacing = true;
+      throw err;
+    }
+    say(`Checking it with the platform at ${apiBaseUrl}`);
+    let me;
+    try {
+      me = await whoAmI({ apiBaseUrl, token });
+    } catch (err) {
+      if (err instanceof NotSignedInError) {
+        err.message = "The platform did not accept that token: it is not one it issued, or it has been revoked. Ask your platform team for a new one. Nothing was saved.";
+      }
+      throw err;
+    }
+    if (me.auth === "off") {
+      say("This platform does not ask who is calling, so there is nothing to sign in to. Nothing was saved.");
+      return;
+    }
+    const file = saveUserSetting("SEALEYE_TOKEN", token);
+    console.log(c.accent(`✓ Signed in as ${me.name} (${me.email}), team ${me.team}`));
+    say(`Your token is kept in ${file.replace(os.homedir(), "~")}, readable by you alone.`);
+    return;
+  }
+
+  if (command === "logout") {
+    const file = saveUserSetting("SEALEYE_TOKEN", null);
+    say(`Your token is removed from ${file.replace(os.homedir(), "~")}.`);
+    say("It still works anywhere else it is kept, until your platform team revokes it.");
+    return;
+  }
+
+  if (command === "whoami") {
+    if (!setting("TOKEN")) {
+      if (jsonOut) console.log(JSON.stringify({ signedIn: false }, null, 2));
+      else say(`Not signed in. Run ${product.command} login with the token your platform team gave you.`);
+      return;
+    }
+    const me = await whoAmI({ apiBaseUrl });
+    if (jsonOut) {
+      console.log(JSON.stringify({ signedIn: me.auth !== "off", ...me }, null, 2));
+      return;
+    }
+    if (me.auth === "off") say("This platform does not ask who is calling.");
+    else console.log(c.fg(`${me.name} (${me.email}), team ${me.team}, at ${apiBaseUrl}`));
     return;
   }
 
@@ -1456,7 +1557,9 @@ function evidenceSummaryLines(ev) {
   lines.push("");
 
   // Requested
-  const who = typeof r.requestedBy === "string" ? r.requestedBy : `${r.requestedBy.user} on ${r.requestedBy.host}`;
+  const by = r.requestedBy;
+  const person = typeof by === "string" ? by : (by.name ? `${by.name} (${by.user})` : by.user);
+  const who = typeof by === "string" || !by.host ? person : `${person} on ${by.host}`;
   const when = typeof r.startedAt === "string" && !/not recorded/.test(r.startedAt) ? `, ${localTime(r.startedAt)}` : "";
   let via = "origin not recorded before 2.16.0";
   if (typeof r.origin !== "string") {

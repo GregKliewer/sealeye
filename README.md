@@ -14,6 +14,7 @@ code that shows it, and builds nothing.
 
 ```bash
 curl -fsSL https://sealeye.run/install | sh
+sealeye login            # paste the token your platform team gave you
 cd your-app && sealeye run
 ```
 
@@ -49,7 +50,10 @@ ORG=Your Organization
 ```
 
 Start the API in one window, then use the command in another, pointed at it (add
-`SEALEYE_API=http://localhost:3000` to the repo `.env` to make that the default here):
+`SEALEYE_API=http://localhost:3000` to the repo `.env` to make that the default here).
+The local API asks for a token too: `node scripts/tokens.js add you@example.com "Your
+Name"` prints one for `sealeye login --api http://localhost:3000`, or start it with
+`SEALEYE_AUTH=off npm start` to skip that on your own machine.
 
 ```bash
 npm start

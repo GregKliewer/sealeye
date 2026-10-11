@@ -6,6 +6,9 @@
 #   deploy/server.sh restore-check       restore the newest backup into a scratch database and compare
 #   deploy/server.sh import <file>       add the records in a deployments.json, then restart the API
 #   deploy/server.sh restart             restart the API, and wait until it answers
+#   deploy/server.sh token add <email> "<name>" [team]   issue a person a token
+#   deploy/server.sh token revoke <email | tok_...>      it stops working at once
+#   deploy/server.sh token list          every token issued, without the tokens
 #   deploy/server.sh logs                the API's last 100 lines
 set -euo pipefail
 
@@ -57,11 +60,44 @@ case "${1:-}" in
     trap 'aws s3 rm "s3://${BUCKET}/${KEY}" --region "$REGION" --only-show-errors || echo "Could not remove s3://${BUCKET}/${KEY}; remove it by hand."' EXIT
     run_on_server "seaLeye import" \
       "set -euo pipefail; cd /opt/sealeye; aws s3 cp s3://${BUCKET}/${KEY} - --region ${REGION} --only-show-errors | docker compose exec -T api node deploy/with-settings.mjs scripts/import-records.js -; docker compose restart api >/dev/null; echo 'The API restarted, so it reads the imported records.'" ;;
+  token)
+    # The token is made here, on your Mac, and shown only here. The server is sent its
+    # hash, so the token is in no command history, log or SSM record on the way.
+    TOKENS="cd /opt/sealeye && docker compose exec -T api node deploy/with-settings.mjs scripts/tokens.js"
+    case "${2:-}" in
+      add)
+        EMAIL="${3:?usage: deploy/server.sh token add <email> \"<name>\" [team]}"
+        NAME="${4:?usage: deploy/server.sh token add <email> \"<name>\" [team]}"
+        TEAM="${5:-default}"
+        PAIR="$(EMAIL="$EMAIL" NAME="$NAME" TEAM="$TEAM" node -e '
+          const crypto = require("node:crypto");
+          const token = "sl_" + crypto.randomBytes(32).toString("base64url");
+          const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+          const holder = { tokenHash, email: process.env.EMAIL, name: process.env.NAME, team: process.env.TEAM };
+          console.log(token + " " + Buffer.from(JSON.stringify(holder)).toString("base64"));')"
+        TOKEN="${PAIR%% *}"; HOLDER="${PAIR#* }"
+        run_on_server "seaLeye token add" "set -euo pipefail; ${TOKENS} add-hash ${HOLDER}"
+        echo
+        echo "Their token, shown this once and kept nowhere. Send it to them privately:"
+        echo
+        echo "  ${TOKEN}"
+        echo
+        echo "They run: sealeye login   (and paste it when asked)"
+        ;;
+      revoke)
+        WHO="${3:?usage: deploy/server.sh token revoke <email | tok_...>}"
+        [[ "$WHO" =~ ^[A-Za-z0-9._%+@-]+$ ]] || { echo "That is not an email address or a token id."; exit 1; }
+        run_on_server "seaLeye token revoke" "set -euo pipefail; ${TOKENS} revoke ${WHO}" ;;
+      list)
+        run_on_server "seaLeye token list" "set -euo pipefail; ${TOKENS} list" ;;
+      *)
+        echo "usage: deploy/server.sh token add <email> \"<name>\" [team] | revoke <email | tok_...> | list"; exit 1 ;;
+    esac ;;
   restart)
     run_on_server "seaLeye restart" \
       "set -euo pipefail; cd /opt/sealeye; docker compose restart api >/dev/null; for i in \$(seq 1 30); do sleep 2; [ \"\$(docker compose ps --format '{{.Health}}' api)\" = healthy ] && { echo 'The API restarted and is answering.'; exit 0; }; done; echo 'The API restarted but is not answering yet; see deploy/server.sh logs.'; exit 1" ;;
   logs)
     run_on_server "seaLeye logs" "cd /opt/sealeye && docker compose logs --tail 100 api" ;;
   *)
-    sed -n '2,10p' "$0"; exit 1 ;;
+    sed -n '2,13p' "$0"; exit 1 ;;
 esac

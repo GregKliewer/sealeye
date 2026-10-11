@@ -18,6 +18,7 @@ import { createInterviewService, NotWaiting, UploadRefused } from "./interview/s
 import { postgresCheckpointer, postgresInterviewStore } from "./interview/pgstore.js";
 import { databaseUrl, closeDb } from "./db.js";
 import { startTracing } from "../core/tracing.js";
+import { authMode, callerFor } from "./tokens.js";
 
 const app = express();
 
@@ -27,6 +28,43 @@ const smallJson = express.json({ limit: "1mb" });
 const uploadJson = express.json({ limit: "40mb" });
 // A deploy upload is the whole app the packager will stage (core/upload.js "deploy").
 const deployJson = express.json({ limit: "150mb" });
+// Who is calling (PHASE1-PLAN Step 13, api/tokens.js). Checked before a body is read,
+// so a request without a token never gets to upload anything. GET /health stays open:
+// it is how a person, or a load balancer, knows the API is up.
+const AUTH = authMode();
+const refuse = (res, code, message) =>
+  res.status(401).set("WWW-Authenticate", 'Bearer realm="seaLeye"').json({ error: { code, message } });
+
+app.use(async (req, res, next) => {
+  if (req.method === "GET" && req.path === "/health") return next();
+  if (AUTH === "off") {
+    req.caller = null;
+    return next();
+  }
+  const bearer = /^Bearer\s+(\S+)$/i.exec(req.get("authorization") || "");
+  if (!bearer) {
+    return refuse(res, "NOT_SIGNED_IN", "This platform needs to know who is calling. Run sealeye login with the token your platform team gave you.");
+  }
+  let caller;
+  try {
+    caller = await callerFor(bearer[1]);
+  } catch (err) {
+    return res.status(503).json({ error: { code: "SIGN_IN_UNAVAILABLE", message: `The platform could not check your token just now: ${err.message}` } });
+  }
+  if (!caller) {
+    return refuse(res, "TOKEN_REFUSED", "The platform does not accept this token: it is not one it issued, or it has been revoked. Ask your platform team for a new one, then run sealeye login.");
+  }
+  req.caller = caller;
+  return next();
+});
+
+// Records belong to an organization. Until sign-in issues more than one, every record
+// and every token is "default", so this changes nothing yet; it is here so that the day
+// there are two, neither sees the other's.
+const orgOf = dep => dep?.orgId || "default";
+const canSee = (req, dep) => Boolean(dep) && (!req.caller || orgOf(dep) === req.caller.org);
+const visibleDeployments = req => listDeployments().filter(dep => canSee(req, dep));
+
 app.use((req, res, next) => {
   if (req.method === "POST" && req.path === "/interviews") return uploadJson(req, res, next);
   if (req.method === "POST" && req.path === "/deployments") return deployJson(req, res, next);
@@ -50,6 +88,13 @@ app.get("/health", (_req, res) => {
   return res.status(200).json({ ok: true, version: pkg.version, deployments: count() });
 });
 
+// GET /whoami: who the token belongs to. `sealeye login` checks a token with it.
+app.get("/whoami", (req, res) => {
+  if (!req.caller) return res.status(200).json({ auth: "off" });
+  const { email, name, org, team, tokenId } = req.caller;
+  return res.status(200).json({ email, name, org, team, tokenId });
+});
+
 // POST /plans/validate
 app.post("/plans/validate", (req, res) => {
   // A plan written against an older contract is read as what it meant, then checked.
@@ -61,12 +106,19 @@ app.post("/deployments", (req, res) => {
   const { backend, appPath, zip } = req.body || {};
   const plan = upgradePlan(req.body?.plan);
 
-  // Who asked and how the plan came to be, exactly as the command line sent them, for
-  // the change record. Optional, unverified, and said to be so wherever they are read.
-  const requestedBy = req.body?.requestedBy && typeof req.body.requestedBy === "object" ? req.body.requestedBy : undefined;
+  // Who asked and how the plan came to be, for the change record. The person is the
+  // token's (req.caller), checked by the platform; the machine and how the plan came to
+  // be are as the command line reported them. With no token (a laptop API with
+  // SEALEYE_AUTH=off), all of it is as the command line sent it, unverified, and said
+  // to be so wherever it is read.
+  const claimed = req.body?.requestedBy && typeof req.body.requestedBy === "object" ? req.body.requestedBy : undefined;
+  const requestedBy = req.caller
+    ? { user: req.caller.email, name: req.caller.name, host: typeof claimed?.host === "string" ? claimed.host : null, verified: "token" }
+    : claimed;
   const origin = req.body?.origin && typeof req.body.origin === "object" ? req.body.origin : undefined;
   const planSha256 = plan ? crypto.createHash("sha256").update(JSON.stringify(plan), "utf8").digest("hex") : undefined;
   const provenance = {
+    ...(req.caller ? { orgId: req.caller.org, teamId: req.caller.team, tokenId: req.caller.tokenId } : {}),
     ...(requestedBy ? { requestedBy } : {}),
     ...(origin ? { origin } : {}),
     ...(planSha256 ? { planSha256 } : {})
@@ -236,8 +288,8 @@ app.post("/deployments", (req, res) => {
 // GET /deployments — summary of every known deployment, newest first. Additive; the
 // three existing endpoints are unchanged. The full record stays at /deployments/{id},
 // so the rendered report is not repeated for every row.
-app.get("/deployments", (_req, res) => {
-  const deployments = listDeployments().map(dep => ({
+app.get("/deployments", (req, res) => {
+  const deployments = visibleDeployments(req).map(dep => ({
     deploymentId: dep.deploymentId,
     app: dep.app,
     status: dep.status,
@@ -255,7 +307,7 @@ app.get("/deployments", (_req, res) => {
 // GET /deployments/{deploymentId}
 app.get("/deployments/:deploymentId", (req, res) => {
   const dep = getDeployment(req.params.deploymentId);
-  if (!dep) {
+  if (!canSee(req, dep)) {
     return res.status(404).json({
       error: { code: "NOT_FOUND", message: "deploymentId not found" }
     });
@@ -268,7 +320,7 @@ app.get("/deployments/:deploymentId", (req, res) => {
 // nothing and changes nothing; the one outbound request is a GET of the app's own URL.
 app.get("/deployments/:deploymentId/evidence", async (req, res) => {
   const dep = getDeployment(req.params.deploymentId);
-  if (!dep) {
+  if (!canSee(req, dep)) {
     return res.status(404).json({
       error: { code: "NOT_FOUND", message: "deploymentId not found" }
     });
@@ -286,9 +338,9 @@ app.get("/deployments/:deploymentId/evidence", async (req, res) => {
 
 // GET /needs — what the drafted plans are waiting on, rolled up by need across apps.
 // Store only; no AWS call.
-app.get("/needs", (_req, res) => {
+app.get("/needs", (req, res) => {
   try {
-    return res.status(200).json(rollupNeeds());
+    return res.status(200).json(rollupNeeds(visibleDeployments(req)));
   } catch (err) {
     return res.status(500).json({ error: { code: "NEEDS_FAILED", message: err.message } });
   }
@@ -298,7 +350,7 @@ app.get("/needs", (_req, res) => {
 // Returns straight away; the record carries the real progress.
 app.delete("/deployments/:deploymentId", (req, res) => {
   const dep = getDeployment(req.params.deploymentId);
-  if (!dep) {
+  if (!canSee(req, dep)) {
     return res.status(404).json({
       error: { code: "NOT_FOUND", message: "deploymentId not found" }
     });
@@ -318,6 +370,14 @@ app.delete("/deployments/:deploymentId", (req, res) => {
 
   return res.status(202).json({ ...dep });
 });
+
+// An interview is its starter's: their code and their answers. Someone else's token
+// gets the same "not found" as an interview that does not exist.
+const ownsInterview = (req, id) => {
+  if (!req.caller) return true;
+  const owner = interviews.ownerOf(id);
+  return owner === null || owner === req.caller.email;
+};
 
 // POST /interviews: start an interview over an uploaded app folder.
 // Body: { app, zip (base64), deployed?, user?, trace? }. The zip is made by the CLI's
@@ -339,7 +399,9 @@ app.post("/interviews", (req, res) => {
       zip: Buffer.from(zip, "base64"),
       app: appName,
       deployed: deployed && typeof deployed === "object" ? upgradePlan(deployed) : null,
-      user: typeof user === "string" ? user : undefined,
+      // With a token, the person is the token's, not what the command line says.
+      user: req.caller ? req.caller.email : (typeof user === "string" ? user : undefined),
+      owner: req.caller ? req.caller.email : null,
       trace: trace !== false
     });
     return res.status(201).json(started);
@@ -354,6 +416,9 @@ app.post("/interviews", (req, res) => {
 // POST /interviews/{id}/answers: the developer's answer to what the interview is waiting
 // on, a question or "Deploy this?". Body: { answer }. Any client may send it.
 app.post("/interviews/:interviewId/answers", (req, res) => {
+  if (!ownsInterview(req, req.params.interviewId)) {
+    return res.status(404).json({ error: { code: "NOT_FOUND", message: "interviewId not found" } });
+  }
   const value = req.body?.answer;
   if (typeof value !== "string" && typeof value !== "boolean") {
     return res.status(400).json({ error: { code: "MISSING_ANSWER", message: "answer is required" } });
@@ -373,6 +438,9 @@ app.post("/interviews/:interviewId/answers", (req, res) => {
 // DELETE /interviews/{id}: the developer left. The interview, its saved state and the
 // uploaded copy of their app go now rather than after a day.
 app.delete("/interviews/:interviewId", async (req, res) => {
+  if (!ownsInterview(req, req.params.interviewId)) {
+    return res.status(404).json({ error: { code: "NOT_FOUND", message: "interviewId not found" } });
+  }
   const removed = await interviews.remove(req.params.interviewId);
   if (!removed) return res.status(404).json({ error: { code: "NOT_FOUND", message: "interviewId not found" } });
   return res.status(200).json({ interviewId: req.params.interviewId, removed: true });
@@ -384,7 +452,7 @@ app.delete("/interviews/:interviewId", async (req, res) => {
 app.get("/interviews/:interviewId/events", (req, res) => {
   const after = Number(req.get("Last-Event-ID") ?? req.query.after ?? 0) || 0;
   const id = req.params.interviewId;
-  if (!interviews.get(id)) {
+  if (!interviews.get(id) || !ownsInterview(req, id)) {
     return res.status(404).json({ error: { code: "NOT_FOUND", message: "interviewId not found" } });
   }
 
