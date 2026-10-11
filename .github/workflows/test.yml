@@ -40,10 +40,40 @@ jobs:
       # The executor stages with rsync and zips with zip; the runner image has both.
       - run: npm test
 
+  portal:
+    # The portal (portal/) built and driven in a browser against the real API with
+    # sample records: each page shows live data, tear down works (PHASE1-PLAN Step 14).
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            portal/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm ci --no-audit --no-fund
+        working-directory: portal
+      - run: npx playwright install --with-deps chromium
+        working-directory: portal
+      - run: npm run build
+        working-directory: portal
+      - run: npm run test:e2e
+        working-directory: portal
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: portal-playwright-report
+          path: portal/playwright-report
+          retention-days: 7
+
   image:
     # Only main, only after the tests pass, and only once the AWS role exists
     # (deploy/ci-role.yaml sets the repository variable it reads).
-    needs: test
+    needs: [test, portal]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.SEALEYE_CI_ROLE_ARN != ''
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 30

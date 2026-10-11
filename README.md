@@ -6,8 +6,8 @@ report. When your app needs something the platform cannot build, it says so, wit
 code that shows it, and builds nothing.
 
 - **seaLeye.run** is the `sealeye` command.
-- **seaLeye.online** is the web portal (today a page saying what it will be; the
-  mock-up is in `archive/`).
+- **seaLeye.online** is the web portal (`portal/`): your organization's environments,
+  their history and tear down, and the catalog.
 - Both are clients of the seaLeye API in `api/`, which runs at https://api.sealeye.online.
 
 ## Use it

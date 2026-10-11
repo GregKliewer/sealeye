@@ -1,0 +1,21 @@
+@import "tailwindcss";
+
+/* brand/BRAND-ONLINE.md: the light console. Phosphor is the product and good news;
+   amber is anything that needs a person, failures included. No third colour. */
+@theme {
+  --color-ground: #F4F6F8;
+  --color-surface: #FFFFFF;
+  --color-ink: #13181D;
+  --color-dim: #5C6B7A;
+  --color-rule: #DCE2E8;
+  --color-phosphor: #1A7A64;
+  --color-phosphor-chip: #DDF3EC;
+  --color-amber: #9A6418;
+  --color-amber-chip: #FBEFD6;
+  --color-neutral-chip: #E8ECF0;
+  --font-sans: "IBM Plex Sans", Inter, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", Menlo, monospace;
+}
+
+html, body { background: var(--color-ground); color: var(--color-ink); }
+body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }

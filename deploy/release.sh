@@ -38,11 +38,15 @@ else
   docker buildx build --platform linux/arm64 -t "${REPOSITORY}:${TAG}" --push .
 fi
 
-echo "Building the sites and the package sealeye.run installs"
+echo "Building the sites, the portal and the package sealeye.run installs"
 SITES="$(mktemp -d)"
 trap 'rm -rf "$SITES"' EXIT
 VERSION="$(node -p 'require("./package.json").version')"
 cp -R sites/. "$SITES/"
+# seaLeye.online is the portal, built from portal/ (Vite), static files only.
+( cd portal && npm ci --no-audit --no-fund --loglevel=error && npm run build >/dev/null )
+mkdir -p "$SITES/online"
+cp -R portal/dist/. "$SITES/online/"
 # The package is what `npm install -g` gets: the command, core and the few prompt
 # files it reads (package.json "files"), never the API.
 npm pack --silent --pack-destination "$SITES/run" >/dev/null

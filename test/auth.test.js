@@ -52,6 +52,10 @@ after(() => server?.kill());
 
 test("the health check is open; everything else asks who is calling", async () => {
   assert.equal((await call("/health")).status, 200);
+  assert.equal((await call("/health", { method: "HEAD" })).status, 200, "a load balancer may check with HEAD");
+  for (const variant of ["/Sessions", "/sessions/", "/Health/"]) {
+    assert.notEqual((await call(variant, { method: variant.includes("ealth") ? "POST" : "GET" })).status, 200, variant);
+  }
   for (const [route, method] of [["/deployments", "GET"], ["/needs", "GET"], ["/whoami", "GET"], ["/plans/validate", "POST"], ["/interviews", "POST"], ["/deployments/dep_000000000000", "DELETE"]]) {
     const res = await call(route, { method });
     assert.equal(res.status, 401, `${method} ${route}`);
@@ -175,14 +179,17 @@ test("sealeye login checks the token, keeps it for you alone; logout removes it"
 // ---------------------------------------------------------------------------------
 // The portal's sign-in (PHASE1-PLAN Step 14): the token is traded for a session cookie.
 
-const cookieFrom = res => /sealeye_session=([^;]*)/.exec(res.headers.get("set-cookie") || "")?.[1];
+const cookieFrom = res => /__Host-sealeye_session=([^;]*)/.exec(res.headers.get("set-cookie") || "")?.[1];
+const signIn = token => call("/sessions", { method: "POST", body: { token }, headers: { "x-sealeye-portal": "1" } });
 
 test("the portal trades a token for a 12-hour cookie no script can read", async () => {
-  const bad = await call("/sessions", { method: "POST", body: { token: `sl_${"C".repeat(43)}` } });
+  const unmarked = await call("/sessions", { method: "POST", body: { token: greg } });
+  assert.equal(unmarked.status, 403, "signing in must come from the portal itself");
+  const bad = await signIn(`sl_${"C".repeat(43)}`);
   assert.equal(bad.status, 401);
   assert.equal(bad.headers.get("set-cookie"), null);
 
-  const res = await call("/sessions", { method: "POST", body: { token: greg } });
+  const res = await signIn(greg);
   assert.equal(res.status, 201);
   const set = res.headers.get("set-cookie");
   for (const attr of ["HttpOnly", "Secure", "SameSite=Strict", "Max-Age=43200", "Path=/"]) assert.ok(set.includes(attr), `${attr} in ${set}`);
@@ -191,15 +198,19 @@ test("the portal trades a token for a 12-hour cookie no script can read", async 
   assert.ok(!JSON.stringify(body).includes(greg), "the token is not sent back");
 
   const value = cookieFrom(res);
-  const who = await (await call("/whoami", { headers: { cookie: `sealeye_session=${value}` } })).json();
+  const who = await (await call("/whoami", { headers: { cookie: `__Host-sealeye_session=${value}` } })).json();
   assert.equal(who.email, "greg@example.com");
   assert.equal(who.surface, "portal");
   assert.ok(!fs.readFileSync(path.join(home, "sessions.json"), "utf8").includes(value), "only the session's hash is kept");
+
+  // A second cookie of the same name, planted by something else, is refused, not chosen.
+  const shadowed = await call("/whoami", { headers: { cookie: `__Host-sealeye_session=planted; __Host-sealeye_session=${value}` } });
+  assert.equal(shadowed.status, 401);
 });
 
 test("a change made with the cookie must come from the portal, and the record says so", async () => {
-  const value = cookieFrom(await call("/sessions", { method: "POST", body: { token: greg } }));
-  const cookie = { cookie: `sealeye_session=${value}` };
+  const value = cookieFrom(await signIn(greg));
+  const cookie = { cookie: `__Host-sealeye_session=${value}` };
   const list = await (await call("/deployments", { headers: cookie })).json();
   const dep = list.deployments[0];
   assert.ok(dep, "the portal reads the same list the command does");
@@ -216,8 +227,8 @@ test("a change made with the cookie must come from the portal, and the record sa
 });
 
 test("signing out ends the session; so does revoking the token behind it", async () => {
-  const value = cookieFrom(await call("/sessions", { method: "POST", body: { token: greg } }));
-  const cookie = { cookie: `sealeye_session=${value}` };
+  const value = cookieFrom(await signIn(greg));
+  const cookie = { cookie: `__Host-sealeye_session=${value}` };
   assert.equal((await call("/whoami", { headers: cookie })).status, 200);
   const out = await call("/sessions", { method: "DELETE", headers: { ...cookie, "x-sealeye-portal": "1" } });
   assert.equal(out.status, 200);
@@ -226,10 +237,10 @@ test("signing out ends the session; so does revoking the token behind it", async
   assert.equal((await after.json()).error.code, "SESSION_ENDED");
 
   const temp = issue("temp2@example.com", "Temp Two");
-  const v2 = cookieFrom(await call("/sessions", { method: "POST", body: { token: temp } }));
-  assert.equal((await call("/whoami", { headers: { cookie: `sealeye_session=${v2}` } })).status, 200);
+  const v2 = cookieFrom(await signIn(temp));
+  assert.equal((await call("/whoami", { headers: { cookie: `__Host-sealeye_session=${v2}` } })).status, 200);
   execFileSync(process.execPath, ["scripts/tokens.js", "revoke", "temp2@example.com"], { cwd: root, env: env() });
-  assert.equal((await call("/whoami", { headers: { cookie: `sealeye_session=${v2}` } })).status, 401);
+  assert.equal((await call("/whoami", { headers: { cookie: `__Host-sealeye_session=${v2}` } })).status, 401);
 });
 
 test("a session ends after twelve hours", async () => {

@@ -884,8 +884,10 @@ can be read by any script that ever runs on the page. So the portal's sign-in pa
 the token once to `POST /sessions`, and the API answers with a session cookie in its
 place. The browser never keeps the token.
 
-- **The cookie** is a random value, `HttpOnly` (no script can read it), `Secure`,
-  `SameSite=Strict`, for twelve hours. The API keeps only its hash (Postgres
+- **The cookie**, `__Host-sealeye_session`, is a random value, `HttpOnly` (no script
+  can read it), `Secure`, `SameSite=Strict`, for twelve hours. The `__Host-` prefix
+  makes the browser refuse any cookie of that name that names a domain or a narrower
+  path, and the API refuses a request carrying two, so nothing else can shadow it. The API keeps only its hash (Postgres
   `sessions`, or `sessions.json` beside a laptop API), and a session ends when it
   expires, when its person signs out (`DELETE /sessions`), or when the token it came
   from is revoked.
@@ -893,7 +895,7 @@ place. The browser never keeps the token.
   passes to the API, so the cookie never crosses to another site and no cross-origin
   rules are needed. The command line keeps using `api.sealeye.online` with its token.
 - **Changes need the portal's header.** A request that changes something with the
-  cookie must also carry `x-sealeye-portal: 1`. A page on another site cannot add that
+  cookie must also carry `x-sealeye-portal: 1`, and so must signing in and out. A page on another site cannot add that
   header without the API agreeing to it first, which it never does. Together with
   `SameSite=Strict`, that is the defence against another site acting through a signed-in
   browser.
@@ -903,4 +905,36 @@ place. The browser never keeps the token.
 
 Real sign-in (Q3) replaces the token paste on the sign-in page with an identity
 provider's redirect. The session, the cookie and everything behind them stay.
+
+## The portal is a client of the API
+
+Decided Sun Oct 11, 2026 (PHASE1-PLAN Step 14; A9).
+
+`portal/` is React and TypeScript, built with Vite into static files that Caddy serves
+at `sealeye.online`. There is no second server: every value on a page comes from the
+same API the command uses, at `/api` on the same origin.
+
+- **Three pages, the ones that exist.** Environments (one row per environment, grouped
+  as `sealeye list` groups them, with the counts a console summarises first), Control
+  (one environment's state, its history, and tear down) and Catalog (the modules from
+  `GET /catalog` and the needs ledger from `GET /needs`). Pause, Configure, Logs,
+  Performance, Costs and Team stay in the archived mock-up: a button for something the
+  platform cannot do is a question asked in front of the platform team.
+- **Tear down asks twice**, once with the button and once by typing the app's name, then
+  calls `DELETE /deployments/{id}`, the endpoint `sealeye destroy` uses, and reads the
+  status every five seconds until it is gone, as `sealeye watch` does.
+- **shadcn/ui, without its installer.** The few components the pages need (button, card,
+  badge, input, table, dialog) are written in `src/components/ui` the way shadcn ships
+  them, on Radix and Tailwind, so there is nothing to fetch at build time and nothing
+  the pages do not use. Colours and type are `brand/BRAND-ONLINE.md`'s, as Tailwind
+  theme values in `src/index.css`.
+- **A strict content security policy.** Caddy sends one that allows only this site's own
+  scripts and no framing, which is what makes a cookie no script can read worth having.
+  Responses under `/api` get one that allows nothing at all, so no API answer on the
+  portal's origin can ever render as a page.
+- **Tested in a browser.** `portal/tests/` drives the built portal in Chromium against
+  the real API with sample records: sign-in refuses a wrong token and keeps nothing a
+  script can read, each page shows the API's data and no other organization's, tear
+  down finishes and is recorded as the portal's, and sign-out ends the session. GitHub
+  runs it on every change, beside `npm test`.
 

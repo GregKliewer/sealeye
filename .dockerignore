@@ -7,3 +7,7 @@ archive
 .env
 .env.*
 !.env.example
+portal/node_modules
+portal/dist
+portal/test-results
+portal/playwright-report

@@ -11,11 +11,46 @@
 	}
 }
 
-# seaLeye.online: the portal. A page saying what it will be, until Step 14 builds it.
+# seaLeye.online: the portal (portal/, built by release.sh), and the API under /api on
+# the same origin, so the portal's session cookie never crosses to another site
+# (DESIGN.md, "The portal signs in with a session cookie").
 {$PORTAL_DOMAIN} {
 	encode gzip
-	root * /srv/online
-	file_server
+
+	handle_path /api/* {
+		# The API answers JSON. Should it ever answer anything else on the portal's
+		# origin, the browser renders none of it as a page.
+		header {
+			Content-Security-Policy "default-src 'none'; frame-ancestors 'none'"
+			X-Content-Type-Options nosniff
+			X-Frame-Options DENY
+			Referrer-Policy same-origin
+			Strict-Transport-Security "max-age=31536000"
+		}
+		reverse_proxy api:3000 {
+			flush_interval -1
+		}
+	}
+
+	handle {
+		# Only this site's own scripts run here, and nothing may frame it: the defence
+		# that makes a cookie no script can read worth having.
+		header {
+			Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+			X-Content-Type-Options nosniff
+			Referrer-Policy same-origin
+			X-Frame-Options DENY
+			Strict-Transport-Security "max-age=31536000"
+		}
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+		@pages not path /assets/*
+		header @pages Cache-Control "no-cache"
+		root * /srv/online
+		# The portal's own pages (/catalog, /environments/...) are one app.
+		try_files {path} /index.html
+		file_server
+	}
 }
 
 # seaLeye.run: the command's home page, its installer and the package it installs.

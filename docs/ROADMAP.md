@@ -59,7 +59,9 @@ shows what is really there.
    the interview runs in the API as a LangGraph graph, and `sealeye run` streams it
    (DESIGN.md, "The interview runs in the API").
 7. **The portal becomes a client**: the mock-up's Environments, Catalog and Control pages
-   read from the API for the operations that exist today (Q9).
+   read from the API for the operations that exist today (Q9). *Done Oct 11, 2026: the
+   portal in `portal/` signs in with a session cookie and shows Environments, Control
+   and Catalog live, with tear down (DESIGN.md, "The portal is a client of the API").*
 8. **CI**: `npm test` on every push and pull request. *Done Oct 10, 2026: GitHub runs
    the tests, with Postgres, on every push and pull request, and builds the server's
    image on main (DESIGN.md, "GitHub tests every change and builds the image").*
@@ -138,13 +140,13 @@ and does nothing real. A blank is not started.
 | Deploy an existing plan | `sealeye deploy -f` | `POST /deployments` | built | | 2 |
 | Re-run on a live environment | `sealeye run` | `POST /deployments` | built | | 2 |
 | Validate a plan | `sealeye validate` | `POST /plans/validate` | built | | 2 |
-| List environments | `sealeye list` | `GET /deployments` | built | mock-up | 1 |
-| Status and watch | `sealeye status`, `watch` | `GET /deployments/{id}` | built | mock-up | 1 |
-| Tear down | `sealeye destroy` | `DELETE /deployments/{id}` | built | mock-up | 1 |
+| List environments | `sealeye list` | `GET /deployments` | built | built (Environments) | 1 |
+| Status and watch | `sealeye status`, `watch` | `GET /deployments/{id}` | built | built (Control) | 1 |
+| Tear down | `sealeye destroy` | `DELETE /deployments/{id}` | built | built (Control) | 1 |
 | Evidence | `sealeye evidence` | `GET /deployments/{id}/evidence` | built | | 2 |
-| Needs ledger | `sealeye needs` | `GET /needs` | built | mock-up (in Catalog) | 1 |
+| Needs ledger | `sealeye needs` | `GET /needs` | built | built (in Catalog) | 1 |
 | Health check | `sealeye doctor` | `GET /health` | built | | 2 |
-| Catalog | `sealeye catalog` | `GET /catalog` | built | mock-up | 1 |
+| Catalog | `sealeye catalog` | `GET /catalog` | built | built | 1 |
 | Pause and resume | `sealeye pause`, `resume` | | | mock-up | 2 |
 | Configure | `sealeye config` | | | mock-up | 2 |
 | Logs | `sealeye logs` | | | mock-up | 2 |
@@ -152,7 +154,7 @@ and does nothing real. A blank is not started.
 | Costs | `sealeye costs` | | | mock-up | 2 |
 | Team and access | `sealeye team` | | | mock-up | 2 |
 | Integrations | `sealeye integrations` | | | mock-up (report) | 2 |
-| Sign in | `sealeye login` | tokens; `POST /sessions`, `DELETE /sessions` for the portal; `GET /whoami` | built | | 1 |
+| Sign in | `sealeye login` | tokens; `POST /sessions`, `DELETE /sessions` for the portal; `GET /whoami` | built | built (token paste, then a session) | 1 |
 | Settings in the secret store | `sealeye secrets set` | | | | 1 (owed, item 10) |
 | Onboard and ingest | `sealeye admin ingest` | | | | 3 |
 | Promote | `sealeye promote` | | | | 4 |

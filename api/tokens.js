@@ -58,7 +58,7 @@ function readFile() {
 
 function writeFile(rows) {
   fs.mkdirSync(path.dirname(tokensFile()), { recursive: true });
-  const tmp = `${tokensFile()}.tmp`;
+  const tmp = `${tokensFile()}.${process.pid}.${crypto.randomBytes(4).toString("hex")}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify(rows, null, 2), { mode: 0o600 });
   fs.renameSync(tmp, tokensFile());
 }
@@ -172,6 +172,9 @@ async function noteUse(tokenId) {
     await db().query("UPDATE tokens SET last_used_at = now() WHERE token_id = $1", [tokenId]);
     return;
   }
+  // Read again right before writing, with nothing in between, so a revocation another
+  // process wrote a moment ago is carried over rather than written back over. (A laptop
+  // API only; the server keeps tokens in Postgres.)
   const rows = readFile();
   const row = rows.find(r => r.tokenId === tokenId);
   if (row) {
@@ -196,7 +199,9 @@ export function authMode() {
 // scripts cannot read, good for SESSION_HOURS, ending at once if the token is revoked.
 
 export const SESSION_HOURS = 12;
-export const SESSION_COOKIE = "sealeye_session";
+// The __Host- prefix makes the browser refuse any cookie of this name that names a
+// domain or a narrower path, so a neighbouring site cannot plant one that shadows it.
+export const SESSION_COOKIE = "__Host-sealeye_session";
 
 const sessionsFile = () => path.join(sealeyeHome(), "sessions.json");
 
@@ -211,7 +216,7 @@ function readSessions() {
 
 function writeSessions(rows) {
   fs.mkdirSync(path.dirname(sessionsFile()), { recursive: true });
-  const tmp = `${sessionsFile()}.tmp`;
+  const tmp = `${sessionsFile()}.${process.pid}.${crypto.randomBytes(4).toString("hex")}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify(rows, null, 2), { mode: 0o600 });
   fs.renameSync(tmp, sessionsFile());
 }
