@@ -58,6 +58,9 @@ aws cloudformation deploy --region ca-central-1 \
 Both `echo` lines should print a real value before you run the deploy. Its output
 `DeployRoleArn` is `arn:aws:iam::<account>:role/sealeye-deploy-pilot`.
 
+When `deploy-role.yaml` changes, run the same commands again: the stack is updated in
+place, the role keeps its name, and `SEALEYE_DEPLOY_ROLE_ARN` stays the same.
+
 ## Once: the API's settings
 
 The server reads every parameter under `/sealeye/` when it starts. The name after the
@@ -217,6 +220,12 @@ to date:
 git switch main && git pull
 deploy/release.sh
 ```
+
+It ships what is checked out in this folder: the API image for that commit, and the
+portal and the package built from its files. So it stops, before anything reaches AWS,
+unless this is `main` with nothing uncommitted and exactly the commit GitHub has, and
+then says which commit it is releasing. If it says this copy is behind, `git pull` and
+run it again.
 
 If GitHub built this commit, the release uses that image and needs no Docker. If not
 (GitHub's run is still going, or the role is not set up), it builds the image here,

@@ -13,14 +13,32 @@ output() {
     --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" --output text
 }
 
-REPOSITORY="$(output RepositoryUri)"
-BUCKET="$(output ConfigBucket)"
-INSTANCE="$(output InstanceId)"
-
 if ! git diff --quiet || ! git diff --cached --quiet; then
   echo "You have changes that are not committed. Commit them first, so the server runs code that is in git."
   exit 1
 fi
+# The image, the portal and the package all come from what is checked out here, so it
+# must be main as GitHub has it: a copy that is behind ships an old portal beside a new
+# API (Oct 11, 2026).
+BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+if [ "$BRANCH" != "main" ]; then
+  echo "This is the $BRANCH branch. Release from main: git switch main && git pull"
+  exit 1
+fi
+if ! git fetch --quiet origin main; then
+  echo "Could not reach GitHub to check this copy is up to date with main. Check your connection and run this again."
+  exit 1
+fi
+if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
+  echo "This copy of main is not the same as GitHub's ($(git rev-list --count HEAD..origin/main) behind, $(git rev-list --count origin/main..HEAD) ahead). Run git pull (and push anything of yours first), then run this again."
+  exit 1
+fi
+echo "Releasing $(git log -1 --format='%h %s')"
+
+REPOSITORY="$(output RepositoryUri)"
+BUCKET="$(output ConfigBucket)"
+INSTANCE="$(output InstanceId)"
+
 # GitHub builds every commit on main that passes its tests (.github/workflows/test.yml).
 # If it has built this one, that image is used and Docker is not needed here.
 CI_TAG="main-$(git rev-parse --short=12 HEAD)"
