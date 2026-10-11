@@ -11,13 +11,13 @@ import { normalizeProfile } from "../core/schema.js";
  * Roll the drafted plans up by need kind.
  * @returns {{org: string, generatedAt: string, apps: number, needs: object[]}}
  */
-export function rollupNeeds() {
+export function rollupNeeds(records = listDeployments()) {
   const catalog = loadCatalog();
   const lineFor = Object.fromEntries(needKinds(catalog).map(n => [n.key, n.line]));
 
   // Newest drafted record per app, so a rerun does not count twice.
   const newestByApp = new Map();
-  for (const dep of listDeployments()) {           // newest first
+  for (const dep of records) {           // newest first
     if (dep.status !== "drafted") continue;
     const name = dep.app?.name;
     if (!name || newestByApp.has(name)) continue;

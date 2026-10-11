@@ -59,7 +59,7 @@ esac
 
   const port = 4700 + Math.floor(Math.random() * 90);
   const api = `http://localhost:${port}`;
-  const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, PORT: String(port), HOME: home, SEALEYE_HOME: home, SEALEYE_TEST_POLL_MS: "20" };
+  const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, PORT: String(port), HOME: home, SEALEYE_HOME: home, SEALEYE_TEST_POLL_MS: "20", SEALEYE_AUTH: "off" };
   delete env.DATABASE_URL;
   const server = spawn(process.execPath, ["api/server.js"], { cwd: root, env, stdio: ["ignore", "pipe", "pipe"] });
   let log = "";

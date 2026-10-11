@@ -30,7 +30,8 @@ api/        the API: server.js, store.js, db.js, migrations/, needs.js, mappings
             (compose, package, deploy, poll, report, evidence)
 core/       what cli/ and api/ must agree on: schema.js (the plan contract), catalog.js,
             config.js (settings and paths), names.js, secrets.js (which files hold
-            secrets), upload.js (what travels to the API), tracing.js
+            secrets), upload.js (what travels to the API), tracing.js, token.js
+            (what a token looks like; api/tokens.js issues and checks them)
 prompts/    system prompt, plan contract, plan, report and evidence templates, catalog
 templates/  one CloudFormation template per buildable module, plus run.sh
 deploy/     the pilot server: Dockerfile's start script, its CloudFormation (server,
@@ -90,7 +91,9 @@ needs something the API has, it belongs in `core/` or behind an endpoint.
   infrastructure is `platform-sealeye-*`, which the deploy role cannot touch. Artifacts
   are `<app>/<deploymentId>.zip`.
 - Settings are `SEALEYE_<NAME>` (ACCOUNT, BUCKET, LWA_VERSION, REGION, MODEL, DEBUG,
-  HOME, TRACING, MODEL_URL, API), read through `setting()` in `core/config.js`.
+  HOME, TRACING, MODEL_URL, API, TOKEN, AUTH), read through `setting()` in
+  `core/config.js`. SEALEYE_TOKEN is a secret: it lives in `~/.sealeye/config` (0600),
+  is never printed, logged or put on a record.
 - `deployme` was the original name. Until 2.17.0 the plan file was `deployme.yaml`, the
   config folder `~/.deployme`, and settings `DEPLOYME_*`. They are still read, never
   written. Only `core/config.js`, `core/names.js`, `core/schema.js` and `api/store.js`
@@ -113,7 +116,11 @@ POST /plans/validate, POST /deployments ({ plan, appPath, zip?, settings? }), GE
 GET /deployments/{id}, GET /deployments/{id}/evidence, DELETE /deployments/{id},
 GET /needs, GET /health, POST /interviews ({ app, zip }), POST
 /interviews/{id}/answers ({ answer }), GET /interviews/{id}/events (server-sent events),
-DELETE /interviews/{id}. Keep existing endpoints and commands working; add, do not
+DELETE /interviews/{id}, GET /whoami. Every endpoint but GET /health needs
+`Authorization: Bearer <token>` (`api/tokens.js`); a laptop API may run with
+`SEALEYE_AUTH=off`, an API with a database never can. The person on a record is the
+token's, never what the command line says. An interview is its starter's; records are
+their organization's. Keep existing endpoints and commands working; add, do not
 break.
 
 ## Executor
@@ -190,7 +197,9 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   No CloudFront.
 - The API runs on one pilot server (https://api.sealeye.online, `deploy/`), with
   records and interviews in Postgres, or locally with a JSON file and interviews in
-  memory (no `DATABASE_URL`). No sign-in yet; every record is org and team "default".
+  memory (no `DATABASE_URL`). No sign-in yet: each person has a token, issued with
+  `deploy/server.sh token add` and kept by `sealeye login`, a stand-in until Q3 (ROADMAP
+  Phase 1 item 3). Every token is org "default" until there is a second organization.
   The store reads from memory, written through to Postgres: one API process only.
 - Setting values travel with each deploy request, from the developer's `.env`, and are
   never kept. Moving them to the organization's secret store is owed (ROADMAP Phase 1

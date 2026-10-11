@@ -72,11 +72,19 @@ function subjectOf(record, generatedAt) {
   };
 }
 
+/** "Greg Kliewer (greg@...) on greg-mac", or as much of it as was recorded. */
+export function personOnHost(by) {
+  const person = by.name ? `${by.name} (${by.user})` : by.user;
+  return by.host ? `${person} on ${by.host}` : person;
+}
+
 function requestedOf(record) {
   const origin = record.origin || null;
   return {
     requestedBy: record.requestedBy || NOT_RECORDED,
-    requestedByNote: "reported by the command line on the developer's machine, not verified by the platform",
+    requestedByNote: record.requestedBy?.verified === "token"
+      ? "the person from their seaLeye token, checked by the platform; the machine as the command line reported it"
+      : "reported by the command line on the developer's machine, not verified by the platform",
     startedAt: record.startedAt || NOT_RECORDED,
     finishedAt: record.finishedAt || (record.status === "drafted" ? record.startedAt : null) || NOT_RECORDED,
     durationSeconds: durationSeconds(record.startedAt, record.finishedAt) ?? NOT_RECORDED,
@@ -277,7 +285,7 @@ function historyOf(record) {
       status: d.status,
       startedAt: d.startedAt || NOT_RECORDED,
       finishedAt: d.finishedAt || null,
-      requestedBy: d.requestedBy ? `${d.requestedBy.user} on ${d.requestedBy.host}` : NOT_RECORDED,
+      requestedBy: d.requestedBy ? personOnHost(d.requestedBy) : NOT_RECORDED,
       origin: d.origin?.command ? `${d.origin.command}${d.origin.planSource ? ` (${d.origin.planSource})` : ""}` : NOT_RECORDED
     }));
 }
@@ -341,7 +349,7 @@ function whatThisIs(ev) {
 
 function whoAsked(ev) {
   const r = ev.requested;
-  const who = isStr(r.requestedBy) ? r.requestedBy : `${r.requestedBy.user} on ${r.requestedBy.host} (${r.requestedByNote})`;
+  const who = isStr(r.requestedBy) ? r.requestedBy : `${personOnHost(r.requestedBy)} (${r.requestedByNote})`;
   const lines = [
     "## Who asked and when",
     "",

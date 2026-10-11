@@ -18,7 +18,7 @@ let server;
 before(async () => {
   server = spawn(process.execPath, ["api/server.js"], {
     cwd: root,
-    env: { ...process.env, PORT: String(port), SEALEYE_HOME: home, HOME: home },
+    env: { ...process.env, PORT: String(port), SEALEYE_HOME: home, HOME: home, SEALEYE_AUTH: "off" },
     stdio: ["ignore", "pipe", "pipe"]
   });
   let log = "";

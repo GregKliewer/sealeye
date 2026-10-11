@@ -258,13 +258,34 @@ Records already there are left alone, so running it twice does no harm. It resta
 API afterwards, which is how the API reads them; an interview in progress carries on
 across the restart.
 
+## Who may call it: tokens
+
+Every request but `/health` needs a token issued to a person (PHASE1-PLAN Step 13).
+Issue one from your Mac, then send it to the person privately:
+
+```bash
+deploy/server.sh token add ana@example.com "Ana Pereira"            # team "default"
+deploy/server.sh token add ana@example.com "Ana Pereira" payments   # or a team
+deploy/server.sh token list                                          # never shows tokens
+deploy/server.sh token revoke ana@example.com                        # stops working at once
+```
+
+The token is made on your Mac and shown once, there. The server is sent only its hash,
+so it is in no log, no command history and no Session Manager record, and a copy of the
+database gives nobody a working token. Someone who loses theirs gets a new one; revoke
+the old one first.
+
+After the release that brings tokens, every `sealeye` without one is refused until it
+logs in, yours included, so issue your own first.
+
 ## Using it
 
 The command talks to `https://api.sealeye.online` by default, so a developer installs
-it and runs it, nothing else:
+it, signs in once, and runs:
 
 ```bash
 curl -fsSL https://sealeye.run/install | sh
+sealeye login
 ```
 
 `SEALEYE_API` in `~/.sealeye/config` or `--api <url>` points it elsewhere, and

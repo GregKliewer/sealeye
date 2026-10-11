@@ -467,6 +467,8 @@ seaLeye.com stays a name only, as DESIGN.md says.
   sign-in will fill, so nothing after it changes when an identity provider replaces the
   script.
 - Real sign-in (OIDC first, SAML-capable, per the Q3 leaning) gets its own plan.
+- *Done Oct 11, 2026 (DESIGN.md, "Every caller has a token, until sign-in"). Tokens are
+  made on the administrator's Mac and only their hash reaches the server.*
 
 ### Step 14. The portal reads live data (Phase 1 item 7, Q9)
 

@@ -45,7 +45,10 @@ shows what is really there.
    ca-central-1"; deploy/README.md).*
 3. **Sign-in**: the portal signs in through an identity provider; the CLI gets a
    `sealeye login` that does the same and stores a token in `~/.sealeye/` (Q3). Every
-   record carries who did it and from which surface.
+   record carries who did it and from which surface. *Stand-in done Oct 11, 2026: a
+   token per person, issued by an administrator, kept by `sealeye login`; every record
+   and interview carries the token's person, organization and team (DESIGN.md, "Every
+   caller has a token, until sign-in"). The identity provider is still Q3.*
 4. **A real store**: records move from `~/.sealeye/deployments.json` to a database, with
    organization and team on every record (Q2). *Done Oct 10, 2026: Postgres on the
    server, with nightly backups; organization and team are "default" until sign-in

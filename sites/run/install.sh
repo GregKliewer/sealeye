@@ -26,7 +26,8 @@ fi
 command -v sealeye >/dev/null 2>&1 || fail "sealeye is installed but not on your PATH. Add $(npm prefix -g)/bin to your PATH."
 
 echo
-say "Done. In the folder your app is in:"
+say "Done. Sign in with the token your platform team gave you, then run it in your app's folder:"
 echo
+say "  sealeye login"
 say "  sealeye run"
 echo

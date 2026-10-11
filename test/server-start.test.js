@@ -54,10 +54,23 @@ JSON
     assert.ok(!log.includes(KEY), "no value in the log");
     assert.match(fs.readFileSync(calls, "utf8"), /^profile=none ssm get-parameters-by-path --path \/sealeye\/ --recursive --with-decryption/);
 
-    // The key reached the API: an interview no longer says it has none.
-    const res = await fetch(`http://localhost:${port}/interviews`, {
+    // The server asks who is calling.
+    const anonymous = await fetch(`http://localhost:${port}/interviews`, {
       method: "POST",
       headers: { "content-type": "application/json" },
+      body: JSON.stringify({ app: "x" })
+    });
+    assert.equal(anonymous.status, 401);
+    assert.equal((await anonymous.json()).error.code, "NOT_SIGNED_IN");
+
+    // The key reached the API: with a token, an interview no longer says it has none.
+    const { execFileSync } = await import("node:child_process");
+    const issued = execFileSync(process.execPath, ["scripts/tokens.js", "add", "dev@example.com", "Dev Person"],
+      { cwd: root, env: { ...process.env, HOME: dir, SEALEYE_HOME: dir, DATABASE_URL: "" }, encoding: "utf8" });
+    const token = issued.match(/sl_[A-Za-z0-9_-]{43}/)[0];
+    const res = await fetch(`http://localhost:${port}/interviews`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
       body: JSON.stringify({ app: "x" })
     });
     assert.equal((await res.json()).error.code, "MISSING_UPLOAD");

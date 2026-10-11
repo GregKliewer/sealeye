@@ -9,6 +9,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 
 import { repoRoot, loadEnv, loadUserConfig, region, setting, USER_CONFIG_HINT } from "../core/config.js";
+import { whoAmI } from "./client.js";
 
 const TIMEOUT_MS = 15_000;
 
@@ -49,6 +50,17 @@ async function checkApi(apiBaseUrl) {
     return ok(name, `${apiBaseUrl}, version ${body.version}, ${body.deployments} records`);
   } catch (err) {
     return bad(name, `${apiBaseUrl} did not answer (${err.message})`, `Start it: npm start, from the repo root`);
+  }
+}
+
+async function checkSignedIn(apiBaseUrl) {
+  const name = "Signed in";
+  if (!setting("TOKEN")) return bad(name, "no token on this machine", "Run sealeye login with the token your platform team gave you.");
+  try {
+    const me = await whoAmI({ apiBaseUrl });
+    return me.auth === "off" ? ok(name, "this platform does not ask who is calling") : ok(name, `${me.name} (${me.email}), team ${me.team}`);
+  } catch (err) {
+    return bad(name, err.message, "Ask your platform team for a new token, then run sealeye login.");
   }
 }
 
@@ -162,6 +174,7 @@ async function checkNotifier() {
 export async function runDoctor({ apiBaseUrl }) {
   const checks = [
     await checkApi(apiBaseUrl),
+    await checkSignedIn(apiBaseUrl),
     checkNode(),
     await checkTool("aws", ["--version"], "Install the AWS CLI, then run this again."),
     await checkTool("zip", ["-v"], "Install zip (it ships with macOS; on Linux, apt install zip)."),

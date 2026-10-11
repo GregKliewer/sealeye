@@ -62,7 +62,7 @@ before(async () => {
   home = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-deploy-api-"));
   const port = 4300 + Math.floor(Math.random() * 90);
   api = `http://localhost:${port}`;
-  const env = { ...process.env, PORT: String(port), SEALEYE_HOME: home, HOME: home };
+  const env = { ...process.env, PORT: String(port), SEALEYE_HOME: home, HOME: home, SEALEYE_AUTH: "off" };
   delete env.SEALEYE_LWA_VERSION;
   delete env.SEALEYE_BUCKET;
   server = spawn(process.execPath, ["api/server.js"], { cwd: root, env, stdio: ["ignore", "pipe", "pipe"] });

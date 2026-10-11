@@ -4,6 +4,7 @@ import path from "node:path";
 import YAML from "yaml";
 
 import { envValuesFor } from "../core/settings.js";
+import { setting } from "../core/config.js";
 import { zipFolder } from "../core/upload.js";
 
 /**
@@ -20,20 +21,40 @@ export class PlatformUnreachableError extends Error {
   }
 }
 
+/** The developer's token (`sealeye login`), on every request but the health check. */
+export function authHeaders(token = setting("TOKEN")) {
+  return token ? { authorization: `Bearer ${token}` } : {};
+}
+
 /**
- * Every request to the platform goes through here, so an unreachable platform and an
- * API error are told apart in one place.
+ * The platform asked who is calling (401). Its own sentence says what to do, and it is
+ * the developer's to act on, so it is printed as it is.
  */
-async function platformFetch(apiBaseUrl, route, options = {}) {
+export class NotSignedInError extends Error {
+  constructor(body) {
+    super(body?.error?.message || "This platform needs to know who is calling. Run sealeye login with the token your platform team gave you.");
+    this.name = "NotSignedInError";
+    this.code = body?.error?.code || "NOT_SIGNED_IN";
+    this.userFacing = true;
+  }
+}
+
+/**
+ * Every request to the platform goes through here, so an unreachable platform, a
+ * refused token and an API error are told apart in one place.
+ */
+async function platformFetch(apiBaseUrl, route, { token, ...options } = {}) {
   let res;
 
   try {
-    res = await fetch(`${apiBaseUrl}${route}`, options);
+    res = await fetch(`${apiBaseUrl}${route}`, { ...options, headers: { ...authHeaders(token), ...(options.headers || {}) } });
   } catch (err) {
     throw new PlatformUnreachableError(apiBaseUrl, err);
   }
 
   const body = await res.json().catch(() => ({}));
+
+  if (res.status === 401) throw new NotSignedInError(body);
 
   if (!res.ok) {
     const err = new Error(`seaLeye.run API error: ${res.status}`);
@@ -195,7 +216,7 @@ export async function followInterview({ apiBaseUrl, interviewId, onEvent, after 
     let res;
     try {
       res = await fetch(`${apiBaseUrl}/interviews/${interviewId}/events`, {
-        headers: { accept: "text/event-stream", "last-event-id": String(last) }
+        headers: { accept: "text/event-stream", "last-event-id": String(last), ...authHeaders() }
       });
     } catch (err) {
       if (++drops > 3) throw new PlatformUnreachableError(apiBaseUrl, err);
@@ -203,6 +224,7 @@ export async function followInterview({ apiBaseUrl, interviewId, onEvent, after 
       continue;
     }
 
+    if (res.status === 401) throw new NotSignedInError(await res.json().catch(() => ({})));
     if (res.status === 404) {
       const gone = new Error("The platform no longer has this interview. Run sealeye run again.");
       gone.userFacing = true;
@@ -251,4 +273,12 @@ export async function followInterview({ apiBaseUrl, interviewId, onEvent, after 
     if (++drops > 5) throw new PlatformUnreachableError(apiBaseUrl, new Error("the event stream kept closing"));
     await new Promise(r => setTimeout(r, 250 * drops));
   }
+}
+
+/**
+ * Who a token belongs to, as the platform says (GET /whoami). `token` defaults to the
+ * one in ~/.sealeye/config; `sealeye login` passes the one being checked.
+ */
+export async function whoAmI({ apiBaseUrl, token }) {
+  return platformFetch(apiBaseUrl, "/whoami", { token });
 }
