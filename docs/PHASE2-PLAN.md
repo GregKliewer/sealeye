@@ -147,8 +147,8 @@ deployment ids, as Greg decided after the independent review.*
 
 *Built Sun Oct 11, 2026 (DESIGN.md, "Each team's environments have names of their
 own"). Some things differ from the plan below, and DESIGN.md says why: the name always
-ends in a short hash; the deploy role keeps "any function" until no environment from
-before this is left; a stack two teams already share stays with the team that deployed to it
+ends in a short hash; the deploy role kept "any function" until no API from before
+this was left, and was narrowed to `sealeye-*` the same day; a stack two teams already share stays with the team that deployed to it
 last; and an organization-wide token's views say whose each environment
 is.*
 
@@ -438,5 +438,5 @@ Step 5 records a decision next to each.
 | **Q14: an AI gateway** | Not for the pilot. | A second team uses the API and spend per person matters. |
 | **Install scripts** | Dependencies install with `--ignore-scripts`. Raised to Greg, not confirmed. | Step 5. |
 | **Small gaps** | Expired portal sessions are cleared only at sign-in. A race between token writes in file mode is narrowed, not removed. The package still installs the API's dependencies. `sealeye doctor` checks laptop AWS tools (unless Step 5 fixes it). The pages ask not to be indexed. | Any of them causing trouble, or the end of the pilot. |
-| **Narrow the deploy role to `sealeye-*` functions** | Functions made since Step 2 are `sealeye-*`; older ones are named after the bare app, so the role still allows any function in the account. | No environment from before Step 2 is left: tear down and redeploy Greg's older API environments. |
+| ~~Narrow the deploy role to `sealeye-*` functions~~ | Done Oct 11, 2026: functions, log groups and site buckets are `sealeye-*` only (DESIGN.md, "Each team's environments have names of their own"). | |
 | **Old remote branches** | Merged branches are still on GitHub. These sessions cannot delete them. | Greg prunes them when convenient. |
