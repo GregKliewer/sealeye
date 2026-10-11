@@ -976,17 +976,26 @@ async function askChoice(rl, question, choices) {
  * The environment this folder would deploy into, if it already has one.
  *
  * The app name comes from package.json, or from the folder name when there is none, as
- * a static site has, and it is matched to a stack the same way `destroy` matches a
- * name. Everything the notice prints is read from the record, never guessed.
+ * a static site has, and it is matched to the app name on the record, since a stack is
+ * named for the team as well (DESIGN.md, "Each team's environments have names of their
+ * own"). Everything the notice prints is read from the record, never guessed.
  */
 async function liveEnvironmentFor({ apiBaseUrl, appPath }) {
   const appName = appNameFor(appPath);
   if (!appName) return null;
 
   const everything = await listDeployments({ apiBaseUrl });
-  const environment = groupEnvironments(everything)
+  let candidates = groupEnvironments(everything)
     .filter(env => env.rawStatus === "succeeded" || env.rawStatus === "running")
-    .find(env => env.stackName === `sealeye-${appName}`);
+    .filter(env => safeName(env.app) === appName || env.stackName === `sealeye-${appName}`);
+
+  // A team sees only its own environments, so there is one. An organization-wide token
+  // sees every team's, and this folder's is the one in the developer's own team.
+  if (candidates.length > 1) {
+    const me = await whoAmI({ apiBaseUrl }).catch(() => null);
+    candidates = me?.team ? candidates.filter(env => (env.latest.teamId || "default") === me.team) : [];
+  }
+  const environment = candidates.length === 1 ? candidates[0] : null;
 
   if (!environment) return null;
 
@@ -1771,7 +1780,9 @@ function groupEnvironments(deployments) {
 
   for (const dep of deployments) {
     // listDeployments() is newest first, so the first record for a key is the latest.
-    const key = dep.stackName || dep.app?.name || dep.deploymentId;
+    // A stack is one environment. A draft has no stack, so it is its team's app: two
+    // teams' drafts of the same name are two (an organization-wide token sees both).
+    const key = dep.stackName || (dep.app?.name ? `${dep.teamId || "default"}:${dep.app.name}` : dep.deploymentId);
     const group = groups.get(key);
 
     if (group) group.deploys.push(dep);

@@ -147,6 +147,37 @@ test("a team sees its own environments; an organization-wide token sees every te
   assert.match(listed, /Ana P \(ana@example.com\)  team payments  issued/);
 });
 
+test("two teams can each have an app of the same name, as two environments", async () => {
+  const { createDeployment } = await import("../cli/client.js");
+  const plan = YAML.parse(fs.readFileSync(path.join(root, "plans", "static-plan.yaml"), "utf8"));
+  const deploy = async token => {
+    const folder = fs.mkdtempSync(path.join(home, "test-app-"));
+    fs.cpSync(path.join(root, "apps", "static-website"), folder, { recursive: true });
+    process.env.SEALEYE_TOKEN = token;
+    try {
+      const { deploymentId } = await createDeployment({ apiBaseUrl: api, backend: "cloudformation", plan: { ...plan, app: { ...plan.app, name: "test-app" } }, appPath: folder });
+      // The name is decided before anything reaches AWS; wait for it on the record.
+      for (let i = 0; i < 50; i++) {
+        const record = await (await call(`/deployments/${deploymentId}`, { token })).json();
+        if (record.stackName) return record;
+        await new Promise(r => setTimeout(r, 100));
+      }
+      throw new Error(`no stack name on ${deploymentId}:\n${log}`);
+    } finally {
+      delete process.env.SEALEYE_TOKEN;
+    }
+  };
+  const gregs = await deploy(greg);
+  const anas = await deploy(ana);
+  assert.match(gregs.stackName, /^sealeye-default-test-app-[0-9a-f]{6}$/);
+  assert.match(anas.stackName, /^sealeye-payments-test-app-[0-9a-f]{6}$/);
+  assert.equal(gregs.parameters.AppName, gregs.stackName, "the bucket and everything else are named after it too");
+  assert.equal(gregs.app.name, "test-app", "the developer's app keeps its own name");
+
+  // The same team deploying the same app again is the same environment.
+  assert.equal((await deploy(greg)).stackName, gregs.stackName);
+});
+
 test("the needs ledger is the organization's, the same for every team", async () => {
   const plan = YAML.parse(fs.readFileSync(path.join(root, "plans", "api-plan.yaml"), "utf8"));
   // A plan with a need is drafted and saved, and creates nothing.

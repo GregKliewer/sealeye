@@ -957,29 +957,49 @@ Cognito group can fill later without the checks changing.
 
 ## Each team's environments have names of their own
 
-Decided Sun Oct 11, 2026 (PHASE2-PLAN D2). To be built in PHASE2-PLAN Step 2.
+Decided Sun Oct 11, 2026 (PHASE2-PLAN D2). Built the same day (PHASE2-PLAN Step 2).
 
 Two teams can each have an app of the same name, each with its own environment. Within
 a team, one app name is one dev environment and one path to production: a teammate's
 `sealeye run` of the same app updates the team's environment, and the record says who
 did it.
 
-**How.** Each environment has an internal name, `<team>-<app>`, and every name it has in
-AWS comes from it: the stack `sealeye-<team>-<app>`, and the function, log group, API and
-static site bucket after it. The developer sees only the app name, in the command, the
-portal and every file seaLeye writes; the one place the team shows is a static site's
-address. The rule lives in `core/names.js`, with a length cap and a short hash for the
-64- and 63-character limits on function and bucket names.
+**How.** Each environment has a name, `sealeye-<team>-<app>-<hash>`, and every name it
+has in AWS comes from it: the stack, and the function, log group, API and static site
+bucket in it. The developer sees only the app name, in the command, the portal and every
+file seaLeye writes; the one place the team shows is a static site's address. The rule
+is `environmentName` in `core/names.js`.
 
-**No migration.** Every record keeps its `stackName`. A deploy reuses the name on the
-team's latest record for that app, so environments made before this keep their old
-names, and only a first deploy gets the new one.
+- **The hash is always there**, six hex characters of the organization, team and app.
+  The plan first had a hash only for names cut short, but hyphens alone are ambiguous:
+  team `a` with app `b-c` and team `a-b` with app `c` would both be `sealeye-a-b-c`, and
+  team `payments` with app `foo` would be the `sealeye-payments-foo` that an app called
+  payments-foo already had. The hash ends both.
+- **It fits.** The readable part stops at 34 characters, so a name is at most 49: a
+  function name may be 64, and a static site's bucket, `<name>-<account>`, 63.
+- **The templates did not change shape.** Their `AppName` parameter was always the name
+  everything is called after; it is now the environment's name rather than the bare app
+  name.
+
+**No migration.** Every record keeps its `stackName`, and now its `resourceName`.
+`namingFor` in `api/executor/compose.js` reuses the names on the team's latest record
+for that app, unless it was torn down, so environments made before this keep
+`sealeye-<app>` (their bare app name is read from the record's `AppName` parameter), and
+only a first deploy, or the first after a tear down, gets the new name. Another team's
+records never count. The needs ledger counts an app per team, and a draft, which has no
+stack, is grouped by team and app on both surfaces.
+
+**The deploy role keeps "any function in the account" for now.** Functions are now
+`sealeye-*`, but those made before this are named after the bare app, and narrowing the
+role would stop it updating or tearing them down. Narrow it to `sealeye-*` once no
+environment from before this is left (PHASE2-PLAN, "Owed after this plan").
 
 **Why not refuse the second team.** That was the first recommendation: refuse a second
 team's deploy while the first team's environment is live. Greg chose against it, because
 common names such as `test-app` would collide often, and a developer should not have to
 rename an app because of a team they cannot see. It costs about a day more.
 
-**Why the organization is not in the name.** Each organization will deploy into its own
-account (ROADMAP Phase 1 item 5), where names need only be unique within the account. If
-two organizations ever share one account before then, the rule gains the organization.
+**Why the organization is not in the readable name.** Each organization will deploy into
+its own account (ROADMAP Phase 1 item 5), where names need only be unique within the
+account. It is in the hash, so two organizations sharing one account before then would
+still not meet.

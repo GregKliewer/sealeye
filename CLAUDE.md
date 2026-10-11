@@ -90,9 +90,15 @@ needs something the API has, it belongs in `core/` or behind an endpoint.
 - The product is seaLeye. The command is `sealeye`. Its subcommand that interviews and
   deploys is `run`; `init` is a hidden alias that does the same thing and never prints a
   deprecation notice.
-- Stacks are `sealeye-<app>` (lowercase, `[a-z0-9-]` only, `core/names.js`). seaLeye's own
-  infrastructure is `platform-sealeye-*`, which the deploy role cannot touch. Artifacts
-  are `<app>/<deploymentId>.zip`.
+- An environment's name is `sealeye-<team>-<app>-<hash>` (`environmentName` in
+  `core/names.js`: lowercase, `[a-z0-9-]` only, at most 49 characters, the hash of the
+  organization, team and app). Its stack, function, log group, API and static site
+  bucket are all named after it, so two teams' apps of the same name are two
+  environments; the developer sees only the app name. `namingFor` in
+  `api/executor/compose.js` keeps an existing environment's names from its record, so
+  ones made before this keep `sealeye-<app>`. seaLeye's own infrastructure is
+  `platform-sealeye-*`, which the deploy role cannot touch. Artifacts are
+  `<name>/<deploymentId>.zip`.
 - Settings are `SEALEYE_<NAME>` (ACCOUNT, BUCKET, LWA_VERSION, REGION, MODEL, DEBUG,
   HOME, TRACING, MODEL_URL, API, TOKEN, AUTH), read through `setting()` in
   `core/config.js`. SEALEYE_TOKEN is a secret: it lives in `~/.sealeye/config` (0600),

@@ -15,13 +15,16 @@ export function rollupNeeds(records = listDeployments()) {
   const catalog = loadCatalog();
   const lineFor = Object.fromEntries(needKinds(catalog).map(n => [n.key, n.line]));
 
-  // Newest drafted record per app, so a rerun does not count twice.
+  // Newest drafted record per app, so a rerun does not count twice. An app is a team's:
+  // two teams' apps of the same name are two apps (DESIGN.md, "Each team's environments
+  // have names of their own").
   const newestByApp = new Map();
   for (const dep of records) {           // newest first
     if (dep.status !== "drafted") continue;
     const name = dep.app?.name;
-    if (!name || newestByApp.has(name)) continue;
-    newestByApp.set(name, dep);
+    const key = `${dep.orgId || "default"}/${dep.teamId || "default"}/${name}`;
+    if (!name || newestByApp.has(key)) continue;
+    newestByApp.set(key, dep);
   }
 
   const byKind = new Map();

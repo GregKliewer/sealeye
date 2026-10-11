@@ -402,6 +402,9 @@ app.get("/deployments", (req, res) => {
     profile: dep.plan?.profile || null,
     requestedBy: dep.requestedBy || null,
     surface: dep.surface || "cli",
+    // Whose environment it is. A team only ever sees its own; an organization-wide
+    // token sees several, and two of them can share an app name.
+    teamId: dep.teamId || "default",
     destroyRequestedBy: dep.destroyRequestedBy || null,
     needs: Array.isArray(dep.needs) ? dep.needs.length : 0
   }));

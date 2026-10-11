@@ -46,6 +46,7 @@ export interface DeploymentSummary {
   profile: string | null;
   requestedBy: RequestedBy | null;
   surface: string;
+  teamId?: string;
   destroyRequestedBy: RequestedBy | null;
   needs: number;
 }
