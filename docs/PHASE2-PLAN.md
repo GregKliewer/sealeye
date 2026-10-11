@@ -207,9 +207,9 @@ terms, no em dashes, and nothing a token holder could not already see.
 - The portal: sign in at https://sealeye.online with the same token, find the
   environment, then tear it down from Control.
 - Try `apps/payment-events-processor` too, to see a refusal with evidence.
-- What to do when something goes wrong: send Greg the deployment id and a screenshot.
-  Don't run `sealeye doctor` yet, since some of its checks are for a laptop setup (see
-  Step 5).
+- What to do when something goes wrong: run `sealeye doctor`, then send Greg the
+  deployment id and a screenshot. (The plan first said not to run doctor; Step 5 fixed
+  it for the hosted API.)
 
 **Done when:** Greg has read it as if he had never seen seaLeye, and it asks nothing he
 would have to explain.
@@ -242,6 +242,9 @@ candidates to fix before Step 6, and are his call:
   code") was raised and never confirmed. Confirm it or reverse it.
 
 **Done when:** each item in that section has a decision written next to it.
+
+*Prepared Oct 11, 2026: docs/WELCOME.md (Step 3), docs/STEP15-CHECKLIST.md (Step 4), and
+recommendations under "Step 5: recommendations, for Greg to decide".*
 
 ### Step 6. The second-person test (PHASE1-PLAN Step 15)
 
@@ -436,7 +439,28 @@ Step 5 records a decision next to each.
 | **The database moves to RDS** (DESIGN.md stage 2) | Postgres in a container, with a nightly dump that has been tested once. | Someone else's data matters: arguably the first team that deploys its own app, not the Step 15 tester on sample apps. |
 | **ECS Express Mode** (DESIGN.md stage 3) | One small server. | Downtime becomes the problem: a second team, or anyone who expects it to stay up. |
 | **Q14: an AI gateway** | Not for the pilot. | A second team uses the API and spend per person matters. |
-| **Install scripts** | Dependencies install with `--ignore-scripts`. Raised to Greg, not confirmed. | Step 5. |
-| **Small gaps** | Expired portal sessions are cleared only at sign-in. A race between token writes in file mode is narrowed, not removed. The package still installs the API's dependencies. `sealeye doctor` checks laptop AWS tools (unless Step 5 fixes it). The pages ask not to be indexed. | Any of them causing trouble, or the end of the pilot. |
-| ~~Narrow the deploy role to `sealeye-*` functions~~ | Done Oct 11, 2026: functions, log groups and site buckets are `sealeye-*` only (DESIGN.md, "Each team's environments have names of their own"). | |
+| **Install scripts** | Dependencies install with `--ignore-scripts`. Confirmed by Greg on Oct 11: they stay off (DESIGN.md, "Installing an app's dependencies runs none of its code"). | A team needs a package that builds native code: then build in a runtime-matched container, never in the API. |
+| **Small gaps** | Expired portal sessions are cleared only at sign-in. A race between token writes in file mode is narrowed, not removed. The package still installs the API's dependencies.  The pages ask not to be indexed. | Any of them causing trouble, or the end of the pilot. |
+| **Narrow the deploy role to `sealeye-*` functions** | Functions made since Step 2 are `sealeye-*`; older ones are named after the bare app, so the role still allows any function in the account. | No environment from before Step 2 is left: tear down and redeploy Greg's older API environments. |
 | **Old remote branches** | Merged branches are still on GitHub. These sessions cannot delete them. | Greg prunes them when convenient. |
+
+### Step 5: recommendations, for Greg to decide
+
+For each item: does it block the friendly team (Step 6, sample apps), a wider team (more
+people, their own apps, still in the pilot account), or neither yet? Greg fills in
+"Decided". Part B (the secret store) is not in this list because it is planned: it is
+due before any team deploys real secrets.
+
+| Item | Friendly team | Wider team | Recommendation | Decided |
+|---|---|---|---|---|
+| Item 5: AWS access per team | no | no, unless a team brings its own account | Leave until a team or a bank brings an account. | |
+| Item 3: real sign-in | no | yes, past a handful of people | Its own plan, started before the wider team. Tokens are fine for the friendly team. | |
+| Q10: publishing the command | no | no | Leave. The installer works; publish when someone needs to pin a version. | |
+| Q13: where traces live | no (sample apps) | yes, once a team runs its own code | Before a team runs its own code, set tracing off on the server, or answer Q13 first. | |
+| RDS for the database | no | yes | Before the first team deploys its own app: its records then matter, and RDS gives restore to a point in time. About half a day. | |
+| ECS Express Mode | no | no | Leave until downtime matters. | |
+| Q14: an AI gateway | no | no | Leave. | |
+| Install scripts stay off | no | no | Confirm (DESIGN.md, "Installing an app's dependencies runs none of its code"): unreviewed install scripts never run on the server, which can reach its role and database. The cost: a package that builds native code at install (such as `bcrypt` or `sharp`) is not built, so an app that needs one will not work, and nothing says why yet. | Confirmed by Greg, Oct 11: they stay off. |
+| `sealeye doctor` for the hosted API | yes, mildly | yes | Fix before Step 6, about two hours, and drop the "do not run doctor" line from docs/WELCOME.md. A tester will run it. | Yes (Greg, Oct 11). Done: doctor checks only Node, the API and the token unless the API runs on this machine. |
+| Other small gaps | no | no | Leave. | |
+| Old remote branches | no | no | Prune when convenient. | |

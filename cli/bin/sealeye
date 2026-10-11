@@ -723,7 +723,7 @@ async function main() {
     console.log("");
 
     if (result.ok) {
-      say(`Everything this machine needs for a demo is here.`);
+      say(result.local ? "Everything this machine needs to run the platform here is here." : "Everything this machine needs is here.");
       return;
     }
 

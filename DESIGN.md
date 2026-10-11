@@ -774,6 +774,8 @@ have been built for the server rather than the function's runtime. If a develope
 one, that is a platform decision (build in a runtime-matched container), not a reason to
 run unreviewed code inside the API.
 
+Confirmed by Greg on Sun Oct 11, 2026 (PHASE2-PLAN Step 5): install scripts stay off.
+
 What it does not fix: the metadata service is still reachable from the API's container,
 so code that does run inside it (the API's own dependencies) could still reach the
 server's role. Building in a separate, unprivileged container is the full fix, and
@@ -1025,3 +1027,16 @@ rename an app because of a team they cannot see. It costs about a day more.
 its own account (ROADMAP Phase 1 item 5), where names need only be unique within the
 account. It is in the hash, so two organizations sharing one account before then would
 still not meet.
+
+## sealeye doctor checks what this machine needs
+
+Decided Sun Oct 11, 2026 (PHASE2-PLAN Step 5, Greg's call).
+
+`sealeye doctor` was written for a laptop that ran the API itself, so it checked the AWS
+CLI, AWS credentials, the artifact bucket, the adapter layer and the model key. A
+developer using the hosted API needs none of them, and would have seen five failures
+that meant nothing. Now, when the API is not on this machine (`isLocalApi` in
+`cli/doctor.js`: localhost, 127.x or ::1), doctor checks only the API, the token, Node,
+and whether a Mac can show a notice when a deploy finishes (advice, never a failure).
+When the API does not answer, the fix it offers is to tell the platform team, not to
+start it. With an API on this machine, every check runs as before.
