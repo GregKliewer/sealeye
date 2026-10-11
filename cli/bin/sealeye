@@ -1687,7 +1687,10 @@ function printNeedsTable(ledger) {
     const painted = needCell.replace(r.kind, c.dim(r.kind));
     console.log(`${painted}  ${c.dim(pad(r.apps, w.apps))}  ${c.dim(pad(r.first, w.first))}  ${c.dim(r.last)}`);
     for (const app of r.n.apps) {
-      const shows = app.evidence.map(e => (e.file ? `${e.shows} (${e.file})` : e.shows)).join("; ");
+      // Another team's app comes with no evidence: its code is that team's to see.
+      const shows = app.evidence.length
+        ? app.evidence.map(e => (e.file ? `${e.shows} (${e.file})` : e.shows)).join("; ")
+        : `team ${app.team || "default"}`;
       console.log(c.dim(`    ${app.name}  ${shows}${app.profile ? `  \u00B7  ${app.profile}` : ""}`));
     }
   }
@@ -1736,6 +1739,7 @@ function moduleRequest(ledger, kind) {
   for (const app of apps) {
     out.push(`  ${app.name}`);
     for (const e of app.evidence) out.push(`    ${e.shows}${e.file ? ` (${e.file})` : ""}`);
+    if (!app.evidence.length) out.push(`    team ${app.team || "default"}'s app; what in its code shows the need is that team's to see`);
     if (app.profile) out.push(`    designed for ${app.profile}`);
     out.push("");
   }

@@ -9,9 +9,19 @@ import { normalizeProfile } from "../core/schema.js";
 
 /**
  * Roll the drafted plans up by need kind.
+ *
+ * Everyone in the organization sees every app and its needs. The evidence (file names
+ * and lines from the app's code) and the deployment id are the app's team's: a viewer
+ * on another team sees the app, its team and its needs, with no evidence and no id. An
+ * organization-wide viewer, or none (a laptop API), sees all of it (DESIGN.md, "Each
+ * team sees its own environments").
+ *
+ * @param {object[]} [records] newest first
+ * @param {{viewer?: {org: string, team: string, scope: string} | null}} [options]
  * @returns {{org: string, generatedAt: string, apps: number, needs: object[]}}
  */
-export function rollupNeeds(records = listDeployments()) {
+export function rollupNeeds(records = listDeployments(), { viewer = null } = {}) {
+  const sees = dep => !viewer || viewer.scope === "org" || (dep.teamId || "default") === viewer.team;
   const catalog = loadCatalog();
   const lineFor = Object.fromEntries(needKinds(catalog).map(n => [n.key, n.line]));
 
@@ -37,12 +47,14 @@ export function rollupNeeds(records = listDeployments()) {
       if (!kind) continue;
       const entry = byKind.get(kind) || { kind, line: lineFor[kind] || need.line, apps: [], count: 0, firstSeen: null, lastSeen: null };
 
+      const own = sees(dep);
       entry.apps.push({
         name: dep.app.name,
-        deploymentId: dep.deploymentId,
+        team: dep.teamId || "default",
+        deploymentId: own ? dep.deploymentId : null,
         when,
         profile,
-        evidence: need.evidence || [],
+        evidence: own ? (need.evidence || []) : [],
         profile_expects: need.profile_expects || (profile ? profileExpectsFor(kind, profile, catalog) : null)
       });
       entry.count = entry.apps.length;

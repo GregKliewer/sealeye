@@ -276,8 +276,9 @@ deploy/server.sh token revoke ana@example.com                        # stops wor
 A token sees only its own team's environments: their list, status, evidence and tear
 down. Another team's environment answers "not found". A token issued with `--org-wide`
 sees every team's, which is what the administrator's own token should be. The needs
-ledger is the same for everyone in the organization (DESIGN.md, "Each team sees its own
-environments").
+ledger lists every app in the organization, but the lines of code that show an app's
+needs only to its own team and to organization-wide tokens (DESIGN.md, "Each team sees
+its own environments").
 
 The token is made on your Mac and shown once, there. The server is sent only its hash,
 so it is in no log, no command history and no Session Manager record, and a copy of the

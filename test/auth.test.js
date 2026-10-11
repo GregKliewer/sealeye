@@ -183,7 +183,7 @@ test("two teams can each have an app of the same name, as two environments", asy
   assert.equal((await deploy(greg)).stackName, gregs.stackName);
 });
 
-test("the needs ledger is the organization's, the same for every team", async () => {
+test("the needs ledger is the organization's; another team's evidence is left out of it", async () => {
   const plan = YAML.parse(fs.readFileSync(path.join(root, "plans", "api-plan.yaml"), "utf8"));
   // A plan with a need is drafted and saved, and creates nothing.
   const drafted = {
@@ -200,7 +200,21 @@ test("the needs ledger is the organization's, the same for every team", async ()
   };
   const forAna = await ledger(ana);
   assert.ok(forAna.apps >= 1);
-  assert.deepEqual(await ledger(greg), forAna, "another team in the organization sees the same ledger");
+  const apps = (l, name) => l.needs.flatMap(n => n.apps).filter(a => a.name === name);
+  const [own] = apps(forAna, "payments-needs-queue");
+  assert.equal(own.team, "payments");
+  assert.match(own.deploymentId, /^dep_/);
+  assert.equal(own.evidence[0].shows, "hands work to a queue", "a team sees its own app's evidence");
+
+  // Another team sees the same apps and needs, without the evidence or the id.
+  const forGreg = await ledger(greg);
+  assert.equal(forGreg.apps, forAna.apps);
+  assert.deepEqual(forGreg.needs.map(n => [n.kind, n.count]), forAna.needs.map(n => [n.kind, n.count]));
+  const [seen] = apps(forGreg, "payments-needs-queue");
+  assert.deepEqual([seen.team, seen.deploymentId, seen.evidence], ["payments", null, []]);
+  assert.ok(!JSON.stringify(forGreg).includes("hands work to a queue"), "another team's code is not in it");
+
+  // An organization-wide token sees all of it.
   assert.deepEqual(await ledger(boss), forAna);
   assert.equal((await ledger(outsider)).apps, 0, "another organization's ledger is its own");
 });

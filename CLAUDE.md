@@ -133,7 +133,8 @@ portal's session cookie; a change made with the cookie must also carry
 `SEALEYE_AUTH=off`, an API with a database never can. The person on a record is the
 token's, never what the command line says. An interview is its starter's; a record is
 its team's, seen by that team and by an organization-wide token, never by another
-organization; the needs ledger is the whole organization's. Keep existing endpoints and commands working; add, do not
+organization; the needs ledger is the whole organization's, but an app's evidence and
+deployment id in it are its team's (and an organization-wide token's). Keep existing endpoints and commands working; add, do not
 break.
 
 ## Executor

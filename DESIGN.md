@@ -949,7 +949,10 @@ environments. A token issued as organization-wide sees every team's, which is ho
 administrator keeps an overview. Another team's record answers "not found", as another
 person's interview already does, so its existence is not given away. The needs ledger
 stays organization-wide on purpose: it is the platform team's view of what drafted plans
-wait on, and it names apps and needs, not people.
+wait on, and it names apps and needs, not people. What shows a need, file names and lines
+from an app's code, is that app's team's, as is its deployment id: another team sees the
+app, its team and its needs without them, and an organization-wide token sees all of it
+(decided by Greg the same day, after the independent review raised it).
 
 Why a scope on the token rather than real roles: roles belong to sign-in (Q15, Cognito
 groups). A token is either team-scoped or organization-wide when it is issued, which is

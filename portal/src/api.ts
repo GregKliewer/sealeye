@@ -63,7 +63,7 @@ export interface Catalog {
 
 export interface NeedsLedger {
   apps: number;
-  needs: { kind: string; line: string; count: number; apps: { name: string; deploymentId: string; when: string | null }[]; firstSeen: string | null; lastSeen: string | null }[];
+  needs: { kind: string; line: string; count: number; apps: { name: string; team?: string; deploymentId: string | null; when: string | null }[]; firstSeen: string | null; lastSeen: string | null }[];
 }
 
 export const api = {

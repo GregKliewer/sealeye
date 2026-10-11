@@ -120,7 +120,8 @@ Steps 3 to 5 are documents and can share a second pull request.
 
 *Built Sun Oct 11, 2026 (DESIGN.md, "Each team sees its own environments"). Evidence
 history also stays within the record's team, so another team's draft of the same app
-name never shows in it.*
+name never shows in it. The needs ledger leaves out another team's evidence and
+deployment ids, as Greg decided after the independent review.*
 
 - `api/migrations/004_token_scope.sql` adds `scope` to `tokens` (`team` or `org`, default
   `team`). `fromRow` and the file store read it; a token without one is `team`.

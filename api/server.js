@@ -109,7 +109,8 @@ const canSee = (req, dep) =>
 const visibleDeployments = req => listDeployments().filter(dep => canSee(req, dep));
 // The needs ledger is the platform team's view of what drafted plans across the
 // organization wait on. It names apps and needs, never people, and it stays
-// organization-wide on purpose: do not narrow it to visibleDeployments.
+// organization-wide on purpose: do not narrow it to visibleDeployments. Another team's
+// evidence and deployment ids are left out of it (rollupNeeds).
 const orgDeployments = req => listDeployments().filter(dep => inOrg(req, dep));
 
 app.use((req, res, next) => {
@@ -449,7 +450,7 @@ app.get("/deployments/:deploymentId/evidence", async (req, res) => {
 // Store only; no AWS call.
 app.get("/needs", (req, res) => {
   try {
-    return res.status(200).json(rollupNeeds(orgDeployments(req)));
+    return res.status(200).json(rollupNeeds(orgDeployments(req), { viewer: req.caller }));
   } catch (err) {
     return res.status(500).json({ error: { code: "NEEDS_FAILED", message: err.message } });
   }
