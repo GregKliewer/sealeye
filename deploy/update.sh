@@ -12,8 +12,12 @@ aws s3 cp "s3://${CONFIG_BUCKET}/server/compose.yaml" compose.yaml --region "$RE
 aws s3 cp "s3://${CONFIG_BUCKET}/server/Caddyfile" Caddyfile --region "$REGION" --only-show-errors
 
 # The pages Caddy serves: seaLeye.online, seaLeye.run and the package it installs.
+# --exact-timestamps, because without it a download skips any file whose size has not
+# changed, however new: the portal's index.html is always the same size (only the hashes
+# in its asset names change), so the server kept the old page while --delete removed the
+# assets it names, and the portal went blank (Oct 11, 2026).
 mkdir -p sites
-aws s3 sync "s3://${CONFIG_BUCKET}/server/sites/" sites/ --region "$REGION" --delete --only-show-errors
+aws s3 sync "s3://${CONFIG_BUCKET}/server/sites/" sites/ --region "$REGION" --delete --exact-timestamps --only-show-errors
 
 for f in backup.sh restore-check.sh; do
   aws s3 cp "s3://${CONFIG_BUCKET}/server/$f" "$f" --region "$REGION" --only-show-errors
@@ -60,6 +64,17 @@ echo "SEALEYE_IMAGE=${REPOSITORY}:${TAG}" > .env
 aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "${REPOSITORY%%/*}" >/dev/null
 docker compose pull --quiet
 docker compose up -d --remove-orphans
+# Caddy reads its Caddyfile when it starts, and the file is mounted on its own, so a new
+# copy reaches it only in a new container. .caddyfile-started records the one the
+# running Caddy started with; when this release's differs (or nothing is recorded),
+# Caddy is recreated. Its certificates are in the caddy-data volume and stay; the sites
+# are unreachable for a moment.
+CADDYFILE_NOW="$(sha256sum Caddyfile | cut -d' ' -f1)"
+if [ "$CADDYFILE_NOW" != "$(cat .caddyfile-started 2>/dev/null || true)" ]; then
+  docker compose up -d --no-deps --force-recreate caddy
+  echo "$CADDYFILE_NOW" > .caddyfile-started
+  echo "Caddy restarted with this release's Caddyfile"
+fi
 docker image prune -f >/dev/null
 
 for _ in $(seq 1 36); do
