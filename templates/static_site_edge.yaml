@@ -4,6 +4,14 @@ Parameters:
   AppName:
     Type: String
     Description: The name everything here is called after, the environment's name (core/names.js)
+  # Cost allocation tags (PHASE2-PLAN Step 20): which app and which team this is, so
+  # costs can be read by app once the tags are activated for billing.
+  TagApp:
+    Type: String
+    Default: ""
+  TagTeam:
+    Type: String
+    Default: ""
 Resources:
   Bucket:
     Type: AWS::S3::Bucket
@@ -20,6 +28,11 @@ Resources:
       WebsiteConfiguration:
         IndexDocument: index.html
         ErrorDocument: index.html
+      Tags:
+        - Key: sealeye:app
+          Value: !Ref TagApp
+        - Key: sealeye:team
+          Value: !Ref TagTeam
   BucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:

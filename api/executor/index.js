@@ -62,12 +62,16 @@ export async function startDeployment(record, plan, appPath, sent = {}) {
     // deployment's parameters and nowhere else: compose keeps names and sources only.
     // The names this environment has in AWS: its own team's, kept from its record when
     // it already exists (DESIGN.md, "Each team's environments have names of their own").
-    const naming = namingFor({
-      app: plan?.app?.name,
-      org: record.orgId || "default",
-      team: record.teamId || "default",
-      records: listDeployments()
-    });
+    const naming = {
+      ...namingFor({
+        app: plan?.app?.name,
+        org: record.orgId || "default",
+        team: record.teamId || "default",
+        records: listDeployments()
+      }),
+      // For the cost allocation tags.
+      team: record.teamId || "default"
+    };
     // Which of the app's settings are in the organization's store (PHASE2-PLAN Part B).
     // Those the app reads itself when it starts; the rest are passed in as before. A
     // store that cannot be asked stops the deploy, rather than building an app that

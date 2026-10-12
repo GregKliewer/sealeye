@@ -1430,3 +1430,25 @@ what the app itself did. A period with no requests has no time measured, and say
 rather than showing zero. The deploy role gains cloudwatch:GetMetricData, which takes no
 resource; it reads only what the API asks for, by function name.
 
+## Costs come from tags, a day behind
+
+Built Mon Oct 12, 2026 (PHASE2-PLAN Step 20's second half), as `sealeye costs`, the
+portal's Costs page and `GET /costs?since=7d|30d`. The name is ROADMAP's.
+
+- **Tags on what costs money.** Both templates now tag what an environment pays for with
+  `sealeye:app` and `sealeye:team`: an API's function, its log group and its address, a
+  site's bucket. On the resources themselves, not the stack, so the function's role and
+  the bucket policy need no tagging permissions; the deploy role gains only the older
+  log-group tagging calls, which CloudFormation may still use. An environment gets its
+  tags the next time it is deployed.
+- **Greg turns them on once.** AWS counts a tag in billing only after it is activated
+  in the Billing console (Cost allocation tags), and a key appears there only after a
+  resource carries it, up to a day later. Until then costs answer with none.
+- **Read by tag, from Cost Explorer.** By `sealeye:app`, filtered to the caller's team
+  (an organization-wide token sees every team, by both tags), summed over the window, a
+  day at a time. Cost Explorer answers from us-east-1, about a day behind, and charges
+  for each call, so the API keeps an answer for an hour. Costs without seaLeye's tags are
+  left out, and every view says so, and that it is a day behind (principle 7: nothing
+  typed in, nothing guessed). The deploy role gains ce:GetCostAndUsage, which takes no
+  resource.
+

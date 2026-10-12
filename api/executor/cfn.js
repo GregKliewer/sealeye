@@ -242,6 +242,41 @@ export async function functionMetrics(functionName, { startMs, endMs, periodSec 
 }
 
 /**
+ * What the account spent, by the sealeye:app tag (and sealeye:team, for every team), a
+ * day at a time between two dates (PHASE2-PLAN Step 20). Cost Explorer answers from
+ * us-east-1 whatever the region, about a day behind, and charges for each call, so the
+ * caller keeps the answer for a while.
+ * @param {{ start: string, end: string, team?: string|null }} range  YYYY-MM-DD, end exclusive
+ * @returns {Promise<{ok: true, groups: {keys: string[], amount: number, unit: string}[]} | {ok: false, error: string}>}
+ */
+export async function costsByTag({ start, end, team = null }) {
+  const groups = [];
+  let token = null;
+  for (let page = 0; page < 10; page++) {
+    const args = [
+      "ce", "get-cost-and-usage", "--time-period", `Start=${start},End=${end}`, "--granularity", "DAILY",
+      "--metrics", "UnblendedCost",
+      "--group-by", ...(team ? ["Type=TAG,Key=sealeye:app"] : ["Type=TAG,Key=sealeye:team", "Type=TAG,Key=sealeye:app"]),
+      ...(team ? ["--filter", JSON.stringify({ Tags: { Key: "sealeye:team", Values: [team] } })] : []),
+      ...(token ? ["--next-page-token", token] : []),
+      "--region", "us-east-1", "--output", "json"
+    ];
+    const r = await tryAws(args);
+    if (!r.ok) return { ok: false, error: firstLine(r.stderr) };
+    let body;
+    try { body = JSON.parse(r.stdout || "{}"); } catch { return { ok: false, error: "the cost service's answer was not JSON" }; }
+    for (const day of body.ResultsByTime || []) {
+      for (const g of day.Groups || []) {
+        groups.push({ keys: g.Keys || [], amount: Number(g.Metrics?.UnblendedCost?.Amount || 0), unit: g.Metrics?.UnblendedCost?.Unit || "USD" });
+      }
+    }
+    token = body.NextPageToken || null;
+    if (!token) break;
+  }
+  return { ok: true, groups };
+}
+
+/**
  * Current stack status and outputs, read fresh.
  * @returns {Promise<{status: string|null, outputs: object, statusReason: string|null}>}
  *          status is null when the stack does not exist.

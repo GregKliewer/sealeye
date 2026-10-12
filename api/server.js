@@ -23,6 +23,7 @@ import { readLogs } from "./logs.js";
 import { changePaused, pausedState } from "./pause.js";
 import { peopleOf } from "./team.js";
 import { readPerformance } from "./performance.js";
+import { readCosts } from "./costs.js";
 import { createInterviewService, NotWaiting, UploadRefused } from "./interview/service.js";
 import { postgresCheckpointer, postgresInterviewStore } from "./interview/pgstore.js";
 import { databaseUrl, closeDb } from "./db.js";
@@ -663,6 +664,13 @@ app.get("/deployments/:deploymentId/performance", async (req, res) => {
   const dep = getDeployment(req.params.deploymentId);
   if (!canSee(req, dep)) return res.status(404).json({ error: { code: "NOT_FOUND", message: "deploymentId not found" } });
   const { status, body } = await readPerformance(dep, { window: typeof req.query.since === "string" ? req.query.since : "1d" });
+  return res.status(status).json(body);
+});
+
+// GET /costs?since=7d|30d — what each of your team's apps has cost (api/costs.js),
+// by the cost allocation tags; an organization-wide token sees every team's. Step 20.
+app.get("/costs", async (req, res) => {
+  const { status, body } = await readCosts(req.caller, { window: typeof req.query.since === "string" ? req.query.since : "30d" });
   return res.status(status).json(body);
 });
 

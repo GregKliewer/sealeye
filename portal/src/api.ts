@@ -143,6 +143,12 @@ export interface Performance {
   periods: Period[];
 }
 
+// GET /costs: what each app has cost, by tag, about a day behind.
+export interface Costs {
+  since: string; from: string; to: string; unit: string; everyTeam: boolean; team: string | null;
+  total: number; apps: { app: string; team: string; amount: number }[]; note: string; readAt: string;
+}
+
 const settingsPath = (app: string, team: string, name?: string) =>
   `/apps/${encodeURIComponent(app)}/settings${name ? `/${encodeURIComponent(name)}` : ""}?team=${encodeURIComponent(team)}`;
 
@@ -188,6 +194,7 @@ export const api = {
   logs: (id: string, since: string) => request<Logs>(`/deployments/${encodeURIComponent(id)}/logs?since=${encodeURIComponent(since)}`),
   evidence: (id: string) => request<Evidence>(`/deployments/${encodeURIComponent(id)}/evidence`),
   team: () => request<Team>("/team"),
+  costs: (since: string) => request<Costs>(`/costs?since=${encodeURIComponent(since)}`),
   performance: (id: string, since: string) => request<Performance>(`/deployments/${encodeURIComponent(id)}/performance?since=${encodeURIComponent(since)}`),
   catalog: () => request<Catalog>("/catalog"),
   needs: () => request<NeedsLedger>("/needs"),

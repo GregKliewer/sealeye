@@ -139,7 +139,7 @@ GET /deployments/{id}, GET /deployments/{id}/evidence, GET /deployments/{id}/log
 /deployments/{id}/pause and /resume (APIs only), DELETE /deployments/{id},
 GET /needs, GET /health, POST /interviews ({ app, zip }), POST
 /interviews/{id}/answers ({ answer }), GET /interviews/{id}/events (server-sent events),
-DELETE /interviews/{id}, GET /whoami, GET /team (people with tokens, never a token), GET /catalog, GET /apps/{app}/settings, PUT
+DELETE /interviews/{id}, GET /whoami, GET /team (people with tokens, never a token), GET /costs (by tag), GET /catalog, GET /apps/{app}/settings, PUT
 /apps/{app}/settings/{name} ({ value }) and DELETE /apps/{app}/settings/{name} (an app's
 settings in the store: names out, values in, never back), POST /sessions ({ token }) and
 DELETE /sessions (the portal's sign-in and sign-out). Every endpoint but GET /health
@@ -246,8 +246,8 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
 - seaLeye.online (`portal/`) has Environments, New environment (the interview, from a
   folder chosen in the browser), Control (state, deploy again, tear down,
   pause, settings, configure, history, performance, logs, evidence), Validate (check a plan, and deploy a ready one with the
-  code the platform has), Catalog (modules and the needs ledger), Team and Health. Costs is drawn in the
-  archived mock-up only; the portal shows nothing it cannot do.
+  code the platform has), Catalog (modules and the needs ledger), Costs, Team and Health. Integrations is
+  drawn in the archived mock-up only (Phase 4); the portal shows nothing it cannot do.
 
 ## Working here
 

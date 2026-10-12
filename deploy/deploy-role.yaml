@@ -188,6 +188,11 @@ Resources:
                   - logs:TagResource
                   - logs:UntagResource
                   - logs:ListTagsForResource
+                  # The older tagging calls, which CloudFormation may still use for a log
+                  # group's cost allocation tags.
+                  - logs:TagLogGroup
+                  - logs:UntagLogGroup
+                  - logs:ListTagsLogGroup
                 Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/sealeye-*"
               - Sid: DescribeLogs
                 Effect: Allow
@@ -204,6 +209,13 @@ Resources:
               - Sid: AppMetrics
                 Effect: Allow
                 Action: cloudwatch:GetMetricData
+                Resource: "*"
+              # sealeye costs and the portal's Costs page (PHASE2-PLAN Step 20): read
+              # what the account spent, by the sealeye:app and sealeye:team tags. Cost
+              # Explorer takes no resource.
+              - Sid: Costs
+                Effect: Allow
+                Action: ce:GetCostAndUsage
                 Resource: "*"
               - Sid: HttpApis
                 Effect: Allow

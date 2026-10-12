@@ -414,6 +414,19 @@ test("Performance shows readings, in tiles, a chart and a table, never a capacit
   await expect(card.getByTestId("period-table").locator("tbody tr")).toHaveCount(28);
 });
 
+test("Costs lists what each app has cost, says it is a day behind, and what is counted", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("link", { name: "Costs" }).click();
+  const rows = page.getByTestId("cost-row");
+  await expect(rows).toHaveCount(2);
+  await expect(rows.first()).toContainText("payments-api");
+  await expect(rows.first()).toContainText("3.40 USD");
+  await expect(page.getByTestId("cost-total")).toHaveText("3.52 USD");
+  await expect(page.getByText("about a day behind")).toBeVisible();
+  await page.getByRole("button", { name: "7 days" }).click();
+  await expect(rows).toHaveCount(2);
+});
+
 test("signing out ends the session: the pages ask for sign-in again", async ({ page }) => {
   await signIn(page);
   await page.getByRole("button", { name: "Sign out" }).click();

@@ -141,6 +141,11 @@ export async function getPerformance({ apiBaseUrl, deploymentId, since = "1d" })
   return platformFetch(apiBaseUrl, `/deployments/${encodeURIComponent(deploymentId)}/performance?since=${encodeURIComponent(since)}`, { method: "GET" });
 }
 
+/** What each of your team's apps has cost, by tag (PHASE2-PLAN Step 20). */
+export async function getCosts({ apiBaseUrl, since = "30d" }) {
+  return platformFetch(apiBaseUrl, `/costs?since=${encodeURIComponent(since)}`, { method: "GET" });
+}
+
 /** The people on your team, from the tokens in use (PHASE2-PLAN Step 19). */
 export async function getTeam({ apiBaseUrl }) {
   return platformFetch(apiBaseUrl, "/team", { method: "GET" });

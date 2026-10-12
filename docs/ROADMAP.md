@@ -174,7 +174,7 @@ and does nothing real. A blank is not started.
 | Configure | `sealeye config` (and `sealeye settings`) | `POST /deployments` (`fromDeployment` with the plan changed); the settings endpoints | built | built (Configure and Settings, in Control) | 2 |
 | Logs | `sealeye logs` | `GET /deployments/{id}/logs` | built | built (Logs, in Control) | 2 |
 | Performance | `sealeye perf` | `GET /deployments/{id}/performance` | built | built (Performance, in Control) | 2 |
-| Costs | `sealeye costs` | | | mock-up | 2 |
+| Costs | `sealeye costs` | `GET /costs` (by tag, a day behind) | built | built (Costs) | 2 |
 | Team and access | `sealeye team` | `GET /team` (issuing stays with the administrator) | built | built (Team) | 2 |
 | Integrations | `sealeye integrations` | | | mock-up (report) | 4 |
 | Sign in | `sealeye login` | tokens; `POST /sessions`, `DELETE /sessions` for the portal; `GET /whoami` | built | built (token paste, then a session) | 1 |

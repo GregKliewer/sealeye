@@ -109,6 +109,7 @@ case "$2" in
   put-function-concurrency) echo '{"ReservedConcurrentExecutions":0}' > "${home}/concurrency-$4"; cat "${home}/concurrency-$4" ;;
   delete-function-concurrency) rm -f "${home}/concurrency-$4" ;;
   get-function-concurrency) cat "${home}/concurrency-$4" 2>/dev/null || echo '{}' ;;
+  get-cost-and-usage) echo '{"ResultsByTime":[{"Groups":[{"Keys":["sealeye:app$payments-api"],"Metrics":{"UnblendedCost":{"Amount":"3.4","Unit":"USD"}}},{"Keys":["sealeye:app$marketing-site"],"Metrics":{"UnblendedCost":{"Amount":"0.12","Unit":"USD"}}}]}]}' ;;
   filter-log-events) echo '[{"timestamp":1760270000000,"message":"listening on 8080"},{"timestamp":1760270001000,"message":"GET /orders with Bearer abcdefghijklmnopqrstuvwxyz0123"}]' ;;
   *) echo '{}' ;;
 esac

@@ -418,6 +418,10 @@ needs a way to find one's open interviews (owed, below). DESIGN.md, "New environ
 
 ### Steps 16 to 20. Operations that do not exist yet
 
+**Built Oct 12**: Logs, Pause and resume, Configure, Team, Performance and Costs, each as
+an endpoint, a command and a portal page (DESIGN.md has an entry for each). Costs need
+the tags turned on in billing once; see "Costs come from tags, a day behind".
+
 Each one is an endpoint, a command and a portal page, with the deploy role permission it
 needs added in the same commit. Greg rolls out each role change on his Mac.
 

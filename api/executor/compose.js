@@ -199,6 +199,11 @@ function withoutSecrets(parameters) {
  *            parameters: object, safeParameters: object, settings: {name: string, source: string}[],
  *            entryPoint?: string}}
  */
+/** The app and team, as cost allocation tags (sealeye:app, sealeye:team). */
+function costTags(plan, naming) {
+  return { TagApp: safeName(plan?.app?.name), TagTeam: safeName(naming?.team || "default") };
+}
+
 export function compose(plan, deploymentId, appPath, sent = {}, naming, store = {}) {
   loadEnv();
 
@@ -268,7 +273,8 @@ export function compose(plan, deploymentId, appPath, sent = {}, naming, store = 
       SettingsFolder: stored.length ? store.folder.replace(/\/$/, "") : "",
       // Changes every deploy, so a deploy of the same code with the same parameters is
       // still a change CloudFormation makes, never an empty change set.
-      DeploymentId: deploymentId
+      DeploymentId: deploymentId,
+      ...costTags(plan, naming)
     };
 
     // A setting in the store has no value here: the app reads it when it starts. Every
@@ -279,7 +285,7 @@ export function compose(plan, deploymentId, appPath, sent = {}, naming, store = 
     resolvedTemplate = renderTemplate(templatePath, passed, deploymentId);
   } else {
     // static_site_edge takes AppName only; the files are synced after the stack exists.
-    parameters = { AppName: resourceName };
+    parameters = { AppName: resourceName, ...costTags(plan, naming) };
   }
 
   return {
