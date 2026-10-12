@@ -707,7 +707,7 @@ app.put("/apps/:app/settings/:name", async (req, res) => {
   if (!scope) return noSuchApp(res);
   const name = req.params.name;
   if (!storableName(name)) {
-    return res.status(400).json({ error: { code: "INVALID_NAME", message: "A setting's name is letters, digits and underscores, not starting with a digit, and not one the platform sets itself (PORT)." } });
+    return res.status(400).json({ error: { code: "INVALID_NAME", message: "A setting's name is letters, digits and underscores, not starting with a digit, and not one the platform or the runtime owns (PORT, NODE_OPTIONS, or starting with AWS_, LAMBDA_, SEALEYE_ or an underscore)." } });
   }
   const value = req.body?.value;
   if (typeof value !== "string" || !value.length || Buffer.byteLength(value, "utf8") > MAX_STORED_BYTES) {

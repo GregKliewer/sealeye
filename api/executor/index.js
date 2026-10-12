@@ -2,8 +2,9 @@
 // The deployment lifecycle: compose -> package -> deploy -> poll until CloudFormation
 // says it is done. Status is never invented; it mirrors the stack.
 import { compose, namingFor } from "./compose.js";
+import { storeFolder } from "./settings.js";
 import { stage, cleanStage, stagePaths, sha256File, sha256Template } from "./package.js";
-import { deploy, describe, firstFailure, deleteStack, emptyBucket, syncSite } from "./cfn.js";
+import { deploy, describe, firstFailure, deleteStack, emptyBucket, listStoredSettings, syncSite } from "./cfn.js";
 import { renderReport } from "./report.js";
 import { putDeployment, listDeployments } from "../store.js";
 import { flushScores, scoreDeploymentOutcome } from "../../core/tracing.js";
@@ -66,7 +67,20 @@ export async function startDeployment(record, plan, appPath, sent = {}) {
       team: record.teamId || "default",
       records: listDeployments()
     });
-    composed = compose(plan, record.deploymentId, appPath, sent, naming);
+    // Which of the app's settings are in the organization's store (PHASE2-PLAN Part B).
+    // Those the app reads itself when it starts; the rest are passed in as before. A
+    // store that cannot be asked stops the deploy, rather than building an app that
+    // starts without settings it has.
+    let store = {};
+    const isApi = (plan?.modules || []).some(m => m && m.enabled !== false && m.id === "http_api_serverless");
+    if (isApi) {
+      const folder = storeFolder({ team: record.teamId || "default", app: plan?.app?.name });
+      set("packaging", { step: "Checking which of your settings are in your organization's store" });
+      const listed = await listStoredSettings(folder);
+      if (!listed.ok) throw new Error(`the platform could not ask your organization's settings store which settings this app has (${listed.error})`);
+      store = { folder, stored: listed.settings.map(x => x.name) };
+    }
+    composed = compose(plan, record.deploymentId, appPath, sent, naming, store);
     Object.assign(record, {
       kind: composed.kind,
       stackName: composed.stackName,

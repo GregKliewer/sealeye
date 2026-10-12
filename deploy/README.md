@@ -79,6 +79,7 @@ put_value  LANGFUSE_BASE_URL    https://us.cloud.langfuse.com
 put_value  SEALEYE_BUCKET       <your artifact bucket>
 put_value  SEALEYE_LWA_VERSION  <the layer version in your .env>
 put_value  SEALEYE_DEPLOY_ROLE_ARN arn:aws:iam::<account>:role/sealeye-deploy-pilot
+put_value  SEALEYE_FUNCTION_BOUNDARY_ARN arn:aws:iam::<account>:policy/sealeye-function-boundary-pilot
 put_value  ORG                  "<organization name>"
 ```
 
@@ -97,7 +98,14 @@ stored straight from it:
 put_value SEALEYE_DEPLOY_ROLE_ARN "$(aws cloudformation describe-stacks --region ca-central-1 \
   --stack-name platform-sealeye-deploy-role \
   --query "Stacks[0].Outputs[?OutputKey=='DeployRoleArn'].OutputValue" --output text)"
-``` Changing a setting later takes
+put_value SEALEYE_FUNCTION_BOUNDARY_ARN "$(aws cloudformation describe-stacks --region ca-central-1 \
+  --stack-name platform-sealeye-deploy-role \
+  --query "Stacks[0].Outputs[?OutputKey=='FunctionBoundaryArn'].OutputValue" --output text)"
+```
+
+`SEALEYE_FUNCTION_BOUNDARY_ARN` is the most any app's function may do (write its logs and
+read app settings); every function role is made with it, and the deploy role can make
+one no other way. Changing a setting later takes
 effect at the next release, or after `docker compose restart api` on the server.
 
 ## Once: the database password

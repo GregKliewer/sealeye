@@ -62,7 +62,11 @@ before(async () => {
   home = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-deploy-api-"));
   const port = 4300 + Math.floor(Math.random() * 90);
   api = `http://localhost:${port}`;
-  const env = { ...process.env, PORT: String(port), SEALEYE_HOME: home, HOME: home, SEALEYE_AUTH: "off" };
+  // A stand-in aws whose store has no settings for the app, so the deploy gets as far
+  // as composing; it calls nothing else.
+  fs.mkdirSync(path.join(home, "bin"), { recursive: true });
+  fs.writeFileSync(path.join(home, "bin", "aws"), "#!/bin/sh\n[ \"$2\" = get-parameters-by-path ] && { echo '[]'; exit 0; }\necho 'not in this stand-in' >&2; exit 254\n", { mode: 0o755 });
+  const env = { ...process.env, PORT: String(port), SEALEYE_HOME: home, HOME: home, SEALEYE_AUTH: "off", PATH: `${path.join(home, "bin")}:${process.env.PATH}` };
   delete env.SEALEYE_LWA_VERSION;
   delete env.SEALEYE_BUCKET;
   server = spawn(process.execPath, ["api/server.js"], { cwd: root, env, stdio: ["ignore", "pipe", "pipe"] });

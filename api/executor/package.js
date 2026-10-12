@@ -121,6 +121,7 @@ export async function stage(appPath, deploymentId, composed, onStep = () => {}) 
   onStep(`Adding the platform start script, which runs ${entryPoint}`);
   fs.writeFileSync(path.join(stageDir, "run.sh"), renderRunScript(runSh, entryPoint));
   fs.chmodSync(path.join(stageDir, "run.sh"), 0o755);
+  addSettingsReader(stageDir);
 
   onStep("Packaging the artifact");
   fs.rmSync(zipPath, { force: true });
@@ -132,6 +133,21 @@ export async function stage(appPath, deploymentId, composed, onStep = () => {}) 
   await run("aws", ["s3", "cp", zipPath, `s3://${bucket}/${key}`]);
 
   return key;
+}
+
+/**
+ * The platform's settings reader, beside run.sh in the packaged copy (PHASE2-PLAN Step
+ * 10). It goes in .sealeye/, which an upload never carries; an app folder on the API's
+ * own machine that already has .sealeye/settings.mjs is refused rather than overwritten,
+ * since the developer's files are never changed.
+ */
+export function addSettingsReader(stageDir) {
+  const target = path.join(stageDir, ".sealeye", "settings.mjs");
+  if (fs.existsSync(target)) {
+    throw new Error("your app folder has a .sealeye/settings.mjs, which is where the platform puts its settings reader; rename yours");
+  }
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.copyFileSync(path.join(repoRoot, "templates", "sealeye-settings.mjs"), target);
 }
 
 /**

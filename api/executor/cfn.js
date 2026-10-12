@@ -30,6 +30,9 @@ function runAws(args, { input } = {}) {
   });
 }
 
+/** runAws for the store calls: a missing AWS CLI is a failure to report, not a throw. */
+const tryAws = (args, options) => runAws(args, options).catch(err => ({ ok: false, code: -1, stdout: "", stderr: err.message }));
+
 // ---------------------------------------------------------------------------------
 // An app's settings in the organization's store (PHASE2-PLAN Part B, D3): Parameter
 // Store, encrypted, one folder per team's app (api/executor/settings.js). Values go in
@@ -38,7 +41,7 @@ function runAws(args, { input } = {}) {
 
 /** The settings in a folder: names and when each last changed. Never values. */
 export async function listStoredSettings(folder) {
-  const r = await runAws([
+  const r = await tryAws([
     "ssm", "get-parameters-by-path", "--path", folder, "--no-with-decryption", "--region", region(),
     "--query", "Parameters[].{name: Name, changedAt: LastModifiedDate}", "--output", "json"
   ]);
@@ -54,7 +57,7 @@ export async function listStoredSettings(folder) {
 /** Store one setting, encrypted, replacing any earlier value. */
 export async function putStoredSetting(name, value) {
   const input = JSON.stringify({ Name: name, Value: value, Type: "SecureString", Overwrite: true });
-  const r = await runAws(["ssm", "put-parameter", "--cli-input-json", "file:///dev/stdin", "--region", region(), "--output", "json"], { input });
+  const r = await tryAws(["ssm", "put-parameter", "--cli-input-json", "file:///dev/stdin", "--region", region(), "--output", "json"], { input });
   // AWS's validation messages can quote the value they refused, so a failure here is
   // reported by the error's name alone, never by its message.
   return r.ok ? { ok: true } : { ok: false, error: errorName(r.stderr) };
@@ -62,7 +65,7 @@ export async function putStoredSetting(name, value) {
 
 /** Remove one setting. One that is not there is not an error. */
 export async function deleteStoredSetting(name) {
-  const r = await runAws(["ssm", "delete-parameter", "--name", name, "--region", region()]);
+  const r = await tryAws(["ssm", "delete-parameter", "--name", name, "--region", region()]);
   if (r.ok || /ParameterNotFound/.test(r.stderr)) return { ok: true, existed: r.ok };
   return { ok: false, error: firstLine(r.stderr) };
 }

@@ -99,7 +99,7 @@ needs something the API has, it belongs in `core/` or behind an endpoint.
   ones made before this keep `sealeye-<app>`. seaLeye's own infrastructure is
   `platform-sealeye-*`, which the deploy role cannot touch. Artifacts are
   `<name>/<deploymentId>.zip`.
-- Settings are `SEALEYE_<NAME>` (ACCOUNT, BUCKET, LWA_VERSION, REGION, MODEL, DEBUG,
+- Settings are `SEALEYE_<NAME>` (ACCOUNT, BUCKET, LWA_VERSION, FUNCTION_BOUNDARY_ARN, REGION, MODEL, DEBUG,
   HOME, TRACING, MODEL_URL, API, TOKEN, AUTH), read through `setting()` in
   `core/config.js`. SEALEYE_TOKEN is a secret: it lives in `~/.sealeye/config` (0600),
   is never printed, logged or put on a record.

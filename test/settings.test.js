@@ -60,6 +60,7 @@ test("sent beats the folder, the folder beats the plan, and each says where it c
 test("a composed deployment keeps names and sources, never a value", async () => {
   process.env.SEALEYE_LWA_VERSION = "7";
   process.env.SEALEYE_BUCKET = "test-bucket";
+  process.env.SEALEYE_FUNCTION_BOUNDARY_ARN = "arn:aws:iam::123456789012:policy/sealeye-function-boundary-pilot";
   const { compose } = await import("../api/executor/compose.js");
   const composed = compose(plan, "dep_test", undefined, { STRIPE_KEY: SECRET });
 
@@ -68,4 +69,31 @@ test("a composed deployment keeps names and sources, never a value", async () =>
   assert.ok(!kept.includes(SECRET), "and nothing that is kept");
   assert.deepEqual(composed.settings.map(s => s.source), ["sent", "plan", "plan"]);
   fs.rmSync(composed.templatePath, { force: true });
+});
+
+test("a setting in the store is read by the app at start, never passed in, and only its folder is readable", async () => {
+  process.env.SEALEYE_LWA_VERSION = "7";
+  process.env.SEALEYE_BUCKET = "test-bucket";
+  process.env.SEALEYE_FUNCTION_BOUNDARY_ARN = "arn:aws:iam::123456789012:policy/sealeye-function-boundary-pilot";
+  const { compose } = await import("../api/executor/compose.js");
+  const folder = "/sealeye-apps/payments/pay-api/";
+  const composed = compose(plan, "dep_store", undefined, { STRIPE_KEY: SECRET }, undefined, { folder, stored: ["STRIPE_KEY"] });
+
+  assert.deepEqual(composed.settings, [
+    { name: "STRIPE_KEY", source: "store" },
+    { name: "REGION_NAME", source: "plan" },
+    { name: "FROM_PLAN", source: "plan" }
+  ], "the store wins over a value sent from .env");
+  assert.ok(!Object.values(composed.parameters).includes(SECRET), "a stored setting's value is never passed in");
+  assert.equal(composed.parameters.SettingsFolder, "/sealeye-apps/payments/pay-api");
+  assert.equal(composed.parameters.FunctionBoundaryArn, process.env.SEALEYE_FUNCTION_BOUNDARY_ARN);
+  const template = fs.readFileSync(composed.templatePath, "utf8");
+  assert.match(template, /REGION_NAME: !Ref ConfigValue1/);
+  assert.doesNotMatch(template, /STRIPE_KEY: !Ref/, "the stored one is not in the template");
+  fs.rmSync(composed.templatePath, { force: true });
+
+  const none = compose(plan, "dep_none", undefined, {}, undefined, { folder, stored: [] });
+  assert.equal(none.parameters.SettingsFolder, "", "with nothing stored the function reads nothing");
+  fs.rmSync(none.templatePath, { force: true });
+  assert.match(sourceInWords("store", { forDeveloper: true }), /organization's settings store/);
 });
