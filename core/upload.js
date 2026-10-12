@@ -18,9 +18,11 @@ import { collectUpload, isDotEnv, rulesOf, UploadRefused } from "./upload-rules.
 export { EXCLUDED_FOLDERS, MAX_UPLOAD_BYTES, MAX_UPLOAD_FILES, UploadRefused } from "./upload-rules.js";
 
 /** A folder on disk as the tree collectUpload walks. */
-function diskNode(abs, name) {
-  const stat = fs.lstatSync(abs);
-  if (stat.isSymbolicLink()) return { name, kind: "other" };
+function diskNode(abs, name, { root = false } = {}) {
+  // The app folder itself may be a link (it is followed, as it always was); nothing in
+  // it that is a link travels, though a .gitignore that is one is still read.
+  const stat = root ? fs.statSync(abs) : fs.lstatSync(abs);
+  if (stat.isSymbolicLink()) return { name, kind: "other", text: () => fs.readFileSync(abs, "utf8") };
   if (stat.isDirectory()) {
     return { name, kind: "dir", children: () => fs.readdirSync(abs).map(child => diskNode(path.join(abs, child), child)) };
   }
@@ -47,7 +49,7 @@ function diskNode(abs, name) {
  */
 export async function zipFolder(dir, { purpose = "interview" } = {}) {
   const root = path.resolve(dir);
-  const { entries, ...counts } = await collectUpload(diskNode(root, path.basename(root)), { purpose, ignore });
+  const { entries, ...counts } = await collectUpload(diskNode(root, path.basename(root), { root: true }), { purpose, ignore });
   return { zip: zipSync(entries, { level: 6 }), ...counts };
 }
 

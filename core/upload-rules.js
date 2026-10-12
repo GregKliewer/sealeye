@@ -119,7 +119,8 @@ export async function collectUpload(root, { purpose = "interview", ignore } = {}
     const children = await dir.children();
     let rules = inherited;
     if (rules_.gitignore) {
-      const own = children.find(c => c.kind === "file" && c.name === ".gitignore");
+      // Read wherever it can be: a .gitignore that is a link is still the developer's rules.
+      const own = children.find(c => c.name === ".gitignore" && typeof c.text === "function");
       if (own) {
         try {
           rules = [...inherited, { base: rel, matcher: ignore().add(String(await own.text())) }];

@@ -310,6 +310,6 @@ test("a deploy stops, building nothing, when settings the command found in the s
     await new Promise(r => setTimeout(r, 100));
   }
   assert.equal(record.status, "failed");
-  assert.match(record.failureReason, /found GONE_KEY in your organization's settings store .* nothing was built/);
+  assert.match(record.failureReason, /expected GONE_KEY in your organization's settings store .* nothing was built/);
   assert.equal(record.stackName, undefined, "it stopped before naming anything in AWS");
 });

@@ -57,6 +57,11 @@ test("a deployment made again says whose code it ran and where its plan came fro
   assert.match(evidenceSummary(withPlan).rows[0].text, /, deployed again with dep_0's code, plan from sealeye\.yaml$/);
 });
 
+test("an interview held in the portal says so", () => {
+  const portal = { ...live, requested: { ...live.requested, origin: { command: null, planSource: "interview", answers: [1] } } };
+  assert.match(evidenceSummary(portal).rows[0].text, /, in the portal, one question answered$/);
+});
+
 test("helpers", () => {
   assert.equal(humanDuration(48), "48 s");
   assert.equal(humanDuration(168), "2 min 48 s");

@@ -1287,3 +1287,36 @@ Found on the way, and owed (PHASE2-PLAN, "Owed after this plan"): a deploy uploa
 out `.env` only, as the packager always has, so a `.env.production` with values in it is
 packaged into the function's code. The interview upload sends it as a name only.
 
+## New environment: the interview in the portal
+
+Decided Mon Oct 12, 2026, building PHASE2-PLAN Step 15.
+
+- **The folder is read in the browser, by the command's walk** (core/upload-rules.js):
+  the folder picker where the browser has one, a dropped folder, or the folder input.
+  The picker and a drop are read lazily, so node_modules is never opened. The zip is made
+  in the browser; secret files go as names only. A yes reads the folder again with the
+  deploy rules, as `sealeye run` does.
+- **The plan's files come from the API.** The plan event carries DEPLOYMENT_PLAN.md and
+  sealeye.yaml (core/plan-files.js), so the page offers exactly what the command writes
+  into the folder. The portal cannot write into the folder, so it offers them to
+  download; a "Not now" keeps them there and deploys nothing.
+- **Every setting from the store.** There is no `.env` to read in a browser, and sending
+  one would put values through a page. A yes with settings the store does not have asks
+  for them first, stores each, and then deploys, naming them as expected in the store.
+- **A deploy names its environment from the start.** Every new deployment record carries
+  `environment`, the stack name it is for, from the moment it is queued, and lists group
+  by it, so the page can go straight to the environment and follow it. `stackName` is
+  still set only once the stack is composed: a record with one has something in AWS to
+  describe or tear down, and one that failed before that does not (a deployment made
+  again had set stackName at once; corrected here).
+- **An interview held in the portal says so in its evidence**: "in the portal" where the
+  command's says "via sealeye run".
+- **What a browser cannot see.** A browser shows a link inside the folder as the file it
+  points to, so where the command leaves links out, the portal sends what they point to.
+  Secret names are still sent as names only. A dropped folder is opened file by file
+  for sizes, so a big file is refused before it is read.
+- **A drafted plan sends none of the folder**: the deploy request carries an empty zip,
+  is refused, and the draft is saved, as the command's is.
+- **Not yet:** finishing in the portal an interview the command started. It is the same
+  interview by id, but nothing lists a person's open interviews. Owed in PHASE2-PLAN.
+

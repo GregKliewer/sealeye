@@ -87,3 +87,16 @@ test("what each upload carries, spelled out", async () => {
   assert.ok(!(".env" in deploy.entries));
   assert.ok(!Object.keys(deploy.entries).some(k => k.startsWith("node_modules/") || k.startsWith(".git/")));
 });
+
+test("an app folder that is a link is followed, and a .gitignore that is one is still read", async () => {
+  const dir = folder();
+  fs.renameSync(path.join(dir, ".gitignore"), path.join(dir, "..", "shared.gitignore"));
+  fs.symlinkSync(path.join(dir, "..", "shared.gitignore"), path.join(dir, ".gitignore"));
+  const link = path.join(path.dirname(dir), "linked-app");
+  fs.symlinkSync(dir, link);
+  const { zip } = await zipFolder(link);
+  const names = Object.keys(unzipSync(zip));
+  assert.ok(names.includes("index.js"));
+  assert.ok(!names.includes("debug.log"), "the linked .gitignore's rules still apply");
+  assert.ok(!names.includes(".gitignore"), "a link itself never travels");
+});

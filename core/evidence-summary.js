@@ -62,7 +62,8 @@ export function evidenceSummary(ev, product = { name: "seaLeye", command: "seale
   if (typeof r.origin !== "string") {
     if (r.origin.planSource === "interview") {
       const count = (r.origin.answers || []).length;
-      via = `via ${product.command} run, ${count ? plural(count, "question") + " answered" : "no questions asked"}`;
+      const where = r.origin.command === null ? "in the portal" : `via ${product.command} run`;
+      via = `${where}, ${count ? plural(count, "question") + " answered" : "no questions asked"}`;
     } else if (r.origin.planSource === "reused") via = `via ${product.command} run, plan reused from ${r.origin.file}`;
     else if (r.origin.planSource === "file") via = `via ${product.command} deploy -f ${r.origin.file}`;
     else if (r.origin.planSource === "again") {

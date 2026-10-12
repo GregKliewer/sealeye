@@ -90,7 +90,8 @@ function requestedOf(record) {
     durationSeconds: durationSeconds(record.startedAt, record.finishedAt) ?? NOT_RECORDED,
     origin: origin
       ? {
-          command: origin.command || NOT_RECORDED,
+          // A deployment made in the portal has no command: null says so (Step 15).
+          command: origin.command || (record.surface === "portal" ? null : NOT_RECORDED),
           planSource: origin.planSource || NOT_RECORDED,
           file: origin.file || null,
           answers: Array.isArray(origin.answers) ? origin.answers : null,
@@ -371,7 +372,7 @@ function whoAsked(ev) {
     lines.push(`- Code: the artifact ${code(r.origin.packagedBy)} packaged, deployed again without a new upload${r.origin.fromDeployment !== r.origin.packagedBy ? `, as ${code(r.origin.fromDeployment)} had` : ""}`);
     lines.push(`- Plan came from: ${r.origin.planGiven ? (r.origin.file ? code(r.origin.file) : "a plan given with the request") : `the plan ${code(r.origin.fromDeployment)} was deployed with`}`);
   } else {
-    lines.push(`- Command: ${code(`sealeye ${r.origin.command}`)}`);
+    lines.push(`- Command: ${r.origin.command ? code(`sealeye ${r.origin.command}`) : "New environment, in the portal"}`);
     lines.push(`- Plan came from: ${r.origin.planSource}${r.origin.file ? ` (${code(r.origin.file)})` : ""}`);
   }
   return lines.join("\n");

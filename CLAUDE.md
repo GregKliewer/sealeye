@@ -240,7 +240,8 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   `settingValues` in `api/executor/settings.js` is the one place that decides where each
   comes from (store, sent, .env, plan), and a record keeps each setting's name and
   source, never its value.
-- seaLeye.online (`portal/`) has Environments, Control (state, deploy again, tear down,
+- seaLeye.online (`portal/`) has Environments, New environment (the interview, from a
+  folder chosen in the browser), Control (state, deploy again, tear down,
   settings, history, evidence), Validate (check a plan, and deploy a ready one with the
   code the platform has), Catalog (modules and the needs ledger) and Health. Pause, Configure, Logs, Performance, Costs and
   Team are drawn in the archived mock-up only; the portal shows nothing it cannot do.

@@ -113,8 +113,8 @@ later, and the first and third lines stay open until he does.
 
 - In the command: `config`, `logs`, `perf`, `costs`, `pause`/`resume`, `catalog`,
   `team`.
-- In the portal: New environment (the interview). Evidence, Validate, Health and
-  Deploy again are built (Oct 12); the needs ledger is in Catalog.
+- In the portal: New environment, Evidence, Validate, Health and Deploy again are
+  built (Oct 12); the needs ledger is in Catalog.
 - Each starts as an API endpoint.
 - Planned as PHASE2-PLAN Part C. Integrations moved to Phase 4 (D8, Oct 12), where the
   tools it would connect to are.
@@ -159,7 +159,7 @@ and does nothing real. A blank is not started.
 
 | Operation | Command | API | CLI | Portal | Phase |
 |---|---|---|---|---|---|
-| Plan and deploy (interview) | `sealeye run` | `POST /interviews`, `/answers`, `/events`, then deployments | built | mock-up (button only) | 1 (API), 2 (portal) |
+| Plan and deploy (interview) | `sealeye run` | `POST /interviews`, `/answers`, `/events`, then deployments | built | built (New environment) | 1 (API), 2 (portal) |
 | Deploy an existing plan | `sealeye deploy -f`, or `deploy --again <app> -f` with code the platform has | `POST /deployments` (`fromDeployment`) | built | built (Validate, with code the platform has) | 2 |
 | Re-run on a live environment | `sealeye run`, `sealeye deploy --again <app>` | `POST /deployments` (`fromDeployment`) | built | built (Deploy again, in Control) | 2 |
 | Validate a plan | `sealeye validate` | `POST /plans/validate` (ready or drafted, with needs) | built | built (Validate) | 2 |
