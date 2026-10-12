@@ -115,6 +115,9 @@ test("an interview runs in the API: upload, a question, a plan, a yes", async ()
   assert.equal(atPlan.status, "submitted");
   assert.equal(atPlan.questions, 1);
   assert.deepEqual(atPlan.plan.modules.map(m => m.id).sort(), plan.modules.map(m => m.id).sort());
+  // The two files the command writes into the folder come with the plan, for the portal.
+  assert.match(atPlan.files["DEPLOYMENT_PLAN.md"], /^## |\n## /);
+  assert.equal(YAML.parse(atPlan.files["sealeye.yaml"]).app.name, atPlan.plan.app.name);
   assert.deepEqual(seen, [
     "started",
     "step: Looking at .",

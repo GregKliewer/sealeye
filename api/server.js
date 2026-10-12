@@ -310,8 +310,7 @@ async function deployAgain(req, res) {
     planGiven: given,
     ...(given && claimedFile ? { file: claimedFile } : {})
   };
-  // Which environment it goes to is known now, so the record says so from the start and
-  // a page following the environment sees it straight away.
+  // Which environment it goes to is known now, so the record says so from the start.
   const naming = namingFor({ app: plan.app.name, org: req.caller?.org || "default", team: req.caller?.team || "default", records: listDeployments() });
   const record = putDeployment({
     deploymentId,
@@ -319,8 +318,10 @@ async function deployAgain(req, res) {
     source: "again",
     packagedBy,
     kind: "api",
-    stackName: naming.stackName,
-    resourceName: naming.resourceName,
+    // The environment it is for, named from the start so a page following it sees it
+    // at once. Not stackName: that is set only once the deployment has composed its
+    // stack, and a record without one has nothing in AWS to tear down or describe.
+    environment: naming.stackName,
     fromDeployment: source.deploymentId,
     backend,
     planVersion: plan.planVersion,
@@ -503,10 +504,15 @@ app.post("/deployments", (req, res, next) => {
     }
   }
 
+  // Which environment it goes to is known now, so the record names it from the start
+  // (environment) and a page following that environment sees it at once. stackName is
+  // set by the executor once it composes the stack, as before.
+  const naming = namingFor({ app: plan.app?.name, org: req.caller?.org || "default", team: req.caller?.team || "default", records: listDeployments() });
   const record = putDeployment({
     deploymentId,
     status: "queued",
     source: uploaded ? "upload" : "folder",
+    environment: naming.stackName,
     backend,
     planVersion: plan.planVersion,
     app: plan.app,
@@ -557,6 +563,9 @@ app.get("/deployments", (req, res) => {
     status: dep.status,
     outputs: dep.outputs || {},
     stackName: dep.stackName || null,
+    // The environment a deployment is for, from the moment it is queued (stackName comes
+    // once its stack is composed). Lists group by stackName, else by this.
+    environment: dep.stackName || dep.environment || null,
     startedAt: dep.startedAt || null,
     finishedAt: dep.finishedAt || null,
     failureReason: dep.failureReason || null,

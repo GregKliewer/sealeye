@@ -31,10 +31,14 @@ api/        the API: server.js, store.js, db.js, migrations/, needs.js, mappings
             (compose, package, deploy, poll, report, evidence)
 core/       what cli/ and api/ must agree on: schema.js (the plan contract), catalog.js,
             config.js (settings and paths), names.js, secrets.js (which files hold
-            secrets), upload.js (what travels to the API), tracing.js, token.js
+            secrets), upload.js and upload-rules.js (what travels to the API, the
+            walk both surfaces use), tracing.js, token.js
             (what a token looks like; api/tokens.js issues and checks them),
+            plan-files.js (DEPLOYMENT_PLAN.md and sealeye.yaml, written by the
+            command and sent with the interview's plan for the portal),
             plan-words.js and evidence-summary.js (words the command and the portal
-            both say; these import nothing, so the portal can import them too)
+            both say). secrets.js, upload-rules.js, plan-words.js and
+            evidence-summary.js run in a browser, so the portal imports them too
 prompts/    system prompt, plan contract, plan, report and evidence templates, catalog
 templates/  one CloudFormation template per buildable module, plus run.sh and
             sealeye-settings.mjs (the settings reader run.sh loads first)
@@ -236,7 +240,8 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   `settingValues` in `api/executor/settings.js` is the one place that decides where each
   comes from (store, sent, .env, plan), and a record keeps each setting's name and
   source, never its value.
-- seaLeye.online (`portal/`) has Environments, Control (state, deploy again, tear down,
+- seaLeye.online (`portal/`) has Environments, New environment (the interview, from a
+  folder chosen in the browser), Control (state, deploy again, tear down,
   settings, history, evidence), Validate (check a plan, and deploy a ready one with the
   code the platform has), Catalog (modules and the needs ledger) and Health. Pause, Configure, Logs, Performance, Costs and
   Team are drawn in the archived mock-up only; the portal shows nothing it cannot do.

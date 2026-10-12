@@ -93,7 +93,7 @@ export async function createDeployment({ apiBaseUrl, backend, plan, appPath, req
   // environment; the API never reads it.
   let packed;
   try {
-    packed = zipFolder(appPath, { purpose: "deploy" });
+    packed = await zipFolder(appPath, { purpose: "deploy" });
   } catch (err) {
     if (err?.constructor?.name === "UploadRefused") err.userFacing = true;
     throw err;
@@ -191,7 +191,7 @@ async function interviewFetch(apiBaseUrl, route, options) {
 export async function startInterview({ apiBaseUrl, appPath, deployed, user, trace = true }) {
   let packed;
   try {
-    packed = zipFolder(appPath);
+    packed = await zipFolder(appPath);
   } catch (err) {
     if (err?.name === "UploadRefused" || err?.constructor?.name === "UploadRefused") err.userFacing = true;
     throw err;

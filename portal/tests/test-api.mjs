@@ -4,6 +4,7 @@
 //
 //   node tests/test-api.mjs     (Playwright starts it; see playwright.config.ts)
 import fs from "node:fs";
+import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
@@ -96,10 +97,52 @@ case "$2" in
 esac
 `, { mode: 0o755 });
 
+// A stand-in for the model, so the New environment page can hold a whole interview: it
+// lists the folder, reads a file, asks one question and submits a plan. An app with a
+// worker.js gets a drafted plan instead, without a question. Which turn it is comes from
+// how many messages the conversation has.
+const toolUse = (id, name, input) => ({ type: "tool_use", id, name, input });
+const apiModules = variables => [
+  { id: "http_api_serverless", inputs: { runtime: "nodejs", entry_point: "index.js", trigger: "http" } },
+  { id: "observability_basic", inputs: { target: "auto", retention_days: 30 } },
+  ...(variables ? [{ id: "config_basic", inputs: { variables } }] : [])
+];
+const readyPlan = { planVersion: "0.4", app: { name: "orders-api", type: "api" }, profile: "dev", modules: apiModules({ GREETING: "hello" }), outputs: ["public_url", "logs"] };
+const draftedPlan = {
+  planVersion: "0.4", app: { name: "ledger-worker", type: "api" }, profile: "dev", modules: apiModules(null), outputs: ["public_url", "logs"],
+  needs: [{ kind: "continuous_service", line: "a service that runs continuously", evidence: [{ file: "worker.js", shows: "reads a queue in a loop" }] }]
+};
+const model = http.createServer((req, res) => {
+  let body = "";
+  req.on("data", d => (body += d));
+  req.on("end", () => {
+    const sent = JSON.parse(body || "{}");
+    const turn = Math.floor(((sent.messages || []).length - 1) / 2);
+    const worker = body.includes("worker.js");
+    const turns = worker
+      ? [
+          { content: [toolUse("t1", "list_files", { path: "." })], stop_reason: "tool_use" },
+          { content: [toolUse("t2", "read_file", { path: "worker.js" })], stop_reason: "tool_use" },
+          { content: [toolUse("t3", "submit_plan", { plan: draftedPlan, summary: "A worker that runs all the time.", assumptions: [] })], stop_reason: "tool_use" }
+        ]
+      : [
+          { content: [toolUse("t1", "list_files", { path: "." })], stop_reason: "tool_use" },
+          { content: [toolUse("t2", "read_file", { path: "index.js" })], stop_reason: "tool_use" },
+          { content: [{ type: "text", text: "It looks like an API for orders.\nWho calls this API?" }], stop_reason: "end_turn" },
+          { content: [toolUse("t3", "submit_plan", { plan: readyPlan, summary: "An orders API.", assumptions: ["It listens on PORT."] })], stop_reason: "tool_use" }
+        ];
+    const reply = turns[turn] || { content: [{ type: "text", text: "Done." }], stop_reason: "end_turn" };
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ id: `msg_${Date.now()}`, type: "message", role: "assistant", model: "claude-sonnet-5", usage: { input_tokens: 10, output_tokens: 10 }, ...reply }));
+  });
+});
+await new Promise(r => model.listen(0, "127.0.0.1", r));
+
 const env = { ...process.env, PORT: String(PORT), HOME: home, SEALEYE_HOME: home, PATH: `${bin}:${process.env.PATH}`,
   SEALEYE_TRACING: "off", SEALEYE_TEST_POLL_MS: "200",
+  ANTHROPIC_API_KEY: "sk-ant-test-api-key", SEALEYE_MODEL_URL: `http://127.0.0.1:${model.address().port}`,
   SEALEYE_BUCKET: "artifacts-bucket", SEALEYE_LWA_VERSION: "25", SEALEYE_FUNCTION_BOUNDARY_ARN: "arn:aws:iam::123456789012:policy/boundary", ORG: "Northwind Payments", DATABASE_URL: "" };
 delete env.SEALEYE_AUTH;
 const child = spawn(process.execPath, ["api/server.js"], { cwd: root, env, stdio: "inherit" });
-for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => { child.kill(signal); process.exit(0); });
+for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => { child.kill(signal); model.close(); process.exit(0); });
 child.on("exit", code => process.exit(code ?? 0));

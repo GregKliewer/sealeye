@@ -17,7 +17,7 @@ export function groupEnvironments(deployments: DeploymentSummary[]): Environment
   for (const dep of deployments) {            // newest first, as the API lists them
     // A stack is one environment. A draft has no stack, so it is its team's app: two
     // teams' drafts of the same name are two (an organization-wide token sees both).
-    const key = dep.stackName || (dep.app?.name ? `${dep.teamId || "default"}:${dep.app.name}` : dep.deploymentId);
+    const key = dep.stackName || dep.environment || (dep.app?.name ? `${dep.teamId || "default"}:${dep.app.name}` : dep.deploymentId);
     const group = groups.get(key);
     if (group) group.deploys.push(dep);
     else groups.set(key, { key, app: dep.app?.name || dep.deploymentId, latest: dep, deploys: [dep] });

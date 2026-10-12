@@ -29,7 +29,7 @@ function listAll(dir) {
   return all.sort();
 }
 
-test("a deploy upload carries what the packager would package, and never a .env", () => {
+test("a deploy upload carries what the packager would package, and never a .env", async () => {
   const dir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-deploy-up-")), "site");
   const put = (rel, body = "x") => {
     fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
@@ -46,7 +46,7 @@ test("a deploy upload carries what the packager would package, and never a .env"
   put(".git/HEAD");
   put(".github/workflows/ci.yml");
 
-  const { zip } = zipFolder(dir, { purpose: "deploy" });
+  const { zip } = await zipFolder(dir, { purpose: "deploy" });
   assert.ok(!Buffer.from(zip).toString("latin1").includes(SECRET));
 
   const dest = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-deploy-unzip-")), "app");

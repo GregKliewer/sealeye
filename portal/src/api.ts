@@ -5,7 +5,7 @@
 export class SignedOut extends Error {}
 
 export class ApiError extends Error {
-  constructor(message: string, public status: number, public code?: string) {
+  constructor(message: string, public status: number, public code?: string, public details?: unknown) {
     super(message);
   }
 }
@@ -22,7 +22,7 @@ async function request<T>(path: string, init: { method?: string; body?: unknown 
   });
   const body = await res.json().catch(() => ({}));
   if (res.status === 401 && path !== "/sessions") throw new SignedOut(body?.error?.message || "Signed out");
-  if (!res.ok) throw new ApiError(body?.error?.message || `The platform answered ${res.status}`, res.status, body?.error?.code);
+  if (!res.ok) throw new ApiError(body?.error?.message || `The platform answered ${res.status}`, res.status, body?.error?.code, body?.error?.details);
   return body as T;
 }
 
@@ -38,6 +38,7 @@ export interface DeploymentSummary {
   status: string;
   outputs: Record<string, string>;
   stackName: string | null;
+  environment?: string | null;
   startedAt: string | null;
   finishedAt: string | null;
   failureReason: string | null;
@@ -57,6 +58,7 @@ export interface DeploymentSummary {
 }
 
 export interface DeploymentRecord extends DeploymentSummary {
+  plan?: Record<string, unknown>;
   stackStatus?: string | null;
   step?: string | null;
 }
@@ -99,6 +101,26 @@ export interface Validation {
 // `sealeye evidence` reads. The object's shape is core/evidence-summary.js's business.
 export interface Evidence { evidence: object; markdown: string }
 
+// The interview (POST /interviews, its answers and its events), as `sealeye run` drives it.
+export interface InterviewEvent {
+  seq: number;
+  type: "started" | "step" | "question" | "answered" | "plan" | "finished" | "failed";
+  line?: string;
+  question?: string;
+  lead?: string[];
+  number?: number;
+  status?: string;
+  plan?: Record<string, unknown> & { app?: { name?: string }; needs?: { kind: string; line: string; evidence: { file: string; shows: string }[] }[] };
+  summary?: string;
+  assumptions?: string[];
+  questions?: number;
+  traceId?: string;
+  files?: Record<string, string>;
+  filesError?: string;
+  errors?: ValidationError[];
+  message?: string;
+}
+
 const settingsPath = (app: string, team: string, name?: string) =>
   `/apps/${encodeURIComponent(app)}/settings${name ? `/${encodeURIComponent(name)}` : ""}?team=${encodeURIComponent(team)}`;
 
@@ -112,6 +134,29 @@ export const api = {
   // with its own plan or the one given. Nothing is uploaded; settings come from the store.
   deployAgain: (fromDeployment: string, plan?: unknown) =>
     request<DeploymentRecord>("/deployments", { method: "POST", body: { backend: "cloudformation", fromDeployment, ...(plan !== undefined ? { plan } : {}) } }),
+  startInterview: (app: string, zip: string, deployed?: unknown) =>
+    request<{ interviewId: string; status: string; withheld?: string[] }>("/interviews", { method: "POST", body: { app, zip, ...(deployed ? { deployed } : {}) } }),
+  answerInterview: (id: string, answer: string) =>
+    request<{ status: string }>(`/interviews/${encodeURIComponent(id)}/answers`, { method: "POST", body: { answer } }),
+  abandonInterview: (id: string) => request<{ removed: boolean }>(`/interviews/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  /** Every event so far, then each as it comes, until the interview ends. */
+  interviewEvents: (id: string, onEvent: (e: InterviewEvent) => void, onLost: () => void) => {
+    const source = new EventSource(`/api/interviews/${encodeURIComponent(id)}/events`);
+    for (const type of ["started", "step", "question", "answered", "plan", "finished", "failed"]) {
+      source.addEventListener(type, ev => {
+        const event = JSON.parse((ev as MessageEvent).data) as InterviewEvent;
+        onEvent(event);
+        if (type === "finished" || type === "failed") source.close();
+      });
+    }
+    // The browser reconnects by itself, carrying the last event's id, and the API
+    // replays what was missed. Only a stream that is closed for good is lost.
+    source.onerror = () => { if (source.readyState === EventSource.CLOSED) onLost(); };
+    return () => source.close();
+  },
+  // POST /deployments with an uploaded copy, as `sealeye run` sends it after a yes.
+  deploy: (body: { plan: unknown; appPath: string; zip: string; expectStored: string[]; origin: unknown }) =>
+    request<DeploymentRecord>("/deployments", { method: "POST", body: { backend: "cloudformation", ...body } }),
   destroy: (id: string) => request<DeploymentRecord>(`/deployments/${encodeURIComponent(id)}`, { method: "DELETE" }),
   health: () => request<Health>("/health"),
   validate: (plan: unknown) => request<Validation>("/plans/validate", { method: "POST", body: plan }),

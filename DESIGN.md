@@ -1268,3 +1268,55 @@ version: different contents, same version, and it stops before building anything
 API and portal can change without a new version; they are not installed. 2.18.0 is the
 first: `deploy --again`, `validate`'s ready or drafted, and the shared evidence words.
 
+## One walk decides what travels, from the command and from the browser
+
+Decided Mon Oct 12, 2026, building PHASE2-PLAN Step 15 (D6: the portal reads a folder
+chosen in the browser, under the command's rules).
+
+The rules about what of a folder goes to the API, and the walk that applies them, move
+from core/upload.js into core/upload-rules.js, which runs in a browser. It walks any
+tree of folders and files: the command hands it the disk, seaLeye.online the folder the
+developer chose. What it needs from a package, the .gitignore matcher, the caller hands
+in, so the file imports nothing but core/secrets.js (which no longer needs node:path).
+The command's zipFolder becomes async to share the walk; it sends the same thing as
+before. test/upload-parity.test.js runs the command's walk and the browser's (a flat
+file list, as a folder input gives it) over one folder, for an interview and for a
+deploy, and compares what each would send.
+
+Found on the way, and owed (PHASE2-PLAN, "Owed after this plan"): a deploy upload leaves
+out `.env` only, as the packager always has, so a `.env.production` with values in it is
+packaged into the function's code. The interview upload sends it as a name only.
+
+## New environment: the interview in the portal
+
+Decided Mon Oct 12, 2026, building PHASE2-PLAN Step 15.
+
+- **The folder is read in the browser, by the command's walk** (core/upload-rules.js):
+  the folder picker where the browser has one, a dropped folder, or the folder input.
+  The picker and a drop are read lazily, so node_modules is never opened. The zip is made
+  in the browser; secret files go as names only. A yes reads the folder again with the
+  deploy rules, as `sealeye run` does.
+- **The plan's files come from the API.** The plan event carries DEPLOYMENT_PLAN.md and
+  sealeye.yaml (core/plan-files.js), so the page offers exactly what the command writes
+  into the folder. The portal cannot write into the folder, so it offers them to
+  download; a "Not now" keeps them there and deploys nothing.
+- **Every setting from the store.** There is no `.env` to read in a browser, and sending
+  one would put values through a page. A yes with settings the store does not have asks
+  for them first, stores each, and then deploys, naming them as expected in the store.
+- **A deploy names its environment from the start.** Every new deployment record carries
+  `environment`, the stack name it is for, from the moment it is queued, and lists group
+  by it, so the page can go straight to the environment and follow it. `stackName` is
+  still set only once the stack is composed: a record with one has something in AWS to
+  describe or tear down, and one that failed before that does not (a deployment made
+  again had set stackName at once; corrected here).
+- **An interview held in the portal says so in its evidence**: "in the portal" where the
+  command's says "via sealeye run".
+- **What a browser cannot see.** A browser shows a link inside the folder as the file it
+  points to, so where the command leaves links out, the portal sends what they point to.
+  Secret names are still sent as names only. A dropped folder is opened file by file
+  for sizes, so a big file is refused before it is read.
+- **A drafted plan sends none of the folder**: the deploy request carries an empty zip,
+  is refused, and the draft is saved, as the command's is.
+- **Not yet:** finishing in the portal an interview the command started. It is the same
+  interview by id, but nothing lists a person's open interviews. Owed in PHASE2-PLAN.
+

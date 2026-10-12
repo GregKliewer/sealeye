@@ -16,6 +16,7 @@ import { sealeyeHome, setting } from "../../core/config.js";
 import { unzipInto, UploadRefused } from "../../core/upload.js";
 import { promptVersion, traceRun, withoutTracing, flushScores } from "../../core/tracing.js";
 import { buildInterviewGraph, MAX_TURNS } from "./graph.js";
+import { planFiles } from "../../core/plan-files.js";
 import { DEFAULT_MODEL, modelClient, resolveApiKey } from "./model.js";
 
 // Everything about an interview is gone a day after it starts, finished or not: its
@@ -236,7 +237,7 @@ export function createInterviewService({
           if (paused.type === "confirm") record.result = { ...strip(paused), traceId: record.traceId || undefined };
           keep(record);
           emit(record, paused.type === "confirm"
-            ? { type: "plan", ...record.result }
+            ? { type: "plan", ...record.result, ...filesFor(record.result) }
             : { type: "question", number: paused.number, question: paused.question, lead: paused.lead || [] });
           return;
         }
@@ -471,3 +472,18 @@ export async function runInterview({ appPath, deployed = null, ask, onStep = () 
     service.close();
   }
 }
+
+/**
+ * The two files the plan is written down as (core/plan-files.js), with the plan, so
+ * seaLeye.online can offer exactly what `sealeye run` writes into the folder. A plan
+ * the files cannot be written for still reaches "Deploy this?"; the event says why.
+ */
+function filesFor(result) {
+  if (!result?.plan) return {};
+  try {
+    return { files: planFiles({ plan: result.plan, summary: result.summary, assumptions: result.assumptions }) };
+  } catch (err) {
+    return { filesError: err.message };
+  }
+}
+

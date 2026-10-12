@@ -85,7 +85,7 @@ export async function startDeployment(record, plan, appPath, sent = {}) {
       store = { folder, stored: listed.settings.map(x => x.name) };
       const gone = (record.expectStored || []).filter(name => !store.stored.includes(name));
       if (gone.length) {
-        throw new Error(`your command found ${gone.join(", ")} in your organization's settings store for ${plan?.app?.name}, and the platform cannot find ${gone.length === 1 ? "it" : "them"} there now, so nothing was built. Run sealeye settings in the app's folder to check.`);
+        throw new Error(`this deploy expected ${gone.join(", ")} in your organization's settings store for ${plan?.app?.name}, and the platform cannot find ${gone.length === 1 ? "it" : "them"} there now, so nothing was built. Check the app's settings (sealeye settings, or Settings in the portal) and deploy again.`);
       }
     }
     composed = compose(plan, record.deploymentId, appPath, sent, naming, store);

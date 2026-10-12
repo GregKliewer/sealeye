@@ -401,6 +401,9 @@ plan" (Step 13's last item). DESIGN.md, "Deploying again".
 
 About four to six days. The headline portal feature.
 
+**Built Oct 12**, except finishing in the portal an interview the command started, which
+needs a way to find one's open interviews (owed, below). DESIGN.md, "New environment".
+
 - The browser zips a chosen folder under the same rules as `core/upload.js`: respect
   `.gitignore`, never send `node_modules` or `.git`, and send secret files as names only.
   The rules move into a part of `core/` that runs in a browser as well as Node (the
@@ -462,6 +465,8 @@ Step 5 records a decision next to each.
 
 | Item | Where it stands | Bring it forward when |
 |---|---|---|
+| **Finishing a command's interview in the portal** | An interview is kept by id, and its starter may answer it from either surface, but the portal has no way to find one the command started: there is no list of a person's open interviews. | When someone asks for it: add `GET /interviews` (the caller's own, open), a `sealeye` way to see them, and a list on New environment. |
+| **Other .env files are packaged** | A deploy upload leaves out `.env` only, as the packager always has, so `.env.production` and the like go into the function's code with their values (found Oct 12, building Step 15). The command and the portal both do this, and the portal says what is packaged. | Before a team deploys an app whose folder holds those: leave out every file `core/secrets.js` names from the deploy upload too, and say so in the report. |
 | **ROADMAP Phase 1 item 5: AWS access per team** | Every deploy goes through `sealeye-deploy-pilot` in the one pilot account. It is designed for a role per team account (DESIGN.md, "Phase 1: who it is for"), so adding one is configuration, not a rewrite. | A team brings its own AWS account, or any bank pilot. |
 | **ROADMAP Phase 1 item 3: real sign-in** | Cognito was chosen on Oct 9 (DESIGN.md, "Phase 1: who it is for"). How it replaces tokens and portal sessions is open (OPEN-QUESTIONS Q16). Tokens fill `req.caller` in the shape Cognito will. | More than a handful of people, anyone outside Greg's reach to issue a token by hand, or any bank pilot. It gets its own plan. |
 | **Q10: publishing the command** | Installed from a tarball on sealeye.run. | Someone needs to pin a version, or the pilot grows past people Greg sends the link to. |
