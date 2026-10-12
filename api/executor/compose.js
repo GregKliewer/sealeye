@@ -255,7 +255,10 @@ export function compose(plan, deploymentId, appPath, sent = {}, naming, store = 
       FunctionBoundaryArn: requireSetting("FUNCTION_BOUNDARY_ARN"),
       // When the app has settings in the store, its function reads that folder at start
       // and may read no other; with none there, it reads nothing.
-      SettingsFolder: stored.length ? store.folder.replace(/\/$/, "") : ""
+      SettingsFolder: stored.length ? store.folder.replace(/\/$/, "") : "",
+      // Changes every deploy, so a deploy of the same code with the same parameters is
+      // still a change CloudFormation makes, never an empty change set.
+      DeploymentId: deploymentId
     };
 
     // A setting in the store has no value here: the app reads it when it starts. Every
