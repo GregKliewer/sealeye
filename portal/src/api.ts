@@ -58,12 +58,17 @@ export interface DeploymentSummary {
   pauses?: { action: "paused" | "resumed"; by: { name?: string; user?: string } | null; surface: string; at: string }[];
   fromDeployment?: string | null;
   packagedBy?: string | null;
+  // What the platform is doing for it now, in a line, while it is under way.
+  step?: string | null;
+  // A successful deploy a newer one has since replaced; replacedBy names it when this
+  // reader can see it.
+  replaced?: boolean;
+  replacedBy?: string | null;
 }
 
 export interface DeploymentRecord extends DeploymentSummary {
   plan?: Record<string, unknown>;
   stackStatus?: string | null;
-  step?: string | null;
 }
 
 export interface Catalog {

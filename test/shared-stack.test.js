@@ -110,6 +110,12 @@ test("the team that deployed last is in the stack: its next deploy updates it", 
     if (!record.stackName) await new Promise(r => setTimeout(r, 100));
   }
   assert.equal(record.stackName, "sealeye-foo", "not a second copy beside the one already live");
+  // One change at a time: let it finish before anything else changes that environment.
+  for (let i = 0; i < 100 && !["succeeded", "failed"].includes(record.status); i++) {
+    await new Promise(r => setTimeout(r, 100));
+    record = await (await call(`/deployments/${deploymentId}`, { token: greg })).json();
+  }
+  assert.ok(["succeeded", "failed"].includes(record.status), record.status);
 });
 
 test("an organization-wide token, which sees both teams, may tear the shared stack down", async () => {

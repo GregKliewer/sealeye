@@ -21,6 +21,7 @@ import { assembleEvidence, renderEvidence } from "./executor/evidence.js";
 import { rollupNeeds } from "./needs.js";
 import { readLogs } from "./logs.js";
 import { busyRefusal, changeUnderWay } from "./busy.js";
+import { replacements } from "./replaced.js";
 import { changePaused, pausedState } from "./pause.js";
 import { peopleOf } from "./team.js";
 import { readPerformance } from "./performance.js";
@@ -579,7 +580,10 @@ app.post("/deployments", (req, res, next) => {
 // three existing endpoints are unchanged. The full record stays at /deployments/{id},
 // so the rendered report is not repeated for every row.
 app.get("/deployments", (req, res) => {
-  const deployments = visibleDeployments(req).map(dep => ({
+  const visible = visibleDeployments(req);
+  const seen = new Set(visible.map(d => d.deploymentId));
+  const replaced = replacements(listDeployments());
+  const deployments = visible.map(dep => ({
     deploymentId: dep.deploymentId,
     app: dep.app,
     status: dep.status,
@@ -600,12 +604,20 @@ app.get("/deployments", (req, res) => {
     // token sees several, and two of them can share an app name.
     teamId: dep.teamId || "default",
     destroyRequestedBy: dep.destroyRequestedBy || null,
+    // What the platform is doing for it now, in a line (while it is under way).
+    step: dep.step || null,
+    // A successful deploy a newer successful deploy has since replaced: no longer what
+    // its environment runs. Its result stays its own. replacedBy names the newer one
+    // when the reader can see it (a stack from before teams had names can hold another
+    // team's records).
+    replaced: replaced.has(dep.deploymentId),
+    replacedBy: seen.has(replaced.get(dep.deploymentId)) ? replaced.get(dep.deploymentId) : null,
     needs: Array.isArray(dep.needs) ? dep.needs.length : 0,
     // Whether its code was packaged and can be deployed again (PHASE2-PLAN Step 14),
     // and, for one that was itself deployed again, whose code it ran.
     // Paused as of the last pause or resume made here (read from AWS then). Control
     // reads it from AWS again (GET /deployments/{id}/paused).
-    paused: dep.paused === true,
+    paused: dep.paused === true && !replaced.has(dep.deploymentId),
     pauses: Array.isArray(dep.pauses) ? dep.pauses : [],
     packaged: Boolean(dep.artifactKey) && dep.kind !== "static",
     fromDeployment: dep.fromDeployment || null,

@@ -1,10 +1,10 @@
 // Environments: every app the platform knows about, one row per environment, newest
 // change first, as `sealeye list` shows them. Consoles summarise before they list.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 import { api } from "../api";
 import { useLoad, useSession } from "../session";
-import { ago, groupEnvironments, PAST, publicUrl, statusOf, who } from "../model";
+import { addressOf, ago, groupEnvironments, PAST, statusOf, underWay, who } from "../model";
 import { PageTitle, Problem } from "../Layout";
 import { Badge } from "../components/ui/badge";
 import { Card } from "../components/ui/card";
@@ -27,6 +27,17 @@ export function Environments() {
   const [showPast, setShowPast] = useState(false);
 
   const environments = useMemo(() => groupEnvironments(deployments.data || []), [deployments.data]);
+
+  // While any of them is changing, read the list again every five seconds, so its step
+  // line and status follow the platform.
+  const anyMoving = environments.some(env => underWay(env.latest));
+  const { reload } = deployments;
+  useEffect(() => {
+    if (!anyMoving) return;
+    const t = setTimeout(reload, 5000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [anyMoving, deployments.data]);
   // An organization-wide token sees every team's, and two teams can share an app name,
   // so then each row says whose it is.
   const severalTeams = new Set(environments.map(e => e.latest.teamId || "default")).size > 1;
@@ -88,15 +99,17 @@ export function Environments() {
           <TableBody>
             {shown.map(env => {
               const status = statusOf(env.latest);
-              const url = publicUrl(env.latest);
+              const url = addressOf(env);
+              const moving = underWay(env.latest);
               return (
                 <TableRow key={env.key} data-testid="environment-row">
                   <TableCell>
                     <Link to={`/environments/${encodeURIComponent(env.key)}`} className="font-mono font-bold text-ink hover:text-phosphor">{env.app}</Link>
                     {severalTeams ? <span className="ml-2 text-xs text-dim" data-testid="team">team {env.latest.teamId || "default"}</span> : null}
+                    {moving ? <div className="mt-1 max-w-sm text-xs text-dim" data-testid="environment-step">{env.latest.step || "Waiting for the platform's first step"}</div> : null}
                   </TableCell>
                   <TableCell>{who(env.latest.requestedBy)}</TableCell>
-                  <TableCell><Badge tone={status.tone}>{status.label}</Badge></TableCell>
+                  <TableCell><Badge tone={status.tone} moving={moving}>{status.label}</Badge></TableCell>
                   <TableCell className="max-w-[280px]">
                     {url ? <a href={url} target="_blank" rel="noreferrer" title={url} className="block truncate font-mono text-xs text-phosphor hover:underline">{url}</a> : <span className="text-dim">None yet</span>}
                   </TableCell>

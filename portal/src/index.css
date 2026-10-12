@@ -19,3 +19,13 @@
 
 html, body { background: var(--color-ground); color: var(--color-ink); }
 body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+
+/* Something is under way: an indeterminate bar, and a dot that breathes. Still for
+   anyone who has asked for less motion. */
+@keyframes sealeye-sweep { from { transform: translateX(-100%); } to { transform: translateX(400%); } }
+.sealeye-sweep { animation: sealeye-sweep 1.8s ease-in-out infinite; }
+@keyframes sealeye-breathe { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+.sealeye-breathe { animation: sealeye-breathe 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .sealeye-sweep, .sealeye-breathe { animation: none; }
+}

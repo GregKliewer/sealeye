@@ -2283,9 +2283,15 @@ function printDeploymentTable(deployments) {
     dep,
     id: dep.deploymentId,
     app: label(dep.app?.name || "-", dep),
-    // An interrupted record is the last status we knew, not a live one. Say so.
-    status: dep.interrupted ? `${dep.status} (interrupted)` : dep.status,
-    url: publicUrl(dep) || "-"
+    // An interrupted record is the last status we knew, not a live one. Say so. A
+    // success a newer one has replaced keeps its result, and says it is no longer what
+    // the environment runs; only the current one says it is paused.
+    status: dep.interrupted ? `${dep.status} (interrupted)`
+      : dep.replaced ? `succeeded (replaced${dep.replacedBy ? ` by ${dep.replacedBy}` : ""})`
+      : dep.status === "succeeded" && dep.paused ? "succeeded (paused)"
+      : dep.status,
+    // A replaced deploy's address is the environment's, answered now by the newer one.
+    url: dep.replaced ? "-" : publicUrl(dep) || "-"
   }));
 
   const widthOf = key => Math.max(...rows.map(r => r[key].length));
@@ -2300,6 +2306,7 @@ function printDeploymentTable(deployments) {
   for (const r of rows) {
     const status = r.dep.interrupted
       ? c.prompt(pad(r.status, w.status))
+      : r.dep.replaced ? c.dim(pad(r.status, w.status))
       : statusColour(r.dep.status, pad(r.status, w.status));
     const url = r.url === "-" ? c.dim(r.url) : c.accent(r.url);
 
