@@ -27,7 +27,8 @@ import {
 import { looksLikeToken, seesInWords } from "../../core/token.js";
 import { banner, step, ask, answer, typing, typed, c, product, spinner, stopSpinner, animations } from "../brand.js";
 import { safeName, CONFIG_FILE, LEGACY_CONFIG_FILE } from "../../core/names.js";
-import { USER_CONFIG_HINT, setting, loadUserConfig, DEFAULT_API, saveUserSetting } from "../../core/config.js";
+import { USER_CONFIG_HINT, setting, loadUserConfig, DEFAULT_API, saveUserSetting, sealeyeHome } from "../../core/config.js";
+import { settingsFromTheStore } from "../store-offer.js";
 import { startTracing, flushTracing, tracingActive, tracingConfigured, tracingSwitchedOff, scoreTrace, scoreDeploymentOutcome, flushScores } from "../../core/tracing.js";
 import { unsupportedNeeds, refusalClosing, orgName } from "../../core/catalog.js";
 import { interviewThroughApi } from "../interview/follow.js";
@@ -463,11 +464,27 @@ async function main() {
       rl.close();
     }
 
+    const storedNames = await settingsFromTheStore({
+      apiBaseUrl,
+      plan: submission.plan,
+      appPath,
+      app: appNameFor(appPath),
+      interactive: !getArg("--answers") && process.stdin.isTTY,
+      prompt: async question => {
+        const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+        try { return await rl.question(ask(question)); } finally { rl.close(); }
+      },
+      say,
+      done: line => console.log(c.accent(line)),
+      debug: line => { if (setting("DEBUG")) console.error(`  [debug] ${line}`); }
+    });
+
     const deployment = await runDeploy({
       apiBaseUrl,
       backend: "cloudformation",
       plan: submission.plan,
       appPath,
+      storedNames,
       requestedBy: requestedBy(),
       origin: submission.reused
         ? { command: "run", planSource: "reused", file: path.basename(configPath) }
@@ -1194,7 +1211,7 @@ function reuseSummary(plan, planPath) {
 
 // Hand a plan and a folder to the platform. `deploy` and `run` both come through
 // here: run has no deployment logic of its own.
-async function runDeploy({ apiBaseUrl, backend, plan, appPath, requestedBy: who, origin }) {
+async function runDeploy({ apiBaseUrl, backend, plan, appPath, requestedBy: who, origin, storedNames }) {
   say(`Handing ${appPath} to seaLeye.run to build your environment`);
 
   // Packaging, installing dependencies and the upload all happen inside this one call.
@@ -1202,7 +1219,7 @@ async function runDeploy({ apiBaseUrl, backend, plan, appPath, requestedBy: who,
   let result;
 
   try {
-    result = await createDeployment({ apiBaseUrl, backend, plan, appPath, requestedBy: who, origin });
+    result = await createDeployment({ apiBaseUrl, backend, plan, appPath, requestedBy: who, origin, storedNames });
   } catch (err) {
     const refusal = err?.details?.error;
 

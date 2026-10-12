@@ -86,7 +86,7 @@ export function loadPlanFromYaml(planPath) {
  * are what the change record reads later: who ran the command, on which machine, and
  * how the plan came to be. The API does not verify them; the evidence says so.
  */
-export async function createDeployment({ apiBaseUrl, backend, plan, appPath, requestedBy, origin }) {
+export async function createDeployment({ apiBaseUrl, backend, plan, appPath, requestedBy, origin, storedNames = [] }) {
   // The app travels as an uploaded copy, packaged by the API as it would package the
   // folder (core/upload.js "deploy": no node_modules, .git or .env). appPath goes with
   // it as the developer's own name for their folder, so their next run recognises the
@@ -100,10 +100,11 @@ export async function createDeployment({ apiBaseUrl, backend, plan, appPath, req
   }
   const body = { backend, plan, appPath, zip: Buffer.from(packed.zip).toString("base64") };
   // The values of the settings this plan asks for, from the developer's .env, and only
-  // those. A hosted API cannot read this folder, so they travel with the request, once.
-  // Moving them to the organization's secret store is on the roadmap (DESIGN.md,
-  // "Setting values travel with the deploy, for now").
-  const settings = envValuesFor(plan, appPath);
+  // those, less the ones already in the organization's store, which the app reads itself
+  // when it starts (DESIGN.md, "Settings live in the organization's store"). A hosted API
+  // cannot read this folder, so the rest travel with the request, once.
+  const skip = new Set(storedNames);
+  const settings = Object.fromEntries(Object.entries(envValuesFor(plan, appPath)).filter(([name]) => !skip.has(name)));
   if (Object.keys(settings).length) body.settings = settings;
   if (requestedBy) body.requestedBy = requestedBy;
   if (origin) body.origin = origin;

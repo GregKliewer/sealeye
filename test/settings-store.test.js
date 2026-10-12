@@ -195,3 +195,78 @@ test("sealeye settings set reads the value from a pipe, never from the command l
   assert.equal(unset.status, 0, unset.stderr);
   assert.equal(stored()["/sealeye-apps/payments/lookup-api/API_KEY"], undefined);
 });
+
+test("a deploy does not send .env values that are already in the store", async () => {
+  const http = await import("node:http");
+  const { createDeployment } = await import("../cli/client.js");
+  let received;
+  const stub = http.createServer((req, res) => {
+    let body = "";
+    req.on("data", d => (body += d));
+    req.on("end", () => { received = JSON.parse(body); res.setHeader("content-type", "application/json"); res.end(JSON.stringify({ deploymentId: "dep_000000000abc" })); });
+  });
+  await new Promise(r => stub.listen(0, "127.0.0.1", r));
+  const app = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-omit-"));
+  fs.writeFileSync(path.join(app, "index.js"), "");
+  fs.writeFileSync(path.join(app, ".env"), `API_KEY=${SECRET}\nREGION_NAME=ca-central\n`);
+  const plan = { app: { name: "lookup-api" }, modules: [{ id: "config_basic", enabled: true, inputs: { variables: { API_KEY: "", REGION_NAME: "" } } }] };
+  try {
+    await createDeployment({ apiBaseUrl: `http://127.0.0.1:${stub.address().port}`, backend: "cloudformation", plan, appPath: app, storedNames: ["API_KEY"] });
+  } finally {
+    stub.close();
+  }
+  assert.deepEqual(received.settings, { REGION_NAME: "ca-central" });
+  assert.ok(!JSON.stringify(received).includes(SECRET), "the stored one never leaves the laptop");
+});
+
+test("sealeye run offers once to store .env values, names them, and remembers a no", async () => {
+  const { settingsFromTheStore } = await import("../cli/store-offer.js");
+  const devHome = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-offer-"));
+  const app = path.join(devHome, "offer-api");
+  fs.mkdirSync(app);
+  fs.writeFileSync(path.join(app, ".env"), `OFFER_KEY=${SECRET}\nOFFER_REGION=ca\n`);
+  const plan = { app: { name: "offer-api" }, modules: [{ id: "config_basic", enabled: true, inputs: { variables: { OFFER_KEY: "", OFFER_REGION: "" } } }] };
+  const saved = { home: process.env.SEALEYE_HOME, token: process.env.SEALEYE_TOKEN };
+  process.env.SEALEYE_HOME = path.join(devHome, ".sealeye");
+  process.env.SEALEYE_TOKEN = ana;
+  const run = async reply => {
+    const lines = [], asked = [];
+    const names = await settingsFromTheStore({ apiBaseUrl: api, plan, appPath: app, app: "offer-api", interactive: true,
+      prompt: async q => { asked.push(q); return reply; }, say: l => lines.push(l), done: l => lines.push(l) });
+    return { names, lines: lines.join("\n"), asked };
+  };
+  try {
+    const no = await run("n");
+    assert.equal(no.asked.length, 1);
+    assert.deepEqual(no.names, []);
+    assert.match(no.lines, /Your .env has values for OFFER_KEY, OFFER_REGION/);
+    assert.ok(!no.lines.includes(SECRET));
+    assert.equal((await run("y")).asked.length, 0, "a no is not asked again");
+
+    fs.rmSync(path.join(devHome, ".sealeye", "store-offers.json"));
+    const yes = await run("y");
+    assert.deepEqual(yes.names.sort(), ["OFFER_KEY", "OFFER_REGION"]);
+    assert.equal(stored()["/sealeye-apps/payments/offer-api/OFFER_KEY"].value, SECRET);
+    assert.match(yes.lines, /reads OFFER_KEY, OFFER_REGION from your organization's store, not from your .env/);
+
+    const after = await run("y");
+    assert.equal(after.asked.length, 0, "nothing left to offer");
+    assert.match(after.lines, /not from your .env/, "and it says where they come from, every run");
+    assert.ok(!(yes.lines + after.lines).includes(SECRET));
+  } finally {
+    process.env.SEALEYE_HOME = saved.home ?? "";
+    if (saved.token) process.env.SEALEYE_TOKEN = saved.token; else delete process.env.SEALEYE_TOKEN;
+  }
+});
+
+test("settings-sources lists the live environments still on .env values, by name only", async () => {
+  const { stillOnEnv } = await import("../scripts/settings-sources.js");
+  const rec = (id, stack, status, startedAt, settings) => ({ deploymentId: id, stackName: stack, app: { name: stack }, teamId: "payments", status, startedAt, settings, requestedBy: { name: "Ana P" } });
+  const rows = stillOnEnv([
+    rec("d1", "on-env", "succeeded", "2026-10-12T10:00:00Z", [{ name: "API_KEY", source: "sent" }, { name: "REGION", source: "plan" }]),
+    rec("d2", "moved", "succeeded", "2026-10-12T11:00:00Z", [{ name: "API_KEY", source: "store" }]),
+    rec("d3", "moved", "succeeded", "2026-10-12T09:00:00Z", [{ name: "API_KEY", source: "sent" }]),
+    rec("d4", "gone", "destroyed", "2026-10-12T10:00:00Z", [{ name: "API_KEY", source: ".env" }])
+  ]);
+  assert.deepEqual(rows.map(r => [r.app, r.names]), [["on-env", ["API_KEY"]]], "only the newest record of each live environment counts");
+});
