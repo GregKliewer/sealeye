@@ -262,5 +262,8 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
 - Developers install with `curl -fsSL https://sealeye.run/install | sh`: the package
   release.sh packs, limited by package.json "files" to the command and what it reads.
   `test/package-contents.test.js` keeps the API and the interview prompt out of it.
+  A pull request that changes what the package holds (`cli/`, `core/`, the prompt files
+  it carries) raises the version in package.json; release.sh stops if the command
+  changed and the version did not.
 - One decision per commit where possible. A decision goes in DESIGN.md with its date and
   reason; a finished roadmap row is updated in the same commit as the work.
