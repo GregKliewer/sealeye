@@ -35,6 +35,30 @@ if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
 fi
 echo "Releasing $(git log -1 --format='%h %s')"
 
+# Developers install the command as sealeye-<version>.tgz. If the command changed and
+# the version did not, a new package would replace the old one under the same name: npm
+# may hand back its cached copy, and nobody can tell which they have (Oct 12, 2026, a
+# Mac still on the command from before deploy --again). So a changed command needs a new
+# version in package.json, and this stops until it has one.
+VERSION="$(node -p 'require("./package.json").version')"
+CHECK="$(mktemp -d)"
+mkdir -p "$CHECK/new" "$CHECK/live" "$CHECK/here"
+npm pack --silent --pack-destination "$CHECK/new" >/dev/null
+if curl -fsS -o "$CHECK/live.tgz" "https://sealeye.run/sealeye-${VERSION}.tgz" 2>/dev/null; then
+  tar -xzf "$CHECK/live.tgz" -C "$CHECK/live"
+  tar -xzf "$CHECK/new/sealeye-${VERSION}.tgz" -C "$CHECK/here"
+  if ! diff -rq "$CHECK/live" "$CHECK/here" >/dev/null; then
+    echo "The command has changed since sealeye ${VERSION} was released, and package.json still says ${VERSION}."
+    echo "Raise the version in package.json (npm version minor --no-git-tag-version), commit it through a pull request, and run this again."
+    rm -rf "$CHECK"
+    exit 1
+  fi
+  echo "The command is the same as the sealeye ${VERSION} already released"
+else
+  echo "sealeye ${VERSION} is new to sealeye.run"
+fi
+rm -rf "$CHECK"
+
 REPOSITORY="$(output RepositoryUri)"
 BUCKET="$(output ConfigBucket)"
 INSTANCE="$(output InstanceId)"
@@ -59,7 +83,6 @@ fi
 echo "Building the sites, the portal and the package sealeye.run installs"
 SITES="$(mktemp -d)"
 trap 'rm -rf "$SITES"' EXIT
-VERSION="$(node -p 'require("./package.json").version')"
 cp -R sites/. "$SITES/"
 # seaLeye.online is the portal, built from portal/ (Vite), static files only.
 ( cd portal && npm ci --no-audit --no-fund --loglevel=error && npm run build >/dev/null )

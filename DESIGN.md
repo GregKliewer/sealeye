@@ -1252,3 +1252,19 @@ already on the platform. A request without `fromDeployment` is unchanged.
   deployment: nothing was attempted. A record is written only once it will be tried,
   and it names its environment from the start, so a page watching it sees it at once.
 
+## A changed command is a new version
+
+Decided Mon Oct 12, 2026, after `sealeye deploy --again` answered "Missing required
+--file" on Greg's Mac: his command was the one installed before it existed, still called
+2.17.0, like every release since Oct 8.
+
+The version in package.json is what developers install (`sealeye-<version>.tgz`), what
+the banner prints and what Health compares. Releasing a changed command under the same
+version replaces the package behind one name, so npm may install its cached copy, and
+nobody can tell which they have. So a pull request that changes what the package holds
+raises the version (minor for a new command or flag, patch for a fix), and release.sh
+packs the command and compares it with the one sealeye.run already serves under that
+version: different contents, same version, and it stops before building anything. The
+API and portal can change without a new version; they are not installed. 2.18.0 is the
+first: `deploy --again`, `validate`'s ready or drafted, and the shared evidence words.
+
