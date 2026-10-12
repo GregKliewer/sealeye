@@ -3,7 +3,7 @@ import crypto from "crypto";
 import fs from "node:fs";
 import path from "node:path";
 
-import { upgradePlan } from "../core/schema.js";
+import { isDrafted, upgradePlan } from "../core/schema.js";
 import { checkPlan, checkUpgraded } from "./validate.js";
 import { backendMappings } from "./mappings.js";
 import { putDeployment, getDeployment, listDeployments, storeFile, count, openStore, flushStore } from "./store.js";
@@ -200,9 +200,23 @@ app.get("/whoami", (req, res) => {
 });
 
 // POST /plans/validate
+// Whether the plan meets the contract, and, when it does, whether it is ready or drafted
+// (principle 3: a plan with needs is never just "valid"), with each need in the
+// catalog's words and the evidence the plan gives for it. Added Oct 12, 2026; the
+// valid and errors fields are unchanged.
 app.post("/plans/validate", (req, res) => {
   // A plan written against an older contract is read as what it meant, then checked.
-  return res.status(200).json(checkPlan(req.body));
+  const result = checkPlan(req.body);
+  if (!result.valid) return res.status(200).json(result);
+  const plan = upgradePlan(req.body);
+  const lines = new Map(needKinds(loadCatalog()).map(n => [n.key, String(n.line || "").trim()]));
+  const needs = (plan.needs || []).map(n => ({
+    kind: n.kind,
+    line: lines.get(n.kind) || n.line,
+    evidence: (n.evidence || []).map(e => ({ file: e.file, shows: e.shows }))
+  }));
+  // From the needs themselves, never from a status the plan claims for itself.
+  return res.status(200).json({ ...result, status: isDrafted(plan) ? "drafted" : "ready", needs });
 });
 
 // POST /deployments

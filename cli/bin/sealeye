@@ -547,8 +547,17 @@ async function main() {
 
     if (jsonOut) {
       console.log(JSON.stringify(result, null, 2));
+    } else if (result.valid && result.status === "drafted") {
+      // Principle 3: a plan with needs meets the contract and is still a draft, never
+      // "valid" on its own. The portal's Validate page says the same.
+      console.log(c.prompt("Your plan meets the contract, and it is drafted. It needs what the platform does not build yet:"));
+      for (const need of result.needs || []) {
+        const shows = (need.evidence || []).map(e => `${e.shows} (${e.file})`).join("; ");
+        console.log(`  ${need.line}${shows ? c.dim(`: ${shows}`) : ""}`);
+      }
+      say(`Deploying it saves the draft. When your organization's Platform Library supports these, ${product.command} run again finishes the plan.`);
     } else if (result.valid) {
-      console.log(c.ok("Your plan is valid"));
+      console.log(c.ok("Your plan is valid and ready to deploy"));
     } else {
       console.log(c.fail("Your plan cannot be deployed as written:"));
       for (const line of plainValidationErrors(result.errors)) console.log(`  ${line}`);
