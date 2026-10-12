@@ -1,11 +1,12 @@
-// src/interview/explain.js
+// core/plan-words.js
 // Contract validation errors, in the developer's language.
 //
 // The API answers with what the schema said: "/modules/0 must NOT have additional
 // properties". True, and useless to somebody who has never read the schema. This
 // turns each one into a sentence about their plan, and where the contract fixes the
-// allowed values it names them, because the developer cannot look them up.
-import { planSchema } from "../../core/schema.js";
+// allowed values it names them, because the developer cannot look them up. The command
+// and the portal both say these sentences, so this runs in a browser as well as in Node.
+import { planSchema } from "./schema.js";
 
 const TYPE_WORDS = {
   string: "text",

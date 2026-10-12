@@ -60,6 +60,47 @@ for (const file of fs.readdirSync(path.join(root, "plans")).filter(f => f.endsWi
   });
 }
 
+test("POST /plans/validate says whether a plan is ready or drafted, with each need in the catalog's words", async () => {
+  const post = async plan => (await fetch(`${api}/plans/validate`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(plan)
+  })).json();
+  const plan = YAML.parse(fs.readFileSync(path.join(root, "plans", "api-plan.yaml"), "utf8"));
+  const ready = await post(plan);
+  assert.equal(ready.status, "ready");
+  assert.deepEqual(ready.needs, []);
+
+  const drafted = await post({ ...plan, needs: [{ kind: "continuous_service", line: "whatever the plan said", evidence: [{ file: "index.js", shows: "reads a stream in a loop" }] }] });
+  assert.equal(drafted.valid, true);
+  assert.equal(drafted.status, "drafted");
+  assert.equal(drafted.needs.length, 1);
+  assert.equal(drafted.needs[0].kind, "continuous_service");
+  assert.notEqual(drafted.needs[0].line, "whatever the plan said");
+  assert.deepEqual(drafted.needs[0].evidence, [{ file: "index.js", shows: "reads a stream in a loop" }]);
+
+  // A current plan is drafted by its needs, whatever status it claims.
+  const current = await post({ ...plan, planVersion: "0.4", status: "ready", modules: plan.modules.map(({ enabled, ...m }) => m), needs: drafted.needs.map(n => ({ ...n, line: "x" })) });
+  assert.equal(current.valid, true, JSON.stringify(current.errors));
+  assert.equal(current.status, "drafted");
+
+  const invalid = await post({ planVersion: "0.4", app: { name: "x" }, modules: [] });
+  assert.equal(invalid.status, undefined);
+});
+
+test("sealeye validate never calls a drafted plan simply valid", async () => {
+  const plan = YAML.parse(fs.readFileSync(path.join(root, "plans", "api-plan.yaml"), "utf8"));
+  plan.needs = [{ kind: "continuous_service", line: "x", evidence: [{ file: "index.js", shows: "reads a stream in a loop" }] }];
+  const file = path.join(home, "drafted.yaml");
+  fs.writeFileSync(file, YAML.stringify(plan));
+  const { stdout } = await promisify(execFile)(
+    process.execPath,
+    ["cli/bin/sealeye", "validate", "-f", file, "--api", api],
+    { cwd: root, env: { ...process.env, HOME: home, NO_COLOR: "1" } }
+  );
+  assert.match(stdout, /it is drafted/);
+  assert.match(stdout, /reads a stream in a loop \(index\.js\)/);
+  assert.doesNotMatch(stdout, /valid and ready/);
+});
+
 test("POST /plans/validate refuses a plan with no modules", async () => {
   const res = await fetch(`${api}/plans/validate`, {
     method: "POST",

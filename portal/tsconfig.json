@@ -12,6 +12,7 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "isolatedModules": true,
+    "allowJs": true,
     "types": ["vite/client"]
   },
   "include": ["src"]

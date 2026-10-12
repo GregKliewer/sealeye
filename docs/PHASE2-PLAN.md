@@ -71,9 +71,9 @@ recommendation. Each answer goes in DESIGN.md with its date and reason, and the
 | D3 | Which secret store | Parameter Store, SecureString, under `/sealeye-apps/<team>/<app>/`, in the team's account and region | Step 7 || As recommended (Sun Oct 11) |
 | D4 | How the app reads its values at start | The start script runs a small reader before the app, using the AWS SDK that ships in the Node 20 runtime. Confirm it in Step 7 before building. | Step 7 || As recommended, as a `node --import` preload (Sun Oct 11); after Step 7, it signs its own request instead of loading the SDK (Mon Oct 12) |
 | D5 | Apps already deployed with sent values | Not moved automatically. Their next `sealeye run` offers to store what `.env` holds. A list for Greg shows who is still on sent values. | Step 11 || As recommended (Sun Oct 11) |
-| D6 | Where the portal's interview gets the app | A folder chosen in the browser, zipped there under the same rules as the command's upload. Connecting a repository comes later. | Step 15 | |
-| D7 | What pause means | API apps only, for now: the function stops taking requests, and resume undoes it. A static site says plainly it cannot be paused. | Step 17 | |
-| D8 | Integrations | Move it to Phase 4, where ServiceNow, Jira and Teams are. Drop it from Phase 2. | Step 13 | |
+| D6 | Where the portal's interview gets the app | A folder chosen in the browser, zipped there under the same rules as the command's upload. Connecting a repository comes later. | Step 15 | As recommended (Mon Oct 12) |
+| D7 | What pause means | API apps only, for now: the function stops taking requests, and resume undoes it. A static site says plainly it cannot be paused. | Step 17 | As recommended (Mon Oct 12) |
+| D8 | Integrations | Move it to Phase 4, where ServiceNow, Jira and Teams are. Drop it from Phase 2. | Step 13 | As recommended (Mon Oct 12) |
 
 **Why D1 has an organization-wide token rather than real roles.** Real roles belong to
 sign-in (Q3, Cognito groups). A token is either team-scoped or organization-wide, set when
@@ -369,6 +369,9 @@ the operations in Steps 16 to 20 need new endpoints and new permissions.
 ### Step 13. Portal pages for operations the API already has
 
 About two to three days.
+
+**Built Oct 12**, except deploying an existing plan, which comes with Step 14. Validate
+now answers ready or drafted, so neither surface calls a plan with needs simply valid.
 
 - **Evidence:** a tab in Control that renders `GET /deployments/{id}/evidence`, with the
   same content `sealeye evidence` writes, and a download of the markdown. It changes

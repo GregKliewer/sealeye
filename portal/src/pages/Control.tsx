@@ -1,9 +1,11 @@
 // Control: one environment. Its state as the platform reports it, the way to tear it
 // down (the same DELETE /deployments/{id} `sealeye destroy` uses; the record says it
-// came from the portal), and everything that has been done to it.
+// came from the portal), its settings, everything that has been done to it, and the
+// change record for any of those deployments (`sealeye evidence`).
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
-import { api, SignedOut } from "../api";
+import { api, SignedOut, type Evidence } from "../api";
+import { evidenceSummary } from "../../../core/evidence-summary.js";
 import { useLoad, useSession } from "../session";
 import { ago, groupEnvironments, IN_FLIGHT, publicUrl, statusOf, when, who } from "../model";
 import { PageTitle, Problem } from "../Layout";
@@ -22,6 +24,7 @@ export function Control() {
   const deployments = useLoad(api.deployments, [key]);
   const env = useMemo(() => groupEnvironments(deployments.data || []).find(e => e.key === key) || null, [deployments.data, key]);
   const latest = env?.latest;
+  const [evidenceFor, setEvidenceFor] = useState<string | null>(null);
 
   // While anything is moving, read it again every five seconds, as `sealeye watch` does.
   useEffect(() => {
@@ -103,7 +106,7 @@ export function Control() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Deployment</TableHead><TableHead>Status</TableHead><TableHead>Started</TableHead><TableHead>By</TableHead><TableHead>From</TableHead>
+              <TableHead>Deployment</TableHead><TableHead>Status</TableHead><TableHead>Started</TableHead><TableHead>By</TableHead><TableHead>From</TableHead><TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -116,13 +119,97 @@ export function Control() {
                   <TableCell className="text-xs">{when(d.startedAt)}</TableCell>
                   <TableCell>{who(d.requestedBy)}</TableCell>
                   <TableCell className="text-dim">{d.surface === "portal" ? "Portal" : "Command line"}</TableCell>
+                  <TableCell className="text-right">
+                    <Button variant="ghost" size="sm" aria-label={`Evidence for ${d.deploymentId}`} onClick={() => {
+                      setEvidenceFor(d.deploymentId);
+                      document.getElementById("evidence")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }}>Evidence</Button>
+                  </TableCell>
                 </TableRow>
               );
             })}
           </TableBody>
         </Table>
       </Card>
+
+      <EvidenceCard key={evidenceFor || latest.deploymentId} deploymentId={evidenceFor || latest.deploymentId} latest={!evidenceFor || evidenceFor === latest.deploymentId} />
     </>
+  );
+}
+
+/**
+ * The change record for one deployment: what `sealeye evidence` prints, and the same
+ * DEPLOYMENT_EVIDENCE.md it writes, to download. Read only when asked, because reading
+ * it asks AWS what it says now and sends one GET to the app's own address. It changes
+ * nothing and creates nothing.
+ */
+function EvidenceCard({ deploymentId, latest }: { deploymentId: string; latest: boolean }) {
+  const { signedOut } = useSession();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [record, setRecord] = useState<Evidence | null>(null);
+
+  async function read() {
+    setBusy(true);
+    setError(null);
+    try {
+      setRecord(await api.evidence(deploymentId));
+    } catch (err) {
+      if (err instanceof SignedOut) return signedOut(err.message);
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function download() {
+    if (!record) return;
+    const url = URL.createObjectURL(new Blob([record.markdown], { type: "text/markdown" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "DEPLOYMENT_EVIDENCE.md";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  const summary = record ? evidenceSummary(record.evidence, { name: "seaLeye", command: "sealeye" }) : null;
+
+  return (
+    <Card className="mt-6 scroll-mt-6" id="evidence" data-testid="evidence">
+      <CardHeader>
+        <CardTitle>Evidence</CardTitle>
+        <span className="ml-auto font-mono text-xs text-dim">{deploymentId}{latest ? " (the latest)" : ""}</span>
+      </CardHeader>
+      <CardContent className="space-y-4 text-sm">
+        {!summary ? (
+          <>
+            <p className="text-dim">The change record for this deployment, as <code className="font-mono text-ink">sealeye evidence</code> writes it: who asked, the plan they approved, what was built, and what AWS says about it now. Reading it changes nothing.</p>
+            <Button onClick={read} disabled={busy}>{busy ? "Reading the record and asking AWS what it says now" : "Read the evidence"}</Button>
+          </>
+        ) : (
+          <>
+            <p className="font-medium">{summary.title}</p>
+            <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2">
+              {summary.rows.map((r: { label: string; text: string; alarm: boolean }) => (
+                <div key={r.label} className="contents" data-testid="evidence-row">
+                  <dt className="text-dim">{r.label}</dt>
+                  <dd className={r.alarm ? "text-amber" : undefined}>{r.text}</dd>
+                </div>
+              ))}
+            </dl>
+            <div className="flex flex-wrap gap-3">
+              <Button onClick={download}>Download DEPLOYMENT_EVIDENCE.md</Button>
+              <Button variant="ghost" onClick={read} disabled={busy}>{busy ? "Reading" : "Read it again"}</Button>
+            </div>
+            <details>
+              <summary className="cursor-pointer text-dim hover:text-ink">The whole record</summary>
+              <pre className="mt-3 max-h-[32rem] overflow-auto whitespace-pre-wrap rounded-md border border-rule bg-ground p-4 font-mono text-xs" data-testid="evidence-markdown">{record!.markdown}</pre>
+            </details>
+          </>
+        )}
+        {error ? <Problem message={error} /> : null}
+      </CardContent>
+    </Card>
   );
 }
 

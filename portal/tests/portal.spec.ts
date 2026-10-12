@@ -116,6 +116,85 @@ test("an environment can be torn down from the portal, and the record says so", 
   await expect(page.getByTestId("status")).toHaveText("Torn down", { timeout: 20_000 });
 });
 
+test("Evidence reads the change record on request, in the command's words, with the file to download", async ({ page }) => {
+  await signIn(page);
+  // A drafted plan: nothing was built, so the record is read without asking AWS.
+  await page.goto(`/environments/${encodeURIComponent("default:ledger-sync")}`);
+  const card = page.getByTestId("evidence");
+  await expect(card).toContainText("dep_ccccccccccc1 (the latest)");
+  await expect(card.getByTestId("evidence-row")).toHaveCount(0);
+  await card.getByRole("button", { name: "Read the evidence" }).click();
+  await expect(card).toContainText("Change record for ledger-sync (no stack, profile dev)");
+  const rows = card.getByTestId("evidence-row");
+  await expect(rows).toHaveCount(5);
+  await expect(rows.filter({ hasText: "Approved plan" })).toContainText("one need");
+  await expect(rows.filter({ hasText: "Built" })).toContainText("nothing.");
+  await expect(rows.filter({ hasText: "Checked now" })).toContainText("nothing to check");
+
+  const [download] = await Promise.all([page.waitForEvent("download"), card.getByRole("button", { name: "Download DEPLOYMENT_EVIDENCE.md" }).click()]);
+  expect(download.suggestedFilename()).toBe("DEPLOYMENT_EVIDENCE.md");
+  const fs = await import("node:fs");
+  const text = fs.readFileSync(await download.path(), "utf8");
+  expect(text).toContain("ledger-sync");
+  await card.getByText("The whole record").click();
+  await expect(card.getByTestId("evidence-markdown")).toContainText("ledger-sync");
+});
+
+test("Evidence can be read for an earlier deployment from the history", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("link", { name: "payments-api", exact: true }).click();
+  const card = page.getByTestId("evidence");
+  await expect(card).toContainText("dep_aaaaaaaaaaa1 (the latest)");
+  await page.getByRole("button", { name: "Evidence for dep_aaaaaaaaaaa0" }).click();
+  await expect(card).toContainText("dep_aaaaaaaaaaa0");
+  await expect(card).not.toContainText("(the latest)");
+});
+
+test("Validate says whether a plan is ready, drafted, or cannot be deployed, as sealeye validate does", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("link", { name: "Validate" }).click();
+  const box = page.getByLabel("Plan", { exact: true });
+  const result = page.getByTestId("validation");
+  const ready = [
+    "planVersion: \"0.4\"",
+    "app: { name: checkout-api, type: api }",
+    "profile: dev",
+    "modules:",
+    "  - id: http_api_serverless",
+    "    inputs: { runtime: nodejs, entry_point: index.js, trigger: http }",
+    "  - id: observability_basic",
+    "    inputs: { target: auto, retention_days: 30 }",
+    "outputs: [public_url, logs]"
+  ].join("\n");
+
+  await box.fill(ready);
+  await page.getByRole("button", { name: "Check it" }).click();
+  await expect(result).toContainText("checkout-api: valid and ready to deploy");
+
+  await box.fill(`${ready}\nneeds:\n  - kind: continuous_service\n    line: x\n    evidence:\n      - { file: worker.js, shows: reads a queue in a loop }`);
+  await page.getByRole("button", { name: "Check it" }).click();
+  await expect(result).toContainText("it is drafted");
+  await expect(result.getByTestId("validation-need")).toContainText("reads a queue in a loop (worker.js)");
+  await expect(result).not.toContainText("ready to deploy");
+
+  await box.fill("planVersion: \"0.4\"\napp: { name: x }\nmodules: []");
+  await page.getByRole("button", { name: "Check it" }).click();
+  await expect(result).toContainText("cannot be deployed as written");
+
+  await box.fill("app: [unclosed");
+  await page.getByRole("button", { name: "Check it" }).click();
+  await expect(result.getByRole("alert")).toContainText("not a plan the platform can read");
+});
+
+test("Health shows what sealeye doctor checks, for this browser", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("link", { name: "Health" }).click();
+  const checks = page.getByTestId("health-check");
+  await expect(checks.filter({ hasText: "answering" })).toContainText(/answering, version \d+\.\d+\.\d+/);
+  await expect(checks.filter({ hasText: "Signed in" })).toContainText("Greg Kliewer (greg@example.com), team default");
+  await expect(checks.filter({ hasText: "This page" })).toContainText("the same as the platform");
+});
+
 test("signing out ends the session: the pages ask for sign-in again", async ({ page }) => {
   await signIn(page);
   await page.getByRole("button", { name: "Sign out" }).click();

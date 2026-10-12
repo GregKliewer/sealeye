@@ -77,6 +77,23 @@ export interface AppSetting {
 }
 export interface AppSettings { app: string; team: string; settings: AppSetting[] }
 
+// GET /health: whether the platform answers, and the version it runs. No sign-in needed.
+export interface Health { ok: boolean; version: string }
+
+// POST /plans/validate (DESIGN.md, Oct 12): status and needs come only with a plan that
+// meets the contract.
+export interface ValidationError { code: string; message: string; path: string }
+export interface Validation {
+  valid: boolean;
+  errors: ValidationError[];
+  status?: "ready" | "drafted";
+  needs?: { kind: string; line: string; evidence: { file: string; shows: string }[] }[];
+}
+
+// GET /deployments/{id}/evidence: the change record, the same object and file
+// `sealeye evidence` reads. The object's shape is core/evidence-summary.js's business.
+export interface Evidence { evidence: object; markdown: string }
+
 const settingsPath = (app: string, team: string, name?: string) =>
   `/apps/${encodeURIComponent(app)}/settings${name ? `/${encodeURIComponent(name)}` : ""}?team=${encodeURIComponent(team)}`;
 
@@ -87,6 +104,9 @@ export const api = {
   deployments: () => request<{ deployments: DeploymentSummary[] }>("/deployments").then(r => r.deployments),
   deployment: (id: string) => request<DeploymentRecord>(`/deployments/${encodeURIComponent(id)}`),
   destroy: (id: string) => request<DeploymentRecord>(`/deployments/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  health: () => request<Health>("/health"),
+  validate: (plan: unknown) => request<Validation>("/plans/validate", { method: "POST", body: plan }),
+  evidence: (id: string) => request<Evidence>(`/deployments/${encodeURIComponent(id)}/evidence`),
   catalog: () => request<Catalog>("/catalog"),
   needs: () => request<NeedsLedger>("/needs"),
   settings: (app: string, team: string) => request<AppSettings>(settingsPath(app, team)),

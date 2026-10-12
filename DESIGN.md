@@ -1168,3 +1168,44 @@ removes both when the call ends. The value is still never on a command line. The
 in the tests and the portal's test API read only from a named file, so the old way fails
 there too.
 
+## Part C's three calls: the portal's interview, pause, integrations
+
+Decided Mon Oct 12, 2026 (PHASE2-PLAN D6 to D8, Greg chose each as recommended).
+
+- **D6. The portal's interview reads a folder chosen in the browser**, zipped there under
+  the same rules as the command's upload: `.gitignore` respected, no `node_modules` or
+  `.git`, secret files as names only. The rules live once, in a part of `core/` that runs
+  in a browser as well as in Node, so the two surfaces cannot send different things.
+  Connecting a repository waits: it needs sign-in (Q16) and an app on the organization's
+  source host, and a folder covers the pilot.
+- **D7. Pause is for APIs only, for now.** The function's reserved concurrency goes to
+  zero, so it stops taking requests and costs nothing while it waits; resume removes the
+  limit. Both read the state back from AWS (principle 4). A static site says plainly it
+  cannot be paused: hiding a public bucket needs more of the deploy role than a pause is
+  worth before anyone has asked for it.
+- **D8. Integrations moves to Phase 4.** It would only show connections to ServiceNow,
+  Jira and Teams, which are Phase 4 work; a page now would show nothing it can do, which
+  the portal does not do.
+
+## The portal shares words with the command through core/
+
+Decided Mon Oct 12, 2026, building PHASE2-PLAN Step 13 (Evidence, Validate, Health).
+
+- **One set of words.** The evidence summary (`core/evidence-summary.js`) and the plain
+  sentences for contract errors (`core/plan-words.js`, moved from `cli/interview/`) are
+  imported by the command and by the portal's pages, so the two surfaces cannot drift.
+  A core file the portal imports must run in a browser, with everything it imports:
+  `test/boundaries.test.js` checks it. Step 15's upload rules will use the same path.
+- **Validate says ready or drafted.** `POST /plans/validate` adds `status` and `needs`
+  (each in the catalog's words, with the plan's evidence) to a plan that meets the
+  contract, worked out from the needs and never from the status a plan claims. Before
+  this, `sealeye validate` said "Your plan is valid" of a plan with needs, which
+  principle 3 does not allow.
+- **Evidence is read when asked.** Reading it asks AWS what it says now and sends one GET
+  to the app's address, so Control shows a button rather than reading it on every visit.
+  The download is the same DEPLOYMENT_EVIDENCE.md the command writes.
+- **Health is the portal's `sealeye doctor`.** The page is called Health, as the parity
+  table has it, because the browser has nothing of a machine to check: it shows whether
+  the platform answers and its version, who is signed in and what they see, and whether
+  the page itself is the platform's version (a page left open across a release is not).
+

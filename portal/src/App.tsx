@@ -5,6 +5,8 @@ import { SignIn } from "./pages/SignIn";
 import { Environments } from "./pages/Environments";
 import { Control } from "./pages/Control";
 import { CatalogPage } from "./pages/Catalog";
+import { Validate } from "./pages/Validate";
+import { Health } from "./pages/Health";
 
 function SignedIn({ children }: { children: React.ReactNode }) {
   const { person, checked } = useSession();
@@ -21,7 +23,9 @@ export function App() {
         <Route element={<SignedIn><Layout /></SignedIn>}>
           <Route index element={<Environments />} />
           <Route path="environments/:key" element={<Control />} />
+          <Route path="validate" element={<Validate />} />
           <Route path="catalog" element={<CatalogPage />} />
+          <Route path="health" element={<Health />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
