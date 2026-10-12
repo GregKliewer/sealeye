@@ -843,6 +843,34 @@ give. But the API takes requests without asking who is calling, and each intervi
 spends model credit and each deploy builds in the pilot account. The pages ask not to be
 indexed (robots.txt and noindex) until Step 13 puts a token in front of the API.
 
+## seaLeye is published under AGPL-3.0, by OpMo Advisory Inc.
+
+Decided Mon Oct 12, 2026.
+
+seaLeye is made available to others as free software under the GNU Affero General Public
+License, version 3 only (`LICENSE`), with the copyright held by OpMo Advisory Inc.
+(`NOTICE`, `package.json`). The name, the marks and the three domains are not licensed:
+a fork must take its own name. Contributions come in under the Developer Certificate of
+Origin, licensed to OpMo so that the combined work can also be offered under other terms
+later (`CONTRIBUTING.md`).
+
+**Why AGPL and not Apache or a source-available license.** The aim is that anyone can
+use, read and change seaLeye, and that nobody can take it and run it as a closed hosted
+service: the AGPL's network clause requires a hosted derivative to publish its source.
+Apache would allow a closed fork; a source-available license would keep the code from
+being open source at all. The AGPL leaves the copyright holder free to offer other terms
+to an organization that cannot accept it, which is where any commercial path lies.
+
+**Why the publisher is named in the repository and the package.** The record of who made
+seaLeye and when now lives where anyone can check it: the git history, a tagged
+baseline release, the author and license fields, and this entry. seaLeye is a prior,
+independent work of its author, developed on its own time and equipment, and this
+record is what establishes that for any later agreement that asks.
+
+**What this does not change.** `private: true` stays on `package.json` until Q10
+decides how the command is published; the AGPL covers what the installer and the
+repository distribute either way. The pages stay unindexed until Step 15 passes.
+
 ## Every caller has a token, until sign-in
 
 Decided Sun Oct 11, 2026 (PHASE1-PLAN Step 13, D7; a stand-in until Q3).

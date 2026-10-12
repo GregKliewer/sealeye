@@ -17,7 +17,7 @@ const packed = () => {
 test("the installed package is the command, core, and the files they read", () => {
   const files = packed();
   for (const f of files) {
-    assert.match(f, /^(cli\/|core\/|prompts\/|templates\/|package\.json$|README\.md$)/, `${f} should not be in the package`);
+    assert.match(f, /^(cli\/|core\/|prompts\/|templates\/|package\.json$|README\.md$|LICENSE$|NOTICE$)/, `${f} should not be in the package`);
   }
   for (const needed of ["cli/bin/sealeye", "core/config.js", "prompts/banner.txt", "prompts/module-catalog.yaml",
     "prompts/plan-template.md", "prompts/refusal.md", "templates/http_api_serverless.yaml"]) {
