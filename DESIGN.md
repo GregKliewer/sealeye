@@ -1168,3 +1168,22 @@ removes both when the call ends. The value is still never on a command line. The
 in the tests and the portal's test API read only from a named file, so the old way fails
 there too.
 
+## Part C's three calls: the portal's interview, pause, integrations
+
+Decided Mon Oct 12, 2026 (PHASE2-PLAN D6 to D8, Greg chose each as recommended).
+
+- **D6. The portal's interview reads a folder chosen in the browser**, zipped there under
+  the same rules as the command's upload: `.gitignore` respected, no `node_modules` or
+  `.git`, secret files as names only. The rules live once, in a part of `core/` that runs
+  in a browser as well as in Node, so the two surfaces cannot send different things.
+  Connecting a repository waits: it needs sign-in (Q16) and an app on the organization's
+  source host, and a folder covers the pilot.
+- **D7. Pause is for APIs only, for now.** The function's reserved concurrency goes to
+  zero, so it stops taking requests and costs nothing while it waits; resume removes the
+  limit. Both read the state back from AWS (principle 4). A static site says plainly it
+  cannot be paused: hiding a public bucket needs more of the deploy role than a pause is
+  worth before anyone has asked for it.
+- **D8. Integrations moves to Phase 4.** It would only show connections to ServiceNow,
+  Jira and Teams, which are Phase 4 work; a page now would show nothing it can do, which
+  the portal does not do.
+

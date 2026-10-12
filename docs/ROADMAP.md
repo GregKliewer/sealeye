@@ -112,11 +112,12 @@ later, and the first and third lines stay open until he does.
 **Goal:** close the parity table below for everything that exists.
 
 - In the command: `config`, `logs`, `perf`, `costs`, `pause`/`resume`, `catalog`,
-  `team`, `integrations`.
+  `team`.
 - In the portal: New environment (the interview), re-run on an existing environment,
   Evidence, the needs ledger, Health.
 - Each starts as an API endpoint.
-- Planned as PHASE2-PLAN Part C. Its D8 proposes moving `integrations` to Phase 4.
+- Planned as PHASE2-PLAN Part C. Integrations moved to Phase 4 (D8, Oct 12), where the
+  tools it would connect to are.
 
 ### Phase 3: Learn the platform
 
@@ -142,6 +143,8 @@ later, and the first and third lines stay open until he does.
 - Approvals through the organization's change tool (ServiceNow first).
 - Gap tickets from the needs ledger into the platform team's queue (Jira first).
 - Notifications where people are (Teams and Slack).
+- `sealeye integrations` and its portal page: which of these are connected (moved from
+  Phase 2, PHASE2-PLAN D8).
 
 ### Phase 5: Delivery and breadth
 
@@ -173,7 +176,7 @@ and does nothing real. A blank is not started.
 | Performance | `sealeye perf` | | | mock-up | 2 |
 | Costs | `sealeye costs` | | | mock-up | 2 |
 | Team and access | `sealeye team` | | | mock-up | 2 |
-| Integrations | `sealeye integrations` | | | mock-up (report) | 2 |
+| Integrations | `sealeye integrations` | | | mock-up (report) | 4 |
 | Sign in | `sealeye login` | tokens; `POST /sessions`, `DELETE /sessions` for the portal; `GET /whoami` | built | built (token paste, then a session) | 1 |
 | Settings in the secret store | `sealeye settings`, `settings set`, `settings unset` | `GET /apps/{app}/settings`, `PUT` and `DELETE /apps/{app}/settings/{name}` | built | built (Settings, in Control) | 1 (item 10) |
 | Onboard and ingest | `sealeye admin ingest` | | | | 3 |
