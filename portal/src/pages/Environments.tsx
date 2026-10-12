@@ -49,7 +49,8 @@ export function Environments() {
 
   return (
     <>
-      <PageTitle title="Environments" sub={`Every environment seaLeye has built for ${whose(person)}, as the platform reports it now.`} />
+      <PageTitle title="Environments" sub={`Every environment seaLeye has built for ${whose(person)}, as the platform reports it now.`}
+        action={<Link to="/new" className="inline-flex h-9 items-center rounded-md bg-phosphor px-4 text-sm font-medium text-white hover:opacity-90">New environment</Link>} />
       {deployments.error ? <Problem message={deployments.error} /> : null}
 
       {stats ? (

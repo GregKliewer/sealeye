@@ -1,5 +1,8 @@
 // The portal against a real API with sample records (tests/test-api.mjs): sign-in,
 // every page showing live data, tear down from the portal, and sign out.
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 
 const TOKEN = `sl_${"t".repeat(43)}`;
@@ -248,6 +251,92 @@ test("a ready plan can be deployed from Validate with the code the platform has 
   await page.getByRole("link", { name: "Follow it in its environment" }).click();
   await expect(page.getByRole("heading", { name: "payments-api" })).toBeVisible();
   await expect(page.getByTestId("history-row").first()).toContainText("again, with dep_aaaaaaaaaaa1's code");
+});
+
+function appFolder(name: string, files: Record<string, string>): string {
+  const dir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-new-env-")), name);
+  for (const [rel, body] of Object.entries(files)) {
+    fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
+    fs.writeFileSync(path.join(dir, rel), body);
+  }
+  return dir;
+}
+
+const SECRET = "sk-live-only-in-the-dotenv";
+
+test("New environment holds the interview in the browser, stores what the plan needs, and deploys", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("link", { name: "New environment" }).click();
+  const dir = appFolder("orders-api", {
+    "package.json": JSON.stringify({ name: "orders-api", version: "1.0.0" }),
+    "index.js": "require('http').createServer((q, s) => s.end('ok')).listen(process.env.PORT)",
+    ".env": `GREETING=${SECRET}`,
+    "node_modules/left-out/index.js": "never read"
+  });
+  await page.getByLabel("Choose your app's folder").setInputFiles(dir);
+  await expect(page.getByTestId("choose-folder")).toContainText("Ready to read orders-api");
+  await page.getByRole("button", { name: "Read my app" }).click();
+
+  const lines = page.getByTestId("interview-lines");
+  await expect(page.getByTestId("interview")).toContainText("Sent as names only: .env");
+  await expect(lines).toContainText("Who calls this API?", { timeout: 20_000 });
+  await page.getByLabel("Your answer").fill("Our checkout service");
+  await page.getByRole("button", { name: "Answer" }).click();
+  await expect(lines).toContainText("Our checkout service");
+
+  const plan = page.getByTestId("plan");
+  await expect(plan).toContainText("Ready", { timeout: 20_000 });
+  await expect(plan).toContainText("http_api_serverless");
+  const [download] = await Promise.all([page.waitForEvent("download"), plan.getByRole("button", { name: "Download sealeye.yaml" }).click()]);
+  expect(fs.readFileSync(await download.path(), "utf8")).toContain("orders-api");
+  await plan.getByText("The full plan").click();
+  await expect(plan.getByTestId("plan-markdown")).toContainText("orders-api");
+
+  await plan.getByRole("button", { name: "Yes, deploy it" }).click();
+  const settings = page.getByTestId("store-settings");
+  await expect(settings).toContainText("GREETING");
+  await expect(settings.getByRole("button", { name: "Deploy it" })).toBeDisabled();
+  await settings.getByLabel("Value for GREETING").fill("hello-from-the-portal");
+  await settings.getByRole("button", { name: "Store it" }).click();
+  await expect(settings.getByRole("status")).toHaveText("Every setting is stored.");
+  await settings.getByRole("button", { name: "Deploy it" }).click();
+
+  await expect(page.getByRole("heading", { name: "orders-api" })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId("history-row").first()).toContainText("Portal");
+  expect(await page.content()).not.toContain(SECRET);
+});
+
+test("a drafted plan from New environment is saved, and says what it needs", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/new");
+  const dir = appFolder("ledger-worker", {
+    "package.json": JSON.stringify({ name: "ledger-worker" }),
+    "index.js": "require('./worker')",
+    "worker.js": "for (;;) { /* read the queue */ }"
+  });
+  await page.getByLabel("Choose your app's folder").setInputFiles(dir);
+  await page.getByRole("button", { name: "Read my app" }).click();
+  const plan = page.getByTestId("plan");
+  await expect(plan).toContainText("Drafted", { timeout: 20_000 });
+  await expect(plan.getByTestId("plan-need")).toContainText("reads a queue in a loop (worker.js)");
+  await plan.getByRole("button", { name: "Yes, deploy it" }).click();
+  const refusal = page.getByTestId("refusal");
+  await expect(refusal).toContainText("Nothing was built. Your plan is drafted and saved as dep_");
+  await expect(refusal).toContainText("Northwind Payments's Platform Library");
+});
+
+test("saying not now keeps the plan to download and deploys nothing", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/new");
+  const dir = appFolder("orders-api", { "package.json": JSON.stringify({ name: "orders-api" }), "index.js": "" });
+  await page.getByLabel("Choose your app's folder").setInputFiles(dir);
+  await page.getByRole("button", { name: "Read my app" }).click();
+  await page.getByLabel("Your answer").fill("Nobody yet", { timeout: 20_000 });
+  await page.getByRole("button", { name: "Answer" }).click();
+  const plan = page.getByTestId("plan");
+  await plan.getByRole("button", { name: "Not now" }).click({ timeout: 20_000 });
+  await expect(plan.getByRole("status")).toContainText("Nothing was deployed");
+  await expect(plan.getByRole("button", { name: "Download DEPLOYMENT_PLAN.md" })).toBeVisible();
 });
 
 test("signing out ends the session: the pages ask for sign-in again", async ({ page }) => {

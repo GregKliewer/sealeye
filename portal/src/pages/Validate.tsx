@@ -159,7 +159,7 @@ function DeployPlan({ app, plan, team }: { app: string; plan: unknown; team: str
     setError(null);
     try {
       const made = await api.deployAgain(source.deploymentId, plan);
-      setStarted({ id: made.deploymentId, key: made.stackName || made.deploymentId });
+      setStarted({ id: made.deploymentId, key: made.stackName || made.environment || made.deploymentId });
     } catch (err) {
       if (err instanceof SignedOut) return signedOut(err.message);
       setError((err as Error).message);
