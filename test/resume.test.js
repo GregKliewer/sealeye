@@ -52,6 +52,10 @@ esac
     { ...base, deploymentId: "dep_ffffffffffff", status: "running", stackName: "sealeye-f", stackStatus: "CREATE_IN_PROGRESS", importedAt: ago(1000) },
     { ...base, deploymentId: "dep_000000000aaa", status: "destroying", stackName: "sealeye-g", startedAt: ago(2 * 24 * 3600_000) },
     { ...base, deploymentId: "dep_000000000bbb", status: "destroying", stackName: "sealeye-b", startedAt: ago(3600_000) },
+    // A tear-down asked for a minute ago, of a deployment from days ago: still ours.
+    { ...base, deploymentId: "dep_000000000ccc", status: "destroying", stackName: "sealeye-h", startedAt: ago(3 * 24 * 3600_000), destroyRequestedBy: { surface: "cli", at: ago(60_000) } },
+    // A failed first create whose removal was under way: waited for again, then open.
+    { ...base, deploymentId: "dep_000000000ddd", status: "failed", stackName: "sealeye-x", cleaningUp: true, cleanupStartedAt: ago(60_000), failureReason: "it rolled back" },
     // A static site whose stack had finished, seen under way, while its files were syncing.
     { ...base, deploymentId: "dep_5a5a5a5a5a5a", kind: "static", plan: staticPlan, app: staticPlan.app, status: "running",
       stackName: "sealeye-s", stackStatus: "CREATE_COMPLETE", sawInProgress: true, source: "upload" }
@@ -73,7 +77,9 @@ esac
       try {
         for (const id of ["dep_aaaaaaaaaaaa", "dep_bbbbbbbbbbbb", "dep_cccccccccccc", "dep_dddddddddddd", "dep_eeeeeeeeeeee"]) records[id] = await status(id);
         for (const id of ["dep_ffffffffffff", "dep_000000000aaa", "dep_000000000bbb", "dep_5a5a5a5a5a5a"]) records[id] = await status(id);
-        if (["dep_bbbbbbbbbbbb", "dep_cccccccccccc", "dep_dddddddddddd", "dep_5a5a5a5a5a5a"].every(id => !["running", "destroying"].includes(records[id].status))) break;
+        for (const id of ["dep_000000000ccc", "dep_000000000ddd"]) records[id] = await status(id);
+        if (["dep_bbbbbbbbbbbb", "dep_cccccccccccc", "dep_dddddddddddd", "dep_5a5a5a5a5a5a", "dep_000000000ccc"].every(id => !["running", "destroying"].includes(records[id].status)) &&
+          !records.dep_000000000ddd.cleaningUp) break;
       } catch {}
       await new Promise(r => setTimeout(r, 100));
     }
@@ -88,6 +94,10 @@ esac
     assert.match(records.dep_cccccccccccc.failureReason, /cannot say it happened/);
 
     assert.equal(records.dep_dddddddddddd.status, "destroyed");
+    assert.equal(records.dep_000000000ccc.status, "destroyed", "a tear-down's age counts from when it was asked for");
+    assert.equal(records.dep_000000000ddd.cleaningUp, false);
+    assert.equal(records.dep_000000000ddd.status, "failed");
+    assert.equal(records.dep_000000000ddd.rolledBackStackRemoved, true);
 
     assert.equal(records.dep_eeeeeeeeeeee.status, "succeeded", "a finished deployment is left alone");
     for (const id of ["dep_aaaaaaaaaaaa", "dep_bbbbbbbbbbbb", "dep_cccccccccccc", "dep_dddddddddddd", "dep_eeeeeeeeeeee", "dep_5a5a5a5a5a5a"]) {

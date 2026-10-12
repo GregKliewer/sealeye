@@ -38,6 +38,41 @@ export function mapStackStatus(stackStatus) {
  * LangFuse keys, so it scores how a deployment ended against the interview that
  * produced it the moment it knows (core/tracing.js): a final status only, never a guess.
  */
+// How long to wait for a failed first create to be removed before saying it was not.
+const CLEANUP_MAX_MS = Number(process.env.SEALEYE_TEST_CLEANUP_MAX_MS) || 15 * 60 * 1000;
+
+/** Wait until a stack is gone: { ok: true }, or { ok: false, error } in words. */
+async function untilGone(stackName) {
+  const until = Date.now() + CLEANUP_MAX_MS;
+  let errors = 0;
+  while (Date.now() < until) {
+    await sleep(POLL_MS);
+    let described;
+    try {
+      described = await describe(stackName);
+    } catch (err) {
+      if (++errors >= MAX_POLL_ERRORS) return { ok: false, error: err.message };
+      continue;
+    }
+    if (described.status === null) return { ok: true };
+    if (described.status === "DELETE_FAILED") return { ok: false, error: described.statusReason || "the stack could not be deleted" };
+  }
+  return { ok: false, error: "the failed stack was still being removed when the platform stopped waiting" };
+}
+
+/**
+ * After a restart, go on waiting for a failed first create's removal, so the
+ * environment opens again when it is gone rather than when the half hour is up.
+ */
+export async function finishCleanup(record) {
+  const gone = await untilGone(record.stackName);
+  record.rolledBackStackRemoved = gone.ok;
+  if (!gone.ok) record.cleanupError = gone.error;
+  record.cleaningUp = false;
+  record.step = null;
+  return putDeployment(record);
+}
+
 export function settersFor(record) {
   const set = (status, patch = {}) => {
     Object.assign(record, { status, ...patch });
@@ -301,12 +336,23 @@ export async function followStack(record, { plan, appPath, stackName, child, set
       // UPDATE_ROLLBACK_COMPLETE is deliberately not touched: that stack is the
       // developer's previous environment, still up and still serving.
       if (described.status === "ROLLBACK_COMPLETE") {
+        // The deploy has failed, and says so from now. Removing what it left takes a
+        // while, and the environment takes no other change until it is gone
+        // (api/busy.js counts cleaningUp): a deploy started meanwhile would meet the
+        // stack half-deleted and fail for a reason that is not the real one.
+        Object.assign(record, { failureReason: reason, cleaningUp: true, cleanupStartedAt: now() });
         set("failed", { step: `Removing the failed stack ${composed.stackName} so you can deploy again` });
         const removed = await deleteStack(composed.stackName);
-        record.rolledBackStackRemoved = removed.ok;
         if (!removed.ok) {
           record.cleanupError = removed.stderr.trim() || `delete-stack exited ${removed.code}`;
+          record.rolledBackStackRemoved = false;
+        } else {
+          const gone = await untilGone(composed.stackName);
+          record.rolledBackStackRemoved = gone.ok;
+          if (!gone.ok) record.cleanupError = gone.error;
         }
+        Object.assign(record, { cleaningUp: false, finishedAt: now(), step: null });
+        return putDeployment(record);
       }
 
       return fail(reason);

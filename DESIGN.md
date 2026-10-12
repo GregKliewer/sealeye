@@ -1601,7 +1601,7 @@ Mon Oct 12, 2026. An independent review before the pull request found these, all
 Left as they were, and owed: after a first create rolls back, the executor's delete of
 that stack is not waited for, so a redeploy at once can meet it still deleting; and a
 tear-down interrupted by a restart is judged stale by its deploy's age, not the
-tear-down's (executor/resume.js).
+tear-down's (executor/resume.js). Both settled below.
 
 ## The architecture is written down, as diagrams in text
 
@@ -1625,3 +1625,20 @@ code next.
 - **A diagram is code.** A change that makes one wrong fixes it in the same commit, as a
   roadmap row is. Nothing in these documents names an account, a bucket or any other
   value of one installation, since the repo is public.
+
+## A failed first create is cleared before anything else
+
+Mon Oct 12, 2026 (owed from the polish review). When a first create fails and rolls
+back, the platform deletes the dead stack so the next deploy starts clean. It used to
+ask for the delete and move on, so a redeploy at once met the stack half-deleted and
+failed for a reason that was not the real one. Now the record says failed at once, with
+its real reason, and carries `cleaningUp` until the stack is gone; `api/busy.js` counts
+that as a change under way ("being cleared after a build that failed"), the portal shows
+it as one, and `sealeye list --deployments` says "failed (removing what it left)". The
+wait gives up after fifteen minutes and says so on the record; the lock stops counting
+after half an hour whatever happens; after a restart the platform waits again.
+
+A tear-down interrupted by a restart is now judged by when it was asked for, not when
+its deployment started, so tearing down a deploy from last week is finished after a
+restart like any other. "A newer deployment has used the stack" likewise means one that
+started after the tear-down was asked for.

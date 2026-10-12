@@ -58,7 +58,7 @@ export function Control() {
   // Keyed on the data, not the render: the elapsed clock re-renders every second, and a
   // timer restarted on each render would never fire.
   // A failed read re-arms it too, so the page recovers when the API is back.
-  const inFlight = Boolean(env?.deploys.some(d => IN_FLIGHT.has(d.status) && !d.interrupted));
+  const inFlight = Boolean(env?.deploys.some(d => (IN_FLIGHT.has(d.status) && !d.interrupted) || underWay(d)));
   const { reload } = deployments;
   useEffect(() => {
     if (!inFlight) return;

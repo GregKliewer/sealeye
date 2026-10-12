@@ -60,6 +60,9 @@ export interface DeploymentSummary {
   packagedBy?: string | null;
   // What the platform is doing for it now, in a line, while it is under way.
   step?: string | null;
+  // A failed first create whose remains are being removed (DESIGN.md).
+  cleaningUp?: boolean;
+  cleanupStartedAt?: string | null;
   // A successful deploy a newer one has since replaced; replacedBy names it when this
   // reader can see it.
   replaced?: boolean;
