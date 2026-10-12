@@ -96,6 +96,8 @@ export function Control() {
         </Card>
       </div>
 
+      {latest.kind !== "static" ? <Settings app={env.app} team={latest.teamId || "default"} /> : null}
+
       <Card className="mt-6">
         <CardHeader><CardTitle>What has been done to this app</CardTitle></CardHeader>
         <Table>
@@ -121,6 +123,92 @@ export function Control() {
         </Table>
       </Card>
     </>
+  );
+}
+
+/**
+ * The app's settings, as `sealeye settings` shows them (PHASE2-PLAN Step 8): which the
+ * plan asks for, whether each is stored, and who changed it. A value can be put in, and
+ * is never shown again: the field is cleared the moment it is sent.
+ */
+function Settings({ app, team }: { app: string; team: string }) {
+  const settings = useLoad(() => api.settings(app, team), [app, team]);
+  const [name, setName] = useState("");
+  const [value, setValue] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+  const { signedOut } = useSession();
+
+  async function act(run: () => Promise<unknown>, said: string) {
+    setBusy(true);
+    setError(null);
+    setDone(null);
+    try {
+      await run();
+      setDone(said);
+      settings.reload();
+    } catch (err) {
+      if (err instanceof SignedOut) return signedOut(err.message);
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function save(e: React.FormEvent) {
+    e.preventDefault();
+    const n = name.trim();
+    const v = value;
+    setValue("");
+    if (!n || !v) return setError("Give the setting a name and a value.");
+    act(() => api.setSetting(app, team, n, v), `${n} is stored. The environment reads it the next time it is deployed.`);
+  }
+
+  const missing = (settings.data?.settings || []).filter(x => x.wanted && !x.set).map(x => x.name);
+
+  return (
+    <Card className="mt-6" data-testid="settings">
+      <CardHeader><CardTitle>Settings</CardTitle></CardHeader>
+      <CardContent className="space-y-4 text-sm">
+        <p className="text-dim">Kept in your organization's store, encrypted. A value is never shown again, here or anywhere.</p>
+        {settings.error ? <Problem message={settings.error} /> : null}
+        {settings.data && settings.data.settings.length === 0 ? <p className="text-dim">No settings are stored, and the latest plan asks for none.</p> : null}
+        {settings.data && settings.data.settings.length > 0 ? (
+          <Table>
+            <TableHeader>
+              <TableRow><TableHead>Name</TableHead><TableHead>Status</TableHead><TableHead>Changed</TableHead><TableHead /></TableRow>
+            </TableHeader>
+            <TableBody>
+              {settings.data.settings.map(x => (
+                <TableRow key={x.name} data-testid="setting-row">
+                  <TableCell className="font-mono text-xs">{x.name}{x.wanted ? null : <span className="ml-2 text-dim">not in the latest plan</span>}</TableCell>
+                  <TableCell><Badge tone={x.set ? "phosphor" : "amber"}>{x.set ? "Set" : "Not set"}</Badge></TableCell>
+                  <TableCell className="text-xs text-dim">{x.changedAt ? `${ago(x.changedAt)}${x.changedBy?.name ? ` by ${x.changedBy.name}` : ""}` : "Never"}</TableCell>
+                  <TableCell className="text-right">
+                    {x.set ? <Button variant="ghost" size="sm" disabled={busy} onClick={() => act(() => api.removeSetting(app, team, x.name), `${x.name} is no longer stored.`)}>Remove</Button> : null}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        ) : null}
+        <form onSubmit={save} className="flex flex-wrap items-end gap-3">
+          <label className="grid gap-1">
+            <span className="text-dim">Name</span>
+            <Input className="font-mono w-56" list="wanted-settings" value={name} onChange={e => setName(e.target.value)} aria-label="Setting name" autoComplete="off" />
+            <datalist id="wanted-settings">{missing.map(n => <option key={n} value={n} />)}</datalist>
+          </label>
+          <label className="grid gap-1">
+            <span className="text-dim">Value</span>
+            <Input className="font-mono w-72" type="password" value={value} onChange={e => setValue(e.target.value)} aria-label="Setting value" autoComplete="off" data-1p-ignore="" data-lpignore="true" data-bwignore="true" />
+          </label>
+          <Button type="submit" disabled={busy}>{busy ? "Storing" : "Store it"}</Button>
+        </form>
+        {done ? <p role="status" className="text-phosphor">{done}</p> : null}
+        {error ? <Problem message={error} /> : null}
+      </CardContent>
+    </Card>
   );
 }
 

@@ -24,6 +24,7 @@ Two surfaces, one product: **seaLeye.run** is the `sealeye` command, and
 ```
 cli/        the sealeye command: bin/sealeye, client.js (talks to the API), interview/
             (follow.js streams the interview; render.js, explain.js), doctor.js,
+            store-offer.js (moving .env values into the store),
             brand.js (the only place terminal colours live)
 api/        the API: server.js, store.js, db.js, migrations/, needs.js, mappings.js, validate.js, interview/
             (the LangGraph graph, the model, the tools, the service), executor/
@@ -33,7 +34,8 @@ core/       what cli/ and api/ must agree on: schema.js (the plan contract), cat
             secrets), upload.js (what travels to the API), tracing.js, token.js
             (what a token looks like; api/tokens.js issues and checks them)
 prompts/    system prompt, plan contract, plan, report and evidence templates, catalog
-templates/  one CloudFormation template per buildable module, plus run.sh
+templates/  one CloudFormation template per buildable module, plus run.sh and
+            sealeye-settings.mjs (the settings reader run.sh loads first)
 deploy/     the pilot server: Dockerfile's start script, its CloudFormation (server,
             deploy role), compose, Caddy, and the release scripts. deploy/README.md
 portal/     seaLeye.online: React, TypeScript, Vite, Tailwind, shadcn-style components in
@@ -99,7 +101,7 @@ needs something the API has, it belongs in `core/` or behind an endpoint.
   ones made before this keep `sealeye-<app>`. seaLeye's own infrastructure is
   `platform-sealeye-*`, which the deploy role cannot touch. Artifacts are
   `<name>/<deploymentId>.zip`.
-- Settings are `SEALEYE_<NAME>` (ACCOUNT, BUCKET, LWA_VERSION, REGION, MODEL, DEBUG,
+- Settings are `SEALEYE_<NAME>` (ACCOUNT, BUCKET, LWA_VERSION, FUNCTION_BOUNDARY_ARN, REGION, MODEL, DEBUG,
   HOME, TRACING, MODEL_URL, API, TOKEN, AUTH), read through `setting()` in
   `core/config.js`. SEALEYE_TOKEN is a secret: it lives in `~/.sealeye/config` (0600),
   is never printed, logged or put on a record.
@@ -125,7 +127,9 @@ POST /plans/validate, POST /deployments ({ plan, appPath, zip?, settings? }), GE
 GET /deployments/{id}, GET /deployments/{id}/evidence, DELETE /deployments/{id},
 GET /needs, GET /health, POST /interviews ({ app, zip }), POST
 /interviews/{id}/answers ({ answer }), GET /interviews/{id}/events (server-sent events),
-DELETE /interviews/{id}, GET /whoami, GET /catalog, POST /sessions ({ token }) and
+DELETE /interviews/{id}, GET /whoami, GET /catalog, GET /apps/{app}/settings, PUT
+/apps/{app}/settings/{name} ({ value }) and DELETE /apps/{app}/settings/{name} (an app's
+settings in the store: names out, values in, never back), POST /sessions ({ token }) and
 DELETE /sessions (the portal's sign-in and sign-out). Every endpoint but GET /health
 and the two /sessions needs `Authorization: Bearer <token>` (`api/tokens.js`) or the
 portal's session cookie; a change made with the cookie must also carry
@@ -213,14 +217,18 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   records and interviews in Postgres, or locally with a JSON file and interviews in
   memory (no `DATABASE_URL`). No sign-in yet: each person has a token, issued with
   `deploy/server.sh token add` and kept by `sealeye login`, a stand-in until Q3 (ROADMAP
-  Phase 1 item 3, Q15). Every token is org "default" until there is a second
+  Phase 1 item 3, Q16). Every token is org "default" until there is a second
   organization. A token is for one team, or issued `--org-wide` to see every team's.
   The store reads from memory, written through to Postgres: one API process only.
-- Setting values travel with each deploy request, from the developer's `.env`, and are
-  never kept. Moving them to the organization's secret store is owed (ROADMAP Phase 1
-  item 10); `settingValues` in `api/executor/settings.js` is the one place that decides
-  where they come from, and a record keeps each setting's name and source, never its
-  value.
+- An app's settings live in the organization's store (Parameter Store,
+  `/sealeye-apps/<team>/<app>/`), put in with `sealeye settings set` or the portal's
+  Settings card, and read by the app when it starts (`templates/sealeye-settings.mjs`,
+  which signs its own request; no SDK). Every function role carries the platform's
+  permissions boundary (`SEALEYE_FUNCTION_BOUNDARY_ARN`). Settings not in the store still
+  travel with each deploy from the developer's `.env`, and are never kept.
+  `settingValues` in `api/executor/settings.js` is the one place that decides where each
+  comes from (store, sent, .env, plan), and a record keeps each setting's name and
+  source, never its value.
 - seaLeye.online (`portal/`) has Environments, Control (state, history, tear down) and
   Catalog (modules and the needs ledger). Pause, Configure, Logs, Performance, Costs and
   Team are drawn in the archived mock-up only; the portal shows nothing it cannot do.

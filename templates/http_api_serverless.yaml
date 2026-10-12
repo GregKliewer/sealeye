@@ -13,10 +13,23 @@ Parameters:
     Default: 30
   AdapterLayerVersion:
     Type: Number
+  # The most any function seaLeye builds may do, whatever its role says: write its logs
+  # and read app settings (deploy/deploy-role.yaml, FunctionBoundary). The deploy role can
+  # make a function role only with this boundary on it.
+  FunctionBoundaryArn:
+    Type: String
+  # The app's folder in the organization's store, /sealeye-apps/<team>/<app>, when it has
+  # settings there; empty when it has none (PHASE2-PLAN Step 10).
+  SettingsFolder:
+    Type: String
+    Default: ""
+    AllowedPattern: "^(/sealeye-apps/[a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9-]*)?$"
   # One parameter per setting the plan asks for is written in below, each NoEcho, so the
   # values never reach this file on disk, the stack events or the console. The template
   # deploys unchanged when the plan asks for none.
   # sealeye:config-parameters
+Conditions:
+  HasSettings: !Not [!Equals [!Ref SettingsFolder, ""]]
 Resources:
   LogGroup:
     Type: AWS::Logs::LogGroup
@@ -33,8 +46,22 @@ Resources:
             Principal:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
+      PermissionsBoundary: !Ref FunctionBoundaryArn
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      # Its own folder of settings, and no other app's.
+      Policies: !If
+        - HasSettings
+        - - PolicyName: own-settings
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action: ssm:GetParametersByPath
+                  Resource:
+                    - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${SettingsFolder}"
+                    - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${SettingsFolder}/*"
+        - !Ref AWS::NoValue
   Function:
     Type: AWS::Lambda::Function
     DependsOn: LogGroup
@@ -56,6 +83,9 @@ Resources:
         Variables:
           AWS_LAMBDA_EXEC_WRAPPER: /opt/bootstrap
           PORT: "8080"
+          # Where the settings reader in run.sh finds the app's settings; absent when
+          # the app has none in the store.
+          SEALEYE_SETTINGS_PATH: !If [HasSettings, !Sub "${SettingsFolder}/", !Ref AWS::NoValue]
           # Each setting the plan asks for is written in below, pointing at its own
           # parameter. PORT is the platform's and is never one of them.
           # sealeye:config-variables

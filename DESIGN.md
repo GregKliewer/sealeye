@@ -562,7 +562,9 @@ local API.
 ## Setting values travel with the deploy, for now
 
 Decided Sat Oct 10, 2026, by Greg. This answers OPEN-QUESTIONS Q15. **The retrofit to
-the organization's secret store is owed: ROADMAP, Phase 1 work item 10.**
+the organization's secret store was built on Oct 12 (PHASE2-PLAN Part B; "Settings live in
+the organization's store"). Sending values from `.env` remains for apps that have not
+moved over, a laptop API, and the sample apps.**
 
 When the API deploys an app with config_basic, it needs each setting's value (a Stripe
 key, say). It used to read them from the `.env` in the app folder, which only works
@@ -956,7 +958,7 @@ from an app's code, is that app's team's, as is its deployment id: another team 
 app, its team and its needs without them, and an organization-wide token sees all of it
 (decided by Greg the same day, after the independent review raised it).
 
-Why a scope on the token rather than real roles: roles belong to sign-in (Q15, Cognito
+Why a scope on the token rather than real roles: roles belong to sign-in (Q16, Cognito
 groups). A token is either team-scoped or organization-wide when it is issued, which is
 enough for a pilot run by one administrator. The checks read `req.caller.scope`, which a
 Cognito group can fill later without the checks changing.
@@ -1040,3 +1042,115 @@ that meant nothing. Now, when the API is not on this machine (`isLocalApi` in
 and whether a Mac can show a notice when a deploy finishes (advice, never a failure).
 When the API does not answer, the fix it offers is to tell the platform team, not to
 start it. With an API on this machine, every check runs as before.
+
+## Settings live in the organization's store
+
+Decided Sun Oct 11, 2026 (PHASE2-PLAN D3 to D5, Greg chose each as recommended), with
+three more of his calls on Mon Oct 12: a lighter reader, a permissions boundary, and no
+plan-contract change. Built Oct 11 and 12 (PHASE2-PLAN Part B). It replaces "Setting
+values travel with the deploy, for now" for every app that moves over.
+
+**Where (D3).** Parameter Store, encrypted with the account's default key, in the
+account and region the app runs in, at `/sealeye-apps/<team>/<app>/<NAME>`. Standard
+entries cost nothing and stay in ca-central-1, and a folder per app is what lets each
+function read its own and no other. Secrets Manager was not chosen: about $0.40 a value
+a month, for rotation these values do not need yet. A bank's own Vault or Secrets
+Manager would be another source in `settingValues`, not a rewrite. The folder is the
+team's and the app's, not the organization's: each organization will run in its own
+account (ROADMAP Phase 1 item 5), as with environment names. Never `/sealeye/`, which
+holds the platform's own keys.
+
+**Putting values in (Step 8, built Oct 11).** `PUT /apps/{app}/settings/{name}`,
+`sealeye settings set NAME` and the Settings card on the portal's Control page. The name
+was settled before building: `sealeye settings` rather than the plan's `sealeye secrets`,
+because seaLeye calls these settings everywhere else and not every one is a secret.
+Guarantees, each tested:
+
+- A value travels once, inward. The command reads it hidden or from a pipe, never as an
+  argument; the API hands it to the AWS CLI on standard input, never on a command line;
+  listing asks the store for names and dates only. No answer, log, record or the change
+  log ever holds one.
+- A refused write is reported by the error's name alone (`AccessDeniedException`),
+  because AWS's validation messages quote the value they refused. For the same reason the
+  API answers any body it cannot read without quoting it, and logs only the error's name
+  on the settings routes.
+- Who changed which setting, when and from which surface is kept (`setting_changes`):
+  names, never values.
+- Not yet true of a setting that is *not* in the store: a value sent from `.env` reaches
+  `aws cloudformation deploy` as a `--parameter-overrides` argument, where another
+  process on the server could read it while the deploy runs. It was so before Part B;
+  storing the setting is the way out, and passing parameters another way is owed
+  (PHASE2-PLAN, "Owed after this plan").
+- A team reaches only its own folder; an organization-wide token may name a team.
+
+**Reading at start (D4).** *As first decided; the reader now signs its own request and
+loads no SDK (below).* A `node --import` preload in the packaged app reads the folder
+in one call with the AWS SDK that Lambda's Node runtime already carries, sets the values
+as environment variables, then the app starts. No layer to track, no shell quoting of
+values. CloudFormation's own lookups were ruled out: an encrypted one cannot feed a
+function's environment, and a Secrets Manager one leaves the value in the function's
+configuration.
+
+Checked on a real function on Mon Oct 12, 2026 (PHASE2-PLAN Step 7,
+`deploy/spikes/settings-read/`), nodejs20.x (Node 20.20.2), x86, 512 MB:
+
+- The preload loads Lambda's own SDK through `createRequire` and reads the folder.
+- Encrypted values decrypt with only `ssm:GetParametersByPath` on the folder, and no KMS
+  permission, because they use the account's default Parameter Store key.
+- The role kept the function out of another app's folder and out of `/sealeye/`
+  (`AccessDeniedException` for both).
+- Reading took 880 to 980 ms, including loading the SDK. The kit started a fresh Node
+  process on every run, so both runs paid it; in a real app the preload runs once per
+  process, so the cost falls on a cold start only.
+
+**The reader signs its own request (Greg, Oct 12).** About a second on every cold start
+was too much to accept for a convenience, so the reader (`templates/sealeye-settings.mjs`,
+packaged as `.sealeye/settings.mjs` and run by `run.sh` with `node --import`) does not
+load the SDK. It signs its one `GetParametersByPath` request with Signature Version 4
+using `node:crypto`, from the credentials Lambda puts in the function's environment; its
+signatures were checked against AWS's own signer, with and without a session token, and
+the test keeps those vectors. It skips a stored name the platform or the runtime owns
+(`RESERVED_NAME` in `core/settings.js`, which the API also refuses), tries once more after
+a dropped connection or throttling, and if it cannot read the settings the app does not
+start: one line on stderr names the error, never a value. An app started without its
+settings would look healthy and behave wrongly.
+
+**Every function role carries a permissions boundary (Greg, Oct 12).** Reading its own
+folder needs a policy written onto the function's role, and IAM cannot limit what a
+written policy says. So `deploy/deploy-role.yaml` creates `sealeye-function-boundary-*`
+(write logs, read under `/sealeye-apps/`), and the deploy role may create a function role,
+or change its policies, only with that boundary on it; removing a boundary is denied.
+Whatever a template or a compromised API writes, a function can do no more than log and
+read app settings, and its own role narrows that to its folder. A compromised API could
+still point a function at another team's folder, within the boundary; it can read every
+folder itself anyway. Removing a policy, or a role, needs no boundary, since taking
+permissions away gives none, so a function role made before this can still be torn
+down; no API environment from before was live when it shipped. The boundary also allows
+`kms:Decrypt` through Parameter Store only, which a function's own role does not grant,
+so it never stands between a function and its settings.
+
+**No organization in the folder.** `/sealeye-apps/<team>/<app>/` holds no organization,
+because each organization runs in its own account (ROADMAP Phase 1 item 5). Two
+organizations in one account would share folders; that must not happen before item 5.
+The reserved names cover what the platform and the runtime set; others such as `PATH`
+or `TZ` are the app's own to set, and change only the app's environment.
+
+**The plan does not say where values live (Greg, Oct 12).** PHASE2-PLAN Step 9 would have
+added a source to each setting in the plan contract. Where values come from is a fact
+about the platform, not a choice for the developer or the model, so the contract, the
+prompt and the interview are unchanged: the platform asks the store at deploy time.
+
+**At deploy.** The executor asks the store which settings an API app has (its team's
+folder). Those have the source `store`: no value is passed to the template, and the
+function gets `SEALEYE_SETTINGS_PATH` and leave to read that folder alone. Every other
+setting is passed as before. A store that cannot be asked stops the deploy.
+
+**Apps already deployed with sent values (D5).** Nothing moves by itself. The next
+`sealeye run` of such an app offers once to store what its `.env` holds, naming the
+settings and never showing a value (`cli/store-offer.js`); a no is remembered on that
+machine. The command tells the API which names it left out because the store had them,
+and the deploy stops if the store does not: a safety net against the two disagreeing,
+not a security control, since an older client sends no such list. Values already in the store are not sent with a deploy, and `sealeye run` says
+in one line that they come from the store, so editing `.env` is not mistaken for changing
+the deployed app. `deploy/server.sh settings-sources` lists the live environments still
+on `.env` values, by name.

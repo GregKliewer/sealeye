@@ -10,6 +10,7 @@
 #   deploy/server.sh token revoke <email | tok_...>      it stops working at once
 #   deploy/server.sh token list          every token issued, without the tokens
 #   deploy/server.sh logs                the API's last 100 lines
+#   deploy/server.sh settings-sources    live environments still taking settings from a developer's .env
 set -euo pipefail
 
 REGION="${AWS_REGION:-ca-central-1}"
@@ -106,6 +107,8 @@ case "${1:-}" in
   restart)
     run_on_server "seaLeye restart" \
       "set -euo pipefail; cd /opt/sealeye; docker compose restart api >/dev/null; for i in \$(seq 1 30); do sleep 2; [ \"\$(docker compose ps --format '{{.Health}}' api)\" = healthy ] && { echo 'The API restarted and is answering.'; exit 0; }; done; echo 'The API restarted but is not answering yet; see deploy/server.sh logs.'; exit 1" ;;
+  settings-sources)
+    run_on_server "seaLeye settings sources" "cd /opt/sealeye && docker compose exec -T api node deploy/with-settings.mjs scripts/settings-sources.js" ;;
   logs)
     run_on_server "seaLeye logs" "cd /opt/sealeye && docker compose logs --tail 100 api" ;;
   *)

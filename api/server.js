@@ -9,7 +9,11 @@ import { backendMappings } from "./mappings.js";
 import { putDeployment, getDeployment, listDeployments, storeFile, count, openStore, flushStore } from "./store.js";
 import { startDeployment, startDestroy } from "./executor/index.js";
 import { sharedWithAnotherTeam } from "./executor/compose.js";
-import { acceptSent } from "./executor/settings.js";
+import { acceptSent, MAX_STORED_BYTES, storableName, storeFolder } from "./executor/settings.js";
+import { deleteStoredSetting, listStoredSettings, putStoredSetting } from "./executor/cfn.js";
+import { lastChanges, recordSettingChange } from "./setting-changes.js";
+import { safeName } from "../core/names.js";
+import { settingNamesFor } from "../core/settings.js";
 import { removeUpload, stageUpload, sweepUploads } from "./executor/uploads.js";
 import { resumeInFlight } from "./executor/resume.js";
 import { unsupportedNeeds } from "../core/catalog.js";
@@ -372,6 +376,11 @@ app.post("/deployments", (req, res) => {
   // deploy, for now"): only for settings this plan asks for, handed to this deployment
   // and never put on the record, in a response or in a log.
   const sent = acceptSent(plan, req.body?.settings);
+  // Names the command did not send because it found them in the store: the executor
+  // stops if the store does not have them, rather than build the app without them.
+  record.expectStored = Array.isArray(req.body?.expectStored)
+    ? req.body.expectStored.filter(n => storableName(n)).slice(0, 200)
+    : [];
 
   startDeployment(record, plan, packageFrom, sent)
     .catch(err => {
@@ -651,6 +660,105 @@ for (const signal of ["SIGTERM", "SIGINT"]) {
     setTimeout(() => process.exit(0), 5000).unref();
   });
 }
+
+// An app's settings in the organization's store (PHASE2-PLAN Step 8, D3). A team's app
+// keeps them in its own folder, /sealeye-apps/<team>/<app>/, so a team reaches only its
+// own; an organization-wide token may name another team with ?team=. Values go in and
+// never come out: every answer is names, whether each is set, and who changed it when.
+const TEAM_ID = /^[a-z0-9][a-z0-9-]{0,39}$/;
+function settingsScope(req) {
+  const app = safeName(req.params.app);
+  const asked = typeof req.query.team === "string" && req.query.team ? req.query.team : null;
+  if (!app || app.length > 100 || (asked && !TEAM_ID.test(asked))) return null;
+  const org = req.caller ? req.caller.org : "default";
+  if (!req.caller) return { org, team: asked || "default", app };
+  if (!asked || asked === req.caller.team) return { org, team: req.caller.team, app };
+  return req.caller.scope === "org" ? { org, team: asked, app } : null;
+}
+const noSuchApp = res => res.status(404).json({ error: { code: "NOT_FOUND", message: "No app of that name that you can see." } });
+
+// GET /apps/{app}/settings: the settings its latest plan asks for and the ones stored,
+// each with whether it is set and who last changed it.
+app.get("/apps/:app/settings", async (req, res) => {
+  const scope = settingsScope(req);
+  if (!scope) return noSuchApp(res);
+  const folder = storeFolder(scope);
+  const stored = await listStoredSettings(folder);
+  if (!stored.ok) {
+    return res.status(502).json({ error: { code: "STORE_UNAVAILABLE", message: `The settings store did not answer: ${stored.error}` } });
+  }
+  const latest = listDeployments().find(dep =>
+    orgOf(dep) === scope.org && teamOf(dep) === scope.team && safeName(dep.app?.name) === scope.app && dep.plan);
+  const wanted = latest ? settingNamesFor(latest.plan) : [];
+  const changes = await lastChanges(scope);
+  const storedNames = new Map(stored.settings.map(x => [x.name, x]));
+  const names = [...new Set([...wanted, ...storedNames.keys()])].sort();
+  const settings = names.map(name => {
+    const change = changes.get(name);
+    return {
+      name,
+      wanted: wanted.includes(name),
+      set: storedNames.has(name),
+      changedAt: storedNames.get(name)?.changedAt || change?.at || null,
+      changedBy: change ? { name: change.byName, email: change.byEmail, surface: change.surface, action: change.action } : null
+    };
+  });
+  return res.status(200).json({ app: scope.app, team: scope.team, settings });
+});
+
+// PUT /apps/{app}/settings/{name} { value }: store one, encrypted, replacing any before.
+app.put("/apps/:app/settings/:name", async (req, res) => {
+  const scope = settingsScope(req);
+  if (!scope) return noSuchApp(res);
+  const name = req.params.name;
+  if (!storableName(name)) {
+    return res.status(400).json({ error: { code: "INVALID_NAME", message: "A setting's name is letters, digits and underscores, not starting with a digit, and not one the platform or the runtime owns (PORT, NODE_OPTIONS, or starting with AWS_, LAMBDA_, SEALEYE_ or an underscore)." } });
+  }
+  const value = req.body?.value;
+  if (typeof value !== "string" || !value.length || Buffer.byteLength(value, "utf8") > MAX_STORED_BYTES) {
+    return res.status(400).json({ error: { code: "INVALID_VALUE", message: `A setting's value is text, from 1 byte to ${MAX_STORED_BYTES / 1024} KB.` } });
+  }
+  const put = await putStoredSetting(`${storeFolder(scope)}${name}`, value);
+  if (!put.ok) {
+    return res.status(502).json({ error: { code: "STORE_REFUSED", message: `The settings store did not keep it: ${put.error}` } });
+  }
+  await recordSettingChange({ ...scope, name, action: "set", caller: req.caller, surface: req.surface });
+  return res.status(200).json({ app: scope.app, team: scope.team, name, set: true });
+});
+
+// DELETE /apps/{app}/settings/{name}: remove one.
+app.delete("/apps/:app/settings/:name", async (req, res) => {
+  const scope = settingsScope(req);
+  if (!scope) return noSuchApp(res);
+  const name = req.params.name;
+  if (!storableName(name)) {
+    return res.status(400).json({ error: { code: "INVALID_NAME", message: "That is not a setting's name." } });
+  }
+  const removed = await deleteStoredSetting(`${storeFolder(scope)}${name}`);
+  if (!removed.ok) {
+    return res.status(502).json({ error: { code: "STORE_REFUSED", message: `The settings store did not remove it: ${removed.error}` } });
+  }
+  if (removed.existed) await recordSettingChange({ ...scope, name, action: "removed", caller: req.caller, surface: req.surface });
+  return res.status(200).json({ app: scope.app, team: scope.team, name, set: false });
+});
+
+// A request the API could not read. Node's own messages for bad JSON quote the body, and
+// a body can hold a setting's value, so the answer and the log name only what kind of
+// failure it was, never its message.
+app.use((err, req, res, _next) => {
+  if (err?.type === "entity.parse.failed") {
+    return res.status(400).json({ error: { code: "INVALID_JSON", message: "The request body is not JSON." } });
+  }
+  if (err?.type === "entity.too.large") {
+    return res.status(413).json({ error: { code: "TOO_LARGE", message: "The request body is larger than the platform accepts." } });
+  }
+  // The whole error for the server's log, except on the settings routes, where a
+  // message could carry a value.
+  console.error(req.path.startsWith("/apps/")
+    ? `${req.method} ${req.path}: ${err?.name || "Error"}${err?.code ? ` (${err.code})` : ""}`
+    : err?.stack || String(err));
+  return res.status(500).json({ error: { code: "INTERNAL", message: "The platform could not finish this request." } });
+});
 
 const listening = app.listen(port, () => {
   console.log(`seaLeye API listening on http://localhost:${port}`);

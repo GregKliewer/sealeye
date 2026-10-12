@@ -68,9 +68,9 @@ recommendation. Each answer goes in DESIGN.md with its date and reason, and the
 |---|---|---|---|---|
 | D1 | Who sees what | A person sees their own team's environments. A token marked organization-wide (Greg's) sees them all. The needs ledger stays organization-wide. | Step 1 | As recommended (Sun Oct 11) |
 | D2 | Two teams, one app name | Each team's environment gets an internal name, `<team>-<app>`, and every name in AWS comes from it. The developer still sees only the app name. | Step 2 | Two teams can each have an app of the same name. Within a team, one app name is one dev environment and one path to production. Organizations are not considered, since each will run in its own account. (Sun Oct 11) |
-| D3 | Which secret store | Parameter Store, SecureString, under `/sealeye-apps/<team>/<app>/`, in the team's account and region | Step 7 | |
-| D4 | How the app reads its values at start | The start script runs a small reader before the app, using the AWS SDK that ships in the Node 20 runtime. Confirm it in Step 7 before building. | Step 7 | |
-| D5 | Apps already deployed with sent values | Not moved automatically. Their next `sealeye run` offers to store what `.env` holds. A list for Greg shows who is still on sent values. | Step 11 | |
+| D3 | Which secret store | Parameter Store, SecureString, under `/sealeye-apps/<team>/<app>/`, in the team's account and region | Step 7 || As recommended (Sun Oct 11) |
+| D4 | How the app reads its values at start | The start script runs a small reader before the app, using the AWS SDK that ships in the Node 20 runtime. Confirm it in Step 7 before building. | Step 7 || As recommended, as a `node --import` preload (Sun Oct 11); after Step 7, it signs its own request instead of loading the SDK (Mon Oct 12) |
+| D5 | Apps already deployed with sent values | Not moved automatically. Their next `sealeye run` offers to store what `.env` holds. A list for Greg shows who is still on sent values. | Step 11 || As recommended (Sun Oct 11) |
 | D6 | Where the portal's interview gets the app | A folder chosen in the browser, zipped there under the same rules as the command's upload. Connecting a repository comes later. | Step 15 | |
 | D7 | What pause means | API apps only, for now: the function stops taking requests, and resume undoes it. A static site says plainly it cannot be paused. | Step 17 | |
 | D8 | Integrations | Move it to Phase 4, where ServiceNow, Jira and Teams are. Drop it from Phase 2. | Step 13 | |
@@ -284,6 +284,9 @@ Half a day, before anything else in Part B.
 
 **Done when:** D3 and D4 are in DESIGN.md with what Step 7 measured.
 
+*Done Mon Oct 12, 2026: every check passed; reading costs about a second at cold start
+(DESIGN.md, "Settings live in the organization's store").*
+
 ### Step 8. Putting values in, on both surfaces
 
 - API: `PUT /apps/{app}/settings/{name}` with `{ value }`, and `GET /apps/{app}/settings`
@@ -297,9 +300,17 @@ Half a day, before anything else in Part B.
   one. It never shows a value back.
 - The deploy role gets `ssm:PutParameter`, `ssm:GetParametersByPath` and
   `ssm:DeleteParameter` on `/sealeye-apps/*` only, and the KMS permission to encrypt.
-- Settle the command name in DESIGN.md first, as ROADMAP asks.
+- Settle the command name in DESIGN.md first, as ROADMAP asks. *Settled Oct 11:
+  `sealeye settings`, `settings set NAME`, `settings unset NAME` (DESIGN.md, "Settings
+  live in the organization's store").*
+- *Built Oct 11. Two additions: every change is logged with who and from where
+  (migration 005), and the API answers a body it cannot read without quoting it, on
+  every route.*
 
 ### Step 9. The plan says where each value lives
+
+*Dropped by Greg on Oct 12: where values come from is the platform's fact, asked of the
+store at deploy time, so the contract, the prompt and the interview are unchanged.*
 
 - planVersion 0.5: each `config_basic` variable says where its value comes from (`store`
   or `plan`). 0.4 plans still load, with every variable read as before.
@@ -309,6 +320,10 @@ Half a day, before anything else in Part B.
 
 ### Step 10. The app reads its values when it starts
 
+*Built Oct 12, with a reader that signs its own request rather than loading the SDK, and
+a permissions boundary on every function role (Greg's calls; DESIGN.md, "Settings live in
+the organization's store").*
+
 - `templates/run.sh` runs the reader from Step 7, then `exec node <entry>`. The
   developer's folder is still untouched.
 - The function's role may read only `/sealeye-apps/<team>/<app>/`.
@@ -316,6 +331,8 @@ Half a day, before anything else in Part B.
   says the value came from the store.
 
 ### Step 11. Moving apps over (D5)
+
+*Built Oct 12 (`cli/store-offer.js`, `scripts/settings-sources.js`).*
 
 - On the first `sealeye run` of an app whose `.env` holds values the plan wants, the
   command offers once to store them, and lists the names it would store.
@@ -326,6 +343,8 @@ Half a day, before anything else in Part B.
 - The `sent` path stays for a laptop API and the sample apps.
 
 ### Step 12. Write it down
+
+*Done Oct 12.*
 
 - DESIGN.md: the store, the read path, the migration, and what the `sent` path is still
   for.
@@ -438,7 +457,7 @@ Step 5 records a decision next to each.
 | Item | Where it stands | Bring it forward when |
 |---|---|---|
 | **ROADMAP Phase 1 item 5: AWS access per team** | Every deploy goes through `sealeye-deploy-pilot` in the one pilot account. It is designed for a role per team account (DESIGN.md, "Phase 1: who it is for"), so adding one is configuration, not a rewrite. | A team brings its own AWS account, or any bank pilot. |
-| **ROADMAP Phase 1 item 3: real sign-in** | Cognito was chosen on Oct 9 (DESIGN.md, "Phase 1: who it is for"). How it replaces tokens and portal sessions is open (OPEN-QUESTIONS Q15). Tokens fill `req.caller` in the shape Cognito will. | More than a handful of people, anyone outside Greg's reach to issue a token by hand, or any bank pilot. It gets its own plan. |
+| **ROADMAP Phase 1 item 3: real sign-in** | Cognito was chosen on Oct 9 (DESIGN.md, "Phase 1: who it is for"). How it replaces tokens and portal sessions is open (OPEN-QUESTIONS Q16). Tokens fill `req.caller` in the shape Cognito will. | More than a handful of people, anyone outside Greg's reach to issue a token by hand, or any bank pilot. It gets its own plan. |
 | **Q10: publishing the command** | Installed from a tarball on sealeye.run. | Someone needs to pin a version, or the pilot grows past people Greg sends the link to. |
 | **Q13: where traces live** | Tracing is fine on the sample apps. The leaning is tracing off for real code. | Any pilot on real code with tracing on. |
 | **The database moves to RDS** (DESIGN.md stage 2) | Postgres in a container, with a nightly dump that has been tested once. | Someone else's data matters: arguably the first team that deploys its own app, not the Step 15 tester on sample apps. |
@@ -447,6 +466,8 @@ Step 5 records a decision next to each.
 | **Install scripts** | Dependencies install with `--ignore-scripts`. Confirmed by Greg on Oct 11: they stay off (DESIGN.md, "Installing an app's dependencies runs none of its code"). | A team needs a package that builds native code: then build in a runtime-matched container, never in the API. |
 | **Small gaps** | Expired portal sessions are cleared only at sign-in. A race between token writes in file mode is narrowed, not removed. The package still installs the API's dependencies.  The pages ask not to be indexed. | Any of them causing trouble, or the end of the pilot. |
 | **Narrow the deploy role to `sealeye-*` functions** | Functions made since Step 2 are `sealeye-*`; older ones are named after the bare app, so the role still allows any function in the account. | No environment from before Step 2 is left: tear down and redeploy Greg's older API environments. |
+| **Sent setting values on a command line** | A setting not in the store reaches `aws cloudformation deploy` as a `--parameter-overrides` argument, readable by another process on the server while the deploy runs (found in the Part B review; so since Oct 10). | Before a team deploys real secrets without the store: create the change set with `--cli-input-json` from standard input instead, or stop sending values and require the store. |
+| **Node 20 on Lambda** | The template runs apps on `nodejs20.x`, which reached end of support on Apr 30, 2026. AWS stops new functions on it on Feb 1, 2027, and updates on Mar 3, 2027. | Before Feb 2027: move the template and the settings reader's tests to `nodejs24.x`, and redeploy each API environment. |
 | **Old remote branches** | Merged branches are still on GitHub. These sessions cannot delete them. | Greg prunes them when convenient. |
 
 ### Step 5: recommendations, for Greg to decide

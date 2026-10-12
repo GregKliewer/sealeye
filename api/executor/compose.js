@@ -183,11 +183,13 @@ function withoutSecrets(parameters) {
  * @param {Record<string,string>} [sent] setting values sent with the deploy request
  * @param {{stackName: string, resourceName: string}} [naming] from namingFor(); without
  *        it, a new name for the "default" team, as a laptop API with no tokens has
+ * @param {{folder?: string, stored?: string[]}} [store] the app's folder in the
+ *        organization's store and the names stored there (PHASE2-PLAN Part B)
  * @returns {{kind: "api"|"static", templatePath: string, stackName: string, resourceName: string,
  *            parameters: object, safeParameters: object, settings: {name: string, source: string}[],
  *            entryPoint?: string}}
  */
-export function compose(plan, deploymentId, appPath, sent = {}, naming) {
+export function compose(plan, deploymentId, appPath, sent = {}, naming, store = {}) {
   loadEnv();
 
   const appName = safeName(plan?.app?.name);
@@ -229,7 +231,8 @@ export function compose(plan, deploymentId, appPath, sent = {}, naming) {
 
   if (kind === "api") {
     entryPoint = entryPointFor(plan);
-    settings = settingValues(plan, { sent, appPath });
+    const stored = store.folder ? store.stored || [] : [];
+    settings = settingValues(plan, { sent, appPath, stored });
 
     if (!deploymentId) {
       throw new Error("deploymentId is required to compose an http_api_serverless deployment");
@@ -247,12 +250,20 @@ export function compose(plan, deploymentId, appPath, sent = {}, naming) {
       ArtifactBucket: requireSetting("BUCKET"),
       ArtifactKey: artifactKeyFor(resourceName, deploymentId),
       AdapterLayerVersion: adapterLayerVersion,
-      RetentionDays: retentionDays(plan)
+      RetentionDays: retentionDays(plan),
+      // Every function's role carries the platform's boundary (deploy/deploy-role.yaml).
+      FunctionBoundaryArn: requireSetting("FUNCTION_BOUNDARY_ARN"),
+      // When the app has settings in the store, its function reads that folder at start
+      // and may read no other; with none there, it reads nothing.
+      SettingsFolder: stored.length ? store.folder.replace(/\/$/, "") : ""
     };
 
-    for (const [i, setting] of settings.entries()) parameters[`ConfigValue${i + 1}`] = setting.value;
+    // A setting in the store has no value here: the app reads it when it starts. Every
+    // other one is passed in as before, as a parameter of its own.
+    const passed = settings.filter(s => s.source !== "store");
+    for (const [i, setting] of passed.entries()) parameters[`ConfigValue${i + 1}`] = setting.value;
 
-    resolvedTemplate = renderTemplate(templatePath, settings, deploymentId);
+    resolvedTemplate = renderTemplate(templatePath, passed, deploymentId);
   } else {
     // static_site_edge takes AppName only; the files are synced after the stack exists.
     parameters = { AppName: resourceName };

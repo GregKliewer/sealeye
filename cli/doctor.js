@@ -167,6 +167,16 @@ async function checkAdapterLayer() {
     : bad(name, `${match[2]} version ${version} is not reachable in ${region()}`, "Check SEALEYE_LWA_VERSION, and that the layer is published in this region.");
 }
 
+// An API on this machine gives every function role the platform's boundary, and asks
+// the settings store before each API deploy (PHASE2-PLAN Part B).
+function checkBoundary() {
+  const name = "Function boundary";
+  loadEnv();
+  const arn = setting("FUNCTION_BOUNDARY_ARN");
+  if (!arn) return bad(name, "SEALEYE_FUNCTION_BOUNDARY_ARN is not set", "Set it in .env at the repo root to the deploy-role stack's FunctionBoundaryArn output (deploy/README.md).");
+  return /^arn:aws:iam::\d{12}:policy\/.+/.test(arn) ? ok(name, arn.replace(/::\d{8}(\d{4}):/, "::\u2026$1:")) : bad(name, "SEALEYE_FUNCTION_BOUNDARY_ARN is not a policy ARN", "Copy the deploy-role stack's FunctionBoundaryArn output exactly.");
+}
+
 function checkModelKey() {
   const name = "ANTHROPIC_API_KEY";
   loadEnv();
@@ -223,6 +233,7 @@ export async function runDoctor({ apiBaseUrl, local = isLocalApi(apiBaseUrl) }) 
     checkRegion(),
     await checkBucket(),
     await checkAdapterLayer(),
+    checkBoundary(),
     checkModelKey(),
     await checkNotifier()
   ];

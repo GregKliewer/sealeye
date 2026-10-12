@@ -1,0 +1,91 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  PHASE2-PLAN Step 7: does a function read its settings from Parameter Store at start?
+  One throwaway function, set up like an app's (nodejs20.x, x86, 512 MB). Deploy as
+  platform-sealeye-spike-settings, run it, then delete it. deploy/spikes/settings-read/README.md.
+
+Resources:
+  # The function's role may read its own folder and nothing else, as an app's will
+  # (PHASE2-PLAN D3). No KMS permission: whether the account's default SSM key decrypts
+  # through SSM without one is one of the things this checks.
+  Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: own-settings
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: ssm:GetParametersByPath
+                Resource:
+                  - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/sealeye-apps/spike/app-a"
+                  - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/sealeye-apps/spike/app-a/*"
+
+  Function:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: nodejs20.x
+      Architectures: [x86_64]
+      MemorySize: 512
+      Timeout: 30
+      Handler: index.handler
+      Role: !GetAtt Role.Arn
+      Environment:
+        Variables:
+          SEALEYE_SETTINGS_PATH: /sealeye-apps/spike/app-a/
+      Code:
+        ZipFile: |
+          // Writes the preload Step 10 will ship (templates/sealeye-settings.mjs) and a
+          // stand-in app to /tmp, runs `node --import preload app` as run.sh will, and
+          // reports names and lengths only, never a value.
+          const fs = require("fs"), cp = require("child_process");
+          const PRELOAD = `
+          import { createRequire } from "node:module";
+          const path = process.env.SEALEYE_SETTINGS_PATH;
+          if (path) {
+            const t = Date.now();
+            const { SSMClient, GetParametersByPathCommand } = createRequire("/var/runtime/index.mjs")("@aws-sdk/client-ssm");
+            const ssm = new SSMClient({});
+            let NextToken;
+            do {
+              const out = await ssm.send(new GetParametersByPathCommand({ Path: path, WithDecryption: true, NextToken }));
+              for (const p of out.Parameters || []) process.env[p.Name.slice(path.length)] = p.Value;
+              NextToken = out.NextToken;
+            } while (NextToken);
+            process.env.SPIKE_READ_MS = String(Date.now() - t);
+          }`;
+          const APP = `console.log(JSON.stringify({ names: ["GREETING", "API_TOKEN"].map(n => [n, (process.env[n] || "").length]), readMs: process.env.SPIKE_READ_MS }));`;
+          const tryPath = async (Path) => {
+            const { SSMClient, GetParametersByPathCommand } = require("@aws-sdk/client-ssm");
+            try { const o = await new SSMClient({}).send(new GetParametersByPathCommand({ Path, WithDecryption: true })); return "read " + (o.Parameters || []).length; }
+            catch (e) { return e.name; }
+          };
+          let cold = true;
+          exports.handler = async () => {
+            const wasCold = cold; cold = false;
+            fs.writeFileSync("/tmp/sealeye-settings.mjs", PRELOAD);
+            fs.writeFileSync("/tmp/app.mjs", APP);
+            const t = Date.now();
+            let preload;
+            try { preload = JSON.parse(cp.execFileSync(process.execPath, ["--import", "/tmp/sealeye-settings.mjs", "/tmp/app.mjs"], { encoding: "utf8" })); }
+            catch (e) { preload = { failed: String(e.stderr || e.message).slice(0, 600) }; }
+            return {
+              node: process.version, wasCold, preload, startMs: Date.now() - t,
+              sdkFound: fs.existsSync("/var/runtime/node_modules/@aws-sdk/client-ssm"),
+              otherApp: await tryPath("/sealeye-apps/spike/app-b/"),
+              serverFolder: await tryPath("/sealeye/")
+            };
+          };
+
+Outputs:
+  FunctionName:
+    Value: !Ref Function

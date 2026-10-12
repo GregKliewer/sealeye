@@ -86,7 +86,7 @@ export function loadPlanFromYaml(planPath) {
  * are what the change record reads later: who ran the command, on which machine, and
  * how the plan came to be. The API does not verify them; the evidence says so.
  */
-export async function createDeployment({ apiBaseUrl, backend, plan, appPath, requestedBy, origin }) {
+export async function createDeployment({ apiBaseUrl, backend, plan, appPath, requestedBy, origin, storedNames = [] }) {
   // The app travels as an uploaded copy, packaged by the API as it would package the
   // folder (core/upload.js "deploy": no node_modules, .git or .env). appPath goes with
   // it as the developer's own name for their folder, so their next run recognises the
@@ -100,11 +100,15 @@ export async function createDeployment({ apiBaseUrl, backend, plan, appPath, req
   }
   const body = { backend, plan, appPath, zip: Buffer.from(packed.zip).toString("base64") };
   // The values of the settings this plan asks for, from the developer's .env, and only
-  // those. A hosted API cannot read this folder, so they travel with the request, once.
-  // Moving them to the organization's secret store is on the roadmap (DESIGN.md,
-  // "Setting values travel with the deploy, for now").
-  const settings = envValuesFor(plan, appPath);
+  // those, less the ones already in the organization's store, which the app reads itself
+  // when it starts (DESIGN.md, "Settings live in the organization's store"). A hosted API
+  // cannot read this folder, so the rest travel with the request, once.
+  const skip = new Set(storedNames);
+  const settings = Object.fromEntries(Object.entries(envValuesFor(plan, appPath)).filter(([name]) => !skip.has(name)));
   if (Object.keys(settings).length) body.settings = settings;
+  // The names the command left out because the store has them, so the platform can stop
+  // rather than start the app without them if its store does not.
+  if (storedNames.length) body.expectStored = [...storedNames];
   if (requestedBy) body.requestedBy = requestedBy;
   if (origin) body.origin = origin;
   return platformFetch(apiBaseUrl, "/deployments", asJson(body));
@@ -279,6 +283,38 @@ export async function followInterview({ apiBaseUrl, interviewId, onEvent, after 
  * Who a token belongs to, as the platform says (GET /whoami). `token` defaults to the
  * one in ~/.sealeye/config; `sealeye login` passes the one being checked.
  */
+// ---------------------------------------------------------------------------------
+// An app's settings in the organization's store (PHASE2-PLAN Step 8). A value goes up
+// once and never comes back: the list is names, whether each is set, and who changed
+// it when. A refusal is one sentence, from the API.
+
+const settingsRoute = (app, name, team) =>
+  `/apps/${encodeURIComponent(app)}/settings${name ? `/${encodeURIComponent(name)}` : ""}${team ? `?team=${encodeURIComponent(team)}` : ""}`;
+
+async function settingsCall(apiBaseUrl, route, options) {
+  try {
+    return await platformFetch(apiBaseUrl, route, options);
+  } catch (err) {
+    const message = err.details?.error?.message;
+    if (message) throw Object.assign(new Error(message), { userFacing: true, code: err.details.error.code });
+    throw err;
+  }
+}
+
+export function getSettings({ apiBaseUrl, app, team }) {
+  return settingsCall(apiBaseUrl, settingsRoute(app, null, team), { method: "GET" });
+}
+
+export function putSetting({ apiBaseUrl, app, name, value, team }) {
+  return settingsCall(apiBaseUrl, settingsRoute(app, name, team), {
+    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ value })
+  });
+}
+
+export function deleteSetting({ apiBaseUrl, app, name, team }) {
+  return settingsCall(apiBaseUrl, settingsRoute(app, name, team), { method: "DELETE" });
+}
+
 export async function whoAmI({ apiBaseUrl, token }) {
   return platformFetch(apiBaseUrl, "/whoami", { token });
 }
