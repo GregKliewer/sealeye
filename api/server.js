@@ -630,11 +630,23 @@ app.get("/deployments/:deploymentId/evidence", async (req, res) => {
   }
 });
 
+// A stack from before teams had names of their own may now run another team's code
+// (DESIGN.md, "Each team's environments have names of their own"). An older record of
+// it is still its team's to read, but what is running there now is the other team's:
+// its logs, its readings, whether it is paused. Only an organization-wide token may.
+function runsAnotherTeams(req, res, dep) {
+  if (!req.caller || req.caller.scope === "org") return false;
+  if (!sharedWithAnotherTeam(dep.stackName, { org: orgOf(dep), team: teamOf(dep), records: listDeployments() })) return false;
+  res.status(409).json({ error: { code: "SHARED_ENVIRONMENT", message: "Another team runs this environment now, from before each team's environments had names of their own, so what it does is theirs to see." } });
+  return true;
+}
+
 // GET /deployments/{deploymentId}/logs?since=15m|1h|6h|1d — its environment's recent
 // log lines, newest first, masked (api/logs.js). Read only. PHASE2-PLAN Step 16.
 app.get("/deployments/:deploymentId/logs", async (req, res) => {
   const dep = getDeployment(req.params.deploymentId);
   if (!canSee(req, dep)) return res.status(404).json({ error: { code: "NOT_FOUND", message: "deploymentId not found" } });
+  if (runsAnotherTeams(req, res, dep)) return;
   const { status, body } = await readLogs(dep, { window: typeof req.query.since === "string" ? req.query.since : "1h" });
   return res.status(status).json(body);
 });
@@ -645,6 +657,7 @@ app.get("/deployments/:deploymentId/logs", async (req, res) => {
 app.get("/deployments/:deploymentId/paused", async (req, res) => {
   const dep = getDeployment(req.params.deploymentId);
   if (!canSee(req, dep)) return res.status(404).json({ error: { code: "NOT_FOUND", message: "deploymentId not found" } });
+  if (runsAnotherTeams(req, res, dep)) return;
   const { status, body } = await pausedState(dep);
   return res.status(status).json(body);
 });
@@ -652,6 +665,7 @@ for (const [action, paused] of [["pause", true], ["resume", false]]) {
   app.post(`/deployments/:deploymentId/${action}`, async (req, res) => {
     const dep = getDeployment(req.params.deploymentId);
     if (!canSee(req, dep)) return res.status(404).json({ error: { code: "NOT_FOUND", message: "deploymentId not found" } });
+    if (runsAnotherTeams(req, res, dep)) return;
     const by = req.caller ? { user: req.caller.email, name: req.caller.name } : null;
     const { status, body } = await changePaused(dep, paused, { by, surface: req.surface || "cli" });
     return res.status(status).json(body);
@@ -663,6 +677,7 @@ for (const [action, paused] of [["pause", true], ["resume", false]]) {
 app.get("/deployments/:deploymentId/performance", async (req, res) => {
   const dep = getDeployment(req.params.deploymentId);
   if (!canSee(req, dep)) return res.status(404).json({ error: { code: "NOT_FOUND", message: "deploymentId not found" } });
+  if (runsAnotherTeams(req, res, dep)) return;
   const { status, body } = await readPerformance(dep, { window: typeof req.query.since === "string" ? req.query.since : "1d" });
   return res.status(status).json(body);
 });

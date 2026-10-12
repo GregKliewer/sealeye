@@ -23,6 +23,9 @@ export async function readPerformance(record, { window = "1d", now = Date.now() 
   if (record.kind === "static") {
     return refusal(409, "NO_READINGS", "A static site is served straight from storage, with no code of its own running, so there is nothing of its own to measure.");
   }
+  if (record.status === "destroyed" || record.status === "destroying") {
+    return refusal(409, "NO_READINGS", "This environment has been torn down, so there is nothing running to measure.");
+  }
   const fn = resourceNameOf(record);
   if (!fn) return refusal(409, "NO_READINGS", "Nothing was built for this deployment, so there is nothing to measure.");
 

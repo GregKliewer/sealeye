@@ -23,6 +23,9 @@ before(async () => {
     records: [
       { ...base, deploymentId: "dep_api00000002", app: { name: "orders-api" }, kind: "api", status: "succeeded", stackName: "sealeye-default-orders-api-aaaaaa", resourceName: "sealeye-default-orders-api-aaaaaa" },
       { ...base, deploymentId: "dep_api00000001", app: { name: "orders-api" }, kind: "api", status: "succeeded", stackName: "sealeye-default-orders-api-aaaaaa", resourceName: "sealeye-default-orders-api-aaaaaa" },
+      // A stack from before teams had names: team default deployed to it first, payments since.
+      { ...base, teamId: "payments", deploymentId: "dep_shared00002", app: { name: "shared-api" }, kind: "api", status: "succeeded", stackName: "sealeye-shared-api" },
+      { ...base, deploymentId: "dep_shared00001", app: { name: "shared-api" }, kind: "api", status: "succeeded", stackName: "sealeye-shared-api" },
       { ...base, deploymentId: "dep_site0000001", app: { name: "site" }, kind: "static", status: "succeeded", stackName: "sealeye-default-site-cccccc" }
     ],
     // The function's reservation lives in a file, as AWS would keep it.
@@ -67,6 +70,14 @@ test("a static site cannot be paused, and another team cannot pause yours", asyn
   // The platform team's organization-wide token may, as it may tear down.
   assert.equal((await api.call("/deployments/dep_api00000002/pause", { token: LEE, method: "POST" })).status, 200);
   await api.call("/deployments/dep_api00000002/resume", { token: LEE, method: "POST" });
+});
+
+test("an older record of a stack another team now runs cannot read or change it", async () => {
+  for (const [route, method] of [["pause", "POST"], ["paused", "GET"], ["logs", "GET"], ["performance", "GET"]]) {
+    const r = await api.call(`/deployments/dep_shared00001/${route}`, { token: ANA, method });
+    assert.equal(r.status, 409, route);
+    assert.equal(r.body.error.code, "SHARED_ENVIRONMENT");
+  }
 });
 
 test("sealeye pause and resume by app name", async () => {

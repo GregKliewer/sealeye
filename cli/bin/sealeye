@@ -1617,7 +1617,12 @@ async function environmentTarget({ apiBaseUrl, target }) {
   const byId = everything.find(d => d.deploymentId === target);
   if (byId) return { deploymentId: byId.deploymentId, label: byId.app?.name || target, record: byId };
   const mine = d => me.auth === "off" || (d.teamId || "default") === me.team;
-  const found = everything.find(d => mine(d) && d.stackName && safeName(d.app?.name) === safeName(target) && d.status !== "destroyed");
+  const found = everything.find(d => mine(d) && d.stackName && safeName(d.app?.name) === safeName(target));
+  if (found && (found.status === "destroyed" || found.status === "destroying")) {
+    console.error(c.fail(`${found.app?.name || target} has been torn down. ${product.command} run in its folder builds it again.`));
+    process.exitCode = 1;
+    return null;
+  }
   if (found) return { deploymentId: found.deploymentId, label: found.app?.name || target, record: found };
   console.error(c.fail(`There is no environment called ${target} that your team has. ${product.command} list shows what there is.`));
   process.exitCode = 1;
@@ -1825,7 +1830,9 @@ async function runWatch({ apiBaseUrl, deploymentId }) {
 
       if (dep.status === "succeeded") {
         const url = publicUrl(dep);
-        console.log(c.ok(url ? `Your app is live at ${url}` : "Your environment is ready"));
+        console.log(dep.paused
+          ? c.prompt(`Deployed, and still paused: it takes no requests until you run ${product.command} resume ${dep.app?.name || dep.deploymentId}`)
+          : c.ok(url ? `Your app is live at ${url}` : "Your environment is ready"));
         writeReport(dep);
       } else {
         console.log(c.fail(failureSentence(dep)));
@@ -1892,7 +1899,9 @@ async function runBackground({ apiBaseUrl, deploymentId, appPath, plan }) {
 
       if (dep.status === "succeeded") {
         const url = publicUrl(dep);
-        console.log(c.ok(url ? `Your app is live at ${url}` : "Your environment is ready"));
+        console.log(dep.paused
+          ? c.prompt(`Deployed, and still paused: it takes no requests until you run ${product.command} resume ${dep.app?.name || dep.deploymentId}`)
+          : c.ok(url ? `Your app is live at ${url}` : "Your environment is ready"));
         writeReport(dep);
       } else {
         console.log(c.fail(failureSentence(dep)));

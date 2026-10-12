@@ -67,6 +67,13 @@ fs.writeFileSync(path.join(home, "deployments.json"), JSON.stringify([
 // there.
 const bin = path.join(home, "bin");
 fs.mkdirSync(bin);
+// Two log lines from the last few minutes, inside whatever range is asked for.
+fs.writeFileSync(path.join(bin, "logs.cjs"), `const args = process.argv.slice(2), opt = n => args[args.indexOf(n) + 1];
+const from = Number(opt("--start-time")), to = args.includes("--end-time") ? Number(opt("--end-time")) : Infinity, now = Date.now();
+const lines = [{ timestamp: now - 120000, message: "listening on 8080" }, { timestamp: now - 60000, message: "GET /orders with Bearer abcdefghijklmnopqrstuvwxyz0123" }];
+process.stdout.write(JSON.stringify(lines.filter(l => l.timestamp >= from && l.timestamp < to)));
+`);
+
 // Metrics for any function: a day of requests shaped like a working day.
 fs.writeFileSync(path.join(bin, "metrics.cjs"), `const args = process.argv.slice(2), opt = n => args[args.indexOf(n) + 1];
 const start = Date.parse(opt("--start-time")), queries = JSON.parse(opt("--metric-data-queries"));
@@ -101,6 +108,7 @@ if (args[1] === "get-parameters-by-path") {
 fs.writeFileSync(path.join(bin, "aws"), `#!/bin/sh
 [ "$1" = ssm ] && exec node "${path.join(bin, "ssm.cjs")}" "$@"
 [ "$2" = get-metric-data ] && exec node "${path.join(bin, "metrics.cjs")}" "$@"
+[ "$2" = filter-log-events ] && exec node "${path.join(bin, "logs.cjs")}" "$@"
 case "$2" in
   delete-stack) touch "${home}/deleted-$4"; echo '{}' ;;
   describe-stacks)
@@ -110,7 +118,6 @@ case "$2" in
   delete-function-concurrency) rm -f "${home}/concurrency-$4" ;;
   get-function-concurrency) cat "${home}/concurrency-$4" 2>/dev/null || echo '{}' ;;
   get-cost-and-usage) echo '{"ResultsByTime":[{"Groups":[{"Keys":["sealeye:app$payments-api"],"Metrics":{"UnblendedCost":{"Amount":"3.4","Unit":"USD"}}},{"Keys":["sealeye:app$marketing-site"],"Metrics":{"UnblendedCost":{"Amount":"0.12","Unit":"USD"}}}]}]}' ;;
-  filter-log-events) echo '[{"timestamp":1760270000000,"message":"listening on 8080"},{"timestamp":1760270001000,"message":"GET /orders with Bearer abcdefghijklmnopqrstuvwxyz0123"}]' ;;
   *) echo '{}' ;;
 esac
 `, { mode: 0o755 });

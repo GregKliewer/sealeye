@@ -1,10 +1,10 @@
 // src/executor/index.js
 // The deployment lifecycle: compose -> package -> deploy -> poll until CloudFormation
 // says it is done. Status is never invented; it mirrors the stack.
-import { compose, namingFor } from "./compose.js";
+import { compose, namingFor, resourceNameOf } from "./compose.js";
 import { storeFolder } from "./settings.js";
 import { stage, cleanStage, stagePaths, sha256File, sha256Template } from "./package.js";
-import { artifactExists, deploy, describe, firstFailure, deleteStack, emptyBucket, listStoredSettings, syncSite } from "./cfn.js";
+import { artifactExists, functionPaused, deploy, describe, firstFailure, deleteStack, emptyBucket, listStoredSettings, syncSite } from "./cfn.js";
 import { renderReport } from "./report.js";
 import { putDeployment, listDeployments } from "../store.js";
 import { requireSetting } from "../../core/config.js";
@@ -259,11 +259,20 @@ export async function followStack(record, { plan, appPath, stackName, child, set
         record.syncedFrom = record.source === "upload" ? "the uploaded copy of your folder" : appPath;
       }
 
+      // A paused API stays paused through a deploy (the template sets no reservation),
+      // so the record says so, read from AWS now, rather than look like it is serving.
+      let paused = false;
+      if (record.kind === "api") {
+        const state = await functionPaused(resourceNameOf(record) || record.resourceName);
+        paused = state.ok && state.paused;
+      }
+
       set("succeeded", {
         outputs: described.outputs,
         failureReason: null,
         finishedAt: now(),
-        step: null
+        step: null,
+        ...(paused ? { paused: true } : {})
       });
 
       // A report that will not render is a reporting problem, not a failed deployment:

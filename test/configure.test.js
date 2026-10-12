@@ -36,6 +36,8 @@ if (args[1] === "get-parameters-by-path") out([]);
 if (args[1] === "head-object") out({});
 if (args[1] === "deploy") process.exit(0);
 if (args[1] === "describe-stacks") out({ Stacks: [{ StackStatus: "UPDATE_COMPLETE", Outputs: [] }] });
+// The API was paused before this deploy, and a deploy does not change that.
+if (args[1] === "get-function-concurrency") out({ ReservedConcurrentExecutions: 0 });
 `,
     env: { SEALEYE_BUCKET: "artifacts", SEALEYE_LWA_VERSION: "25", SEALEYE_FUNCTION_BOUNDARY_ARN: "arn:aws:iam::123456789012:policy/boundary" }
   });
@@ -68,7 +70,12 @@ test("sealeye config shows how long logs are kept, and changes it as a deploy", 
   assert.equal(retentionOf(made.plan), 14);
   for (let i = 0; i < 100; i++) {
     const r = (await api.call(`/deployments/${made.deploymentId}`, { token: ANA })).body;
-    if (r.status === "succeeded" || r.status === "failed") { assert.equal(r.status, "succeeded", r.failureReason); break; }
+    if (r.status === "succeeded" || r.status === "failed") {
+      assert.equal(r.status, "succeeded", r.failureReason);
+      assert.equal(r.paused, true, "a deploy of a paused API says it is still paused");
+      assert.match(r.report, /Your app is paused/);
+      break;
+    }
     await new Promise(res => setTimeout(res, 50));
   }
   assert.match(api.awsCalls().find(l => l.startsWith("cloudformation deploy")), /RetentionDays=14/);

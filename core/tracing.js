@@ -72,6 +72,11 @@ const SECRET_PATTERNS = [
   ]
 ];
 
+/** The same patterns over plain text, as it is, never parsed (for an app's log lines). */
+export function maskSecretText(text) {
+  return maskText(String(text));
+}
+
 function maskText(text) {
   let out = text;
   for (const [pattern, replace] of SECRET_PATTERNS) out = out.replace(pattern, replace);

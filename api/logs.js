@@ -6,10 +6,11 @@
 // through the same masking as traces (core/tracing.js) before it reaches either surface,
 // and a line naming one of the app's stored settings has that value taken out as well
 // (DESIGN.md, "Logs pass through the masking traces do"). Read only: nothing changes.
-import { maskSecrets } from "../core/tracing.js";
+import { maskSecretText } from "../core/tracing.js";
 import { recentLogs, listStoredSettings } from "./executor/cfn.js";
 import { storeFolder } from "./executor/settings.js";
 import { resourceNameOf } from "./executor/compose.js";
+import { settingNamesFor } from "../core/setting-names.js";
 
 export const WINDOWS = { "15m": 15, "1h": 60, "6h": 360, "1d": 1440 };
 export const MAX_LINES = 200;
@@ -22,44 +23,86 @@ const escape = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
  * @param {{ window?: string, now?: number }} options
  * @returns {Promise<{status: number, body: object}>}
  */
+// A secret-looking name, as traces mask it: key, secret, token, password.
+const SECRET_NAME = "[A-Za-z0-9_]*(?:KEY|SECRET|TOKEN|PASSWORD|PASSWD)[A-Za-z0-9_]*";
+
+/**
+ * Masking for one app: the patterns traces use, then NAME=value, NAME: value and the
+ * JSON "NAME": value for every secret-looking name and every setting the app is known
+ * to have. A quoted value goes to its closing quote; an unquoted one to the end of the
+ * line, since a value can hold spaces and commas, and taking too much is the safe side.
+ */
+export function maskerFor(names = []) {
+  const alternatives = [...new Set(names)].filter(Boolean).map(escape);
+  const nameRe = alternatives.length ? `(?:${alternatives.join("|")}|${SECRET_NAME})` : SECRET_NAME;
+  const pattern = new RegExp(`\\b(${nameRe})("?\\s*[=:]\\s*)("(?:[^"\\\\\\n]|\\\\.)*"|'[^'\\n]*'|[^\\n]*)`, "gi");
+  // Names first, so a quoted value with escaped quotes in it goes whole; then the
+  // patterns traces use, for what has no name beside it.
+  return text => maskSecretText(String(text).replace(pattern, (_m, name, sep) => `${name}${sep}${REDACTED}`));
+}
+
+// How far back each read goes from now, widening until there are enough lines or the
+// window is used up: CloudWatch reads forward from a start time, so starting near now is
+// how the newest lines come back first.
+const STEPS_MINUTES = [1, 5, 15, 60, 360, 1440];
+
 export async function readLogs(record, { window = "1h", now = Date.now() } = {}) {
   const minutes = WINDOWS[window];
   if (!minutes) return refusal(400, "INVALID_WINDOW", `since must be one of ${Object.keys(WINDOWS).join(", ")}`);
   if (record.kind === "static") {
     return refusal(409, "NO_LOGS", "A static site has no code of its own running, so it writes no logs. Its files are served as they are.");
   }
+  if (record.status === "destroyed" || record.status === "destroying") {
+    return refusal(409, "NO_LOGS", "This environment has been torn down, and its logs went with it.");
+  }
   const fn = resourceNameOf(record);
   if (!record.stackName || !fn) {
     return refusal(409, "NO_LOGS", "Nothing was built for this deployment, so there are no logs to read.");
   }
 
-  const read = await recentLogs(`/aws/lambda/${fn}`, { sinceMs: now - minutes * 60_000 });
-  if (!read.ok && read.missing) {
-    return { status: 200, body: { app: record.app?.name || null, since: window, lines: [], more: false, note: "Your app has not written anything yet: there is nothing to read until it has run." } };
+  const group = `/aws/lambda/${fn}`;
+  const windowStart = now - minutes * 60_000;
+  let events = [];
+  let until = now;
+  let more = false;
+  for (const step of [...STEPS_MINUTES.filter(m => m < minutes), minutes]) {
+    const since = Math.max(windowStart, now - step * 60_000);
+    if (since >= until) continue;
+    const read = await recentLogs(group, { sinceMs: since, untilMs: until });
+    if (!read.ok && read.missing) {
+      return { status: 200, body: { app: record.app?.name || null, since: window, lines: [], more: false, note: "Your app has not written anything yet: there is nothing to read until it has run." } };
+    }
+    if (!read.ok) return refusal(502, "LOGS_UNAVAILABLE", `The platform could not read your app's logs just now (${read.error}).`);
+    // A read that filled up was cut short: its newest lines are the ones not read.
+    if (read.events.length >= 2000) more = true;
+    events = [...read.events, ...events];
+    until = since;
+    if (events.length >= MAX_LINES || since <= windowStart) {
+      if (since > windowStart) more = true;
+      break;
+    }
   }
-  if (!read.ok) return refusal(502, "LOGS_UNAVAILABLE", `The platform could not read your app's logs just now (${read.error}).`);
+  if (events.length > MAX_LINES) more = true;
 
-  // The values of the app's own stored settings are never read, so a line that names
-  // one has whatever follows the name taken out.
-  let names = [];
+  // The names of the app's settings, whose values the API never reads: those in the
+  // store, those its deploys were given from a .env, and those its plan asks for.
+  let note;
+  const names = new Set([...(record.settings || []).map(x => x.name), ...settingNamesFor(record.plan)]);
   try {
     const listed = await listStoredSettings(storeFolder({ team: record.teamId || "default", app: record.app?.name }));
-    if (listed.ok) names = listed.settings.map(x => x.name);
+    if (listed.ok) listed.settings.forEach(x => names.add(x.name));
+    else note = "The platform could not read which settings are in your organization's store just now, so only values beside a secret-looking name, or a setting this app's deploys used, were taken out.";
   } catch { /* an app name the store cannot hold has no stored settings */ }
-  const byName = names.length ? new RegExp(`\\b(${names.map(escape).join("|")})(\\s*[=:]\\s*)("[^"\\n]*"|'[^'\\n]*'|[^\\s"',;]+)`, "g") : null;
-  const mask = text => {
-    const masked = maskSecrets(String(text));
-    return byName ? masked.replace(byName, (_m, name, sep) => `${name}${sep}${REDACTED}`) : masked;
-  };
+  const mask = maskerFor([...names]);
 
-  const events = read.events.slice(-MAX_LINES).reverse();
   return {
     status: 200,
     body: {
       app: record.app?.name || null,
       since: window,
-      more: read.events.length > MAX_LINES,
-      lines: events.map(e => ({ at: new Date(e.timestamp).toISOString(), message: mask(e.message).replace(/\s+$/, "") }))
+      more,
+      ...(note ? { note } : {}),
+      lines: events.slice(-MAX_LINES).reverse().map(e => ({ at: new Date(e.timestamp).toISOString(), message: mask(e.message).replace(/\s+$/, "") }))
     }
   };
 }

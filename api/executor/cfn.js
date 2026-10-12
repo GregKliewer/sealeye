@@ -160,14 +160,17 @@ export async function artifactExists(bucket, key) {
 }
 
 /**
- * An app's most recent log lines (PHASE2-PLAN Step 16): what its function wrote since
- * `sinceMs`, oldest first as CloudWatch gives them, at most `maxItems`. Read only.
+ * An app's log lines (PHASE2-PLAN Step 16): what its function wrote between `sinceMs`
+ * and `untilMs` (now, without it), oldest first as CloudWatch reads them forward, at most
+ * `maxItems`. Read only.
  * @returns {Promise<{ok: true, events: {timestamp: number, message: string}[]} | {ok: false, missing?: boolean, error?: string}>}
  */
-export async function recentLogs(logGroup, { sinceMs, maxItems = 2000 } = {}) {
+export async function recentLogs(logGroup, { sinceMs, untilMs = null, maxItems = 2000 } = {}) {
   const r = await tryAws([
     "logs", "filter-log-events", "--log-group-name", logGroup,
-    "--start-time", String(Math.floor(sinceMs)), "--max-items", String(maxItems),
+    "--start-time", String(Math.floor(sinceMs)),
+    ...(untilMs ? ["--end-time", String(Math.floor(untilMs))] : []),
+    "--max-items", String(maxItems),
     "--query", "events[].{timestamp: timestamp, message: message}",
     "--region", region(), "--output", "json"
   ]);

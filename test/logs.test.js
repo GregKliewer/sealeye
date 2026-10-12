@@ -29,12 +29,13 @@ before(async () => {
 if (args[1] === "get-parameters-by-path") out([{ name: opt("--path") + "GREETING", changedAt: null }]);
 if (args[1] === "filter-log-events") {
   if (opt("--log-group-name").includes("quiet")) fail("An error occurred (ResourceNotFoundException) when calling the FilterLogEvents operation: The specified log group does not exist.");
-  const t = Date.now();
+  const t = Number(process.env.LOGS_NOW || 0) || Date.now();
+  const from = Number(opt("--start-time")), to = args.includes("--end-time") ? Number(opt("--end-time")) : Infinity;
   out([
     { timestamp: t - 3000, message: "starting with GREETING=hello-from-the-store\\n" },
     { timestamp: t - 2000, message: "called with Authorization: Bearer abcdefghijklmnopqrstuvwxyz and sk-ant-api03-supersecretvalue" },
     { timestamp: t - 1000, message: "token sl_${"z".repeat(43)} and API_KEY=plain-text-key" }
-  ]);
+  ].filter(e => e.timestamp >= from && e.timestamp < to));
 }
 `
   });
@@ -53,10 +54,13 @@ test("an app's lines come newest first, with secrets and stored setting values t
   const all = JSON.stringify(body);
   for (const secret of ["hello-from-the-store", "abcdefghijklmnop", "supersecret", "plain-text-key", "zzzzzzzzzz"]) assert.ok(!all.includes(secret), secret);
 
-  const call = api.awsCalls().find(l => l.startsWith("logs filter-log-events"));
-  assert.match(call, /--log-group-name \/aws\/lambda\/sealeye-default-orders-api-aaaaaa/);
-  const start = Number(/--start-time (\d+)/.exec(call)[1]);
-  assert.ok(Date.now() - start < 16 * 60_000 && Date.now() - start > 14 * 60_000, "the window asked for");
+  // Read backwards from now in widening steps, never past the window asked for.
+  const calls = api.awsCalls().filter(l => l.startsWith("logs filter-log-events"));
+  assert.ok(calls.every(c => /--log-group-name \/aws\/lambda\/sealeye-default-orders-api-aaaaaa/.test(c)));
+  const starts = calls.map(c => Number(/--start-time (\d+)/.exec(c)[1]));
+  assert.ok(Date.now() - starts[0] < 2 * 60_000, "the newest minute first");
+  const oldest = Math.min(...starts);
+  assert.ok(Date.now() - oldest < 16 * 60_000 && Date.now() - oldest > 14 * 60_000, "as far back as the window, and no further");
 });
 
 test("what has no logs says why, and nobody else's are readable", async () => {
@@ -84,4 +88,15 @@ test("sealeye logs prints them oldest first, by app name", async () => {
   assert.equal(lines.length, 3);
   assert.match(lines[0], /starting with GREETING=\[value redacted\]/);
   assert.ok(!stdout.includes("hello-from-the-store"));
+});
+
+test("masking catches JSON logs, values with spaces, and settings named by the app's deploys", async () => {
+  const { maskerFor } = await import("../api/logs.js");
+  const mask = maskerFor(["DB_URL", "GREETING"]);
+  assert.equal(mask('{"DB_URL":"postgres://u:p@h/db","level":"info"}'), '{"DB_URL":[value redacted],"level":"info"}');
+  assert.equal(mask('{"apiKey": "abc123", "ok": true}'), '{"apiKey": [value redacted], "ok": true}');
+  assert.equal(mask("DB_URL=pass word, more"), "DB_URL=[value redacted]");
+  assert.equal(mask("GREETING: hello there"), "GREETING: [value redacted]");
+  assert.equal(mask("nothing secret here"), "nothing secret here");
+  assert.equal(mask('PAYLOAD_SECRET="a \\" quoted" tail'), "PAYLOAD_SECRET=[value redacted] tail");
 });

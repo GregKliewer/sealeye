@@ -468,6 +468,7 @@ Step 5 records a decision next to each.
 
 | Item | Where it stands | Bring it forward when |
 |---|---|---|
+| **Costs per organization** | Costs are read by the `sealeye:app` and `sealeye:team` tags, across the AWS account. Every token is org "default" today. | Before two organizations share one AWS account: tag `sealeye:org` and filter on it. |
 | **Finishing a command's interview in the portal** | Done Oct 12: `GET /interviews` lists a person's open interviews, `sealeye interviews` shows them, and New environment lists them with Continue and Drop (DESIGN.md, "An interview can be finished on the other surface"). | Done. |
 | **Other .env files are packaged** | Done Oct 12: a deploy leaves out every secret file `core/secrets.js` names, on both surfaces, and the report says so (DESIGN.md, "Secret files never go into the package"). | Done. |
 | **ROADMAP Phase 1 item 5: AWS access per team** | Every deploy goes through `sealeye-deploy-pilot` in the one pilot account. It is designed for a role per team account (DESIGN.md, "Phase 1: who it is for"), so adding one is configuration, not a rewrite. | A team brings its own AWS account, or any bank pilot. |

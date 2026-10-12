@@ -1451,6 +1451,11 @@ portal's Costs page and `GET /costs?since=7d|30d`. The name is ROADMAP's.
   left out, and every view says so, and that it is a day behind (principle 7: nothing
   typed in, nothing guessed). The deploy role gains ce:GetCostAndUsage, which takes no
   resource.
+- **One organization per account, for now.** Cost Explorer answers for the whole AWS
+  account, and the tags name the app and team, not the organization. Every token is
+  org "default" today, and each organization will deploy into its own account (ROADMAP
+  Phase 1 item 5), so nothing crosses. If two organizations ever share an account, add a
+  `sealeye:org` tag and filter on it first (owed in PHASE2-PLAN).
 
 ## An interview can be finished on the other surface
 
@@ -1464,4 +1469,27 @@ carries on, and Drop. A continued interview has no folder in the browser, so at 
 the page asks for the app's folder to package (a drafted plan sends none). Leaving the
 page drops only an interview started on it; one picked up from elsewhere stays open for
 its owner, and any interview is dropped after a day as before.
+
+## Day-two operations: what the review of Steps 16 to 20 changed
+
+Mon Oct 12, 2026. An independent review before the pull request found these, all fixed:
+
+- **Logs are read newest first.** CloudWatch reads forward from a start time, so a busy
+  app's window gave its oldest lines. The API now reads backwards from now in widening
+  steps (a minute, five, fifteen, an hour, six, a day) until it has enough or the window
+  is used.
+- **Masking covers JSON and whole values.** `"NAME": value` is caught as well as
+  `NAME=value`, for every secret-looking name and every setting the app is known to
+  have (in the store, given from a .env by its deploys, or asked for by its plan). An
+  unquoted value is taken to the end of the line, since values hold spaces and commas;
+  taking too much is the safe side. Lines are masked as text, never re-formatted. When
+  the store cannot be read, the answer says only the other names were used.
+- **A deploy of a paused API says so.** The template sets no reservation, so a paused API
+  stays paused through a deploy; the record, the report and the command now say it is
+  still paused, read from AWS when the deploy succeeds.
+- **A torn-down environment says it was torn down** to logs, performance and the
+  command's name lookup, rather than "nothing yet".
+- **A stack another team now runs is theirs.** On a stack from before teams had names
+  of their own, an older record's team can no longer read the logs or readings of, or
+  pause, what the other team runs there now; an organization-wide token still can.
 
