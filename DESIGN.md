@@ -1320,3 +1320,21 @@ Decided Mon Oct 12, 2026, building PHASE2-PLAN Step 15.
 - **Not yet:** finishing in the portal an interview the command started. It is the same
   interview by id, but nothing lists a person's open interviews. Owed in PHASE2-PLAN.
 
+## Secret files never go into the package
+
+Decided Mon Oct 12, 2026 (Greg, as recommended), after Step 15 found that a deploy left
+out only the file named `.env`.
+
+A deploy now leaves out every file `core/secrets.js` names: `.env.production` and the
+other `.env.*` files (examples excepted), `.envrc`, keys and keystores (`.pem`, `.key`,
+`.p12`, ...), SSH keys, package-manager and git credentials, Terraform variables and
+state, and service-account JSON. Both surfaces' uploads leave them out (one rule in
+core/upload-rules.js), and the packager removes them from a folder it copies whole on
+the API's own machine. The report says so in a line. Settings reach an app from the
+store or with the deploy, never inside its code.
+
+What it costs: an app that ships a file of one of these names on purpose, a public CA
+certificate as `ca.pem` say, or that installs from a private registry through its own
+`.npmrc`, does not get it. That app needs the file under another name, or the value in
+the store; a private registry for installs is a platform setting still to come.
+

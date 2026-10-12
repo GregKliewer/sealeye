@@ -12,7 +12,7 @@ import { unzipSync, zipSync } from "fflate";
 import ignore from "ignore";
 
 import { secretFileReason } from "./secrets.js";
-import { collectUpload, isDotEnv, rulesOf, UploadRefused } from "./upload-rules.js";
+import { collectUpload, isLeftOutOfDeploy, rulesOf, UploadRefused } from "./upload-rules.js";
 
 // The rules themselves live in core/upload-rules.js, which the portal uses too.
 export { EXCLUDED_FOLDERS, MAX_UPLOAD_BYTES, MAX_UPLOAD_FILES, UploadRefused } from "./upload-rules.js";
@@ -96,7 +96,7 @@ export function unzipInto(zip, dest, { purpose = "interview" } = {}) {
     if (!safe) throw new UploadRefused(`the upload has a file path seaLeye will not write: ${name}`);
 
     const target = path.join(root, ...safe.split("/"));
-    if (rules.secrets === "drop-env" && isDotEnv(target)) continue;
+    if (rules.secrets === "drop" && isLeftOutOfDeploy(target)) continue;
     const body = rules.secrets === "names" && secretFileReason(target) ? new Uint8Array(0) : data;
     try {
       fs.mkdirSync(path.dirname(target), { recursive: true });

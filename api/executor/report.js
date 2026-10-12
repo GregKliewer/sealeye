@@ -185,6 +185,9 @@ function assumptions(record, plan) {
       ? "- Your files were not modified. seaLeye.run uploaded a copy of them. This report is the only file it writes into your folder."
       : "- Your app was not modified. The start script the platform needs was added to the uploaded copy, not to your source. This report is the only file seaLeye.run writes into your folder."
   );
+  lines.push(
+    "- Secret files (.env, .env.production, keys and credentials) were left out of what was packaged. Settings reach your app from the organization's store or with the deploy, never inside the code."
+  );
 
   return lines.join("\n");
 }

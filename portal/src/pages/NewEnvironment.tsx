@@ -232,7 +232,7 @@ export function NewEnvironment() {
               <li>Read here, in your browser, by the same rules as <code className="font-mono text-ink">sealeye run</code>. Nothing in your folder changes.</li>
               <li>Left out: node_modules, .git, and what your .gitignore leaves out.</li>
               <li>For the interview, secret files, like <span className="font-mono text-ink">.env</span>, go as names only: their contents are never read.</li>
-              <li>If you deploy, your folder is packaged as <code className="font-mono text-ink">sealeye run</code> packages it: everything but node_modules, .git and <span className="font-mono text-ink">.env</span>. Settings come from your organization's store.</li>
+              <li>If you deploy, your folder is packaged as <code className="font-mono text-ink">sealeye run</code> packages it: everything but node_modules, .git and secret files like <span className="font-mono text-ink">.env</span>, which never leave this computer. Settings come from your organization's store.</li>
             </ul>
             <Button onClick={start} disabled={!folder || Boolean(busy)}>{busy || "Read my app"}</Button>
           </CardContent>

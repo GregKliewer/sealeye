@@ -160,7 +160,7 @@ break.
   observability_basic.retention_days becomes RetentionDays; config_basic becomes
   environment variables.
 - Packaging: the app arrives as an uploaded copy (`core/upload.js`, purpose `deploy`:
-  no node_modules, .git, .github, .do or .env), unpacked into
+  no node_modules, .git, .github, .do or secret file of any kind), unpacked into
   `~/.sealeye/deploy-uploads/<deploymentId>/` and removed when the deployment ends.
   Copy it to `dist/stage/<deploymentId>/`, `npm install --omit=dev` there, add
   `templates/run.sh`, zip, upload. `appPath` with no zip is still a folder on the API's
