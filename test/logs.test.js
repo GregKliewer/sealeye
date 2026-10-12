@@ -100,3 +100,23 @@ test("masking catches JSON logs, values with spaces, and settings named by the a
   assert.equal(mask("nothing secret here"), "nothing secret here");
   assert.equal(mask('PAYLOAD_SECRET="a \\" quoted" tail'), "PAYLOAD_SECRET=[value redacted] tail");
 });
+
+test("with no name, the command uses the app this folder's sealeye.yaml plans", async () => {
+  const fs = await import("node:fs");
+  const folder = fs.mkdtempSync(path.join(api.home, "orders-api-"));
+  fs.writeFileSync(path.join(folder, "sealeye.yaml"), "planVersion: \"0.4\"\napp: { name: orders-api, type: api }\nprofile: dev\nmodules: []\noutputs: []\n");
+  const run = (...args) => promisify(execFile)(process.execPath, [path.join(root, "cli/bin/sealeye"), ...args, "--api", api.api], {
+    cwd: folder, env: { ...process.env, HOME: api.home, SEALEYE_HOME: api.home, SEALEYE_TOKEN: ANA, NO_COLOR: "1" }
+  });
+  const { stdout } = await run("logs", "--since", "15m");
+  assert.match(stdout, /Using orders-api, the app sealeye\.yaml in this folder plans/);
+  assert.match(stdout, /starting with GREETING=\[value redacted\]/);
+
+  // Nowhere to read a name from: it says how to give one.
+  await assert.rejects(promisify(execFile)(process.execPath, [path.join(root, "cli/bin/sealeye"), "logs", "--api", api.api], {
+    cwd: api.home, env: { ...process.env, HOME: api.home, SEALEYE_HOME: api.home, SEALEYE_TOKEN: ANA, NO_COLOR: "1" }
+  }), err => /Missing name: sealeye logs/.test(err.stderr) && /run this in its folder/.test(err.stdout));
+
+  // status takes the app's name too.
+  assert.match((await run("status", "orders-api", "--json")).stdout, /"deploymentId": "dep_api00000001"/);
+});
