@@ -3,15 +3,8 @@
 // it is for, and how the hosted product is built": the CLI uploads the app).
 //
 // Both sides live here so they cannot disagree: the CLI zips with zipFolder, the API
-// unpacks with unzipInto, and the rules about what may travel are written once.
-//
-// What travels: the folder, minus what packaging leaves out (node_modules, .git,
-// .github, .do), seaLeye's own folders, symlinks, and whatever the folder's .gitignore
-// files leave out (build output, virtual environments, caches: what the developer has
-// already said is not their source). Secret files (core/secrets.js) travel as their
-// names only, even when a .gitignore names them: each is an empty file in the zip, so
-// the interview's list_files still shows that a .env exists, while its contents never
-// leave the developer's machine.
+// unpacks with unzipInto. What may travel, and the walk that decides it, are in
+// core/upload-rules.js, which seaLeye.online's upload uses too.
 import fs from "node:fs";
 import path from "node:path";
 
@@ -19,145 +12,43 @@ import { unzipSync, zipSync } from "fflate";
 import ignore from "ignore";
 
 import { secretFileReason } from "./secrets.js";
+import { collectUpload, isDotEnv, rulesOf, UploadRefused } from "./upload-rules.js";
 
-export const EXCLUDED_FOLDERS = new Set(["node_modules", ".git", ".github", ".do", ".sealeye", ".deployme"]);
+// The rules themselves live in core/upload-rules.js, which the portal uses too.
+export { EXCLUDED_FOLDERS, MAX_UPLOAD_BYTES, MAX_UPLOAD_FILES, UploadRefused } from "./upload-rules.js";
 
-// An interview reads a few files of at most 20 KB each, so an app much bigger than this
-// is almost certainly carrying build output or data it does not need to be read.
-export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;     // unpacked
-export const MAX_UPLOAD_FILES = 5000;
-
-/**
- * The two kinds of upload. An interview reads source, so it leaves out what .gitignore
- * leaves out and carries secret files as names. A deploy is what gets packaged, so it
- * follows the packager's rules exactly as they were when the API read the folder in
- * place (api/executor/package.js): everything but node_modules, .git, .github, .do
- * and .env, whose values travel separately with the deploy request. Build output a
- * .gitignore names, a static site's dist/ say, is often exactly what has to ship.
- */
-const PURPOSES = {
-  interview: {
-    excludedFolders: EXCLUDED_FOLDERS,
-    gitignore: true,
-    secrets: "names",
-    maxBytes: MAX_UPLOAD_BYTES,
-    maxFiles: MAX_UPLOAD_FILES,
-    readsAs: "an interview can read",
-    leftOut: "node_modules, .git and what your .gitignore leaves out"
-  },
-  deploy: {
-    excludedFolders: new Set(["node_modules", ".git", ".github", ".do"]),
-    gitignore: false,
-    secrets: "drop-env",
-    // A function's unpacked code is capped at 250 MB with its dependencies, which the
-    // platform installs after the upload.
-    maxBytes: 100 * 1024 * 1024,
-    maxFiles: 20000,
-    readsAs: "the platform can package",
-    leftOut: "node_modules and .git"
+/** A folder on disk as the tree collectUpload walks. */
+function diskNode(abs, name) {
+  const stat = fs.lstatSync(abs);
+  if (stat.isSymbolicLink()) return { name, kind: "other" };
+  if (stat.isDirectory()) {
+    return { name, kind: "dir", children: () => fs.readdirSync(abs).map(child => diskNode(path.join(abs, child), child)) };
   }
-};
-
-function rulesOf(purpose) {
-  const rules = PURPOSES[purpose];
-  if (!rules) throw new Error(`no upload purpose called ${purpose}`);
-  return rules;
+  if (!stat.isFile()) return { name, kind: "other" };
+  return {
+    name,
+    kind: "file",
+    size: stat.size,
+    bytes: () => {
+      const data = fs.readFileSync(abs);
+      return new Uint8Array(data.buffer, data.byteOffset, data.length);
+    },
+    text: () => fs.readFileSync(abs, "utf8")
+  };
 }
 
-/** A file the deploy upload never carries: .env, wherever it is, as the packager had it. */
-const isDotEnv = name => path.basename(name).toLowerCase() === ".env";
-
-/** An upload that breaks a rule, said in a sentence a developer can act on. */
-export class UploadRefused extends Error {}
-
 /**
- * Zip an app folder for an interview (the default) or a deploy.
+ * Zip an app folder for an interview (the default) or a deploy, by the rules in
+ * core/upload-rules.js.
  *
- * @returns {{ zip: Uint8Array, files: number, bytes: number, withheld: string[], ignored: number }}
+ * @returns {Promise<{ zip: Uint8Array, files: number, bytes: number, withheld: string[], ignored: number }>}
  *          withheld lists the secret files sent as empty names; ignored counts what a
  *          .gitignore left out.
  */
-export function zipFolder(dir, { purpose = "interview" } = {}) {
-  const rules_ = rulesOf(purpose);
+export async function zipFolder(dir, { purpose = "interview" } = {}) {
   const root = path.resolve(dir);
-  const entries = {};
-  const withheld = [];
-  let files = 0;
-  let bytes = 0;
-  let ignored = 0;
-
-  // Every .gitignore from the root down to the folder being read, each applied to paths
-  // relative to its own folder, as git applies them: a deeper file's rule wins, so its
-  // "!keep.log" brings back what a parent's "*.log" left out.
-  const gitignored = (rules, rel, isDir) => {
-    let ignoredHere = false;
-    for (const { base, matcher } of rules) {
-      const own = base ? rel.slice(base.length + 1) : rel;
-      if (own === "") continue;
-      const verdict = matcher.test(isDir ? `${own}/` : own);
-      if (verdict.ignored) ignoredHere = true;
-      else if (verdict.unignored) ignoredHere = false;
-    }
-    return ignoredHere;
-  };
-
-  const rulesFor = (abs, rel, inherited) => {
-    if (!rules_.gitignore) return inherited;
-    try {
-      const text = fs.readFileSync(path.join(abs, ".gitignore"), "utf8");
-      return [...inherited, { base: rel, matcher: ignore().add(text) }];
-    } catch {
-      return inherited;
-    }
-  };
-
-  const walk = (abs, rel, inherited) => {
-    const rules = rulesFor(abs, rel, inherited);
-
-    for (const entry of fs.readdirSync(abs, { withFileTypes: true })) {
-      const childAbs = path.join(abs, entry.name);
-      const childRel = rel ? `${rel}/${entry.name}` : entry.name;
-
-      if (entry.isSymbolicLink()) continue;
-      if (entry.isDirectory()) {
-        if (rules_.excludedFolders.has(entry.name.toLowerCase())) continue;
-        if (gitignored(rules, childRel, true)) { ignored++; continue; }
-        walk(childAbs, childRel, rules);
-        continue;
-      }
-      if (!entry.isFile()) continue;
-
-      // A secret file is listed by name whatever .gitignore says: .env is almost always
-      // ignored, and knowing it exists is how the model learns the app reads settings.
-      if (rules_.secrets === "drop-env" && isDotEnv(entry.name)) continue;
-      if (rules_.secrets === "names" && secretFileReason(entry.name)) {
-        countFile();
-        entries[childRel] = new Uint8Array(0);
-        withheld.push(childRel);
-        continue;
-      }
-
-      if (gitignored(rules, childRel, false)) { ignored++; continue; }
-      countFile();
-
-      const data = fs.readFileSync(childAbs);
-      bytes += data.length;
-      if (bytes > rules_.maxBytes) {
-        throw new UploadRefused(`Your folder is bigger than ${rules_.maxBytes / 1024 / 1024} MB, leaving out ${rules_.leftOut}, which is more than ${rules_.readsAs}.`);
-      }
-      entries[childRel] = new Uint8Array(data.buffer, data.byteOffset, data.length);
-    }
-  };
-
-  function countFile() {
-    files++;
-    if (files > rules_.maxFiles) {
-      throw new UploadRefused(`Your folder has more than ${rules_.maxFiles} files, leaving out ${rules_.leftOut}, which is more than ${rules_.readsAs}.`);
-    }
-  }
-
-  walk(root, "", []);
-  return { zip: zipSync(entries, { level: 6 }), files, bytes, withheld, ignored };
+  const { entries, ...counts } = await collectUpload(diskNode(root, path.basename(root)), { purpose, ignore });
+  return { zip: zipSync(entries, { level: 6 }), ...counts };
 }
 
 /**

@@ -28,8 +28,8 @@ function app() {
   return root;
 }
 
-test("the zip leaves out dependencies, git and links, and carries secret files as names only", () => {
-  const { zip, withheld } = zipFolder(app());
+test("the zip leaves out dependencies, git and links, and carries secret files as names only", async () => {
+  const { zip, withheld } = await zipFolder(app());
   assert.deepEqual(withheld.sort(), [".env", "src/server.pem"]);
 
   const dest = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-unzip-")), "my-app");
@@ -91,19 +91,19 @@ test("excluded folders are excluded whatever their case, and clashing entries ar
   assert.throws(() => unpack({ "a": body, "a/b": body }), /clash/);
 });
 
-test("the wider list of credential files travels as names only", () => {
+test("the wider list of credential files travels as names only", async () => {
   const dir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-upload-")), "app");
   fs.mkdirSync(dir);
   for (const name of [".netrc", ".git-credentials", "prod.tfvars", "terraform.tfstate", "deploy-service-account.json", "store.p12"]) {
     fs.writeFileSync(path.join(dir, name), SECRET);
   }
   fs.writeFileSync(path.join(dir, "index.html"), "<h1>hi</h1>");
-  const { zip, withheld } = zipFolder(dir);
+  const { zip, withheld } = await zipFolder(dir);
   assert.equal(withheld.length, 6);
   assert.ok(!Buffer.from(zip).toString("latin1").includes(SECRET));
 });
 
-test("what .gitignore leaves out stays home, except secret files, which go as names", () => {
+test("what .gitignore leaves out stays home, except secret files, which go as names", async () => {
   const dir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-upload-")), "app");
   const put = (rel, body = "x") => {
     fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
@@ -120,7 +120,7 @@ test("what .gitignore leaves out stays home, except secret files, which go as na
   put("web/index.html");
   put("web/keep.log");
 
-  const { zip, withheld, ignored } = zipFolder(dir);
+  const { zip, withheld, ignored } = await zipFolder(dir);
   const dest = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-unzip-")), "app");
   unzipInto(zip, dest);
 
@@ -140,13 +140,13 @@ test("what .gitignore leaves out stays home, except secret files, which go as na
   assert.equal(ignored, 4);
 });
 
-test("a big virtual environment no longer stops an interview when .gitignore names it", () => {
+test("a big virtual environment no longer stops an interview when .gitignore names it", async () => {
   const dir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-upload-")), "app");
   fs.mkdirSync(path.join(dir, ".venv"), { recursive: true });
   for (let i = 0; i < 5100; i++) fs.writeFileSync(path.join(dir, ".venv", `f${i}.py`), "");
   fs.writeFileSync(path.join(dir, "app.py"), "print('hi')");
-  assert.throws(() => zipFolder(dir), /more than 5000 files/);
+  await assert.rejects(zipFolder(dir), /more than 5000 files/);
 
   fs.writeFileSync(path.join(dir, ".gitignore"), ".venv/\n");
-  assert.equal(zipFolder(dir).files, 2);
+  assert.equal((await zipFolder(dir)).files, 2);
 });

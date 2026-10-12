@@ -1268,3 +1268,22 @@ version: different contents, same version, and it stops before building anything
 API and portal can change without a new version; they are not installed. 2.18.0 is the
 first: `deploy --again`, `validate`'s ready or drafted, and the shared evidence words.
 
+## One walk decides what travels, from the command and from the browser
+
+Decided Mon Oct 12, 2026, building PHASE2-PLAN Step 15 (D6: the portal reads a folder
+chosen in the browser, under the command's rules).
+
+The rules about what of a folder goes to the API, and the walk that applies them, move
+from core/upload.js into core/upload-rules.js, which runs in a browser. It walks any
+tree of folders and files: the command hands it the disk, seaLeye.online the folder the
+developer chose. What it needs from a package, the .gitignore matcher, the caller hands
+in, so the file imports nothing but core/secrets.js (which no longer needs node:path).
+The command's zipFolder becomes async to share the walk; it sends the same thing as
+before. test/upload-parity.test.js runs the command's walk and the browser's (a flat
+file list, as a folder input gives it) over one folder, for an interview and for a
+deploy, and compares what each would send.
+
+Found on the way, and owed (PHASE2-PLAN, "Owed after this plan"): a deploy upload leaves
+out `.env` only, as the packager always has, so a `.env.production` with values in it is
+packaged into the function's code. The interview upload sends it as a name only.
+
