@@ -59,7 +59,7 @@ app name (Step 2). Step 6 is the second-person test.
    token per person, issued by an administrator, kept by `sealeye login`; every record
    and interview carries the token's person, organization and team (DESIGN.md, "Every
    caller has a token, until sign-in"). The identity provider is Cognito (DESIGN.md,
-   "Phase 1: who it is for"); how it replaces tokens is Q15. Deferred past
+   "Phase 1: who it is for"); how it replaces tokens is Q16. Deferred past
    PHASE2-PLAN, until more than a handful of people or a bank pilot.*
 4. **A real store**: records move from `~/.sealeye/deployments.json` to a database, with
    organization and team on every record (Q2). *Done Oct 10, 2026: Postgres on the
@@ -84,7 +84,9 @@ app name (Step 2). Step 6 is the second-person test.
    produced and scored on how it turned out (`core/tracing.js`, DESIGN.md "Tracing the
    interview with LangFuse"). It moved to the API with the interview on Oct 10, 2026,
    one trace across the interview's pauses; where an organization's traces live is Q13.
-10. **OWED: setting values move to the organization's secret store.** Decided Oct 10,
+10. **Setting values move to the organization's secret store.** *Done Oct 12, 2026
+    (PHASE2-PLAN Part B; DESIGN.md, "Settings live in the organization's store"). The
+    plan contract did not change: the platform asks the store at deploy time.* Decided Oct 10,
     2026 (DESIGN.md, "Setting values travel with the deploy, for now"): for now the CLI
     sends an app's setting values from its `.env` with each deploy. A bank will want
     them in its own secret store instead, with nothing secret passing through seaLeye.
@@ -172,7 +174,7 @@ and does nothing real. A blank is not started.
 | Team and access | `sealeye team` | | | mock-up | 2 |
 | Integrations | `sealeye integrations` | | | mock-up (report) | 2 |
 | Sign in | `sealeye login` | tokens; `POST /sessions`, `DELETE /sessions` for the portal; `GET /whoami` | built | built (token paste, then a session) | 1 |
-| Settings in the secret store | `sealeye secrets set` | | | | 1 (owed, item 10) |
+| Settings in the secret store | `sealeye settings`, `settings set`, `settings unset` | `GET /apps/{app}/settings`, `PUT` and `DELETE /apps/{app}/settings/{name}` | built | built (Settings, in Control) | 1 (item 10) |
 | Onboard and ingest | `sealeye admin ingest` | | | | 3 |
 | Promote | `sealeye promote` | | | | 4 |
 | Raise a gap ticket | `sealeye needs --request` | | prints text only | | 4 |

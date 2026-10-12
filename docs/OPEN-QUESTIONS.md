@@ -30,7 +30,7 @@ a bank's code: LangFuse Cloud has no Canadian region.
 agreed with the organization, and LangFuse in their network for a bank. Blocks any
 Phase 1 pilot on real code with tracing on.
 
-### Q15. How does Cognito sign-in replace tokens?
+### Q16. How does Cognito sign-in replace tokens?
 
 Cognito was chosen for sign-in on Oct 9, 2026 (DESIGN.md, "Phase 1: who it is for").
 Until it is built, each person has a token issued by the administrator, and the portal

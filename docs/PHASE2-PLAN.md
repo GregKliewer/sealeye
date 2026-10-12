@@ -304,6 +304,9 @@ Half a day, before anything else in Part B.
 
 ### Step 9. The plan says where each value lives
 
+*Dropped by Greg on Oct 12: where values come from is the platform's fact, asked of the
+store at deploy time, so the contract, the prompt and the interview are unchanged.*
+
 - planVersion 0.5: each `config_basic` variable says where its value comes from (`store`
   or `plan`). 0.4 plans still load, with every variable read as before.
 - The interview prompt and the plan contract change, so run `npm run eval:interview`
@@ -312,6 +315,10 @@ Half a day, before anything else in Part B.
 
 ### Step 10. The app reads its values when it starts
 
+*Built Oct 12, with a reader that signs its own request rather than loading the SDK, and
+a permissions boundary on every function role (Greg's calls; DESIGN.md, "Settings live in
+the organization's store").*
+
 - `templates/run.sh` runs the reader from Step 7, then `exec node <entry>`. The
   developer's folder is still untouched.
 - The function's role may read only `/sealeye-apps/<team>/<app>/`.
@@ -319,6 +326,8 @@ Half a day, before anything else in Part B.
   says the value came from the store.
 
 ### Step 11. Moving apps over (D5)
+
+*Built Oct 12 (`cli/store-offer.js`, `scripts/settings-sources.js`).*
 
 - On the first `sealeye run` of an app whose `.env` holds values the plan wants, the
   command offers once to store them, and lists the names it would store.
@@ -329,6 +338,8 @@ Half a day, before anything else in Part B.
 - The `sent` path stays for a laptop API and the sample apps.
 
 ### Step 12. Write it down
+
+*Done Oct 12.*
 
 - DESIGN.md: the store, the read path, the migration, and what the `sent` path is still
   for.
@@ -441,7 +452,7 @@ Step 5 records a decision next to each.
 | Item | Where it stands | Bring it forward when |
 |---|---|---|
 | **ROADMAP Phase 1 item 5: AWS access per team** | Every deploy goes through `sealeye-deploy-pilot` in the one pilot account. It is designed for a role per team account (DESIGN.md, "Phase 1: who it is for"), so adding one is configuration, not a rewrite. | A team brings its own AWS account, or any bank pilot. |
-| **ROADMAP Phase 1 item 3: real sign-in** | Cognito was chosen on Oct 9 (DESIGN.md, "Phase 1: who it is for"). How it replaces tokens and portal sessions is open (OPEN-QUESTIONS Q15). Tokens fill `req.caller` in the shape Cognito will. | More than a handful of people, anyone outside Greg's reach to issue a token by hand, or any bank pilot. It gets its own plan. |
+| **ROADMAP Phase 1 item 3: real sign-in** | Cognito was chosen on Oct 9 (DESIGN.md, "Phase 1: who it is for"). How it replaces tokens and portal sessions is open (OPEN-QUESTIONS Q16). Tokens fill `req.caller` in the shape Cognito will. | More than a handful of people, anyone outside Greg's reach to issue a token by hand, or any bank pilot. It gets its own plan. |
 | **Q10: publishing the command** | Installed from a tarball on sealeye.run. | Someone needs to pin a version, or the pilot grows past people Greg sends the link to. |
 | **Q13: where traces live** | Tracing is fine on the sample apps. The leaning is tracing off for real code. | Any pilot on real code with tracing on. |
 | **The database moves to RDS** (DESIGN.md stage 2) | Postgres in a container, with a nightly dump that has been tested once. | Someone else's data matters: arguably the first team that deploys its own app, not the Step 15 tester on sample apps. |
@@ -450,6 +461,7 @@ Step 5 records a decision next to each.
 | **Install scripts** | Dependencies install with `--ignore-scripts`. Confirmed by Greg on Oct 11: they stay off (DESIGN.md, "Installing an app's dependencies runs none of its code"). | A team needs a package that builds native code: then build in a runtime-matched container, never in the API. |
 | **Small gaps** | Expired portal sessions are cleared only at sign-in. A race between token writes in file mode is narrowed, not removed. The package still installs the API's dependencies.  The pages ask not to be indexed. | Any of them causing trouble, or the end of the pilot. |
 | **Narrow the deploy role to `sealeye-*` functions** | Functions made since Step 2 are `sealeye-*`; older ones are named after the bare app, so the role still allows any function in the account. | No environment from before Step 2 is left: tear down and redeploy Greg's older API environments. |
+| **Node 20 on Lambda** | The template runs apps on `nodejs20.x`, which reached end of support on Apr 30, 2026. AWS stops new functions on it on Feb 1, 2027, and updates on Mar 3, 2027. | Before Feb 2027: move the template and the settings reader's tests to `nodejs24.x`, and redeploy each API environment. |
 | **Old remote branches** | Merged branches are still on GitHub. These sessions cannot delete them. | Greg prunes them when convenient. |
 
 ### Step 5: recommendations, for Greg to decide
