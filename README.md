@@ -21,8 +21,9 @@ cd your-app && sealeye run
 The command talks to https://api.sealeye.online unless `SEALEYE_API` (in
 `~/.sealeye/config`) or `--api` says otherwise.
 
-Where it is going: [docs/VISION.md](docs/VISION.md). What is next:
-[docs/ROADMAP.md](docs/ROADMAP.md).
+All the documentation starts at [docs/README.md](docs/README.md): where it is going
+([VISION](docs/VISION.md)), what is next ([ROADMAP](docs/ROADMAP.md)), and how it is
+built ([ARCHITECTURE](docs/ARCHITECTURE.md)).
 
 ## Run it locally
 
