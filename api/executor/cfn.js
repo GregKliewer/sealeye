@@ -2,6 +2,9 @@
 // Every CloudFormation call the executor makes, plus the handful of S3 calls that go
 // with them, shelling out to the AWS CLI. No SDK dependency; JSON in, JSON out.
 import { spawn } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 import { region } from "../../core/config.js";
 import { normalizeTemplate } from "./package.js";
@@ -9,34 +12,26 @@ import { normalizeTemplate } from "./package.js";
 // region() lives in core/config.js so the CLI can read it without importing the API.
 export { region };
 
-/**
- * Spawn `aws ...` and resolve when it exits. Never rejects on a non-zero exit.
- * `input`, when given, is written to its standard input: how a setting's value reaches
- * the CLI without ever being on a command line, where any process could read it.
- */
-function runAws(args, { input } = {}) {
+/** Spawn `aws ...` and resolve when it exits. Never rejects on a non-zero exit. */
+function runAws(args) {
   return new Promise((resolve, reject) => {
-    const child = spawn("aws", args, { stdio: [input === undefined ? "ignore" : "pipe", "pipe", "pipe"] });
+    const child = spawn("aws", args, { stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     child.stdout.on("data", d => (stdout += d));
     child.stderr.on("data", d => (stderr += d));
     child.on("error", e => reject(new Error(`aws: ${e.message} (is the AWS CLI installed?)`)));
     child.on("close", code => resolve({ ok: code === 0, code, stdout, stderr }));
-    if (input !== undefined) {
-      child.stdin.on("error", () => {});
-      child.stdin.end(input);
-    }
   });
 }
 
 /** runAws for the store calls: a missing AWS CLI is a failure to report, not a throw. */
-const tryAws = (args, options) => runAws(args, options).catch(err => ({ ok: false, code: -1, stdout: "", stderr: err.message }));
+const tryAws = args => runAws(args).catch(err => ({ ok: false, code: -1, stdout: "", stderr: err.message }));
 
 // ---------------------------------------------------------------------------------
 // An app's settings in the organization's store (PHASE2-PLAN Part B, D3): Parameter
 // Store, encrypted, one folder per team's app (api/executor/settings.js). Values go in
-// through standard input and never come back out through here: listing asks for names
+// through a private temporary file and never come back out through here: listing asks for names
 // and dates only.
 
 /** The settings in a folder: names and when each last changed. Never values. */
@@ -54,13 +49,25 @@ export async function listStoredSettings(folder) {
   }
 }
 
-/** Store one setting, encrypted, replacing any earlier value. */
+/**
+ * Store one setting, encrypted, replacing any earlier value.
+ *
+ * The value reaches the AWS CLI in a file only the API can read, in a folder of its own,
+ * removed as soon as the call ends; never on a command line. Not on standard input: Node
+ * gives a child a socket there, which the CLI cannot open as /dev/stdin, and it reads its
+ * input file more than once, which a pipe cannot be (Oct 12, 2026, the first live use).
+ */
 export async function putStoredSetting(name, value) {
-  const input = JSON.stringify({ Name: name, Value: value, Type: "SecureString", Overwrite: true });
-  const r = await tryAws(["ssm", "put-parameter", "--cli-input-json", "file:///dev/stdin", "--region", region(), "--output", "json"], { input });
-  // AWS's validation messages can quote the value they refused, so a failure here is
-  // reported by the error's name alone, never by its message.
-  return r.ok ? { ok: true } : { ok: false, error: errorName(r.stderr) };
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-setting-"));
+  const file = path.join(dir, "input.json");
+  try {
+    fs.chmodSync(dir, 0o700);
+    fs.writeFileSync(file, JSON.stringify({ Name: name, Value: value, Type: "SecureString", Overwrite: true }), { mode: 0o600 });
+    const r = await tryAws(["ssm", "put-parameter", "--cli-input-json", `file://${file}`, "--region", region(), "--output", "json"]);
+    return r.ok ? { ok: true } : { ok: false, error: errorName(r.stderr, value) };
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 /** Remove one setting. One that is not there is not an error. */
@@ -72,8 +79,16 @@ export async function deleteStoredSetting(name) {
 
 // The CLI's own error line, for calls that are given no value (listing, removing).
 const firstLine = text => String(text || "").trim().split("\n")[0] || "the AWS CLI gave no reason";
-// Only the error's name, such as AccessDeniedException, for a call that carried a value.
-const errorName = text => /\(([A-Za-z]+(?:Exception|Error))\)/.exec(String(text || ""))?.[1] || "the store refused it";
+// For a call that carried a value: AWS's error name alone, such as AccessDeniedException,
+// since AWS's own messages can quote the value they refused. The CLI's own complaint,
+// made before anything reached AWS, is shown when it does not contain the value.
+function errorName(text, value) {
+  const s = String(text || "");
+  const name = /An error occurred \(([A-Za-z0-9]+)\)/.exec(s)?.[1];
+  if (name) return name;
+  const line = s.trim().split("\n")[0].slice(0, 200);
+  return line && !(value && s.includes(value)) ? `the AWS CLI said: ${line}` : "the store refused it, without a reason that can be shown";
+}
 
 /**
  * `aws cloudformation deploy` — runs in the background; the promise resolves when the

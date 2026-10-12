@@ -1067,7 +1067,8 @@ because seaLeye calls these settings everywhere else and not every one is a secr
 Guarantees, each tested:
 
 - A value travels once, inward. The command reads it hidden or from a pipe, never as an
-  argument; the API hands it to the AWS CLI on standard input, never on a command line;
+  argument; the API hands it to the AWS CLI in a file only the API can read, removed as soon as the
+  call ends, never on a command line;
   listing asks the store for names and dates only. No answer, log, record or the change
   log ever holds one.
 - A refused write is reported by the error's name alone (`AccessDeniedException`),
@@ -1154,3 +1155,16 @@ not a security control, since an older client sends no such list. Values already
 in one line that they come from the store, so editing `.env` is not mistaken for changing
 the deployed app. `deploy/server.sh settings-sources` lists the live environments still
 on `.env` values, by name.
+
+## A setting goes to the store through a private file, not standard input
+
+Decided Mon Oct 12, 2026, after the first live check of Part B. The first live `sealeye settings set` failed with "the store refused it". The API passed the
+value to `aws ssm put-parameter` as `--cli-input-json file:///dev/stdin`. Node gives a child
+process a socket on standard input, which the AWS CLI cannot open as `/dev/stdin` (ENXIO),
+and with a shell pipe instead the CLI reads the file twice and gets nothing the second time.
+The tests passed because the stand-in read standard input however it arrived. Now the API
+writes the input to a file (0600) in a folder of its own (0700), names that file, and
+removes both when the call ends. The value is still never on a command line. The stand-ins
+in the tests and the portal's test API read only from a named file, so the old way fails
+there too.
+

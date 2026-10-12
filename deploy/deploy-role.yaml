@@ -14,6 +14,10 @@ Parameters:
   ArtifactBucket:
     Description: The bucket seaLeye uploads function code to (SEALEYE_BUCKET)
     Type: String
+    # An empty or quoted name would leave the role unable to upload any function code,
+    # and the stack would still update cleanly (seen Oct 12), so refuse it here.
+    AllowedPattern: "^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$"
+    ConstraintDescription: an S3 bucket name, such as the SEALEYE_BUCKET the API uses
   RoleSuffix:
     Description: Names the role sealeye-deploy-<suffix>, one per team
     Type: String
