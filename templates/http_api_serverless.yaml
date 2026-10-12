@@ -24,6 +24,14 @@ Parameters:
     Type: String
     Default: ""
     AllowedPattern: "^(/sealeye-apps/[a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9-]*)?$"
+  # The deployment this is (dep_...). Every deploy changes it, so every deploy is a real
+  # change that restarts the function, even one that sends the same code again with the
+  # same parameters (DESIGN.md, "Deploying again"): the app then reads its settings anew,
+  # and the stack's status is this deployment's, never a leftover.
+  DeploymentId:
+    Type: String
+    Default: ""
+    AllowedPattern: "^(dep_[a-z0-9]+)?$"
   # One parameter per setting the plan asks for is written in below, each NoEcho, so the
   # values never reach this file on disk, the stack events or the console. The template
   # deploys unchanged when the plan asks for none.
@@ -83,6 +91,7 @@ Resources:
         Variables:
           AWS_LAMBDA_EXEC_WRAPPER: /opt/bootstrap
           PORT: "8080"
+          SEALEYE_DEPLOYMENT_ID: !Ref DeploymentId
           # Where the settings reader in run.sh finds the app's settings; absent when
           # the app has none in the store.
           SEALEYE_SETTINGS_PATH: !If [HasSettings, !Sub "${SettingsFolder}/", !Ref AWS::NoValue]

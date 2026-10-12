@@ -127,7 +127,8 @@ module ids, and only for that. Changing the contract is a DESIGN.md decision.
 
 ## API
 
-POST /plans/validate, POST /deployments ({ plan, appPath, zip?, settings? }), GET /deployments,
+POST /plans/validate, POST /deployments ({ plan, appPath, zip?, settings? }, or
+{ fromDeployment, plan? } to deploy code the platform already has again), GET /deployments,
 GET /deployments/{id}, GET /deployments/{id}/evidence, DELETE /deployments/{id},
 GET /needs, GET /health, POST /interviews ({ app, zip }), POST
 /interviews/{id}/answers ({ answer }), GET /interviews/{id}/events (server-sent events),
@@ -159,7 +160,9 @@ break.
   `~/.sealeye/deploy-uploads/<deploymentId>/` and removed when the deployment ends.
   Copy it to `dist/stage/<deploymentId>/`, `npm install --omit=dev` there, add
   `templates/run.sh`, zip, upload. `appPath` with no zip is still a folder on the API's
-  machine.
+  machine. A deployment made again (`fromDeployment`, `sealeye deploy --again`, the
+  portal's Deploy again) stages nothing: it reuses the earlier artifact in S3, checked
+  first with head-object, and takes every setting from the store. APIs only.
 - Status map: CREATE/UPDATE_IN_PROGRESS -> running; CREATE/UPDATE_COMPLETE ->
   succeeded; anything with ROLLBACK or FAILED -> failed, with the first CREATE_FAILED
   reason from describe-stack-events, read before any cleanup; DELETE_IN_PROGRESS ->
@@ -233,8 +236,9 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   `settingValues` in `api/executor/settings.js` is the one place that decides where each
   comes from (store, sent, .env, plan), and a record keeps each setting's name and
   source, never its value.
-- seaLeye.online (`portal/`) has Environments, Control (state, history, tear down) and
-  Catalog (modules and the needs ledger). Pause, Configure, Logs, Performance, Costs and
+- seaLeye.online (`portal/`) has Environments, Control (state, deploy again, tear down,
+  settings, history, evidence), Validate (check a plan, and deploy a ready one with the
+  code the platform has), Catalog (modules and the needs ledger) and Health. Pause, Configure, Logs, Performance, Costs and
   Team are drawn in the archived mock-up only; the portal shows nothing it cannot do.
 
 ## Working here

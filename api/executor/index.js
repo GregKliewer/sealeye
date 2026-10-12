@@ -4,9 +4,10 @@
 import { compose, namingFor } from "./compose.js";
 import { storeFolder } from "./settings.js";
 import { stage, cleanStage, stagePaths, sha256File, sha256Template } from "./package.js";
-import { deploy, describe, firstFailure, deleteStack, emptyBucket, listStoredSettings, syncSite } from "./cfn.js";
+import { artifactExists, deploy, describe, firstFailure, deleteStack, emptyBucket, listStoredSettings, syncSite } from "./cfn.js";
 import { renderReport } from "./report.js";
 import { putDeployment, listDeployments } from "../store.js";
+import { requireSetting } from "../../core/config.js";
 import { flushScores, scoreDeploymentOutcome } from "../../core/tracing.js";
 
 // Every 5 s, as CLAUDE.md says. Tests that stand in for CloudFormation poll faster.
@@ -100,9 +101,29 @@ export async function startDeployment(record, plan, appPath, sent = {}) {
     });
     putDeployment(record);
 
-    const artifactKey = await stage(appPath, record.deploymentId, composed, line =>
-      set(record.status, { step: line })
-    );
+    // Deployed again (PHASE2-PLAN Step 14): the code an earlier deployment packaged,
+    // as it is in S3, so nothing is staged or uploaded, and its checksum is that
+    // deployment's (already on the record).
+    const again = record.source === "again";
+    let artifactKey;
+    if (again) {
+      artifactKey = record.artifactKey;
+      const by = record.packagedBy || record.fromDeployment;
+      set("packaging", { step: `Finding the code ${by} packaged` });
+      const found = await artifactExists(requireSetting("BUCKET"), artifactKey);
+      if (!found.ok) {
+        throw new Error(found.missing
+          ? `the code ${by} packaged is no longer kept, so nothing was built. Run sealeye run in the app's folder to package it again.`
+          : `the platform could not check the code ${by} packaged is still there (${found.error}), so nothing was built`);
+      }
+      composed.parameters.ArtifactKey = artifactKey;
+      composed.safeParameters.ArtifactKey = artifactKey;
+      record.parameters = composed.safeParameters;
+    } else {
+      artifactKey = await stage(appPath, record.deploymentId, composed, line =>
+        set(record.status, { step: line })
+      );
+    }
     if (artifactKey) record.artifactKey = artifactKey;
 
     // Two checksums on the way past, for the change record: the template this stack is
@@ -114,7 +135,7 @@ export async function startDeployment(record, plan, appPath, sent = {}) {
       record.templateSha256 = null;
       record.templateSha256Error = err.message;
     }
-    if (artifactKey) {
+    if (artifactKey && !again) {
       try {
         record.artifactSha256 = sha256File(stagePaths(record.deploymentId).zipPath);
       } catch (err) {

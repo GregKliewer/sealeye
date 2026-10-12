@@ -26,11 +26,20 @@ fs.writeFileSync(path.join(home, "tokens.json"), JSON.stringify([
   { tokenId: "tok_other", tokenHash: hash(OTHER_ORG_TOKEN), email: "x@other.example", name: "Other Org", org: "other-org", team: "default", createdAt: ago(0), revokedAt: null, lastUsedAt: null }
 ]));
 
+// A ready plan for an API, as the interview writes one.
+const apiPlan = name => ({
+  planVersion: "0.4", app: { name, type: "api" }, profile: "dev",
+  modules: [
+    { id: "http_api_serverless", inputs: { runtime: "nodejs", entry_point: "index.js", trigger: "http" } },
+    { id: "observability_basic", inputs: { target: "auto", retention_days: 30 } }
+  ],
+  outputs: ["public_url", "logs"]
+});
 const by = (name, user) => ({ user, name, host: "a-laptop", verified: "token" });
 const base = { backend: "cloudformation", orgId: "default", teamId: "default", surface: "cli" };
 fs.writeFileSync(path.join(home, "deployments.json"), JSON.stringify([
   { ...base, deploymentId: "dep_aaaaaaaaaaa1", app: { name: "payments-api" }, kind: "api", status: "succeeded", stackName: "sealeye-payments-api",
-    plan: { profile: "dev" }, outputs: { ApiUrl: "https://abc123.lambda-url.ca-central-1.on.aws/" }, requestedBy: by("Ana Pereira", "ana@example.com"),
+    plan: apiPlan("payments-api"), artifactKey: "sealeye-payments-api/dep_aaaaaaaaaaa1.zip", artifactSha256: "b".repeat(64), outputs: { ApiUrl: "https://abc123.lambda-url.ca-central-1.on.aws/" }, requestedBy: by("Ana Pereira", "ana@example.com"),
     startedAt: ago(2 * 3600_000), finishedAt: ago(2 * 3600_000 - 90_000) },
   { ...base, deploymentId: "dep_aaaaaaaaaaa0", app: { name: "payments-api" }, kind: "api", status: "succeeded", stackName: "sealeye-payments-api",
     plan: { profile: "dev" }, outputs: { ApiUrl: "https://abc123.lambda-url.ca-central-1.on.aws/" }, requestedBy: by("Ana Pereira", "ana@example.com"),
@@ -47,12 +56,14 @@ fs.writeFileSync(path.join(home, "deployments.json"), JSON.stringify([
   { ...base, deploymentId: "dep_eeeeeeeeeee1", app: { name: "old-demo" }, kind: "static", status: "destroyed", stackName: "sealeye-old-demo",
     plan: { profile: "poc" }, outputs: {}, requestedBy: by("Greg Kliewer", "greg@example.com"), startedAt: ago(9 * 86400_000) },
   { ...base, teamId: "payments", deploymentId: "dep_99999999999a", app: { name: "another-teams-api" }, kind: "api", status: "succeeded", stackName: "sealeye-payments-another-teams-api-0a1b2c",
-    plan: { profile: "dev" }, outputs: {}, requestedBy: by("Pat Other", "pat@example.com"), startedAt: ago(3600_000) },
+    plan: apiPlan("another-teams-api"), artifactKey: "sealeye-payments-another-teams-api-0a1b2c/dep_99999999999a.zip", outputs: {}, requestedBy: by("Pat Other", "pat@example.com"), startedAt: ago(3600_000) },
   { ...base, orgId: "other-org", deploymentId: "dep_fffffffffff1", app: { name: "not-yours" }, kind: "api", status: "succeeded", stackName: "sealeye-not-yours",
     plan: { profile: "dev" }, outputs: {}, requestedBy: by("Other Org", "x@other.example"), startedAt: ago(3600_000) }
 ]));
 
-// The stand-in `aws`: deleting a stack works, and afterwards it is gone.
+// The stand-in `aws`: deleting a stack works, and afterwards that stack is gone; a
+// deploy returns at once and the stack then reads as updated; an artifact is always
+// there.
 const bin = path.join(home, "bin");
 fs.mkdirSync(bin);
 // Its settings calls keep parameters in a file, names and values, so a test can check a
@@ -77,16 +88,17 @@ if (args[1] === "get-parameters-by-path") {
 fs.writeFileSync(path.join(bin, "aws"), `#!/bin/sh
 [ "$1" = ssm ] && exec node "${path.join(bin, "ssm.cjs")}" "$@"
 case "$2" in
-  delete-stack) touch "${home}/deleted"; echo '{}' ;;
+  delete-stack) touch "${home}/deleted-$4"; echo '{}' ;;
   describe-stacks)
-    if [ -f "${home}/deleted" ]; then echo "Stack does not exist" >&2; exit 254; fi
-    echo '{"Stacks":[{"StackStatus":"DELETE_IN_PROGRESS","Outputs":[]}]}' ;;
+    if [ -f "${home}/deleted-$4" ]; then echo "Stack does not exist" >&2; exit 254; fi
+    echo '{"Stacks":[{"StackStatus":"UPDATE_COMPLETE","Outputs":[{"OutputKey":"ApiUrl","OutputValue":"https://abc123.lambda-url.ca-central-1.on.aws/"}]}]}' ;;
   *) echo '{}' ;;
 esac
 `, { mode: 0o755 });
 
 const env = { ...process.env, PORT: String(PORT), HOME: home, SEALEYE_HOME: home, PATH: `${bin}:${process.env.PATH}`,
-  SEALEYE_TRACING: "off", SEALEYE_TEST_POLL_MS: "200", ORG: "Northwind Payments", DATABASE_URL: "" };
+  SEALEYE_TRACING: "off", SEALEYE_TEST_POLL_MS: "200",
+  SEALEYE_BUCKET: "artifacts-bucket", SEALEYE_LWA_VERSION: "25", SEALEYE_FUNCTION_BOUNDARY_ARN: "arn:aws:iam::123456789012:policy/boundary", ORG: "Northwind Payments", DATABASE_URL: "" };
 delete env.SEALEYE_AUTH;
 const child = spawn(process.execPath, ["api/server.js"], { cwd: root, env, stdio: "inherit" });
 for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => { child.kill(signal); process.exit(0); });

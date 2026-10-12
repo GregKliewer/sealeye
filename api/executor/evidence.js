@@ -93,7 +93,9 @@ function requestedOf(record) {
           command: origin.command || NOT_RECORDED,
           planSource: origin.planSource || NOT_RECORDED,
           file: origin.file || null,
-          answers: Array.isArray(origin.answers) ? origin.answers : null
+          answers: Array.isArray(origin.answers) ? origin.answers : null,
+          // Deployed again (PHASE2-PLAN Step 14): whose code, and whether a plan came with it.
+          ...(origin.planSource === "again" ? { command: origin.command || null, fromDeployment: origin.fromDeployment || NOT_RECORDED, packagedBy: origin.packagedBy || origin.fromDeployment || NOT_RECORDED, planGiven: origin.planGiven === true } : {})
         }
       : NOT_RECORDED
   };
@@ -364,7 +366,11 @@ function whoAsked(ev) {
     `- Duration: ${isStr(r.durationSeconds) ? r.durationSeconds : `${r.durationSeconds} seconds`}`
   ];
   if (isStr(r.origin)) lines.push(`- Origin: ${r.origin}`);
-  else {
+  else if (r.origin.planSource === "again") {
+    lines.push(`- Command: ${r.origin.command ? code(`sealeye ${r.origin.command}`) : "Deploy again, in the portal"}`);
+    lines.push(`- Code: the artifact ${code(r.origin.packagedBy)} packaged, deployed again without a new upload${r.origin.fromDeployment !== r.origin.packagedBy ? `, as ${code(r.origin.fromDeployment)} had` : ""}`);
+    lines.push(`- Plan came from: ${r.origin.planGiven ? (r.origin.file ? code(r.origin.file) : "a plan given with the request") : `the plan ${code(r.origin.fromDeployment)} was deployed with`}`);
+  } else {
     lines.push(`- Command: ${code(`sealeye ${r.origin.command}`)}`);
     lines.push(`- Plan came from: ${r.origin.planSource}${r.origin.file ? ` (${code(r.origin.file)})` : ""}`);
   }
@@ -377,6 +383,7 @@ function whatWasAsked(ev) {
   if (isStr(o)) lines.push(`The questions and answers were ${o}.`);
   else if (o.planSource === "reused") lines.push(`No questions were asked. The plan already in ${code(o.file || "sealeye.yaml")} was reused.`);
   else if (o.planSource === "file") lines.push(`No questions were asked. The plan was deployed from ${code(o.file || "a file")}.`);
+  else if (o.planSource === "again") lines.push(`No questions were asked. The code ${code(o.packagedBy || o.fromDeployment)} packaged was deployed again.`);
   else if (!o.answers || !o.answers.length) lines.push("The interview asked no questions: the folder answered everything.");
   else lines.push(table(["Question", "Answer"], o.answers.map(a => [a.question, `${a.answer}${a.scripted ? " (from an answers file)" : ""}`])));
   return lines.join("\n");

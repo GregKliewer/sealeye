@@ -65,6 +65,9 @@ export function evidenceSummary(ev, product = { name: "seaLeye", command: "seale
       via = `via ${product.command} run, ${count ? plural(count, "question") + " answered" : "no questions asked"}`;
     } else if (r.origin.planSource === "reused") via = `via ${product.command} run, plan reused from ${r.origin.file}`;
     else if (r.origin.planSource === "file") via = `via ${product.command} deploy -f ${r.origin.file}`;
+    else if (r.origin.planSource === "again") {
+      via = `deployed again with ${r.origin.packagedBy || r.origin.fromDeployment}'s code, ${r.origin.planGiven ? `plan from ${r.origin.file || "the request"}` : "same plan"}`;
+    }
   }
   row("Requested by", `${who}${when}, ${via}`);
 

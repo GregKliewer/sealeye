@@ -9,6 +9,7 @@ import os from "node:os";
 import {
   loadPlanFromYaml,
   createDeployment,
+  deployAgain,
   validatePlan,
   getDeployment,
   listDeployments,
@@ -103,6 +104,7 @@ ${product.command} - deploy your app to a real AWS environment
 Usage:
   ${product.command} run [--answers <file>] [--team-context] [--watch] [--no-trace] [--api <url>]
   ${product.command} deploy --file <plan.yaml> [--app <path>] [--api <url>] [--json] [--watch]
+  ${product.command} deploy --again <app | deploymentId> [--file <plan.yaml>] [--api <url>] [--json] [--watch]
   ${product.command} validate --file <plan.yaml> [--api <url>] [--json]
   ${product.command} status <deploymentId> [--api <url>] [--json]
   ${product.command} watch <deploymentId> [--api <url>]
@@ -128,6 +130,9 @@ Options:
       --team-context
                   with run: after a refusal, say whether another team has hit the
                   same boundary (reads a local fixture)
+      --again     with deploy: deploy the code an earlier deployment packaged again,
+                  with its plan or the one --file names; settings come from the
+                  store. No folder is uploaded
       --watch     with run or deploy: stay on the live panel until the deployment
                   finishes, instead of watching in the background and notifying you
       --no-trace  with run: record nothing about this run in LangFuse, even when its
@@ -148,6 +153,7 @@ Examples:
   ${product.command} run
   ${product.command} validate -f plan.yaml
   ${product.command} deploy -f plan.yaml
+  ${product.command} deploy --again my-app
   ${product.command} watch dep_1a2b3c4d5e6f
   ${product.command} list
   ${product.command} destroy my-app
@@ -565,6 +571,11 @@ async function main() {
       process.exitCode = 1;
     }
 
+    return;
+  }
+
+  if (command === "deploy" && process.argv.includes("--again")) {
+    await runDeployAgain({ apiBaseUrl, target: getArg("--again"), file: getArg("--file", "-f") });
     return;
   }
 
@@ -1304,6 +1315,75 @@ async function runDeploy({ apiBaseUrl, backend, plan, appPath, requestedBy: who,
   return result;
 }
 
+/**
+ * sealeye deploy --again <app | deploymentId> [-f plan.yaml] (PHASE2-PLAN Step 14, the
+ * portal's Deploy again): the code an earlier deployment packaged, deployed again with
+ * its own plan or the one given, every setting from the organization's store. Nothing
+ * is uploaded, so it needs no app folder. The platform decides what it will do and says
+ * why when it will not; this says it in the developer's language.
+ */
+async function runDeployAgain({ apiBaseUrl, target, file }) {
+  if (!target || target.startsWith("-")) {
+    console.error(c.fail(`Missing name: ${product.command} deploy --again <app | deploymentId>`));
+    process.exitCode = 1;
+    return;
+  }
+
+  say(`Finding the latest code packaged for ${target}`);
+  const [everything, me] = await Promise.all([listDeployments({ apiBaseUrl }), whoAmI({ apiBaseUrl })]);
+  // An exact id, or the newest record of that app, in your own team (an
+  // organization-wide token lists every team's), whose code was packaged.
+  const mine = d => me.auth === "off" || (d.teamId || "default") === me.team;
+  const source = everything.find(d => d.deploymentId === target) ||
+    everything.find(d => safeName(d.app?.name) === safeName(target) && d.packaged && mine(d));
+  if (!source) {
+    console.error(c.fail(`There is no packaged code for ${target} on record. Run ${product.command} run in its folder.`));
+    process.exitCode = 1;
+    return;
+  }
+
+  let plan;
+  if (file) {
+    say(`Reading your plan from ${file}`);
+    plan = loadPlanFromYaml(file);
+  }
+
+  // The report belongs in the app's folder, and only there.
+  const here = readCurrentPlanName();
+  reportHere = Boolean(here) && safeName(here) === safeName(source.app?.name);
+
+  say(`Deploying the code ${source.packagedBy || source.deploymentId} packaged again${plan ? ", with your plan" : ", with the plan it had"}`);
+  let deployment;
+  try {
+    deployment = await deployAgain({ apiBaseUrl, fromDeployment: source.deploymentId, plan, file });
+  } catch (err) {
+    const refusal = err?.details?.error;
+    if (refusal?.message) {
+      console.error(c.fail(refusal.message));
+      process.exitCode = 1;
+      return;
+    }
+    throw err;
+  }
+
+  if (jsonOut) {
+    console.log(JSON.stringify(deployment, null, 2));
+    return;
+  }
+  console.log("");
+  if (watchFlag) await runWatch({ apiBaseUrl, deploymentId: deployment.deploymentId });
+  else await runBackground({ apiBaseUrl, deploymentId: deployment.deploymentId, appPath: reportHere ? process.cwd() : null, plan: deployment.plan });
+}
+
+/** The app name in this folder's sealeye.yaml, or null. */
+function readCurrentPlanName() {
+  try {
+    return loadPlanFromYaml(path.join(process.cwd(), CONFIG_FILE))?.app?.name || null;
+  } catch {
+    return null;
+  }
+}
+
 // Counts a developer reads are words, not digits, until there are too many to read.
 const COUNT_WORDS = ["no", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"];
 const countWord = n => COUNT_WORDS[n] || String(n);
@@ -1624,7 +1704,15 @@ function publicUrl(dep) {
 }
 
 // The report is the only thing the platform writes into the developer's folder.
+// Whether DEPLOYMENT_REPORT.md goes in this folder. deploy --again can run anywhere, and
+// writes it only in the app's own folder (the one whose sealeye.yaml names the app).
+let reportHere = true;
+
 function writeReport(dep) {
+  if (!reportHere) {
+    say(`This folder is not ${dep.app?.name || "the app"}'s, so no report was written here. ${product.command} status ${dep.deploymentId} shows it.`);
+    return;
+  }
   if (!dep.report) {
     say("No report was returned for this deployment");
     return;

@@ -195,6 +195,61 @@ test("Health shows what sealeye doctor checks, for this browser", async ({ page 
   await expect(checks.filter({ hasText: "This page" })).toContainText("the same as the platform");
 });
 
+test("Deploy again sends the code an earlier deployment packaged, and the history says so", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("link", { name: "payments-api", exact: true }).click();
+  const card = page.getByTestId("deploy-again");
+  await expect(card).toContainText("dep_aaaaaaaaaaa1");
+  const rows = page.getByTestId("history-row");
+  const before = await rows.count();
+  await card.getByRole("button", { name: "Deploy again" }).click();
+  await page.getByRole("button", { name: "Deploy it" }).click();
+  await expect(rows).toHaveCount(before + 1);
+  const newest = rows.first();
+  await expect(newest).toContainText("again, with dep_aaaaaaaaaaa1's code");
+  await expect(newest).toContainText("Portal");
+  await expect(page.getByTestId("status")).toHaveText("Live", { timeout: 20_000 });
+});
+
+test("another team's environment offers no Deploy again, even to an organization-wide token", async ({ page }) => {
+  await page.goto("/");
+  await page.fill("#token", `sl_${"z".repeat(43)}`);
+  await page.click("button[type=submit]");
+  await page.getByRole("link", { name: "another-teams-api" }).click();
+  await expect(page.getByText("team payments")).toBeVisible();
+  await expect(page.getByTestId("deploy-again")).toHaveCount(0);
+});
+
+test("a ready plan can be deployed from Validate with the code the platform has for its app", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("link", { name: "Validate" }).click();
+  const ready = (name: string) => [
+    "planVersion: \"0.4\"",
+    `app: { name: ${name}, type: api }`,
+    "profile: dev",
+    "modules:",
+    "  - id: http_api_serverless",
+    "    inputs: { runtime: nodejs, entry_point: index.js, trigger: http }",
+    "  - id: observability_basic",
+    "    inputs: { target: auto, retention_days: 14 }",
+    "outputs: [public_url, logs]"
+  ].join("\n");
+
+  await page.getByLabel("Plan", { exact: true }).fill(ready("checkout-api"));
+  await page.getByRole("button", { name: "Check it" }).click();
+  await expect(page.getByTestId("deploy-plan")).toContainText("has no code for checkout-api yet");
+
+  await page.getByLabel("Plan", { exact: true }).fill(ready("payments-api"));
+  await page.getByRole("button", { name: "Check it" }).click();
+  const deploy = page.getByTestId("deploy-plan");
+  await expect(deploy).toContainText("packaged");
+  await deploy.getByRole("button", { name: "Deploy this plan" }).click();
+  await expect(page.getByRole("status")).toContainText("Deploying as dep_");
+  await page.getByRole("link", { name: "Follow it in its environment" }).click();
+  await expect(page.getByRole("heading", { name: "payments-api" })).toBeVisible();
+  await expect(page.getByTestId("history-row").first()).toContainText("again, with dep_aaaaaaaaaaa1's code");
+});
+
 test("signing out ends the session: the pages ask for sign-in again", async ({ page }) => {
   await signIn(page);
   await page.getByRole("button", { name: "Sign out" }).click();
