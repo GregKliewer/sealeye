@@ -32,6 +32,14 @@ Parameters:
     Type: String
     Default: ""
     AllowedPattern: "^(dep_[a-z0-9]+)?$"
+  # Cost allocation tags (PHASE2-PLAN Step 20): which app and which team this is, so
+  # costs can be read by app once the tags are activated for billing.
+  TagApp:
+    Type: String
+    Default: ""
+  TagTeam:
+    Type: String
+    Default: ""
   # One parameter per setting the plan asks for is written in below, each NoEcho, so the
   # values never reach this file on disk, the stack events or the console. The template
   # deploys unchanged when the plan asks for none.
@@ -44,6 +52,11 @@ Resources:
     Properties:
       LogGroupName: !Sub "/aws/lambda/${AppName}"
       RetentionInDays: !Ref RetentionDays
+      Tags:
+        - Key: sealeye:app
+          Value: !Ref TagApp
+        - Key: sealeye:team
+          Value: !Ref TagTeam
   FunctionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -85,6 +98,11 @@ Resources:
       Timeout: 30
       Architectures:
         - x86_64
+      Tags:
+        - Key: sealeye:app
+          Value: !Ref TagApp
+        - Key: sealeye:team
+          Value: !Ref TagTeam
       Layers:
         - !Sub "arn:aws:lambda:${AWS::Region}:753240598075:layer:LambdaAdapterLayerX86:${AdapterLayerVersion}"
       Environment:
@@ -104,6 +122,9 @@ Resources:
       Name: !Ref AppName
       ProtocolType: HTTP
       Target: !GetAtt Function.Arn
+      Tags:
+        sealeye:app: !Ref TagApp
+        sealeye:team: !Ref TagTeam
   InvokePermission:
     Type: AWS::Lambda::Permission
     Properties:

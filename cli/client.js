@@ -126,6 +126,36 @@ export async function deployAgain({ apiBaseUrl, fromDeployment, plan, file }) {
   return platformFetch(apiBaseUrl, "/deployments", asJson(body));
 }
 
+/** An environment's recent log lines, newest first, masked (PHASE2-PLAN Step 16). */
+export async function getLogs({ apiBaseUrl, deploymentId, since = "1h" }) {
+  return platformFetch(apiBaseUrl, `/deployments/${encodeURIComponent(deploymentId)}/logs?since=${encodeURIComponent(since)}`, { method: "GET" });
+}
+
+/** Your interviews still open, on either surface. */
+export async function listInterviews({ apiBaseUrl }) {
+  return (await platformFetch(apiBaseUrl, "/interviews", { method: "GET" })).interviews || [];
+}
+
+/** Pause or resume an environment's API (PHASE2-PLAN Step 17); the answer is read back from AWS. */
+export async function setPaused({ apiBaseUrl, deploymentId, paused }) {
+  return platformFetch(apiBaseUrl, `/deployments/${encodeURIComponent(deploymentId)}/${paused ? "pause" : "resume"}`, { method: "POST" });
+}
+
+/** Readings of an environment's API over a window (PHASE2-PLAN Step 20). */
+export async function getPerformance({ apiBaseUrl, deploymentId, since = "1d" }) {
+  return platformFetch(apiBaseUrl, `/deployments/${encodeURIComponent(deploymentId)}/performance?since=${encodeURIComponent(since)}`, { method: "GET" });
+}
+
+/** What each of your team's apps has cost, by tag (PHASE2-PLAN Step 20). */
+export async function getCosts({ apiBaseUrl, since = "30d" }) {
+  return platformFetch(apiBaseUrl, `/costs?since=${encodeURIComponent(since)}`, { method: "GET" });
+}
+
+/** The people on your team, from the tokens in use (PHASE2-PLAN Step 19). */
+export async function getTeam({ apiBaseUrl }) {
+  return platformFetch(apiBaseUrl, "/team", { method: "GET" });
+}
+
 /** The change record for one deployment: the evidence object and its markdown. */
 export async function getEvidence({ apiBaseUrl, deploymentId }) {
   return platformFetch(apiBaseUrl, `/deployments/${deploymentId}/evidence`, { method: "GET" });

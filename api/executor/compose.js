@@ -8,8 +8,8 @@ import { backendMappings } from "../mappings.js";
 import { environmentName, safeName } from "../../core/names.js";
 import { repoRoot, loadEnv, requireSetting } from "../../core/config.js";
 import { settingValues } from "./settings.js";
+import { RETENTION_ALLOWED, retentionOf } from "../../core/retention.js";
 
-const DEFAULT_RETENTION_DAYS = 30;
 const DEFAULT_ENTRY_POINT = "index.js";
 
 const CONFIG_PARAMETER_MARKER = "# sealeye:config-parameters";
@@ -39,6 +39,30 @@ export function artifactKeyFor(resourceName, deploymentId) {
 }
 
 /**
+ * Whether a stack is another team's now. Only a stack from before teams had names of
+ * their own can hold more than one team's records. Whoever deployed to it last is in it
+ * (an earlier team's code was replaced), so it is that record's team's unless that
+ * record is torn down. Records are newest first; a draft has no stack.
+ */
+export function sharedWithAnotherTeam(stackName, { org = "default", team = "default", records = [] }) {
+  if (!stackName) return false;
+  const occupant = records.find(r => r.stackName === stackName);
+  return Boolean(occupant) &&
+    occupant.status !== "destroyed" &&
+    ((occupant.orgId || "default") !== org || (occupant.teamId || "default") !== team);
+}
+
+/**
+ * What everything in a record's environment is named after (its function, log group,
+ * API). Records from before names were kept kept the bare app name only as the AppName
+ * parameter, or only in the stack's name.
+ */
+export function resourceNameOf(record) {
+  if (!record?.stackName) return null;
+  return record.resourceName || record.parameters?.AppName || record.stackName.replace(/^sealeye-/, "");
+}
+
+/**
  * Which names a deployment of this app, for this team, uses (DESIGN.md, "Each team's
  * environments have names of their own"):
  *
@@ -60,20 +84,6 @@ export function artifactKeyFor(resourceName, deploymentId) {
  * @param {object[]} [args.records] every record, newest first
  * @returns {{ stackName: string, resourceName: string, reused: boolean }}
  */
-/**
- * Whether a stack is another team's now. Only a stack from before teams had names of
- * their own can hold more than one team's records. Whoever deployed to it last is in it
- * (an earlier team's code was replaced), so it is that record's team's unless that
- * record is torn down. Records are newest first; a draft has no stack.
- */
-export function sharedWithAnotherTeam(stackName, { org = "default", team = "default", records = [] }) {
-  if (!stackName) return false;
-  const occupant = records.find(r => r.stackName === stackName);
-  return Boolean(occupant) &&
-    occupant.status !== "destroyed" &&
-    ((occupant.orgId || "default") !== org || (occupant.teamId || "default") !== team);
-}
-
 export function namingFor({ app, org = "default", team = "default", records = [] }) {
   const appName = safeName(app);
   const sameEnvironment = r =>
@@ -88,9 +98,7 @@ export function namingFor({ app, org = "default", team = "default", records = []
     latest.status !== "destroying" &&
     !sharedWithAnotherTeam(latest.stackName, { org, team, records });
   if (reusable) {
-    // Records from before this kept the bare app name only as the AppName parameter.
-    const resourceName = latest.resourceName || latest.parameters?.AppName || latest.stackName.replace(/^sealeye-/, "");
-    return { stackName: latest.stackName, resourceName, reused: true };
+    return { stackName: latest.stackName, resourceName: resourceNameOf(latest), reused: true };
   }
   const name = environmentName({ org, team, app });
   return { stackName: name, resourceName: name, reused: false };
@@ -100,11 +108,13 @@ function enabledModules(plan) {
   return (plan?.modules || []).filter(m => m && m.enabled !== false);
 }
 
-/** observability_basic.inputs.retention_days -> RetentionDays, default 30. */
+/** observability_basic.inputs.retention_days -> RetentionDays (core/retention.js). */
 function retentionDays(plan) {
-  const obs = enabledModules(plan).find(m => m.id === "observability_basic");
-  const value = Number(obs?.inputs?.retention_days);
-  return Number.isInteger(value) && value > 0 ? value : DEFAULT_RETENTION_DAYS;
+  const days = retentionOf(plan);
+  if (!RETENTION_ALLOWED.includes(days)) {
+    throw new Error(`your plan keeps logs for ${days} days, and they can be kept for ${RETENTION_ALLOWED.slice(0, 12).join(", ")} days or longer steps of a year`);
+  }
+  return days;
 }
 
 /**
@@ -189,6 +199,11 @@ function withoutSecrets(parameters) {
  *            parameters: object, safeParameters: object, settings: {name: string, source: string}[],
  *            entryPoint?: string}}
  */
+/** The app and team, as cost allocation tags (sealeye:app, sealeye:team). */
+function costTags(plan, naming) {
+  return { TagApp: safeName(plan?.app?.name), TagTeam: safeName(naming?.team || "default") };
+}
+
 export function compose(plan, deploymentId, appPath, sent = {}, naming, store = {}) {
   loadEnv();
 
@@ -258,7 +273,8 @@ export function compose(plan, deploymentId, appPath, sent = {}, naming, store = 
       SettingsFolder: stored.length ? store.folder.replace(/\/$/, "") : "",
       // Changes every deploy, so a deploy of the same code with the same parameters is
       // still a change CloudFormation makes, never an empty change set.
-      DeploymentId: deploymentId
+      DeploymentId: deploymentId,
+      ...costTags(plan, naming)
     };
 
     // A setting in the store has no value here: the app reads it when it starts. Every
@@ -269,7 +285,7 @@ export function compose(plan, deploymentId, appPath, sent = {}, naming, store = 
     resolvedTemplate = renderTemplate(templatePath, passed, deploymentId);
   } else {
     // static_site_edge takes AppName only; the files are synced after the stack exists.
-    parameters = { AppName: resourceName };
+    parameters = { AppName: resourceName, ...costTags(plan, naming) };
   }
 
   return {

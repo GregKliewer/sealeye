@@ -8,6 +8,7 @@ import crypto from "node:crypto";
 import { spawn } from "node:child_process";
 
 import { repoRoot, loadEnv, requireSetting } from "../../core/config.js";
+import { secretFileReason } from "../../core/secrets.js";
 
 // .env is excluded deliberately: its values are passed to the function as real
 // environment variables by config_basic, so shipping the file as well would put the
@@ -91,6 +92,11 @@ export async function stage(appPath, deploymentId, composed, onStep = () => {}) 
     `${stageDir}/`
   ]);
 
+  // Every secret file stays out of the artifact, wherever it is in the folder: .env and
+  // .env.production alike, keys and credentials (core/secrets.js). An upload never
+  // carried them; a folder on the API's own machine is copied whole, so they go here.
+  removeSecretFiles(stageDir);
+
   // npm install --omit=dev in the *stage* dir, never the developer's.
   //
   // With --ignore-scripts and an environment holding only what npm needs: the app and
@@ -133,6 +139,20 @@ export async function stage(appPath, deploymentId, composed, onStep = () => {}) 
   await run("aws", ["s3", "cp", zipPath, `s3://${bucket}/${key}`]);
 
   return key;
+}
+
+/** Remove every secret file under a staged copy (never the developer's folder). */
+export function removeSecretFiles(stageDir) {
+  const removed = [];
+  const walk = dir => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const abs = path.join(dir, entry.name);
+      if (entry.isDirectory() && !entry.isSymbolicLink()) walk(abs);
+      else if (secretFileReason(entry.name)) { fs.rmSync(abs, { force: true }); removed.push(path.relative(stageDir, abs)); }
+    }
+  };
+  walk(stageDir);
+  return removed;
 }
 
 /**

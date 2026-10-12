@@ -164,6 +164,11 @@ Resources:
                   - lambda:TagResource
                   - lambda:UntagResource
                   - lambda:ListTags
+                  # Pause and resume (PHASE2-PLAN Step 17): a function's reserved
+                  # concurrency set to zero, removed, and read back.
+                  - lambda:PutFunctionConcurrency
+                  - lambda:DeleteFunctionConcurrency
+                  - lambda:GetFunctionConcurrency
                 # Functions are named after their environment, sealeye-... (DESIGN.md,
                 # "Each team's environments have names of their own"), so no other
                 # function in the account is within reach.
@@ -183,10 +188,34 @@ Resources:
                   - logs:TagResource
                   - logs:UntagResource
                   - logs:ListTagsForResource
+                  # The older tagging calls, which CloudFormation may still use for a log
+                  # group's cost allocation tags.
+                  - logs:TagLogGroup
+                  - logs:UntagLogGroup
+                  - logs:ListTagsLogGroup
                 Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/sealeye-*"
               - Sid: DescribeLogs
                 Effect: Allow
                 Action: logs:DescribeLogGroups
+                Resource: "*"
+              # sealeye logs and the portal's Logs card (PHASE2-PLAN Step 16): read an
+              # app's own log lines. The API masks them before anyone sees them.
+              - Sid: AppLogs
+                Effect: Allow
+                Action: logs:FilterLogEvents
+                Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/sealeye-*"
+              # sealeye perf and the portal's Performance card (PHASE2-PLAN Step 20):
+              # read an app's function metrics. GetMetricData takes no resource.
+              - Sid: AppMetrics
+                Effect: Allow
+                Action: cloudwatch:GetMetricData
+                Resource: "*"
+              # sealeye costs and the portal's Costs page (PHASE2-PLAN Step 20): read
+              # what the account spent, by the sealeye:app and sealeye:team tags. Cost
+              # Explorer takes no resource.
+              - Sid: Costs
+                Effect: Allow
+                Action: ce:GetCostAndUsage
                 Resource: "*"
               - Sid: HttpApis
                 Effect: Allow

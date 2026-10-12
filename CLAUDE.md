@@ -37,8 +37,10 @@ core/       what cli/ and api/ must agree on: schema.js (the plan contract), cat
             plan-files.js (DEPLOYMENT_PLAN.md and sealeye.yaml, written by the
             command and sent with the interview's plan for the portal),
             plan-words.js and evidence-summary.js (words the command and the portal
-            both say). secrets.js, upload-rules.js, plan-words.js and
-            evidence-summary.js run in a browser, so the portal imports them too
+            both say), retention.js (how long logs are kept), setting-names.js.
+            secrets.js, upload-rules.js, plan-words.js, evidence-summary.js,
+            retention.js and setting-names.js run in a browser, so the portal
+            imports them too
 prompts/    system prompt, plan contract, plan, report and evidence templates, catalog
 templates/  one CloudFormation template per buildable module, plus run.sh and
             sealeye-settings.mjs (the settings reader run.sh loads first)
@@ -133,10 +135,11 @@ module ids, and only for that. Changing the contract is a DESIGN.md decision.
 
 POST /plans/validate, POST /deployments ({ plan, appPath, zip?, settings? }, or
 { fromDeployment, plan? } to deploy code the platform already has again), GET /deployments,
-GET /deployments/{id}, GET /deployments/{id}/evidence, DELETE /deployments/{id},
-GET /needs, GET /health, POST /interviews ({ app, zip }), POST
+GET /deployments/{id}, GET /deployments/{id}/evidence, GET /deployments/{id}/logs (masked), GET /deployments/{id}/performance (readings), GET /deployments/{id}/paused and POST
+/deployments/{id}/pause and /resume (APIs only), DELETE /deployments/{id},
+GET /needs, GET /health, GET /interviews (your own still open), POST /interviews ({ app, zip }), POST
 /interviews/{id}/answers ({ answer }), GET /interviews/{id}/events (server-sent events),
-DELETE /interviews/{id}, GET /whoami, GET /catalog, GET /apps/{app}/settings, PUT
+DELETE /interviews/{id}, GET /whoami, GET /team (people with tokens, never a token), GET /costs (by tag), GET /catalog, GET /apps/{app}/settings, PUT
 /apps/{app}/settings/{name} ({ value }) and DELETE /apps/{app}/settings/{name} (an app's
 settings in the store: names out, values in, never back), POST /sessions ({ token }) and
 DELETE /sessions (the portal's sign-in and sign-out). Every endpoint but GET /health
@@ -160,7 +163,7 @@ break.
   observability_basic.retention_days becomes RetentionDays; config_basic becomes
   environment variables.
 - Packaging: the app arrives as an uploaded copy (`core/upload.js`, purpose `deploy`:
-  no node_modules, .git, .github, .do or .env), unpacked into
+  no node_modules, .git, .github, .do or secret file of any kind), unpacked into
   `~/.sealeye/deploy-uploads/<deploymentId>/` and removed when the deployment ends.
   Copy it to `dist/stage/<deploymentId>/`, `npm install --omit=dev` there, add
   `templates/run.sh`, zip, upload. `appPath` with no zip is still a folder on the API's
@@ -242,9 +245,9 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   source, never its value.
 - seaLeye.online (`portal/`) has Environments, New environment (the interview, from a
   folder chosen in the browser), Control (state, deploy again, tear down,
-  settings, history, evidence), Validate (check a plan, and deploy a ready one with the
-  code the platform has), Catalog (modules and the needs ledger) and Health. Pause, Configure, Logs, Performance, Costs and
-  Team are drawn in the archived mock-up only; the portal shows nothing it cannot do.
+  pause, settings, configure, history, performance, logs, evidence), Validate (check a plan, and deploy a ready one with the
+  code the platform has), Catalog (modules and the needs ledger), Costs, Team and Health. Integrations is
+  drawn in the archived mock-up only (Phase 4); the portal shows nothing it cannot do.
 
 ## Working here
 

@@ -68,7 +68,7 @@ for (const purpose of ["interview", "deploy"]) {
     assert.deepEqual(contents(portal.entries), contents(unzipSync(command.zip)));
     assert.deepEqual([...portal.withheld].sort(), [...command.withheld].sort());
     assert.equal(portal.ignored, command.ignored);
-    assert.ok(!(".env" in portal.entries) || portal.entries[".env"].length === 0, "a .env value never travels");
+    assert.ok(!JSON.stringify(contents(portal.entries)).includes("sk-live-never"), "no secret value travels");
   });
 }
 
@@ -84,7 +84,8 @@ test("what each upload carries, spelled out", async () => {
 
   const deploy = await collectUpload(treeFromPaths("my-app", asBrowserList(dir)), { purpose: "deploy" });
   assert.ok("dist/bundle.js" in deploy.entries, "a deploy ships build output .gitignore names");
-  assert.ok(!(".env" in deploy.entries));
+  for (const secret of [".env", "config/.env.production", "certs/server.pem"]) assert.ok(!(secret in deploy.entries), `${secret} stays home`);
+  assert.ok(".env.example" in deploy.entries, "an example file is not a secret");
   assert.ok(!Object.keys(deploy.entries).some(k => k.startsWith("node_modules/") || k.startsWith(".git/")));
 });
 

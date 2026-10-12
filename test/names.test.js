@@ -86,11 +86,12 @@ test("the templates are given the environment's name, never the bare app name", 
     app: { name: "test-app", type: "static" },
     modules: [{ id: "static_site_edge", enabled: true, inputs: {} }]
   };
-  const naming = namingFor({ app: "test-app", team: "payments" });
+  const naming = { ...namingFor({ app: "test-app", team: "payments" }), team: "payments" };
   const composed = compose(plan, "dep_test", undefined, {}, naming);
   assert.equal(composed.stackName, naming.stackName);
   assert.equal(composed.resourceName, naming.stackName);
-  assert.deepEqual(composed.parameters, { AppName: naming.stackName });
+  // The bare app name appears only as a cost allocation tag's value.
+  assert.deepEqual(composed.parameters, { AppName: naming.stackName, TagApp: "test-app", TagTeam: "payments" });
 });
 
 test("the needs ledger counts two teams' drafts of the same app name as two apps", async () => {

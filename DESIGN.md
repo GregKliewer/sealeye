@@ -1345,6 +1345,179 @@ Decided Mon Oct 12, 2026, building PHASE2-PLAN Step 15.
   for sizes, so a big file is refused before it is read.
 - **A drafted plan sends none of the folder**: the deploy request carries an empty zip,
   is refused, and the draft is saved, as the command's is.
-- **Not yet:** finishing in the portal an interview the command started. It is the same
-  interview by id, but nothing lists a person's open interviews. Owed in PHASE2-PLAN.
+- **Finishing an interview started elsewhere**: see "An interview can be finished on the
+  other surface".
+
+## Secret files never go into the package
+
+Decided Mon Oct 12, 2026 (Greg, as recommended), after Step 15 found that a deploy left
+out only the file named `.env`.
+
+A deploy now leaves out every file `core/secrets.js` names: `.env.production` and the
+other `.env.*` files (examples excepted), `.envrc`, keys and keystores (`.pem`, `.key`,
+`.p12`, ...), SSH keys, package-manager and git credentials, Terraform variables and
+state, and service-account JSON. Both surfaces' uploads leave them out (one rule in
+core/upload-rules.js), and the packager removes them from a folder it copies whole on
+the API's own machine. The report says so in a line. Settings reach an app from the
+store or with the deploy, never inside its code.
+
+What it costs: an app that ships a file of one of these names on purpose, a public CA
+certificate as `ca.pem` say, or that installs from a private registry through its own
+`.npmrc`, does not get it. That app needs the file under another name, or the value in
+the store; a private registry for installs is a platform setting still to come.
+
+## Logs pass through the masking traces do
+
+Decided Mon Oct 12, 2026, building PHASE2-PLAN Step 16 (`sealeye logs`, the portal's
+Logs card, `GET /deployments/{id}/logs`). The command's name is the one ROADMAP
+proposed.
+
+An app's logs are its own output and may hold anything a developer printed. Principle 6
+says no secret value reaches the terminal or the portal, so the API masks every line
+before either surface sees it: the patterns traces are masked with (core/tracing.js:
+private keys, AWS access key ids, Anthropic and LangFuse keys, bearer tokens, seaLeye
+tokens, now added, and `NAME=value` where the name says key, secret, token or password),
+and `NAME=value` or `NAME: value` for every setting the app has in the store, whose
+values the API never reads. Masking is a backstop, not a guarantee: a value printed
+bare, with no name beside it, cannot be told from any other text, and that is said on
+the page.
+
+Lines come newest first over a window of 15 minutes, an hour, 6 hours or a day, at most
+200 of them; the command prints them oldest first, as a terminal reads. They are read
+when asked, never stored. A static site has no code running and says so. The deploy role
+gains `logs:FilterLogEvents` on `/aws/lambda/sealeye-*` only.
+
+## Pause and resume
+
+Built Mon Oct 12, 2026 (PHASE2-PLAN Step 17, D7), as `sealeye pause` and `sealeye
+resume`, the portal's Pause card, and `GET /deployments/{id}/paused`, `POST .../pause`
+and `.../resume`. The names are ROADMAP's.
+
+- An API pauses by its function's reserved concurrency going to zero, and resumes by the
+  reservation being removed. Nothing else changes and nothing is removed; a request to a
+  paused API is refused by AWS.
+- The state is read from AWS after every change and whenever Control opens, and a
+  change AWS does not confirm is said to have failed (principle 4). Each change is
+  written on the environment's newest record with who asked and from where; lists show
+  "Paused" from that record, as of the last change made through seaLeye.
+- A static site says it cannot be paused. Its team may pause and resume it, as may an
+  organization-wide token, as for a tear-down: a platform team may need to stop an app
+  that misbehaves.
+- Deploying again does not resume: the template does not set a reservation, so a paused
+  API stays paused until someone resumes it.
+- The deploy role gains lambda:PutFunctionConcurrency, DeleteFunctionConcurrency and
+  GetFunctionConcurrency on `sealeye-*` functions.
+
+## Configure is a deploy of the same code again
+
+Built Mon Oct 12, 2026 (PHASE2-PLAN Step 18), as `sealeye config <app> [--retention
+<days>]` and the portal's Configure card. The name is ROADMAP's.
+
+What there is to configure on a running environment today is its settings, which Part B
+built (`sealeye settings`, the Settings card, read by the app when it starts), and how
+long its logs are kept. Logs' retention is in the plan (observability_basic), so a change
+is a deployment of the code the environment already has, with the plan changed
+(`fromDeployment` with a plan): no new endpoint, the history shows who changed it, and
+the status is the deploy's. Both surfaces offer 1, 3, 7, 14, 30, 60, 90, 180 or 365
+days (core/retention.js); compose refuses a hand-written plan with a value CloudWatch
+does not accept, before anything is built.
+
+The developer's sealeye.yaml is not changed (principle 5), so both surfaces say that it
+still has the old value, and that the next `sealeye run` with it puts it back.
+
+## Team shows people, never tokens
+
+Built Mon Oct 12, 2026 (PHASE2-PLAN Step 19), as `sealeye team`, the portal's Team page
+and `GET /team`. The name is ROADMAP's.
+
+It lists the people with a token in use, one row per person and team: name, email, when
+they were first given one, and when they last used seaLeye. Never a token, a hash or a
+token id. A team's token sees its team; an organization-wide token sees every team in
+its organization, and is itself marked "every team". A revoked token's person is not
+listed. Issuing and revoking stay with the administrator on their Mac (`deploy/server.sh
+token`): that is access to the platform, and it waits for sign-in (Q16) to move onto a
+page.
+
+## Performance shows readings, not capacity
+
+Decided Mon Oct 12, 2026, before building PHASE2-PLAN Step 20's first half (`sealeye
+perf`, the portal's Performance card, `GET /deployments/{id}/performance`). The name is
+ROADMAP's.
+
+Principle 8 keeps sizes, counts and capacity numbers out of plans, cards and files,
+because a plan that says "handles 500 requests a second" is a promise nobody measured.
+Performance is the other thing: what was measured. It shows requests, errors, requests
+refused (while paused or busy), and the time the app's code took (the average, and the
+time 95 in 100 finished within), per period and over the window, read from CloudWatch
+when asked. Every view of it says these are readings of what happened, and that what an
+app can take is set by a load test. Nothing here is written into a plan or a file, and
+it never says what the app could handle.
+
+The readings are the function's (AWS/Lambda Invocations, Errors, Throttles, Duration):
+what the app itself did. A period with no requests has no time measured, and says so
+rather than showing zero. The deploy role gains cloudwatch:GetMetricData, which takes no
+resource; it reads only what the API asks for, by function name.
+
+## Costs come from tags, a day behind
+
+Built Mon Oct 12, 2026 (PHASE2-PLAN Step 20's second half), as `sealeye costs`, the
+portal's Costs page and `GET /costs?since=7d|30d`. The name is ROADMAP's.
+
+- **Tags on what costs money.** Both templates now tag what an environment pays for with
+  `sealeye:app` and `sealeye:team`: an API's function, its log group and its address, a
+  site's bucket. On the resources themselves, not the stack, so the function's role and
+  the bucket policy need no tagging permissions; the deploy role gains only the older
+  log-group tagging calls, which CloudFormation may still use. An environment gets its
+  tags the next time it is deployed.
+- **Greg turns them on once.** AWS counts a tag in billing only after it is activated
+  in the Billing console (Cost allocation tags), and a key appears there only after a
+  resource carries it, up to a day later. Until then costs answer with none.
+- **Read by tag, from Cost Explorer.** By `sealeye:app`, filtered to the caller's team
+  (an organization-wide token sees every team, by both tags), summed over the window, a
+  day at a time. Cost Explorer answers from us-east-1, about a day behind, and charges
+  for each call, so the API keeps an answer for an hour. Costs without seaLeye's tags are
+  left out, and every view says so, and that it is a day behind (principle 7: nothing
+  typed in, nothing guessed). The deploy role gains ce:GetCostAndUsage, which takes no
+  resource.
+- **One organization per account, for now.** Cost Explorer answers for the whole AWS
+  account, and the tags name the app and team, not the organization. Every token is
+  org "default" today, and each organization will deploy into its own account (ROADMAP
+  Phase 1 item 5), so nothing crosses. If two organizations ever share an account, add a
+  `sealeye:org` tag and filter on it first (owed in PHASE2-PLAN).
+
+## An interview can be finished on the other surface
+
+Built Mon Oct 12, 2026 (Greg asked for it with Steps 16 to 20).
+
+An interview is kept by id, and its starter may answer it from either surface.
+`GET /interviews` lists the caller's own that are still open (working, waiting for an
+answer, or waiting for "Deploy this?"), never anyone else's. `sealeye interviews` shows
+them; New environment lists them with Continue, which replays everything so far and
+carries on, and Drop. A continued interview has no folder in the browser, so at a yes
+the page asks for the app's folder to package (a drafted plan sends none). Leaving the
+page drops only an interview started on it; one picked up from elsewhere stays open for
+its owner, and any interview is dropped after a day as before.
+
+## Day-two operations: what the review of Steps 16 to 20 changed
+
+Mon Oct 12, 2026. An independent review before the pull request found these, all fixed:
+
+- **Logs are read newest first.** CloudWatch reads forward from a start time, so a busy
+  app's window gave its oldest lines. The API now reads backwards from now in widening
+  steps (a minute, five, fifteen, an hour, six, a day) until it has enough or the window
+  is used.
+- **Masking covers JSON and whole values.** `"NAME": value` is caught as well as
+  `NAME=value`, for every secret-looking name and every setting the app is known to
+  have (in the store, given from a .env by its deploys, or asked for by its plan). An
+  unquoted value is taken to the end of the line, since values hold spaces and commas;
+  taking too much is the safe side. Lines are masked as text, never re-formatted. When
+  the store cannot be read, the answer says only the other names were used.
+- **A deploy of a paused API says so.** The template sets no reservation, so a paused API
+  stays paused through a deploy; the record, the report and the command now say it is
+  still paused, read from AWS when the deploy succeeds.
+- **A torn-down environment says it was torn down** to logs, performance and the
+  command's name lookup, rather than "nothing yet".
+- **A stack another team now runs is theirs.** On a stack from before teams had names
+  of their own, an older record's team can no longer read the logs or readings of, or
+  pause, what the other team runs there now; an organization-wide token still can.
 

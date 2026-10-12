@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
+import { strToU8, zipSync } from "fflate";
 
 const TOKEN = `sl_${"t".repeat(43)}`;
 
@@ -337,6 +338,115 @@ test("saying not now keeps the plan to download and deploys nothing", async ({ p
   await plan.getByRole("button", { name: "Not now" }).click({ timeout: 20_000 });
   await expect(plan.getByRole("status")).toContainText("Nothing was deployed");
   await expect(plan.getByRole("button", { name: "Download DEPLOYMENT_PLAN.md" })).toBeVisible();
+});
+
+test("Logs shows what the app wrote, newest first, with secrets taken out", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("link", { name: "payments-api", exact: true }).click();
+  const card = page.getByTestId("logs");
+  await card.getByRole("button", { name: "15 minutes" }).click();
+  await card.getByRole("button", { name: "Show logs" }).click();
+  const lines = card.getByTestId("log-lines").locator("li");
+  await expect(lines).toHaveCount(2);
+  await expect(lines.first()).toContainText("GET /orders with Bearer [value redacted]");
+  await expect(lines.last()).toContainText("listening on 8080");
+  expect(await page.content()).not.toContain("abcdefghijklmnop");
+});
+
+test("a static site has no Logs card", async ({ page }) => {
+  await signIn(page);
+  await page.goto(`/environments/${encodeURIComponent("sealeye-old-demo")}`);
+  await expect(page.getByRole("heading", { name: "old-demo" })).toBeVisible();
+  await expect(page.getByTestId("logs")).toHaveCount(0);
+});
+
+test("Pause stops an API taking requests and Resume starts it again, read back each time", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("link", { name: "payments-api", exact: true }).click();
+  const card = page.getByTestId("pause");
+  await expect(card.getByTestId("pause-state")).toHaveText("Taking requests");
+  await card.getByRole("button", { name: "Pause" }).click();
+  await expect(card.getByTestId("pause-state")).toHaveText("Paused");
+  await expect(card).toContainText("Paused by Greg Kliewer from the portal");
+  await expect(page.getByTestId("status")).toHaveText("Paused");
+  await card.getByRole("button", { name: "Resume" }).click();
+  await expect(card.getByTestId("pause-state")).toHaveText("Taking requests");
+  await expect(page.getByTestId("status")).toHaveText("Live");
+});
+
+test("Configure changes how long logs are kept, as a deploy of the same code again", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("link", { name: "payments-api", exact: true }).click();
+  const card = page.getByTestId("configure");
+  // An earlier test deployed this app's plan with 14 days.
+  await expect(card).toContainText("Logs are kept for 14 days");
+  await expect(card.getByRole("button", { name: "Deploy with this" })).toBeDisabled();
+  await card.getByLabel("Keep logs for").selectOption("60");
+  await card.getByRole("button", { name: "Deploy with this" }).click();
+  await expect(card.getByRole("status")).toContainText("with logs kept for 60 days");
+  await expect(page.getByTestId("history-row").first()).toContainText("again, with dep_aaaaaaaaaaa1's code");
+});
+
+test("Team lists the people with tokens on your team, and never a token", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("link", { name: "Team" }).click();
+  const rows = page.getByTestId("person-row");
+  // Lee's organization-wide token is on team default too.
+  await expect(rows).toHaveCount(2);
+  await expect(rows.filter({ hasText: "Greg Kliewer" })).toHaveCount(1);
+  await expect(rows.filter({ hasText: "Lee Admin" })).toContainText("every team");
+  await expect(page.getByText("Everyone on team default")).toBeVisible();
+  expect(await page.content()).not.toMatch(/sl_[a-z]{20}/);
+});
+
+test("Performance shows readings, in tiles, a chart and a table, never a capacity", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("link", { name: "payments-api", exact: true }).click();
+  const card = page.getByTestId("performance");
+  await card.getByRole("button", { name: "Show readings" }).click();
+  await expect(card.getByTestId("stat").first()).toContainText("Requests");
+  await expect(card.getByTestId("stat").nth(2)).toContainText("96 ms");
+  await expect(card).toContainText("95 in 100 within 310 ms");
+  await card.locator("svg g").nth(12).hover();
+  await expect(card.getByTestId("chart-readout")).toContainText("requests");
+  await card.getByRole("button", { name: "Show as a table" }).click();
+  await expect(card.getByTestId("period-table").locator("tbody tr")).toHaveCount(24);
+  await card.getByRole("button", { name: "7 days" }).click();
+  await expect(card.getByTestId("period-table").locator("tbody tr")).toHaveCount(28);
+});
+
+test("Costs lists what each app has cost, says it is a day behind, and what is counted", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("link", { name: "Costs" }).click();
+  const rows = page.getByTestId("cost-row");
+  await expect(rows).toHaveCount(2);
+  await expect(rows.first()).toContainText("payments-api");
+  await expect(rows.first()).toContainText("3.40 USD");
+  await expect(page.getByTestId("cost-total")).toHaveText("3.52 USD");
+  await expect(page.getByText("about a day behind")).toBeVisible();
+  await page.getByRole("button", { name: "7 days" }).click();
+  await expect(rows).toHaveCount(2);
+});
+
+test("an interview started elsewhere can be finished on New environment", async ({ page, request }) => {
+  // Started the way the command starts one: the same person's token, a zipped folder.
+  const zip = Buffer.from(zipSync({ "package.json": strToU8(JSON.stringify({ name: "orders-api" })), "index.js": strToU8("") })).toString("base64");
+  const started = await request.post("/api/interviews", { headers: { authorization: `Bearer ${TOKEN}` }, data: { app: "orders-api", zip } });
+  expect(started.ok()).toBeTruthy();
+
+  await signIn(page);
+  await page.goto("/new");
+  const open = page.getByTestId("open-interview").filter({ hasText: "orders-api" });
+  await expect(open.first()).toBeVisible();
+  await open.first().getByRole("button", { name: "Continue" }).click();
+  await page.getByLabel("Your answer").fill("Picked up in the portal", { timeout: 20_000 });
+  await page.getByRole("button", { name: "Answer" }).click();
+  await page.getByTestId("plan").getByRole("button", { name: "Yes, deploy it" }).click({ timeout: 20_000 });
+  // GREETING was stored by an earlier test, so the next thing asked for is the folder.
+  const need = page.getByTestId("need-folder");
+  await expect(need).toBeVisible();
+  await need.getByLabel("Choose the folder to package").setInputFiles(appFolder("orders-api", { "package.json": JSON.stringify({ name: "orders-api" }), "index.js": "" }));
+  await expect(page.getByRole("heading", { name: "orders-api" })).toBeVisible({ timeout: 20_000 });
 });
 
 test("signing out ends the session: the pages ask for sign-in again", async ({ page }) => {

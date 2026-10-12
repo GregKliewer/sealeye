@@ -53,6 +53,9 @@ export interface DeploymentSummary {
   // Whether its code was packaged and can be deployed again (PHASE2-PLAN Step 14), and
   // for one that was deployed again, whose code it ran.
   packaged?: boolean;
+  // Paused as of the last pause or resume made here (PHASE2-PLAN Step 17).
+  paused?: boolean;
+  pauses?: { action: "paused" | "resumed"; by: { name?: string; user?: string } | null; surface: string; at: string }[];
   fromDeployment?: string | null;
   packagedBy?: string | null;
 }
@@ -121,6 +124,34 @@ export interface InterviewEvent {
   message?: string;
 }
 
+// GET /deployments/{id}/logs: an environment's recent lines, newest first, masked.
+export interface Logs { app: string | null; since: string; more: boolean; note?: string; lines: { at: string; message: string }[] }
+
+// GET /team: the people on your team, from the tokens in use. Never a token.
+export interface Team {
+  team: string | null;
+  everyTeam?: boolean;
+  note?: string;
+  people: { name: string | null; email: string; team: string; scope: "team" | "org"; issuedAt: string | null; lastUsedAt: string | null }[];
+}
+
+// GET /deployments/{id}/performance: readings over a window, per period and in total.
+export interface Period { at: string; requests: number; errors: number; refused: number; averageMs: number | null; slowestMs: number | null }
+export interface Performance {
+  app: string | null; since: string; from: string; to: string; periodMinutes: number;
+  totals: { requests: number; errors: number; refused: number; averageMs: number | null; slowestMs: number | null };
+  periods: Period[];
+}
+
+// GET /costs: what each app has cost, by tag, about a day behind.
+export interface Costs {
+  since: string; from: string; to: string; unit: string; everyTeam: boolean; team: string | null;
+  total: number; apps: { app: string; team: string; amount: number }[]; note: string; readAt: string;
+}
+
+// GET /interviews: this person's interviews still open, from either surface.
+export interface OpenInterview { interviewId: string; app: string; status: "running" | "waiting"; waitingFor: string | null; startedAt: string; mode: string }
+
 const settingsPath = (app: string, team: string, name?: string) =>
   `/apps/${encodeURIComponent(app)}/settings${name ? `/${encodeURIComponent(name)}` : ""}?team=${encodeURIComponent(team)}`;
 
@@ -134,6 +165,7 @@ export const api = {
   // with its own plan or the one given. Nothing is uploaded; settings come from the store.
   deployAgain: (fromDeployment: string, plan?: unknown) =>
     request<DeploymentRecord>("/deployments", { method: "POST", body: { backend: "cloudformation", fromDeployment, ...(plan !== undefined ? { plan } : {}) } }),
+  openInterviews: () => request<{ interviews: OpenInterview[] }>("/interviews").then(r => r.interviews),
   startInterview: (app: string, zip: string, deployed?: unknown) =>
     request<{ interviewId: string; status: string; withheld?: string[] }>("/interviews", { method: "POST", body: { app, zip, ...(deployed ? { deployed } : {}) } }),
   answerInterview: (id: string, answer: string) =>
@@ -160,7 +192,14 @@ export const api = {
   destroy: (id: string) => request<DeploymentRecord>(`/deployments/${encodeURIComponent(id)}`, { method: "DELETE" }),
   health: () => request<Health>("/health"),
   validate: (plan: unknown) => request<Validation>("/plans/validate", { method: "POST", body: plan }),
+  paused: (id: string) => request<{ app: string | null; paused: boolean }>(`/deployments/${encodeURIComponent(id)}/paused`),
+  setPaused: (id: string, paused: boolean) =>
+    request<{ app: string | null; paused: boolean }>(`/deployments/${encodeURIComponent(id)}/${paused ? "pause" : "resume"}`, { method: "POST" }),
+  logs: (id: string, since: string) => request<Logs>(`/deployments/${encodeURIComponent(id)}/logs?since=${encodeURIComponent(since)}`),
   evidence: (id: string) => request<Evidence>(`/deployments/${encodeURIComponent(id)}/evidence`),
+  team: () => request<Team>("/team"),
+  costs: (since: string) => request<Costs>(`/costs?since=${encodeURIComponent(since)}`),
+  performance: (id: string, since: string) => request<Performance>(`/deployments/${encodeURIComponent(id)}/performance?since=${encodeURIComponent(since)}`),
   catalog: () => request<Catalog>("/catalog"),
   needs: () => request<NeedsLedger>("/needs"),
   settings: (app: string, team: string) => request<AppSettings>(settingsPath(app, team)),

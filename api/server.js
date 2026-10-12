@@ -19,6 +19,11 @@ import { resumeInFlight } from "./executor/resume.js";
 import { unsupportedNeeds } from "../core/catalog.js";
 import { assembleEvidence, renderEvidence } from "./executor/evidence.js";
 import { rollupNeeds } from "./needs.js";
+import { readLogs } from "./logs.js";
+import { changePaused, pausedState } from "./pause.js";
+import { peopleOf } from "./team.js";
+import { readPerformance } from "./performance.js";
+import { readCosts } from "./costs.js";
 import { createInterviewService, NotWaiting, UploadRefused } from "./interview/service.js";
 import { postgresCheckpointer, postgresInterviewStore } from "./interview/pgstore.js";
 import { databaseUrl, closeDb } from "./db.js";
@@ -581,6 +586,10 @@ app.get("/deployments", (req, res) => {
     needs: Array.isArray(dep.needs) ? dep.needs.length : 0,
     // Whether its code was packaged and can be deployed again (PHASE2-PLAN Step 14),
     // and, for one that was itself deployed again, whose code it ran.
+    // Paused as of the last pause or resume made here (read from AWS then). Control
+    // reads it from AWS again (GET /deployments/{id}/paused).
+    paused: dep.paused === true,
+    pauses: Array.isArray(dep.pauses) ? dep.pauses : [],
     packaged: Boolean(dep.artifactKey) && dep.kind !== "static",
     fromDeployment: dep.fromDeployment || null,
     packagedBy: dep.artifactKey && dep.kind !== "static" ? dep.packagedBy || dep.deploymentId : null
@@ -618,6 +627,75 @@ app.get("/deployments/:deploymentId/evidence", async (req, res) => {
     return res.status(500).json({
       error: { code: "EVIDENCE_FAILED", message: err.message }
     });
+  }
+});
+
+// A stack from before teams had names of their own may now run another team's code
+// (DESIGN.md, "Each team's environments have names of their own"). An older record of
+// it is still its team's to read, but what is running there now is the other team's:
+// its logs, its readings, whether it is paused. Only an organization-wide token may.
+function runsAnotherTeams(req, res, dep) {
+  if (!req.caller || req.caller.scope === "org") return false;
+  if (!sharedWithAnotherTeam(dep.stackName, { org: orgOf(dep), team: teamOf(dep), records: listDeployments() })) return false;
+  res.status(409).json({ error: { code: "SHARED_ENVIRONMENT", message: "Another team runs this environment now, from before each team's environments had names of their own, so what it does is theirs to see." } });
+  return true;
+}
+
+// GET /deployments/{deploymentId}/logs?since=15m|1h|6h|1d — its environment's recent
+// log lines, newest first, masked (api/logs.js). Read only. PHASE2-PLAN Step 16.
+app.get("/deployments/:deploymentId/logs", async (req, res) => {
+  const dep = getDeployment(req.params.deploymentId);
+  if (!canSee(req, dep)) return res.status(404).json({ error: { code: "NOT_FOUND", message: "deploymentId not found" } });
+  if (runsAnotherTeams(req, res, dep)) return;
+  const { status, body } = await readLogs(dep, { window: typeof req.query.since === "string" ? req.query.since : "1h" });
+  return res.status(status).json(body);
+});
+
+// GET /deployments/{id}/paused, POST /deployments/{id}/pause and /resume (PHASE2-PLAN
+// Step 17): whether its environment's API is taking requests, read from AWS, and the
+// change. Its team, or an organization-wide token, as for a tear-down.
+app.get("/deployments/:deploymentId/paused", async (req, res) => {
+  const dep = getDeployment(req.params.deploymentId);
+  if (!canSee(req, dep)) return res.status(404).json({ error: { code: "NOT_FOUND", message: "deploymentId not found" } });
+  if (runsAnotherTeams(req, res, dep)) return;
+  const { status, body } = await pausedState(dep);
+  return res.status(status).json(body);
+});
+for (const [action, paused] of [["pause", true], ["resume", false]]) {
+  app.post(`/deployments/:deploymentId/${action}`, async (req, res) => {
+    const dep = getDeployment(req.params.deploymentId);
+    if (!canSee(req, dep)) return res.status(404).json({ error: { code: "NOT_FOUND", message: "deploymentId not found" } });
+    if (runsAnotherTeams(req, res, dep)) return;
+    const by = req.caller ? { user: req.caller.email, name: req.caller.name } : null;
+    const { status, body } = await changePaused(dep, paused, { by, surface: req.surface || "cli" });
+    return res.status(status).json(body);
+  });
+}
+
+// GET /deployments/{id}/performance?since=1h|6h|1d|7d — readings of its environment's
+// API: requests, errors, refused, time taken (api/performance.js). Step 20.
+app.get("/deployments/:deploymentId/performance", async (req, res) => {
+  const dep = getDeployment(req.params.deploymentId);
+  if (!canSee(req, dep)) return res.status(404).json({ error: { code: "NOT_FOUND", message: "deploymentId not found" } });
+  if (runsAnotherTeams(req, res, dep)) return;
+  const { status, body } = await readPerformance(dep, { window: typeof req.query.since === "string" ? req.query.since : "1d" });
+  return res.status(status).json(body);
+});
+
+// GET /costs?since=7d|30d — what each of your team's apps has cost (api/costs.js),
+// by the cost allocation tags; an organization-wide token sees every team's. Step 20.
+app.get("/costs", async (req, res) => {
+  const { status, body } = await readCosts(req.caller, { window: typeof req.query.since === "string" ? req.query.since : "30d" });
+  return res.status(status).json(body);
+});
+
+// GET /team — the people on your team, from the tokens in use (api/team.js). No tokens,
+// no hashes. PHASE2-PLAN Step 19.
+app.get("/team", async (req, res) => {
+  try {
+    return res.status(200).json(await peopleOf(req.caller));
+  } catch (err) {
+    return res.status(500).json({ error: { code: "TEAM_FAILED", message: err.message } });
   }
 });
 
@@ -687,6 +765,13 @@ const ownsInterview = (req, id) => {
   const owner = interviews.ownerOf(id);
   return owner === null || owner === req.caller.email;
 };
+
+// GET /interviews: the caller's own interviews that are still open, running or waiting
+// on them, so one started on either surface can be finished on the other. Never anyone
+// else's. Added Oct 12, 2026.
+app.get("/interviews", (req, res) => {
+  return res.status(200).json({ interviews: interviews.openFor(req.caller ? req.caller.email : null) });
+});
 
 // POST /interviews: start an interview over an uploaded app folder.
 // Body: { app, zip (base64), deployed?, user?, trace? }. The zip is made by the CLI's

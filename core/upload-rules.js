@@ -26,10 +26,11 @@ export const MAX_UPLOAD_FILES = 5000;
 /**
  * The two kinds of upload. An interview reads source, so it leaves out what .gitignore
  * leaves out and carries secret files as names. A deploy is what gets packaged, so it
- * follows the packager's rules exactly as they were when the API read the folder in
- * place (api/executor/package.js): everything but node_modules, .git, .github, .do
- * and .env, whose values travel separately with the deploy request. Build output a
- * .gitignore names, a static site's dist/ say, is often exactly what has to ship.
+ * follows the packager's rules (api/executor/package.js): everything but node_modules,
+ * .git, .github, .do and every secret file core/secrets.js names, whose values come
+ * from the organization's store or travel separately with the deploy request. Build
+ * output a .gitignore names, a static site's dist/ say, is often exactly what has to
+ * ship.
  */
 const PURPOSES = {
   interview: {
@@ -44,13 +45,15 @@ const PURPOSES = {
   deploy: {
     excludedFolders: new Set(["node_modules", ".git", ".github", ".do"]),
     gitignore: false,
-    secrets: "drop-env",
+    // Every secret file stays home: .env and .env.production alike, keys, credentials
+    // (Greg's call, Oct 12, 2026; until then only .env was left out).
+    secrets: "drop",
     // A function's unpacked code is capped at 250 MB with its dependencies, which the
     // platform installs after the upload.
     maxBytes: 100 * 1024 * 1024,
     maxFiles: 20000,
     readsAs: "the platform can package",
-    leftOut: "node_modules and .git"
+    leftOut: "node_modules, .git and secret files"
   }
 };
 
@@ -60,8 +63,8 @@ export function rulesOf(purpose) {
   return rules;
 }
 
-/** A file the deploy upload never carries: .env, wherever it is, as the packager had it. */
-export const isDotEnv = name => (String(name).split("/").pop() || "").toLowerCase() === ".env";
+/** A file a deploy upload never carries: any secret file, wherever it is. */
+export const isLeftOutOfDeploy = name => Boolean(secretFileReason(String(name)));
 
 /** An upload that breaks a rule, said in a sentence a developer can act on. */
 export class UploadRefused extends Error {}
@@ -144,7 +147,7 @@ export async function collectUpload(root, { purpose = "interview", ignore } = {}
 
       // A secret file is listed by name whatever .gitignore says: .env is almost always
       // ignored, and knowing it exists is how the model learns the app reads settings.
-      if (rules_.secrets === "drop-env" && isDotEnv(child.name)) continue;
+      if (rules_.secrets === "drop" && isLeftOutOfDeploy(child.name)) continue;
       if (rules_.secrets === "names" && secretFileReason(child.name)) {
         countFile();
         entries[childRel] = new Uint8Array(0);

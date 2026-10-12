@@ -173,6 +173,9 @@ function assumptions(record, plan) {
   if (plan?.outputs?.length) lines.push(`- Outputs you asked for: ${plan.outputs.join(", ")}`);
 
   lines.push(`- Region: ${region()} — fixed for this environment.`);
+  if (record.paused) {
+    lines.push("- Your app is paused: it was paused before this deploy and still takes no requests. Resume it to put it back (sealeye resume, or Pause in the portal).");
+  }
   if (record.source === "again") {
     lines.push(`- Deployed again: the code \`${record.packagedBy || record.fromDeployment}\` packaged (artifact \`${record.artifactKey}\`), with nothing uploaded and no .env read: settings came from the organization's store.`);
   } else if (record.appPath) {
@@ -184,6 +187,9 @@ function assumptions(record, plan) {
     record.kind === "static"
       ? "- Your files were not modified. seaLeye.run uploaded a copy of them. This report is the only file it writes into your folder."
       : "- Your app was not modified. The start script the platform needs was added to the uploaded copy, not to your source. This report is the only file seaLeye.run writes into your folder."
+  );
+  lines.push(
+    "- Secret files (.env, .env.production, keys and credentials) were left out of what was packaged. Settings reach your app from the organization's store or with the deploy, never inside the code."
   );
 
   return lines.join("\n");

@@ -29,7 +29,7 @@ function listAll(dir) {
   return all.sort();
 }
 
-test("a deploy upload carries what the packager would package, and never a .env", async () => {
+test("a deploy upload carries what the packager would package, and never a secret file", async () => {
   const dir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-deploy-up-")), "site");
   const put = (rel, body = "x") => {
     fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
@@ -41,7 +41,7 @@ test("a deploy upload carries what the packager would package, and never a .env"
   put(".env", `KEY=${SECRET}`);
   put("config/.env", `KEY=${SECRET}`);
   put(".env.example", "KEY=");
-  put("certs/server.pem", "cert");                // packaged as it always was
+  put("certs/server.pem", "cert");                // a key file: left out since Oct 12, 2026
   put("node_modules/x/index.js");
   put(".git/HEAD");
   put(".github/workflows/ci.yml");
@@ -51,7 +51,7 @@ test("a deploy upload carries what the packager would package, and never a .env"
 
   const dest = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-deploy-unzip-")), "app");
   unzipInto(zip, dest, { purpose: "deploy" });
-  assert.deepEqual(listAll(dest), [".env.example", ".gitignore", "certs/server.pem", "dist/bundle.js", "index.js"]);
+  assert.deepEqual(listAll(dest), [".env.example", ".gitignore", "dist/bundle.js", "index.js"]);
 });
 
 let server;
@@ -138,4 +138,15 @@ test("an appPath with no upload still means a folder on the API's machine", asyn
   });
   assert.equal(res.status, 400);
   assert.equal((await res.json()).error.code, "INVALID_APP_PATH");
+});
+
+test("the packager leaves every secret file out of a folder it copies whole", async () => {
+  const { removeSecretFiles } = await import("../api/executor/package.js");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-stage-"));
+  for (const rel of ["index.js", ".env.production", "config/id_rsa", "keys/service-account.json", ".env.example"]) {
+    fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
+    fs.writeFileSync(path.join(dir, rel), "x");
+  }
+  assert.deepEqual(removeSecretFiles(dir).sort(), [".env.production", "config/id_rsa", "keys/service-account.json"]);
+  assert.deepEqual(listAll(dir), [".env.example", "index.js"]);
 });

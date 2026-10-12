@@ -111,6 +111,9 @@ test("an interview runs in the API: upload, a question, a plan, a yes", async ()
     }
   });
 
+  // Open, so the portal can pick it up: GET /interviews lists it until it ends.
+  const listed = await (await fetch(`${apiBase}/interviews`)).json();
+  assert.ok(listed.interviews.some(i => i.interviewId === started.interviewId && i.waitingFor === "confirm"));
   assert.equal(atPlan.type, "plan");
   assert.equal(atPlan.status, "submitted");
   assert.equal(atPlan.questions, 1);

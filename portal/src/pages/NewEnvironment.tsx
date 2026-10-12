@@ -6,12 +6,13 @@
 // store; a no keeps the plan for the developer to download.
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
-import { api, ApiError, SignedOut, type Catalog, type InterviewEvent } from "../api";
+import { api, ApiError, SignedOut, type Catalog, type InterviewEvent, type OpenInterview } from "../api";
 import { useSession } from "../session";
 import { appNameOf, canPickFolder, emptyZip, folderFromDrop, folderFromInput, pack, pickFolder, UploadRefused, type ChosenFolder } from "../upload";
 import { plainValidationErrors } from "../../../core/plan-words.js";
 import { settingNamesFor } from "../../../core/setting-names.js";
 import { PageTitle, Problem } from "../Layout";
+import { ago } from "../model";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -20,7 +21,7 @@ import { Input } from "../components/ui/input";
 // As core/names.js safeName has it: how an app's name is compared everywhere.
 const safeName = (name: string) => String(name || "").toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
 
-type Phase = "choose" | "interview" | "plan" | "declined" | "settings" | "deploying" | "refused" | "ended";
+type Phase = "choose" | "interview" | "plan" | "declined" | "settings" | "need-folder" | "deploying" | "refused" | "ended";
 type Line = { kind: "step"; text: string } | { kind: "question"; text: string; lead: string[]; answer?: string };
 type Need = { kind: string; line: string; evidence: { file: string; shows: string }[] };
 
@@ -42,16 +43,22 @@ export function NewEnvironment() {
   const [stored, setStored] = useState<string[]>([]);
   const [refusal, setRefusal] = useState<{ needs: Need[]; deploymentId?: string } | null>(null);
   const [catalog, setCatalog] = useState<Catalog | null>(null);
+  const [pending, setPending] = useState<string[]>([]);
+  const [resumedApp, setResumedApp] = useState<string | null>(null);
+  const [open, setOpen] = useState<OpenInterview[]>([]);
   const interviewId = useRef<string | null>(null);
   const answered = useRef(false);
+  const startedHere = useRef(false);
   const stop = useRef<() => void>(() => {});
 
   useEffect(() => {
     api.catalog().then(setCatalog).catch(() => {});
+    api.openInterviews().then(setOpen).catch(() => {});
     // Leaving mid-interview drops it, so the API keeps nothing of the app.
     return () => {
       stop.current();
-      if (interviewId.current && !answered.current) api.abandonInterview(interviewId.current).catch(() => {});
+      // Only one started on this page: one picked up from elsewhere stays open for its owner.
+      if (interviewId.current && !answered.current && startedHere.current) api.abandonInterview(interviewId.current).catch(() => {});
     };
   }, []);
 
@@ -84,6 +91,7 @@ export function NewEnvironment() {
       setBusy("Handing your app to the platform");
       const started = await api.startInterview(folder.name, packed.zip, deployed);
       interviewId.current = started.interviewId;
+      startedHere.current = true;
       setPhase("interview");
       stop.current = api.interviewEvents(started.interviewId, onEvent, () => setProblem("The platform stopped answering about this interview. Start again."));
     } catch (err) {
@@ -92,6 +100,22 @@ export function NewEnvironment() {
     } finally {
       setBusy(null);
     }
+  }
+
+  /** Pick up an interview this person has open, wherever it started. */
+  function resume(id: string, app: string) {
+    interviewId.current = id;
+    setFolder(null);
+    setLines([]);
+    setPhase("interview");
+    setProblem(null);
+    setResumedApp(app);
+    stop.current = api.interviewEvents(id, onEvent, () => setProblem("The platform stopped answering about this interview."));
+  }
+
+  async function drop(id: string) {
+    await api.abandonInterview(id).catch(() => {});
+    setOpen(o => o.filter(i => i.interviewId !== id));
   }
 
   function onEvent(event: InterviewEvent) {
@@ -158,20 +182,26 @@ export function NewEnvironment() {
     await deploy(wanted);
   }
 
-  async function deploy(expectStored: string[]) {
-    if (!folder || !plan?.plan) return;
+  async function deploy(expectStored: string[], chosen: ChosenFolder | null = folder) {
+    if (!plan?.plan) return;
+    const drafted_ = ((plan.plan.needs as unknown[]) || []).length > 0;
+    // An interview continued from elsewhere has no folder here yet: ask for it now.
+    if (!chosen && !drafted_) {
+      setPending(expectStored);
+      return setPhase("need-folder");
+    }
     setPhase("deploying");
     setProblem(null);
     try {
       const drafted = ((plan.plan.needs as unknown[]) || []).length > 0;
       // A draft is refused before anything is packaged, so none of the folder is sent.
       setBusy(drafted ? "Saving your plan as a draft" : "Reading your folder again, as the platform packages it");
-      const packed = drafted ? { zip: emptyZip() } : await pack(folder, "deploy");
+      const packed = drafted || !chosen ? { zip: emptyZip() } : await pack(chosen, "deploy");
       setBusy("Handing your app to the platform to build your environment");
       const answers = lines.filter(l => l.kind === "question").map(l => ({ question: l.text, answer: (l as { answer?: string }).answer || "" }));
       const made = await api.deploy({
         plan: plan.plan,
-        appPath: folder.name,
+        appPath: chosen?.name || appName,
         zip: packed.zip,
         expectStored,
         origin: { planSource: "interview", answers, ...(plan.traceId ? { traceId: plan.traceId } : {}) }
@@ -204,6 +234,27 @@ export function NewEnvironment() {
     <>
       <PageTitle title="New environment" sub={<>What <code className="font-mono">sealeye run</code> does, from your browser: read your app, ask a few questions, write a plan, and build it when you say yes.</>} />
 
+      {phase === "choose" && open.length ? (
+        <Card className="mb-6" data-testid="open-interviews">
+          <CardHeader><CardTitle>Interviews you have open</CardTitle></CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <p className="text-dim">Started here or with <code className="font-mono text-ink">sealeye run</code>, and not finished. Pick one up where it stopped; you choose the app's folder again when it is time to deploy.</p>
+            <ul className="divide-y divide-rule">
+              {open.map(i => (
+                <li key={i.interviewId} className="flex flex-wrap items-center gap-3 py-2" data-testid="open-interview">
+                  <span className="font-mono">{i.app}</span>
+                  <span className="text-dim">{i.status === "waiting" ? (i.waitingFor === "confirm" ? "waiting for Deploy this?" : "waiting for your answer") : "working"}, started {ago(i.startedAt)}</span>
+                  <span className="ml-auto flex gap-2">
+                    <Button size="sm" onClick={() => resume(i.interviewId, i.app)}>Continue</Button>
+                    <Button size="sm" variant="ghost" onClick={() => drop(i.interviewId)}>Drop it</Button>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      ) : null}
+
       {phase === "choose" ? (
         <Card data-testid="choose-folder">
           <CardHeader><CardTitle>Your app's folder</CardTitle></CardHeader>
@@ -232,7 +283,7 @@ export function NewEnvironment() {
               <li>Read here, in your browser, by the same rules as <code className="font-mono text-ink">sealeye run</code>. Nothing in your folder changes.</li>
               <li>Left out: node_modules, .git, and what your .gitignore leaves out.</li>
               <li>For the interview, secret files, like <span className="font-mono text-ink">.env</span>, go as names only: their contents are never read.</li>
-              <li>If you deploy, your folder is packaged as <code className="font-mono text-ink">sealeye run</code> packages it: everything but node_modules, .git and <span className="font-mono text-ink">.env</span>. Settings come from your organization's store.</li>
+              <li>If you deploy, your folder is packaged as <code className="font-mono text-ink">sealeye run</code> packages it: everything but node_modules, .git and secret files like <span className="font-mono text-ink">.env</span>, which never leave this computer. Settings come from your organization's store.</li>
             </ul>
             <Button onClick={start} disabled={!folder || Boolean(busy)}>{busy || "Read my app"}</Button>
           </CardContent>
@@ -242,7 +293,7 @@ export function NewEnvironment() {
       {phase !== "choose" ? (
         <Card data-testid="interview">
           <CardHeader>
-            <CardTitle>{folder?.name}</CardTitle>
+            <CardTitle>{folder?.name || resumedApp}</CardTitle>
             {redeploy ? <Badge tone="neutral" className="ml-auto">Already running: asking about what changed</Badge> : null}
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
@@ -313,6 +364,23 @@ export function NewEnvironment() {
         <StoreSettings app={appName} team={person?.team || "default"} names={missing}
           onStored={name => { setStored(s => [...s, name]); setMissing(m => m.filter(n => n !== name)); }}
           onReady={() => deploy([...stored])} ready={missing.length === 0} />
+      ) : null}
+
+      {phase === "need-folder" ? (
+        <Card className="mt-6" data-testid="need-folder">
+          <CardHeader><CardTitle>Choose the app's folder to package</CardTitle></CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <p className="text-dim">This interview started elsewhere, so the platform needs the folder again to package it: everything but node_modules, .git and secret files.</p>
+            <div className="flex flex-wrap gap-3">
+              {canPickFolder() ? <Button variant="ghost" onClick={() => pickFolder().then(f => { if (f) deploy(pending, f); }).catch(fail)}>Choose a folder</Button> : null}
+              <label className="inline-flex cursor-pointer items-center rounded-md border border-rule px-3 py-2 hover:bg-ground">
+                {canPickFolder() ? "Upload a folder instead" : "Choose a folder"}
+                <input type="file" className="sr-only" aria-label="Choose the folder to package" {...{ webkitdirectory: "", directory: "" }}
+                  onChange={e => { const f = folderFromInput(e.target.files || []); if (f) deploy(pending, f); }} />
+              </label>
+            </div>
+          </CardContent>
+        </Card>
       ) : null}
 
       {phase === "deploying" ? <p className="mt-6 text-dim" role="status">{busy || "Starting"}</p> : null}

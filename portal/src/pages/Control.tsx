@@ -4,8 +4,10 @@
 // change record for any of those deployments (`sealeye evidence`).
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
-import { api, SignedOut, type Evidence } from "../api";
+import { api, SignedOut, type DeploymentSummary, type Evidence, type Logs } from "../api";
 import { evidenceSummary } from "../../../core/evidence-summary.js";
+import { PerformanceCard } from "./PerformanceCard";
+import { RETENTION_CHOICES, retentionOf, withRetention } from "../../../core/retention.js";
 import { useLoad, useSession } from "../session";
 import { ago, groupEnvironments, IN_FLIGHT, publicUrl, statusOf, when, who } from "../model";
 import { PageTitle, Problem } from "../Layout";
@@ -104,6 +106,9 @@ export function Control() {
             </CardContent>
           </Card>
         ) : null}
+        {latest.kind !== "static" && latest.stackName && !["destroyed", "destroying"].includes(latest.status) ? (
+          <PauseCard deploymentId={latest.deploymentId} app={env.app} pauses={env.deploys.flatMap(d => d.pauses || [])} onDone={deployments.reload} />
+        ) : null}
         <Card>
           <CardHeader><CardTitle>Tear down</CardTitle></CardHeader>
           <CardContent className="space-y-4 text-sm">
@@ -117,6 +122,10 @@ export function Control() {
       </div>
 
       {latest.kind !== "static" ? <Settings app={env.app} team={latest.teamId || "default"} /> : null}
+
+      {latest.kind !== "static" && code && ownTeam ? (
+        <Configure fromDeployment={code.deploymentId} busyNow={IN_FLIGHT.has(latest.status)} onDone={deployments.reload} />
+      ) : null}
 
       <Card className="mt-6">
         <CardHeader><CardTitle>What has been done to this app</CardTitle></CardHeader>
@@ -152,8 +161,197 @@ export function Control() {
         </Table>
       </Card>
 
+      {latest.kind !== "static" && env.deploys.some(d => d.stackName) ? <PerformanceCard deploymentId={(env.deploys.find(d => d.stackName) || latest).deploymentId} /> : null}
+
+      {latest.kind !== "static" && env.deploys.some(d => d.stackName) ? <LogsCard deploymentId={(env.deploys.find(d => d.stackName) || latest).deploymentId} /> : null}
+
       <EvidenceCard key={evidenceFor || latest.deploymentId} deploymentId={evidenceFor || latest.deploymentId} latest={!evidenceFor || evidenceFor === latest.deploymentId} />
     </>
+  );
+}
+
+/**
+ * Pause and resume, as `sealeye pause` and `sealeye resume` do: the API stops taking
+ * requests and starts again. What it shows is read from AWS when the page opens and
+ * after every change.
+ */
+function PauseCard({ deploymentId, app, pauses, onDone }: { deploymentId: string; app: string; pauses: NonNullable<DeploymentSummary["pauses"]>; onDone: () => void }) {
+  const { signedOut } = useSession();
+  const [paused, setPausedState] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    api.paused(deploymentId)
+      .then(r => { if (live) setPausedState(r.paused); })
+      .catch(err => { if (!live) return; if (err instanceof SignedOut) signedOut(err.message); else setError(err.message); });
+    return () => { live = false; };
+  }, [deploymentId, signedOut]);
+
+  async function change(next: boolean) {
+    setBusy(true);
+    setError(null);
+    try {
+      setPausedState((await api.setPaused(deploymentId, next)).paused);
+      onDone();
+    } catch (err) {
+      if (err instanceof SignedOut) return signedOut(err.message);
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const last = [...pauses].sort((a, b) => (a.at < b.at ? 1 : -1))[0];
+  return (
+    <Card data-testid="pause">
+      <CardHeader>
+        <CardTitle>Pause</CardTitle>
+        {paused === null ? null : <Badge tone={paused ? "amber" : "phosphor"} className="ml-auto" data-testid="pause-state">{paused ? "Paused" : "Taking requests"}</Badge>}
+      </CardHeader>
+      <CardContent className="space-y-4 text-sm">
+        <p className="text-dim">{paused
+          ? `${app} takes no requests until it is resumed. Nothing else changes, and nothing is removed.`
+          : `Stops ${app} taking requests, without removing anything. Resume puts it back as it was.`}</p>
+        {last ? <p className="text-dim">{last.action === "paused" ? "Paused" : "Resumed"} by {who(last.by)} from the {last.surface === "portal" ? "portal" : "command line"}, {ago(last.at)}.</p> : null}
+        {paused === null ? null : paused
+          ? <Button onClick={() => change(false)} disabled={busy}>{busy ? "Asking the platform" : "Resume"}</Button>
+          : <Button variant="ghost" onClick={() => change(true)} disabled={busy}>{busy ? "Asking the platform" : "Pause"}</Button>}
+        {error ? <Problem message={error} /> : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Configure, as `sealeye config` does: how long the app's logs are kept. Changing it is a
+ * deploy of the same code again with the plan changed, so it says so, and the history
+ * shows it. Settings are the card above.
+ */
+function Configure({ fromDeployment, busyNow, onDone }: { fromDeployment: string; busyNow: boolean; onDone: () => void }) {
+  const { signedOut } = useSession();
+  const [plan, setPlan] = useState<Record<string, unknown> | null>(null);
+  const [days, setDays] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    api.deployment(fromDeployment)
+      .then(r => { if (live && r.plan) { setPlan(r.plan); setDays(retentionOf(r.plan)); } })
+      .catch(err => { if (!live) return; if (err instanceof SignedOut) signedOut(err.message); else setError(err.message); });
+    return () => { live = false; };
+  }, [fromDeployment, signedOut]);
+
+  const now = plan ? retentionOf(plan) : null;
+  async function apply() {
+    if (!plan || days === null || days === now) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const made = await api.deployAgain(fromDeployment, withRetention(plan, days));
+      setDone(`Deploying again as ${made.deploymentId}, with logs kept for ${days} days. The app's sealeye.yaml still says ${now}: change it there too, or the next sealeye run puts it back.`);
+      onDone();
+    } catch (err) {
+      if (err instanceof SignedOut) return signedOut(err.message);
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card className="mt-6" data-testid="configure">
+      <CardHeader><CardTitle>Configure</CardTitle></CardHeader>
+      <CardContent className="space-y-4 text-sm">
+        {now === null ? <p className="text-dim">Reading the plan this environment was built from</p> : (
+          <>
+            <p className="text-dim">Logs are kept for <span className="text-ink">{now} days</span>. Changing it deploys the same code again with the plan changed; nothing is uploaded.</p>
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="grid gap-1">
+                <span className="text-dim">Keep logs for</span>
+                <select aria-label="Keep logs for" className="h-9 rounded-md border border-rule bg-surface px-3" value={days ?? now}
+                  onChange={e => setDays(Number(e.target.value))}>
+                  {RETENTION_CHOICES.map((d: number) => <option key={d} value={d}>{d === 1 ? "1 day" : `${d} days`}</option>)}
+                </select>
+              </label>
+              <Button onClick={apply} disabled={busy || busyNow || days === now}>{busy ? "Asking the platform" : "Deploy with this"}</Button>
+            </div>
+            {busyNow ? <p className="text-dim">Something is under way for this environment. Change it once that has finished.</p> : null}
+          </>
+        )}
+        {done ? <p role="status" className="text-phosphor">{done}</p> : null}
+        {error ? <Problem message={error} /> : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+const WINDOWS: [string, string][] = [["15m", "15 minutes"], ["1h", "hour"], ["6h", "6 hours"], ["1d", "day"]];
+
+/**
+ * What the app wrote, as `sealeye logs` shows it: the most recent lines over a window,
+ * newest first, with anything that looks like a secret taken out by the platform. Read
+ * when asked, since it asks AWS.
+ */
+function LogsCard({ deploymentId }: { deploymentId: string }) {
+  const { signedOut } = useSession();
+  const [since, setSince] = useState("1h");
+  const [logs, setLogs] = useState<Logs | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function read(window = since) {
+    setBusy(true);
+    setError(null);
+    try {
+      setLogs(await api.logs(deploymentId, window));
+    } catch (err) {
+      if (err instanceof SignedOut) return signedOut(err.message);
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const words = WINDOWS.find(([k]) => k === since)?.[1] || since;
+  return (
+    <Card className="mt-6" data-testid="logs">
+      <CardHeader>
+        <CardTitle>Logs</CardTitle>
+        <div className="ml-auto flex flex-wrap gap-1" role="group" aria-label="How far back">
+          {WINDOWS.map(([key, label]) => (
+            <Button key={key} size="sm" variant={key === since ? "primary" : "ghost"} aria-pressed={key === since}
+              onClick={() => { setSince(key); if (logs) read(key); }}>{label === "hour" ? "1 hour" : label === "day" ? "1 day" : label}</Button>
+          ))}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        {!logs ? (
+          <>
+            <p className="text-dim">What your app wrote, newest first, as <code className="font-mono text-ink">sealeye logs</code> shows it. Anything that looks like a secret, and the value of any setting in the store, is taken out before it reaches this page; a value printed on its own, with no name beside it, cannot be told from other text.</p>
+            <Button onClick={() => read()} disabled={busy}>{busy ? "Reading your app's logs" : "Show logs"}</Button>
+          </>
+        ) : (
+          <>
+            {logs.note ? <p className="text-dim">{logs.note}</p> : null}
+            {!logs.note && !logs.lines.length ? <p className="text-dim">Nothing in the last {words}.</p> : null}
+            {logs.lines.length ? (
+              <ol className="max-h-[32rem] overflow-auto rounded-md border border-rule bg-ground p-3 font-mono text-xs" data-testid="log-lines">
+                {logs.lines.map((l, i) => (
+                  <li key={i} className="flex gap-3 py-0.5"><span className="shrink-0 text-dim">{new Date(l.at).toLocaleTimeString()}</span><span className="whitespace-pre-wrap break-all">{l.message}</span></li>
+                ))}
+              </ol>
+            ) : null}
+            {logs.more ? <p className="text-dim">Only the most recent lines are shown. A shorter window shows fewer.</p> : null}
+            <Button variant="ghost" onClick={() => read()} disabled={busy}>{busy ? "Reading" : "Read again"}</Button>
+          </>
+        )}
+        {error ? <Problem message={error} /> : null}
+      </CardContent>
+    </Card>
   );
 }
 

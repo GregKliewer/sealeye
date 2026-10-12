@@ -160,6 +160,126 @@ export async function artifactExists(bucket, key) {
 }
 
 /**
+ * An app's log lines (PHASE2-PLAN Step 16): what its function wrote between `sinceMs`
+ * and `untilMs` (now, without it), oldest first as CloudWatch reads them forward, at most
+ * `maxItems`. Read only.
+ * @returns {Promise<{ok: true, events: {timestamp: number, message: string}[]} | {ok: false, missing?: boolean, error?: string}>}
+ */
+export async function recentLogs(logGroup, { sinceMs, untilMs = null, maxItems = 2000 } = {}) {
+  const r = await tryAws([
+    "logs", "filter-log-events", "--log-group-name", logGroup,
+    "--start-time", String(Math.floor(sinceMs)),
+    ...(untilMs ? ["--end-time", String(Math.floor(untilMs))] : []),
+    "--max-items", String(maxItems),
+    "--query", "events[].{timestamp: timestamp, message: message}",
+    "--region", region(), "--output", "json"
+  ]);
+  if (!r.ok) {
+    if (/ResourceNotFoundException/.test(r.stderr)) return { ok: false, missing: true };
+    return { ok: false, error: firstLine(r.stderr) };
+  }
+  try {
+    return { ok: true, events: JSON.parse(r.stdout || "[]") || [] };
+  } catch {
+    return { ok: false, error: "the log service's answer was not JSON" };
+  }
+}
+
+/**
+ * Whether an app's function is paused: its reserved concurrency is zero, so it takes no
+ * requests (PHASE2-PLAN D7). Read from AWS each time, never assumed.
+ * @returns {Promise<{ok: true, paused: boolean} | {ok: false, missing?: boolean, error: string}>}
+ */
+export async function functionPaused(functionName) {
+  const r = await tryAws(["lambda", "get-function-concurrency", "--function-name", functionName, "--region", region(), "--output", "json"]);
+  if (!r.ok) return { ok: false, missing: /ResourceNotFoundException/.test(r.stderr), error: firstLine(r.stderr) };
+  try {
+    return { ok: true, paused: (JSON.parse(r.stdout || "{}") || {}).ReservedConcurrentExecutions === 0 };
+  } catch {
+    return { ok: false, error: "the function service's answer was not JSON" };
+  }
+}
+
+/** Pause (reserved concurrency zero) or resume (no reservation) an app's function. */
+export async function setFunctionPaused(functionName, paused) {
+  const r = await tryAws(paused
+    ? ["lambda", "put-function-concurrency", "--function-name", functionName, "--reserved-concurrent-executions", "0", "--region", region(), "--output", "json"]
+    : ["lambda", "delete-function-concurrency", "--function-name", functionName, "--region", region()]);
+  return r.ok ? { ok: true } : { ok: false, error: firstLine(r.stderr) };
+}
+
+/**
+ * Readings from an app's function over a window (PHASE2-PLAN Step 20): requests,
+ * errors, refused requests, and the time its code took, per period and over the whole
+ * window. What happened, never what it can take.
+ * @param {string} functionName
+ * @param {{ startMs: number, endMs: number, periodSec: number }} window
+ * @returns {Promise<{ok: true, results: {Id: string, Timestamps: string[], Values: number[]}[]} | {ok: false, error: string}>}
+ */
+export async function functionMetrics(functionName, { startMs, endMs, periodSec }) {
+  const whole = Math.max(60, Math.ceil((endMs - startMs) / 1000 / 60) * 60);
+  const q = (id, metric, stat, period) => ({
+    Id: id,
+    MetricStat: { Metric: { Namespace: "AWS/Lambda", MetricName: metric, Dimensions: [{ Name: "FunctionName", Value: functionName }] }, Period: period, Stat: stat },
+    ReturnData: true
+  });
+  const queries = [
+    q("requests", "Invocations", "Sum", periodSec), q("errors", "Errors", "Sum", periodSec),
+    q("refused", "Throttles", "Sum", periodSec), q("average", "Duration", "Average", periodSec), q("slowest", "Duration", "p95", periodSec),
+    q("totalRequests", "Invocations", "Sum", whole), q("totalErrors", "Errors", "Sum", whole), q("totalRefused", "Throttles", "Sum", whole),
+    q("totalAverage", "Duration", "Average", whole), q("totalSlowest", "Duration", "p95", whole)
+  ];
+  const r = await tryAws([
+    "cloudwatch", "get-metric-data",
+    "--start-time", new Date(startMs).toISOString(), "--end-time", new Date(endMs).toISOString(),
+    "--metric-data-queries", JSON.stringify(queries),
+    "--query", "MetricDataResults[].{Id: Id, Timestamps: Timestamps, Values: Values}",
+    "--region", region(), "--output", "json"
+  ]);
+  if (!r.ok) return { ok: false, error: firstLine(r.stderr) };
+  try {
+    return { ok: true, results: JSON.parse(r.stdout || "[]") || [] };
+  } catch {
+    return { ok: false, error: "the metrics service's answer was not JSON" };
+  }
+}
+
+/**
+ * What the account spent, by the sealeye:app tag (and sealeye:team, for every team), a
+ * day at a time between two dates (PHASE2-PLAN Step 20). Cost Explorer answers from
+ * us-east-1 whatever the region, about a day behind, and charges for each call, so the
+ * caller keeps the answer for a while.
+ * @param {{ start: string, end: string, team?: string|null }} range  YYYY-MM-DD, end exclusive
+ * @returns {Promise<{ok: true, groups: {keys: string[], amount: number, unit: string}[]} | {ok: false, error: string}>}
+ */
+export async function costsByTag({ start, end, team = null }) {
+  const groups = [];
+  let token = null;
+  for (let page = 0; page < 10; page++) {
+    const args = [
+      "ce", "get-cost-and-usage", "--time-period", `Start=${start},End=${end}`, "--granularity", "DAILY",
+      "--metrics", "UnblendedCost",
+      "--group-by", ...(team ? ["Type=TAG,Key=sealeye:app"] : ["Type=TAG,Key=sealeye:team", "Type=TAG,Key=sealeye:app"]),
+      ...(team ? ["--filter", JSON.stringify({ Tags: { Key: "sealeye:team", Values: [team] } })] : []),
+      ...(token ? ["--next-page-token", token] : []),
+      "--region", "us-east-1", "--output", "json"
+    ];
+    const r = await tryAws(args);
+    if (!r.ok) return { ok: false, error: firstLine(r.stderr) };
+    let body;
+    try { body = JSON.parse(r.stdout || "{}"); } catch { return { ok: false, error: "the cost service's answer was not JSON" }; }
+    for (const day of body.ResultsByTime || []) {
+      for (const g of day.Groups || []) {
+        groups.push({ keys: g.Keys || [], amount: Number(g.Metrics?.UnblendedCost?.Amount || 0), unit: g.Metrics?.UnblendedCost?.Unit || "USD" });
+      }
+    }
+    token = body.NextPageToken || null;
+    if (!token) break;
+  }
+  return { ok: true, groups };
+}
+
+/**
  * Current stack status and outputs, read fresh.
  * @returns {Promise<{status: string|null, outputs: object, statusReason: string|null}>}
  *          status is null when the stack does not exist.
