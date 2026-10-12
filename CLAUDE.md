@@ -99,7 +99,9 @@ in `core/` or behind an endpoint.
 
 ## Names
 
-- The product is seaLeye. The command is `sealeye`. Its subcommand that interviews and
+- The product is seaLeye. The command is `sealeye`. Commands that act on an environment
+  take the app's name (your team's environment of that name) or a deployment id; with
+  neither, the app the current folder's sealeye.yaml plans. Its subcommand that interviews and
   deploys is `run`; `init` is a hidden alias that does the same thing and never prints a
   deprecation notice.
 - An environment's name is `sealeye-<team>-<app>-<hash>` (`environmentName` in
@@ -150,7 +152,12 @@ portal's session cookie; a change made with the cookie must also carry
 token's, never what the command line says. An interview is its starter's; a record is
 its team's, seen by that team and by an organization-wide token, never by another
 organization; the needs ledger is the whole organization's, but an app's evidence and
-deployment id in it are its team's (and an organization-wide token's). Keep existing endpoints and commands working; add, do not
+deployment id in it are its team's (and an organization-wide token's). One change at a
+time per environment: a deploy, deploy again, tear-down, pause or resume while another
+change to it is queued, packaging, running or tearing down is refused with 409
+ENVIRONMENT_BUSY (`api/busy.js`), naming what is under way; drafted plans are still
+saved. GET /deployments marks a success a later success replaced (`replaced`,
+`replacedBy`) and carries the live `step`. Keep existing endpoints and commands working; add, do not
 break.
 
 ## Executor

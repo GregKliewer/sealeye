@@ -118,6 +118,9 @@ later, and the first and third lines stay open until he does.
 - Each starts as an API endpoint.
 - Planned as PHASE2-PLAN Part C. Integrations moved to Phase 4 (D8, Oct 12), where the
   tools it would connect to are.
+- Polish (Oct 12): one change at a time per environment, refused in the API on both
+  surfaces; a change under way shown on every page; replaced deploys say so; commands
+  take the app's name, or the folder's.
 
 ### Phase 3: Learn the platform
 
@@ -164,7 +167,7 @@ and does nothing real. A blank is not started.
 | Re-run on a live environment | `sealeye run`, `sealeye deploy --again <app>` | `POST /deployments` (`fromDeployment`) | built | built (Deploy again, in Control) | 2 |
 | Validate a plan | `sealeye validate` | `POST /plans/validate` (ready or drafted, with needs) | built | built (Validate) | 2 |
 | List environments | `sealeye list` | `GET /deployments` | built | built (Environments) | 1 |
-| Status and watch | `sealeye status`, `watch` | `GET /deployments/{id}` | built | built (Control) | 1 |
+| Status and watch | `sealeye status`, `watch` (an app or an id) | `GET /deployments/{id}`; `step` in `GET /deployments` | built | built (Control, with the change under way across the top) | 1 |
 | Tear down | `sealeye destroy` | `DELETE /deployments/{id}` | built | built (Control) | 1 |
 | Evidence | `sealeye evidence` | `GET /deployments/{id}/evidence` | built | built (Evidence, in Control) | 2 |
 | Needs ledger | `sealeye needs` | `GET /needs` | built | built (in Catalog) | 1 |
