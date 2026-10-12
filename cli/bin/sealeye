@@ -39,6 +39,7 @@ import { runDoctor } from "../doctor.js";
 import { writeInterviewFiles, decisionCard } from "../interview/render.js";
 import { plainValidationErrors } from "../../core/plan-words.js";
 import { evidenceSummary } from "../../core/evidence-summary.js";
+import { RETENTION_CHOICES, retentionOf, withRetention } from "../../core/retention.js";
 
 // Statuses that are history rather than something you can still open: one was torn
 // down, the other was never built because the platform said so.
@@ -114,6 +115,7 @@ Usage:
   ${product.command} list [--deployments] [--all] [--api <url>] [--json]
   ${product.command} evidence <app | deploymentId> [--json] [--out <file>] [--api <url>]
   ${product.command} logs <app | deploymentId> [--since 15m|1h|6h|1d] [--json] [--api <url>]
+  ${product.command} config <app | deploymentId> [--retention <days>] [--json] [--api <url>]
   ${product.command} pause <app | deploymentId> [--json] [--api <url>]
   ${product.command} resume <app | deploymentId> [--json] [--api <url>]
   ${product.command} needs [--json] [--request <kind>] [--api <url>]
@@ -711,6 +713,64 @@ async function main() {
     console.log(c.ok(result.paused
       ? `${env.label} is paused: it takes no requests until you run ${product.command} resume ${target}`
       : `${env.label} is taking requests again`));
+    return;
+  }
+
+  if (command === "config") {
+    const target = process.argv[3];
+    if (!target || target.startsWith("--")) {
+      console.error(c.fail(`Missing name: ${product.command} config <app | deploymentId> [--retention <days>]`));
+      process.exit(1);
+    }
+    const env = await environmentTarget({ apiBaseUrl, target });
+    if (!env) return;
+    const record = await getDeployment({ apiBaseUrl, deploymentId: env.deploymentId });
+    const retention = getArg("--retention");
+
+    if (!retention) {
+      // What can be configured, as it is now: settings (names only) and how long logs are kept.
+      const settings = env.record.kind === "static" ? null : await getSettings({ apiBaseUrl, app: safeName(env.label), team: record.teamId }).catch(() => null);
+      if (jsonOut) return console.log(JSON.stringify({ app: env.label, retentionDays: retentionOf(record.plan), settings: settings?.settings || null }, null, 2));
+      console.log("");
+      console.log(`  ${c.fg("Logs kept for".padEnd(15))}${c.dim(`${retentionOf(record.plan)} days`)}`);
+      if (settings) {
+        const shown = settings.settings.map(x => `${x.name} ${x.set ? "set" : "not set"}`).join(", ");
+        console.log(`  ${c.fg("Settings".padEnd(15))}${c.dim(shown || "none")}`);
+      }
+      console.log("");
+      say(`${product.command} config ${target} --retention <days> changes how long logs are kept (${RETENTION_CHOICES.join(", ")}). ${product.command} settings set <NAME> stores a setting.`);
+      return;
+    }
+
+    const days = Number(retention);
+    if (!RETENTION_CHOICES.includes(days)) {
+      console.error(c.fail(`Logs can be kept for ${RETENTION_CHOICES.join(", ")} days.`));
+      process.exitCode = 1;
+      return;
+    }
+    if (env.record.kind === "static") {
+      console.error(c.fail("A static site keeps no logs of its own, so there is nothing to change."));
+      process.exitCode = 1;
+      return;
+    }
+    const everything = await listDeployments({ apiBaseUrl });
+    const code = everything.find(d => d.stackName === env.record.stackName && d.packaged);
+    if (!code) {
+      console.error(c.fail(`The platform has no packaged code for ${env.label} to deploy again with the new setting. Run ${product.command} run in its folder.`));
+      process.exitCode = 1;
+      return;
+    }
+    const source = await getDeployment({ apiBaseUrl, deploymentId: code.deploymentId });
+    const plan = withRetention(source.plan, days);
+    say(`Changing how long logs are kept is a deploy: deploying the code ${code.packagedBy || code.deploymentId} packaged again, with logs kept for ${days} days`);
+    const deployment = await refusedInWords(() => deployAgain({ apiBaseUrl, fromDeployment: code.deploymentId, plan }));
+    if (!deployment) return;
+    if (jsonOut) return console.log(JSON.stringify(deployment, null, 2));
+    say(`Your ${CONFIG_FILE} still says ${retentionOf(source.plan)} days: change it there too, or the next ${product.command} run puts it back.`);
+    reportHere = false;
+    console.log("");
+    if (watchFlag) await runWatch({ apiBaseUrl, deploymentId: deployment.deploymentId });
+    else await runBackground({ apiBaseUrl, deploymentId: deployment.deploymentId, appPath: null, plan });
     return;
   }
 

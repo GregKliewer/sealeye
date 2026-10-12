@@ -1380,3 +1380,20 @@ and `.../resume`. The names are ROADMAP's.
 - The deploy role gains lambda:PutFunctionConcurrency, DeleteFunctionConcurrency and
   GetFunctionConcurrency on `sealeye-*` functions.
 
+## Configure is a deploy of the same code again
+
+Built Mon Oct 12, 2026 (PHASE2-PLAN Step 18), as `sealeye config <app> [--retention
+<days>]` and the portal's Configure card. The name is ROADMAP's.
+
+What there is to configure on a running environment today is its settings, which Part B
+built (`sealeye settings`, the Settings card, read by the app when it starts), and how
+long its logs are kept. Logs' retention is in the plan (observability_basic), so a change
+is a deployment of the code the environment already has, with the plan changed
+(`fromDeployment` with a plan): no new endpoint, the history shows who changed it, and
+the status is the deploy's. Both surfaces offer 1, 3, 7, 14, 30, 60, 90, 180 or 365
+days (core/retention.js); compose refuses a hand-written plan with a value CloudWatch
+does not accept, before anything is built.
+
+The developer's sealeye.yaml is not changed (principle 5), so both surfaces say that it
+still has the old value, and that the next `sealeye run` with it puts it back.
+

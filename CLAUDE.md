@@ -37,8 +37,10 @@ core/       what cli/ and api/ must agree on: schema.js (the plan contract), cat
             plan-files.js (DEPLOYMENT_PLAN.md and sealeye.yaml, written by the
             command and sent with the interview's plan for the portal),
             plan-words.js and evidence-summary.js (words the command and the portal
-            both say). secrets.js, upload-rules.js, plan-words.js and
-            evidence-summary.js run in a browser, so the portal imports them too
+            both say), retention.js (how long logs are kept), setting-names.js.
+            secrets.js, upload-rules.js, plan-words.js, evidence-summary.js,
+            retention.js and setting-names.js run in a browser, so the portal
+            imports them too
 prompts/    system prompt, plan contract, plan, report and evidence templates, catalog
 templates/  one CloudFormation template per buildable module, plus run.sh and
             sealeye-settings.mjs (the settings reader run.sh loads first)
@@ -243,8 +245,8 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   source, never its value.
 - seaLeye.online (`portal/`) has Environments, New environment (the interview, from a
   folder chosen in the browser), Control (state, deploy again, tear down,
-  pause, settings, history, logs, evidence), Validate (check a plan, and deploy a ready one with the
-  code the platform has), Catalog (modules and the needs ledger) and Health. Configure, Performance, Costs and
+  pause, settings, configure, history, logs, evidence), Validate (check a plan, and deploy a ready one with the
+  code the platform has), Catalog (modules and the needs ledger) and Health. Performance, Costs and
   Team are drawn in the archived mock-up only; the portal shows nothing it cannot do.
 
 ## Working here

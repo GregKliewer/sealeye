@@ -8,8 +8,8 @@ import { backendMappings } from "../mappings.js";
 import { environmentName, safeName } from "../../core/names.js";
 import { repoRoot, loadEnv, requireSetting } from "../../core/config.js";
 import { settingValues } from "./settings.js";
+import { RETENTION_ALLOWED, retentionOf } from "../../core/retention.js";
 
-const DEFAULT_RETENTION_DAYS = 30;
 const DEFAULT_ENTRY_POINT = "index.js";
 
 const CONFIG_PARAMETER_MARKER = "# sealeye:config-parameters";
@@ -108,11 +108,13 @@ function enabledModules(plan) {
   return (plan?.modules || []).filter(m => m && m.enabled !== false);
 }
 
-/** observability_basic.inputs.retention_days -> RetentionDays, default 30. */
+/** observability_basic.inputs.retention_days -> RetentionDays (core/retention.js). */
 function retentionDays(plan) {
-  const obs = enabledModules(plan).find(m => m.id === "observability_basic");
-  const value = Number(obs?.inputs?.retention_days);
-  return Number.isInteger(value) && value > 0 ? value : DEFAULT_RETENTION_DAYS;
+  const days = retentionOf(plan);
+  if (!RETENTION_ALLOWED.includes(days)) {
+    throw new Error(`your plan keeps logs for ${days} days, and they can be kept for ${RETENTION_ALLOWED.slice(0, 12).join(", ")} days or longer steps of a year`);
+  }
+  return days;
 }
 
 /**

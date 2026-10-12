@@ -373,6 +373,19 @@ test("Pause stops an API taking requests and Resume starts it again, read back e
   await expect(page.getByTestId("status")).toHaveText("Live");
 });
 
+test("Configure changes how long logs are kept, as a deploy of the same code again", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("link", { name: "payments-api", exact: true }).click();
+  const card = page.getByTestId("configure");
+  // An earlier test deployed this app's plan with 14 days.
+  await expect(card).toContainText("Logs are kept for 14 days");
+  await expect(card.getByRole("button", { name: "Deploy with this" })).toBeDisabled();
+  await card.getByLabel("Keep logs for").selectOption("60");
+  await card.getByRole("button", { name: "Deploy with this" }).click();
+  await expect(card.getByRole("status")).toContainText("with logs kept for 60 days");
+  await expect(page.getByTestId("history-row").first()).toContainText("again, with dep_aaaaaaaaaaa1's code");
+});
+
 test("signing out ends the session: the pages ask for sign-in again", async ({ page }) => {
   await signIn(page);
   await page.getByRole("button", { name: "Sign out" }).click();

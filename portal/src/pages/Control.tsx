@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
 import { api, SignedOut, type DeploymentSummary, type Evidence, type Logs } from "../api";
 import { evidenceSummary } from "../../../core/evidence-summary.js";
+import { RETENTION_CHOICES, retentionOf, withRetention } from "../../../core/retention.js";
 import { useLoad, useSession } from "../session";
 import { ago, groupEnvironments, IN_FLIGHT, publicUrl, statusOf, when, who } from "../model";
 import { PageTitle, Problem } from "../Layout";
@@ -121,6 +122,10 @@ export function Control() {
 
       {latest.kind !== "static" ? <Settings app={env.app} team={latest.teamId || "default"} /> : null}
 
+      {latest.kind !== "static" && code && ownTeam ? (
+        <Configure fromDeployment={code.deploymentId} busyNow={IN_FLIGHT.has(latest.status)} onDone={deployments.reload} />
+      ) : null}
+
       <Card className="mt-6">
         <CardHeader><CardTitle>What has been done to this app</CardTitle></CardHeader>
         <Table>
@@ -210,6 +215,71 @@ function PauseCard({ deploymentId, app, pauses, onDone }: { deploymentId: string
         {paused === null ? null : paused
           ? <Button onClick={() => change(false)} disabled={busy}>{busy ? "Asking the platform" : "Resume"}</Button>
           : <Button variant="ghost" onClick={() => change(true)} disabled={busy}>{busy ? "Asking the platform" : "Pause"}</Button>}
+        {error ? <Problem message={error} /> : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Configure, as `sealeye config` does: how long the app's logs are kept. Changing it is a
+ * deploy of the same code again with the plan changed, so it says so, and the history
+ * shows it. Settings are the card above.
+ */
+function Configure({ fromDeployment, busyNow, onDone }: { fromDeployment: string; busyNow: boolean; onDone: () => void }) {
+  const { signedOut } = useSession();
+  const [plan, setPlan] = useState<Record<string, unknown> | null>(null);
+  const [days, setDays] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    api.deployment(fromDeployment)
+      .then(r => { if (live && r.plan) { setPlan(r.plan); setDays(retentionOf(r.plan)); } })
+      .catch(err => { if (!live) return; if (err instanceof SignedOut) signedOut(err.message); else setError(err.message); });
+    return () => { live = false; };
+  }, [fromDeployment, signedOut]);
+
+  const now = plan ? retentionOf(plan) : null;
+  async function apply() {
+    if (!plan || days === null || days === now) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const made = await api.deployAgain(fromDeployment, withRetention(plan, days));
+      setDone(`Deploying again as ${made.deploymentId}, with logs kept for ${days} days. The app's sealeye.yaml still says ${now}: change it there too, or the next sealeye run puts it back.`);
+      onDone();
+    } catch (err) {
+      if (err instanceof SignedOut) return signedOut(err.message);
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card className="mt-6" data-testid="configure">
+      <CardHeader><CardTitle>Configure</CardTitle></CardHeader>
+      <CardContent className="space-y-4 text-sm">
+        {now === null ? <p className="text-dim">Reading the plan this environment was built from</p> : (
+          <>
+            <p className="text-dim">Logs are kept for <span className="text-ink">{now} days</span>. Changing it deploys the same code again with the plan changed; nothing is uploaded.</p>
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="grid gap-1">
+                <span className="text-dim">Keep logs for</span>
+                <select aria-label="Keep logs for" className="h-9 rounded-md border border-rule bg-surface px-3" value={days ?? now}
+                  onChange={e => setDays(Number(e.target.value))}>
+                  {RETENTION_CHOICES.map((d: number) => <option key={d} value={d}>{d === 1 ? "1 day" : `${d} days`}</option>)}
+                </select>
+              </label>
+              <Button onClick={apply} disabled={busy || busyNow || days === now}>{busy ? "Asking the platform" : "Deploy with this"}</Button>
+            </div>
+            {busyNow ? <p className="text-dim">Something is under way for this environment. Change it once that has finished.</p> : null}
+          </>
+        )}
+        {done ? <p role="status" className="text-phosphor">{done}</p> : null}
         {error ? <Problem message={error} /> : null}
       </CardContent>
     </Card>
