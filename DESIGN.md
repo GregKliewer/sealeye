@@ -1317,8 +1317,8 @@ Decided Mon Oct 12, 2026, building PHASE2-PLAN Step 15.
   for sizes, so a big file is refused before it is read.
 - **A drafted plan sends none of the folder**: the deploy request carries an empty zip,
   is refused, and the draft is saved, as the command's is.
-- **Not yet:** finishing in the portal an interview the command started. It is the same
-  interview by id, but nothing lists a person's open interviews. Owed in PHASE2-PLAN.
+- **Finishing an interview started elsewhere**: see "An interview can be finished on the
+  other surface".
 
 ## Secret files never go into the package
 
@@ -1451,4 +1451,17 @@ portal's Costs page and `GET /costs?since=7d|30d`. The name is ROADMAP's.
   left out, and every view says so, and that it is a day behind (principle 7: nothing
   typed in, nothing guessed). The deploy role gains ce:GetCostAndUsage, which takes no
   resource.
+
+## An interview can be finished on the other surface
+
+Built Mon Oct 12, 2026 (Greg asked for it with Steps 16 to 20).
+
+An interview is kept by id, and its starter may answer it from either surface.
+`GET /interviews` lists the caller's own that are still open (working, waiting for an
+answer, or waiting for "Deploy this?"), never anyone else's. `sealeye interviews` shows
+them; New environment lists them with Continue, which replays everything so far and
+carries on, and Drop. A continued interview has no folder in the browser, so at a yes
+the page asks for the app's folder to package (a drafted plan sends none). Leaving the
+page drops only an interview started on it; one picked up from elsewhere stays open for
+its owner, and any interview is dropped after a day as before.
 

@@ -401,8 +401,7 @@ plan" (Step 13's last item). DESIGN.md, "Deploying again".
 
 About four to six days. The headline portal feature.
 
-**Built Oct 12**, except finishing in the portal an interview the command started, which
-needs a way to find one's open interviews (owed, below). DESIGN.md, "New environment".
+**Built Oct 12**, including finishing in the portal an interview the command started. DESIGN.md, "New environment".
 
 - The browser zips a chosen folder under the same rules as `core/upload.js`: respect
   `.gitignore`, never send `node_modules` or `.git`, and send secret files as names only.
@@ -469,7 +468,7 @@ Step 5 records a decision next to each.
 
 | Item | Where it stands | Bring it forward when |
 |---|---|---|
-| **Finishing a command's interview in the portal** | An interview is kept by id, and its starter may answer it from either surface, but the portal has no way to find one the command started: there is no list of a person's open interviews. | When someone asks for it: add `GET /interviews` (the caller's own, open), a `sealeye` way to see them, and a list on New environment. |
+| **Finishing a command's interview in the portal** | Done Oct 12: `GET /interviews` lists a person's open interviews, `sealeye interviews` shows them, and New environment lists them with Continue and Drop (DESIGN.md, "An interview can be finished on the other surface"). | Done. |
 | **Other .env files are packaged** | Done Oct 12: a deploy leaves out every secret file `core/secrets.js` names, on both surfaces, and the report says so (DESIGN.md, "Secret files never go into the package"). | Done. |
 | **ROADMAP Phase 1 item 5: AWS access per team** | Every deploy goes through `sealeye-deploy-pilot` in the one pilot account. It is designed for a role per team account (DESIGN.md, "Phase 1: who it is for"), so adding one is configuration, not a rewrite. | A team brings its own AWS account, or any bank pilot. |
 | **ROADMAP Phase 1 item 3: real sign-in** | Cognito was chosen on Oct 9 (DESIGN.md, "Phase 1: who it is for"). How it replaces tokens and portal sessions is open (OPEN-QUESTIONS Q16). Tokens fill `req.caller` in the shape Cognito will. | More than a handful of people, anyone outside Greg's reach to issue a token by hand, or any bank pilot. It gets its own plan. |

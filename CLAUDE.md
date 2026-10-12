@@ -137,7 +137,7 @@ POST /plans/validate, POST /deployments ({ plan, appPath, zip?, settings? }, or
 { fromDeployment, plan? } to deploy code the platform already has again), GET /deployments,
 GET /deployments/{id}, GET /deployments/{id}/evidence, GET /deployments/{id}/logs (masked), GET /deployments/{id}/performance (readings), GET /deployments/{id}/paused and POST
 /deployments/{id}/pause and /resume (APIs only), DELETE /deployments/{id},
-GET /needs, GET /health, POST /interviews ({ app, zip }), POST
+GET /needs, GET /health, GET /interviews (your own still open), POST /interviews ({ app, zip }), POST
 /interviews/{id}/answers ({ answer }), GET /interviews/{id}/events (server-sent events),
 DELETE /interviews/{id}, GET /whoami, GET /team (people with tokens, never a token), GET /costs (by tag), GET /catalog, GET /apps/{app}/settings, PUT
 /apps/{app}/settings/{name} ({ value }) and DELETE /apps/{app}/settings/{name} (an app's

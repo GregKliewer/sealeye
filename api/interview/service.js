@@ -411,7 +411,18 @@ export function createInterviewService({
   const timer = setInterval(() => sweep().catch(() => {}), SWEEP_EVERY_MS);
   timer.unref();
 
-  return { start, startFromUpload, answer, remove, restore, subscribe, get, ownerOf, settled, sweep, ready, close: () => clearInterval(timer) };
+  /**
+   * The interviews one person has open: still running or waiting on them, newest first.
+   * With no owner (a laptop API without tokens), every open one.
+   */
+  function openFor(owner) {
+    return [...interviews.values()]
+      .filter(r => (r.status === "running" || r.status === "waiting") && (owner === null || r.owner === owner))
+      .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+      .map(r => ({ interviewId: r.id, app: r.app, status: r.status, waitingFor: r.waitingFor, startedAt: r.createdAt, mode: r.mode }));
+  }
+
+  return { start, startFromUpload, answer, remove, restore, subscribe, get, ownerOf, openFor, settled, sweep, ready, close: () => clearInterval(timer) };
 }
 
 function summary(record) {

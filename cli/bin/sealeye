@@ -20,6 +20,7 @@ import {
   getTeam,
   getPerformance,
   getCosts,
+  listInterviews,
   getNeeds,
   answerInterview,
   abandonInterview,
@@ -121,6 +122,7 @@ Usage:
   ${product.command} config <app | deploymentId> [--retention <days>] [--json] [--api <url>]
   ${product.command} perf <app | deploymentId> [--since 1h|6h|1d|7d] [--json] [--api <url>]
   ${product.command} costs [--since 7d|30d] [--json] [--api <url>]
+  ${product.command} interviews [--json] [--api <url>]
   ${product.command} team [--json] [--api <url>]
   ${product.command} pause <app | deploymentId> [--json] [--api <url>]
   ${product.command} resume <app | deploymentId> [--json] [--api <url>]
@@ -802,6 +804,26 @@ async function main() {
     row("Time taken", t.averageMs === null ? "no requests to measure" : `${t.averageMs} ms on average; 95 in 100 within ${t.slowestMs} ms`);
     console.log("");
     say("These are readings of what happened. What your app can take is set by a load test.");
+    return;
+  }
+
+  if (command === "interviews") {
+    const open = await listInterviews({ apiBaseUrl });
+    if (jsonOut) return console.log(JSON.stringify(open, null, 2));
+    console.log("");
+    if (!open.length) return say("You have no interviews open.");
+    const rows = open.map(i => ({
+      app: i.app,
+      state: i.status === "waiting" ? (i.waitingFor === "confirm" ? "waiting for Deploy this?" : "waiting for your answer") : "working",
+      started: relativeTime(i.startedAt),
+      id: i.interviewId
+    }));
+    const w = k => Math.max(k.length, ...rows.map(r => r[k].length));
+    const [wa, ws, wt] = [w("app"), w("state"), w("started")];
+    console.log(c.dim(`${pad("APP", wa)}  ${pad("STATE", ws)}  ${pad("STARTED", wt)}  ID`));
+    for (const r of rows) console.log(`${pad(r.app, wa)}  ${pad(r.state, ws)}  ${c.dim(pad(r.started, wt))}  ${c.dim(r.id)}`);
+    console.log("");
+    say("Finish one in seaLeye.online, under New environment, or leave it: it is dropped after a day.");
     return;
   }
 

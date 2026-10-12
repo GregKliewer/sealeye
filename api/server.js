@@ -751,6 +751,13 @@ const ownsInterview = (req, id) => {
   return owner === null || owner === req.caller.email;
 };
 
+// GET /interviews: the caller's own interviews that are still open, running or waiting
+// on them, so one started on either surface can be finished on the other. Never anyone
+// else's. Added Oct 12, 2026.
+app.get("/interviews", (req, res) => {
+  return res.status(200).json({ interviews: interviews.openFor(req.caller ? req.caller.email : null) });
+});
+
 // POST /interviews: start an interview over an uploaded app folder.
 // Body: { app, zip (base64), deployed?, user?, trace? }. The zip is made by the CLI's
 // zipFolder (core/upload.js): no dependencies, no git, secret files as names only.

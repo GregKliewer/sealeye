@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
+import { strToU8, zipSync } from "fflate";
 
 const TOKEN = `sl_${"t".repeat(43)}`;
 
@@ -425,6 +426,27 @@ test("Costs lists what each app has cost, says it is a day behind, and what is c
   await expect(page.getByText("about a day behind")).toBeVisible();
   await page.getByRole("button", { name: "7 days" }).click();
   await expect(rows).toHaveCount(2);
+});
+
+test("an interview started elsewhere can be finished on New environment", async ({ page, request }) => {
+  // Started the way the command starts one: the same person's token, a zipped folder.
+  const zip = Buffer.from(zipSync({ "package.json": strToU8(JSON.stringify({ name: "orders-api" })), "index.js": strToU8("") })).toString("base64");
+  const started = await request.post("/api/interviews", { headers: { authorization: `Bearer ${TOKEN}` }, data: { app: "orders-api", zip } });
+  expect(started.ok()).toBeTruthy();
+
+  await signIn(page);
+  await page.goto("/new");
+  const open = page.getByTestId("open-interview").filter({ hasText: "orders-api" });
+  await expect(open.first()).toBeVisible();
+  await open.first().getByRole("button", { name: "Continue" }).click();
+  await page.getByLabel("Your answer").fill("Picked up in the portal", { timeout: 20_000 });
+  await page.getByRole("button", { name: "Answer" }).click();
+  await page.getByTestId("plan").getByRole("button", { name: "Yes, deploy it" }).click({ timeout: 20_000 });
+  // GREETING was stored by an earlier test, so the next thing asked for is the folder.
+  const need = page.getByTestId("need-folder");
+  await expect(need).toBeVisible();
+  await need.getByLabel("Choose the folder to package").setInputFiles(appFolder("orders-api", { "package.json": JSON.stringify({ name: "orders-api" }), "index.js": "" }));
+  await expect(page.getByRole("heading", { name: "orders-api" })).toBeVisible({ timeout: 20_000 });
 });
 
 test("signing out ends the session: the pages ask for sign-in again", async ({ page }) => {

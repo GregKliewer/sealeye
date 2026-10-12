@@ -131,6 +131,11 @@ export async function getLogs({ apiBaseUrl, deploymentId, since = "1h" }) {
   return platformFetch(apiBaseUrl, `/deployments/${encodeURIComponent(deploymentId)}/logs?since=${encodeURIComponent(since)}`, { method: "GET" });
 }
 
+/** Your interviews still open, on either surface. */
+export async function listInterviews({ apiBaseUrl }) {
+  return (await platformFetch(apiBaseUrl, "/interviews", { method: "GET" })).interviews || [];
+}
+
 /** Pause or resume an environment's API (PHASE2-PLAN Step 17); the answer is read back from AWS. */
 export async function setPaused({ apiBaseUrl, deploymentId, paused }) {
   return platformFetch(apiBaseUrl, `/deployments/${encodeURIComponent(deploymentId)}/${paused ? "pause" : "resume"}`, { method: "POST" });

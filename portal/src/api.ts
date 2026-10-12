@@ -149,6 +149,9 @@ export interface Costs {
   total: number; apps: { app: string; team: string; amount: number }[]; note: string; readAt: string;
 }
 
+// GET /interviews: this person's interviews still open, from either surface.
+export interface OpenInterview { interviewId: string; app: string; status: "running" | "waiting"; waitingFor: string | null; startedAt: string; mode: string }
+
 const settingsPath = (app: string, team: string, name?: string) =>
   `/apps/${encodeURIComponent(app)}/settings${name ? `/${encodeURIComponent(name)}` : ""}?team=${encodeURIComponent(team)}`;
 
@@ -162,6 +165,7 @@ export const api = {
   // with its own plan or the one given. Nothing is uploaded; settings come from the store.
   deployAgain: (fromDeployment: string, plan?: unknown) =>
     request<DeploymentRecord>("/deployments", { method: "POST", body: { backend: "cloudformation", fromDeployment, ...(plan !== undefined ? { plan } : {}) } }),
+  openInterviews: () => request<{ interviews: OpenInterview[] }>("/interviews").then(r => r.interviews),
   startInterview: (app: string, zip: string, deployed?: unknown) =>
     request<{ interviewId: string; status: string; withheld?: string[] }>("/interviews", { method: "POST", body: { app, zip, ...(deployed ? { deployed } : {}) } }),
   answerInterview: (id: string, answer: string) =>
