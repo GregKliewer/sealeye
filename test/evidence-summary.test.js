@@ -50,6 +50,13 @@ test("what needs a person is marked, and a draft says nothing was built", () => 
   assert.equal(rows[4].text, "one deployment for this app");
 });
 
+test("a deployment made again says whose code it ran and where its plan came from", () => {
+  const again = { ...live, requested: { ...live.requested, origin: { planSource: "again", fromDeployment: "dep_0", planGiven: false } } };
+  assert.match(evidenceSummary(again).rows[0].text, /, deployed again with dep_0's code, same plan$/);
+  const withPlan = { ...live, requested: { ...live.requested, origin: { planSource: "again", fromDeployment: "dep_0", planGiven: true, file: "sealeye.yaml" } } };
+  assert.match(evidenceSummary(withPlan).rows[0].text, /, deployed again with dep_0's code, plan from sealeye\.yaml$/);
+});
+
 test("helpers", () => {
   assert.equal(humanDuration(48), "48 s");
   assert.equal(humanDuration(168), "2 min 48 s");

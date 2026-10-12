@@ -173,7 +173,9 @@ function assumptions(record, plan) {
   if (plan?.outputs?.length) lines.push(`- Outputs you asked for: ${plan.outputs.join(", ")}`);
 
   lines.push(`- Region: ${region()} — fixed for this environment.`);
-  if (record.appPath) {
+  if (record.source === "again") {
+    lines.push(`- Deployed again: the code \`${record.packagedBy || record.fromDeployment}\` packaged (artifact \`${record.artifactKey}\`), with nothing uploaded and no .env read: settings came from the organization's store.`);
+  } else if (record.appPath) {
     lines.push(
       `- Deployed from \`${record.appPath}\`${record.artifactKey ? ` (artifact \`${record.artifactKey}\`)` : ""}.`
     );

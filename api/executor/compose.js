@@ -114,7 +114,7 @@ function retentionDays(plan) {
  * shell script, and it is the one field in the plan that comes from what the model
  * read in the developer's folder rather than from the contract.
  */
-function entryPointFor(plan) {
+export function entryPointFor(plan) {
   const api = enabledModules(plan).find(m => m.id === "http_api_serverless");
   const raw = String(api?.inputs?.entry_point ?? "").trim() || DEFAULT_ENTRY_POINT;
 

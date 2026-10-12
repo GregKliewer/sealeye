@@ -389,6 +389,9 @@ now answers ready or drafted, so neither surface calls a plan with needs simply 
 
 About a day, and only after Part B.
 
+**Built Oct 12**, with `sealeye deploy --again` for parity and Validate's "Deploy this
+plan" (Step 13's last item). DESIGN.md, "Deploying again".
+
 - `POST /deployments` accepts `fromDeployment` (an id the caller can see) instead of a
   zip. The API redeploys that deployment's packaged artifact with the plan given, and
   settings come from the store. This is a new input; existing calls are unchanged.

@@ -114,6 +114,18 @@ export async function createDeployment({ apiBaseUrl, backend, plan, appPath, req
   return platformFetch(apiBaseUrl, "/deployments", asJson(body));
 }
 
+/**
+ * Deploy the code an earlier deployment packaged, again (POST /deployments with
+ * fromDeployment). Nothing is uploaded and no setting values are sent: the platform
+ * reads every setting from the organization's store.
+ */
+export async function deployAgain({ apiBaseUrl, fromDeployment, plan, file }) {
+  const body = { backend: "cloudformation", fromDeployment };
+  if (plan !== undefined) body.plan = plan;
+  if (file) body.origin = { file };
+  return platformFetch(apiBaseUrl, "/deployments", asJson(body));
+}
+
 /** The change record for one deployment: the evidence object and its markdown. */
 export async function getEvidence({ apiBaseUrl, deploymentId }) {
   return platformFetch(apiBaseUrl, `/deployments/${deploymentId}/evidence`, { method: "GET" });

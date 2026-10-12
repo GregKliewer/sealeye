@@ -1209,3 +1209,46 @@ Decided Mon Oct 12, 2026, building PHASE2-PLAN Step 13 (Evidence, Validate, Heal
   the platform answers and its version, who is signed in and what they see, and whether
   the page itself is the platform's version (a page left open across a release is not).
 
+## Deploying again
+
+Decided Mon Oct 12, 2026, building PHASE2-PLAN Step 14.
+
+`POST /deployments` takes `fromDeployment` in place of an upload: the code that
+deployment packaged goes out again, with the plan given or the one it had. The portal's
+Deploy again (in Control) and "Deploy this plan" (in Validate) send it, and so does
+`sealeye deploy --again <app | deploymentId> [-f plan.yaml]`, the command's name for it:
+a flag on `deploy` rather than a new command, because it is a deploy with its code
+already on the platform. A request without `fromDeployment` is unchanged.
+
+- **The code is the artifact in S3, unchanged.** Nothing is staged, installed or
+  uploaded; the record carries the earlier artifact's key and checksum, and the evidence
+  says whose code it ran. It is checked with a head-object before anything changes, so
+  code that is no longer kept fails with nothing built.
+- **APIs only.** A static site's files are synced from the upload and not kept, so there
+  is nothing to send again; it says so, and `sealeye run` in the folder is the way.
+- **Every setting from the store.** There is no `.env` here. A setting the plan asks for
+  that is not in the store is refused, with its name, unless the earlier deployment
+  itself used the plan's own placeholder for it: otherwise a value that came from a
+  developer's `.env` last time, or a new setting, would silently become a placeholder.
+  So "store it first" is the rule, which is where Part B wanted every value anyway.
+- **Same app, same start.** The plan must name the earlier deployment's app and start it
+  with the same entry point, because the packaged `run.sh` starts that file; a plan that
+  changes it needs a new upload. A drafted plan is refused as any deploy is.
+- **The team's own.** Only the environment's team may deploy it again. An
+  organization-wide token sees every team's environments but changes only its own
+  team's, which keeps who deployed what inside the team that answers for it. Revisit
+  with real roles (Q16).
+- **Every deploy is a change.** Every API deploy now passes its own id as the
+  template's `DeploymentId`, which the function carries as `SEALEYE_DEPLOYMENT_ID`.
+  Before this the artifact key changed every time; deploying the same code again with
+  the same parameters would otherwise be an empty change set, which the deploy command
+  accepts quietly, and the stack's status would be the previous deployment's. With it,
+  the function restarts and reads its settings anew, which is the point of deploying a
+  setting change again, and the status is this deployment's own (principle 4).
+- **The checksum is the earlier one.** The record carries the artifact's checksum from
+  when it was packaged; head-object checks it is still there, not that its bytes are
+  unchanged. The bucket is the platform's own and only the deploy role writes to it.
+- **Refused before any record.** Each of these is an answer to the request, not a failed
+  deployment: nothing was attempted. A record is written only once it will be tried,
+  and it names its environment from the start, so a page watching it sees it at once.
+

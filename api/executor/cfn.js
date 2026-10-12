@@ -146,6 +146,20 @@ export function syncSite(appPath, bucketName) {
 }
 
 /**
+ * Whether an artifact an earlier deployment uploaded is still in the bucket, so a
+ * deployment of it again (PHASE2-PLAN Step 14) fails before anything changes, not
+ * halfway through CloudFormation. Reads the object's headers, never its bytes.
+ * @returns {Promise<{ok: boolean, missing?: boolean, error?: string}>}
+ */
+export async function artifactExists(bucket, key) {
+  const r = await tryAws(["s3api", "head-object", "--bucket", bucket, "--key", key, "--region", region(), "--output", "json"]);
+  if (r.ok) return { ok: true };
+  const text = String(r.stderr || "");
+  if (/\(404\)|Not Found|NoSuchKey/.test(text)) return { ok: false, missing: true };
+  return { ok: false, error: firstLine(text) };
+}
+
+/**
  * Current stack status and outputs, read fresh.
  * @returns {Promise<{status: string|null, outputs: object, statusReason: string|null}>}
  *          status is null when the stack does not exist.

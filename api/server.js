@@ -8,7 +8,7 @@ import { checkPlan, checkUpgraded } from "./validate.js";
 import { backendMappings } from "./mappings.js";
 import { putDeployment, getDeployment, listDeployments, storeFile, count, openStore, flushStore } from "./store.js";
 import { startDeployment, startDestroy } from "./executor/index.js";
-import { sharedWithAnotherTeam } from "./executor/compose.js";
+import { entryPointFor, namingFor, sharedWithAnotherTeam } from "./executor/compose.js";
 import { acceptSent, MAX_STORED_BYTES, storableName, storeFolder } from "./executor/settings.js";
 import { deleteStoredSetting, listStoredSettings, putStoredSetting } from "./executor/cfn.js";
 import { lastChanges, recordSettingChange } from "./setting-changes.js";
@@ -219,8 +219,146 @@ app.post("/plans/validate", (req, res) => {
   return res.status(200).json({ ...result, status: isDrafted(plan) ? "drafted" : "ready", needs });
 });
 
+// POST /deployments with fromDeployment (PHASE2-PLAN Step 14): deploy the code an
+// earlier deployment of this app packaged, again, with the plan given or that
+// deployment's own, and every setting from the organization's store. Nothing is
+// uploaded. Added Oct 12, 2026; a request without fromDeployment is unchanged.
+//
+// It is refused, before any record is written, when it could not do what it says:
+// - the earlier deployment is not this team's (an organization-wide token sees other
+//   teams' environments, and changes only its own team's);
+// - it is a static site, whose files are not kept after a deploy;
+// - its code was never packaged, or the plan names another app or another entry point,
+//   which would run code the plan does not describe;
+// - a setting the earlier deployment was given from a developer's .env is not in the
+//   store now: there is no .env here, and deploying without it would change the app.
+async function deployAgain(req, res) {
+  const refuse = (status, code, message) => res.status(status).json({ error: { code, message } });
+  const { backend, fromDeployment } = req.body || {};
+  if (!backend || backend !== "cloudformation") return refuse(400, "INVALID_BACKEND", "backend must be cloudformation");
+  if (typeof fromDeployment !== "string" || !fromDeployment) return refuse(400, "INVALID_FROM_DEPLOYMENT", "fromDeployment must be a deployment id");
+  if (req.body?.zip !== undefined || req.body?.appPath !== undefined) {
+    return refuse(400, "INVALID_FROM_DEPLOYMENT", "fromDeployment deploys code the platform already has, so it takes no zip or appPath");
+  }
+
+  const source = getDeployment(fromDeployment);
+  if (!canSee(req, source)) return refuse(404, "NOT_FOUND", "deploymentId not found");
+  if (req.caller && teamOf(source) !== req.caller.team) {
+    return refuse(403, "NOT_YOUR_TEAM", `${source.app?.name || "This app"} is team ${teamOf(source)}'s. Deploying it again is for that team.`);
+  }
+  if (source.kind === "static") {
+    return refuse(409, "NOTHING_TO_DEPLOY_AGAIN", "A static site's files are not kept after it is deployed, so it cannot be deployed again from here. Run sealeye run in its folder.");
+  }
+  if (!source.artifactKey) {
+    return refuse(409, "NOTHING_TO_DEPLOY_AGAIN", "That deployment never got as far as packaging its code, so there is nothing to deploy again. Choose one that did, or run sealeye run in the app's folder.");
+  }
+
+  const given = req.body?.plan !== undefined;
+  const plan = upgradePlan(given ? req.body.plan : source.plan);
+  if (!plan || typeof plan !== "object") return refuse(400, "MISSING_PLAN", "That deployment has no plan on record, so give one.");
+  const checked = checkUpgraded(plan);
+  if (!checked.valid) {
+    return res.status(400).json({ error: { code: "INVALID_PLAN", message: "plan failed validation", details: checked.errors } });
+  }
+  if (safeName(plan.app?.name) !== safeName(source.app?.name)) {
+    return refuse(409, "DIFFERENT_APP", `This plan is for ${plan.app?.name}, and that deployment's code is ${source.app?.name}'s.`);
+  }
+  if (unsupportedNeeds(plan).length) {
+    return refuse(422, "UNSUPPORTED_NEEDS", "This plan is drafted: it needs what the platform does not build yet, so there is nothing to deploy again. Validate it to see what it needs.");
+  }
+  if (!(plan.modules || []).some(m => m && m.enabled !== false && m.id === "http_api_serverless")) {
+    return refuse(409, "DIFFERENT_APP", "That deployment's code is an API, and this plan does not describe one.");
+  }
+  const entryNow = entryPointFor(plan);
+  const entryThen = source.plan ? entryPointFor(upgradePlan(source.plan)) : null;
+  if (entryThen && entryNow !== entryThen) {
+    return refuse(409, "DIFFERENT_ENTRY_POINT", `This plan starts the app with ${entryNow}, and that deployment's code was packaged to start with ${entryThen}. Run sealeye run in the app's folder to package it again.`);
+  }
+
+  // Settings: every one comes from the store, or was the plan's own placeholder before.
+  const wanted = settingNamesFor(plan);
+  let stored = [];
+  if (wanted.length) {
+    let folder;
+    try {
+      folder = storeFolder({ team: req.caller?.team || "default", app: plan.app.name });
+    } catch (err) {
+      return refuse(409, "SETTINGS_NOT_STORED", `${plan.app.name}'s settings cannot be in your organization's store (${err.message}), and there is no .env here. Run sealeye run in the app's folder.`);
+    }
+    const listed = await listStoredSettings(folder);
+    if (!listed.ok) return refuse(503, "STORE_UNAVAILABLE", `The platform could not ask your organization's settings store which settings this app has (${listed.error}), so nothing was deployed.`);
+    stored = listed.settings.map(x => x.name);
+  }
+  const before = new Map((source.settings || []).map(x => [x.name, x.source]));
+  const missing = wanted.filter(name => !stored.includes(name) && before.get(name) !== "plan");
+  if (missing.length) {
+    return refuse(409, "SETTINGS_NOT_STORED", `${missing.join(", ")} ${missing.length === 1 ? "is" : "are"} not in your organization's settings store, and there is no .env here to read ${missing.length === 1 ? "it" : "them"} from. Store ${missing.length === 1 ? "it" : "them"} in Settings, or run sealeye run in the app's folder.`);
+  }
+
+  const deploymentId = `dep_${crypto.randomBytes(6).toString("hex")}`;
+  const requestedBy = req.caller ? { user: req.caller.email, name: req.caller.name, host: null, verified: "token" } : undefined;
+  // How this deployment came to be, said by the platform rather than taken from the
+  // request: only the name of a plan file comes from the command line.
+  const claimedFile = typeof req.body?.origin?.file === "string" ? req.body.origin.file.slice(0, 200) : null;
+  // The deployment that packaged the code, however many times it has been deployed again.
+  const packagedBy = source.packagedBy || source.deploymentId;
+  const origin = {
+    command: req.surface === "portal" ? null : "deploy --again",
+    planSource: "again",
+    fromDeployment: source.deploymentId,
+    packagedBy,
+    planGiven: given,
+    ...(given && claimedFile ? { file: claimedFile } : {})
+  };
+  // Which environment it goes to is known now, so the record says so from the start and
+  // a page following the environment sees it straight away.
+  const naming = namingFor({ app: plan.app.name, org: req.caller?.org || "default", team: req.caller?.team || "default", records: listDeployments() });
+  const record = putDeployment({
+    deploymentId,
+    status: "queued",
+    source: "again",
+    packagedBy,
+    kind: "api",
+    stackName: naming.stackName,
+    resourceName: naming.resourceName,
+    fromDeployment: source.deploymentId,
+    backend,
+    planVersion: plan.planVersion,
+    app: plan.app,
+    // No folder was read: the code is the earlier artifact (the report says so).
+    appPath: null,
+    resolvedModules: (plan.modules || []).filter(m => m.enabled !== false).map(m => ({ id: m.id, mappedTo: backendMappings[backend][m.id] || null })),
+    plan,
+    ...(req.caller ? { orgId: req.caller.org, teamId: req.caller.team, tokenId: req.caller.tokenId } : {}),
+    surface: req.surface || "cli",
+    ...(requestedBy ? { requestedBy } : {}),
+    origin,
+    planSha256: crypto.createHash("sha256").update(JSON.stringify(plan), "utf8").digest("hex"),
+    // The code: the earlier deployment's artifact, as it is in S3, and its checksum.
+    artifactKey: source.artifactKey,
+    artifactSha256: source.artifactSha256 ?? null,
+    ...(source.artifactSha256Error ? { artifactSha256Error: source.artifactSha256Error } : {}),
+    // The executor refuses, rather than fall back to the plan's placeholder, if any of
+    // these has left the store by the time it looks.
+    expectStored: wanted.filter(name => stored.includes(name)),
+    outputs: {},
+    failureReason: null,
+    startedAt: new Date().toISOString(),
+    finishedAt: null
+  });
+
+  startDeployment(record, plan, null, {}).catch(err => {
+    record.status = "failed";
+    record.failureReason = err.message;
+    record.finishedAt = new Date().toISOString();
+    putDeployment(record);
+  });
+  return res.status(201).json({ ...record });
+}
+
 // POST /deployments
-app.post("/deployments", (req, res) => {
+app.post("/deployments", (req, res, next) => {
+  if (req.body?.fromDeployment !== undefined) return deployAgain(req, res).catch(next);
   const { backend, appPath, zip } = req.body || {};
   const plan = upgradePlan(req.body?.plan);
 
@@ -431,7 +569,12 @@ app.get("/deployments", (req, res) => {
     // token sees several, and two of them can share an app name.
     teamId: dep.teamId || "default",
     destroyRequestedBy: dep.destroyRequestedBy || null,
-    needs: Array.isArray(dep.needs) ? dep.needs.length : 0
+    needs: Array.isArray(dep.needs) ? dep.needs.length : 0,
+    // Whether its code was packaged and can be deployed again (PHASE2-PLAN Step 14),
+    // and, for one that was itself deployed again, whose code it ran.
+    packaged: Boolean(dep.artifactKey) && dep.kind !== "static",
+    fromDeployment: dep.fromDeployment || null,
+    packagedBy: dep.artifactKey && dep.kind !== "static" ? dep.packagedBy || dep.deploymentId : null
   }));
 
   return res.status(200).json({ deployments });
