@@ -1602,3 +1602,26 @@ Left as they were, and owed: after a first create rolls back, the executor's del
 that stack is not waited for, so a redeploy at once can meet it still deleting; and a
 tear-down interrupted by a restart is judged stale by its deploy's age, not the
 tear-down's (executor/resume.js).
+
+## The architecture is written down, as diagrams in text
+
+Mon Oct 12, 2026. With Phase 2's day-two operations built and the repo public, Greg
+asked to take stock: one set of documentation with the vision, roadmap, design and
+architecture, and the standard diagrams, for outside readers and for whoever changes the
+code next.
+
+- `docs/README.md` is the entry point: seaLeye in two minutes, where it stands, a
+  reading path for each kind of reader, and a map of every document. The existing
+  documents stay where they are and keep their jobs; the map links them rather than
+  rewriting them.
+- `docs/ARCHITECTURE.md` is new: C4 context, containers and the API's components, the
+  interview graph, deployment, four sequence flows (`sealeye run`, portal sign-in, an
+  app reading its settings, a release), the data model, the security boundaries, and an
+  index of the DESIGN.md entries behind each part.
+- **Mermaid, not pictures.** GitHub draws it, a reviewer sees a diagram change as a text
+  diff, and a coding agent can keep it true. The C4 views are flowcharts in the C4 style,
+  because Mermaid's own C4 syntax still renders poorly on GitHub. Message text in a
+  sequence diagram has no semicolons; they end the line.
+- **A diagram is code.** A change that makes one wrong fixes it in the same commit, as a
+  roadmap row is. Nothing in these documents names an account, a bucket or any other
+  value of one installation, since the repo is public.

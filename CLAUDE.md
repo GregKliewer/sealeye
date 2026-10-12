@@ -13,6 +13,9 @@ Two surfaces, one product: **seaLeye.run** is the `sealeye` command, and
 
 - `docs/VISION.md`: what seaLeye is for, who it serves, and the principles below in full.
 - `docs/ROADMAP.md`: the phases and the parity backlog. Pick work from here.
+- `docs/ARCHITECTURE.md`: how it is built, with the context, container, deployment,
+  flow and data diagrams. A change that makes a diagram wrong fixes it in the same
+  commit. `docs/README.md` maps every document.
 - `docs/OPEN-QUESTIONS.md`: decisions not yet made. Do not build past an open question;
   raise it.
 - `DESIGN.md`: dated decisions and the reasons for them. Add to it when you decide

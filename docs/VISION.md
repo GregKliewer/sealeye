@@ -2,7 +2,8 @@
 
 First written Oct 8, 2026, from the Oct 2 dry run of the Blitzy pitch and the code as it
 stood at 2.16.0. This file changes rarely. When a decision changes it, the same commit
-records the decision in DESIGN.md.
+records the decision in DESIGN.md. "The surfaces" was brought up to date with what is
+built on Oct 12, 2026; how each part is built is in ARCHITECTURE.md.
 
 ## In one sentence
 
@@ -97,9 +98,11 @@ so the bill follows the value, not the tokens.
 - **seaLeye.run**: the `sealeye` command, where a developer already is. Dark, terminal,
   typed. Today's product.
 - **seaLeye.online**: the portal at the seaLeye.online domain, where the platform team
-  and anyone who prefers a browser works. Light, scannable. Today a static mock-up.
-- **The seaLeye API**: the product behind both. Today it runs on one machine; it becomes
-  the hosted service seaLeye.online is served from.
+  and anyone who prefers a browser works. Light, scannable. Built: every operation the
+  command has today, including a new environment through the interview.
+- **The seaLeye API**: the product behind both. Hosted for the pilot on one small server
+  at api.sealeye.online, beside the portal; it grows into the hosted service as the
+  pilot does.
 
 ## How it is delivered
 
