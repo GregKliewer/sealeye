@@ -93,6 +93,9 @@ case "$2" in
   describe-stacks)
     if [ -f "${home}/deleted-$4" ]; then echo "Stack does not exist" >&2; exit 254; fi
     echo '{"Stacks":[{"StackStatus":"UPDATE_COMPLETE","Outputs":[{"OutputKey":"ApiUrl","OutputValue":"https://abc123.lambda-url.ca-central-1.on.aws/"}]}]}' ;;
+  put-function-concurrency) echo '{"ReservedConcurrentExecutions":0}' > "${home}/concurrency-$4"; cat "${home}/concurrency-$4" ;;
+  delete-function-concurrency) rm -f "${home}/concurrency-$4" ;;
+  get-function-concurrency) cat "${home}/concurrency-$4" 2>/dev/null || echo '{}' ;;
   filter-log-events) echo '[{"timestamp":1760270000000,"message":"listening on 8080"},{"timestamp":1760270001000,"message":"GET /orders with Bearer abcdefghijklmnopqrstuvwxyz0123"}]' ;;
   *) echo '{}' ;;
 esac

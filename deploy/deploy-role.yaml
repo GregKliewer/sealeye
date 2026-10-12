@@ -164,6 +164,11 @@ Resources:
                   - lambda:TagResource
                   - lambda:UntagResource
                   - lambda:ListTags
+                  # Pause and resume (PHASE2-PLAN Step 17): a function's reserved
+                  # concurrency set to zero, removed, and read back.
+                  - lambda:PutFunctionConcurrency
+                  - lambda:DeleteFunctionConcurrency
+                  - lambda:GetFunctionConcurrency
                 # Functions are named after their environment, sealeye-... (DESIGN.md,
                 # "Each team's environments have names of their own"), so no other
                 # function in the account is within reach.

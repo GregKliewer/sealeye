@@ -16,6 +16,7 @@ import {
   destroyDeployment,
   getEvidence,
   getLogs,
+  setPaused,
   getNeeds,
   answerInterview,
   abandonInterview,
@@ -113,6 +114,8 @@ Usage:
   ${product.command} list [--deployments] [--all] [--api <url>] [--json]
   ${product.command} evidence <app | deploymentId> [--json] [--out <file>] [--api <url>]
   ${product.command} logs <app | deploymentId> [--since 15m|1h|6h|1d] [--json] [--api <url>]
+  ${product.command} pause <app | deploymentId> [--json] [--api <url>]
+  ${product.command} resume <app | deploymentId> [--json] [--api <url>]
   ${product.command} needs [--json] [--request <kind>] [--api <url>]
   ${product.command} doctor [--json] [--api <url>]
   ${product.command} catalog [--json] [--api <url>]
@@ -689,6 +692,25 @@ async function main() {
     // Oldest at the top, as a terminal reads: the API gives newest first.
     for (const line of [...result.lines].reverse()) console.log(`${c.dim(localClock(line.at))}  ${line.message}`);
     if (result.more) say(`Only the most recent lines are shown. ${product.command} logs ${target} --since 15m narrows it.`);
+    return;
+  }
+
+  if (command === "pause" || command === "resume") {
+    const target = process.argv[3];
+    if (!target || target.startsWith("--")) {
+      console.error(c.fail(`Missing name: ${product.command} ${command} <app | deploymentId>`));
+      process.exit(1);
+    }
+    const env = await environmentTarget({ apiBaseUrl, target });
+    if (!env) return;
+    const pause = command === "pause";
+    say(pause ? `Stopping ${env.label} from taking requests` : `Letting ${env.label} take requests again`);
+    const result = await refusedInWords(() => setPaused({ apiBaseUrl, deploymentId: env.deploymentId, paused: pause }));
+    if (!result) return;
+    if (jsonOut) return console.log(JSON.stringify(result, null, 2));
+    console.log(c.ok(result.paused
+      ? `${env.label} is paused: it takes no requests until you run ${product.command} resume ${target}`
+      : `${env.label} is taking requests again`));
     return;
   }
 
@@ -1990,7 +2012,7 @@ function groupEnvironments(deployments) {
     app: latest.app?.name || "-",
     rawStatus: latest.status,
     interrupted: !!latest.interrupted,
-    status: latest.interrupted ? `${latest.status} (interrupted)` : latest.status,
+    status: latest.interrupted ? `${latest.status} (interrupted)` : latest.status === "succeeded" && latest.paused ? "succeeded (paused)" : latest.status,
     url: publicUrl(latest) || "-",
     deploys: deploys.length,
     last: latest.startedAt || latest.finishedAt || null,

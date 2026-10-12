@@ -1359,3 +1359,24 @@ Lines come newest first over a window of 15 minutes, an hour, 6 hours or a day, 
 when asked, never stored. A static site has no code running and says so. The deploy role
 gains `logs:FilterLogEvents` on `/aws/lambda/sealeye-*` only.
 
+## Pause and resume
+
+Built Mon Oct 12, 2026 (PHASE2-PLAN Step 17, D7), as `sealeye pause` and `sealeye
+resume`, the portal's Pause card, and `GET /deployments/{id}/paused`, `POST .../pause`
+and `.../resume`. The names are ROADMAP's.
+
+- An API pauses by its function's reserved concurrency going to zero, and resumes by the
+  reservation being removed. Nothing else changes and nothing is removed; a request to a
+  paused API is refused by AWS.
+- The state is read from AWS after every change and whenever Control opens, and a
+  change AWS does not confirm is said to have failed (principle 4). Each change is
+  written on the environment's newest record with who asked and from where; lists show
+  "Paused" from that record, as of the last change made through seaLeye.
+- A static site says it cannot be paused. Its team may pause and resume it, as may an
+  organization-wide token, as for a tear-down: a platform team may need to stop an app
+  that misbehaves.
+- Deploying again does not resume: the template does not set a reservation, so a paused
+  API stays paused until someone resumes it.
+- The deploy role gains lambda:PutFunctionConcurrency, DeleteFunctionConcurrency and
+  GetFunctionConcurrency on `sealeye-*` functions.
+

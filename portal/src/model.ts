@@ -35,7 +35,7 @@ export type Tone = "phosphor" | "amber" | "neutral";
 export function statusOf(dep: DeploymentSummary): { label: string; tone: Tone } {
   if (dep.interrupted) return { label: "Interrupted", tone: "amber" };
   switch (dep.status) {
-    case "succeeded": return { label: "Live", tone: "phosphor" };
+    case "succeeded": return dep.paused ? { label: "Paused", tone: "amber" } : { label: "Live", tone: "phosphor" };
     case "drafted": return { label: "Drafted", tone: "amber" };
     case "failed": return { label: "Failed", tone: "amber" };
     case "queued":

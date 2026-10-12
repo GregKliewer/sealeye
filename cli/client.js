@@ -131,6 +131,11 @@ export async function getLogs({ apiBaseUrl, deploymentId, since = "1h" }) {
   return platformFetch(apiBaseUrl, `/deployments/${encodeURIComponent(deploymentId)}/logs?since=${encodeURIComponent(since)}`, { method: "GET" });
 }
 
+/** Pause or resume an environment's API (PHASE2-PLAN Step 17); the answer is read back from AWS. */
+export async function setPaused({ apiBaseUrl, deploymentId, paused }) {
+  return platformFetch(apiBaseUrl, `/deployments/${encodeURIComponent(deploymentId)}/${paused ? "pause" : "resume"}`, { method: "POST" });
+}
+
 /** The change record for one deployment: the evidence object and its markdown. */
 export async function getEvidence({ apiBaseUrl, deploymentId }) {
   return platformFetch(apiBaseUrl, `/deployments/${deploymentId}/evidence`, { method: "GET" });

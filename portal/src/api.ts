@@ -53,6 +53,9 @@ export interface DeploymentSummary {
   // Whether its code was packaged and can be deployed again (PHASE2-PLAN Step 14), and
   // for one that was deployed again, whose code it ran.
   packaged?: boolean;
+  // Paused as of the last pause or resume made here (PHASE2-PLAN Step 17).
+  paused?: boolean;
+  pauses?: { action: "paused" | "resumed"; by: { name?: string; user?: string } | null; surface: string; at: string }[];
   fromDeployment?: string | null;
   packagedBy?: string | null;
 }
@@ -163,6 +166,9 @@ export const api = {
   destroy: (id: string) => request<DeploymentRecord>(`/deployments/${encodeURIComponent(id)}`, { method: "DELETE" }),
   health: () => request<Health>("/health"),
   validate: (plan: unknown) => request<Validation>("/plans/validate", { method: "POST", body: plan }),
+  paused: (id: string) => request<{ app: string | null; paused: boolean }>(`/deployments/${encodeURIComponent(id)}/paused`),
+  setPaused: (id: string, paused: boolean) =>
+    request<{ app: string | null; paused: boolean }>(`/deployments/${encodeURIComponent(id)}/${paused ? "pause" : "resume"}`, { method: "POST" }),
   logs: (id: string, since: string) => request<Logs>(`/deployments/${encodeURIComponent(id)}/logs?since=${encodeURIComponent(since)}`),
   evidence: (id: string) => request<Evidence>(`/deployments/${encodeURIComponent(id)}/evidence`),
   catalog: () => request<Catalog>("/catalog"),

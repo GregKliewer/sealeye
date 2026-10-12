@@ -359,6 +359,20 @@ test("a static site has no Logs card", async ({ page }) => {
   await expect(page.getByTestId("logs")).toHaveCount(0);
 });
 
+test("Pause stops an API taking requests and Resume starts it again, read back each time", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("link", { name: "payments-api", exact: true }).click();
+  const card = page.getByTestId("pause");
+  await expect(card.getByTestId("pause-state")).toHaveText("Taking requests");
+  await card.getByRole("button", { name: "Pause" }).click();
+  await expect(card.getByTestId("pause-state")).toHaveText("Paused");
+  await expect(card).toContainText("Paused by Greg Kliewer from the portal");
+  await expect(page.getByTestId("status")).toHaveText("Paused");
+  await card.getByRole("button", { name: "Resume" }).click();
+  await expect(card.getByTestId("pause-state")).toHaveText("Taking requests");
+  await expect(page.getByTestId("status")).toHaveText("Live");
+});
+
 test("signing out ends the session: the pages ask for sign-in again", async ({ page }) => {
   await signIn(page);
   await page.getByRole("button", { name: "Sign out" }).click();

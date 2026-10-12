@@ -183,6 +183,29 @@ export async function recentLogs(logGroup, { sinceMs, maxItems = 2000 } = {}) {
 }
 
 /**
+ * Whether an app's function is paused: its reserved concurrency is zero, so it takes no
+ * requests (PHASE2-PLAN D7). Read from AWS each time, never assumed.
+ * @returns {Promise<{ok: true, paused: boolean} | {ok: false, missing?: boolean, error: string}>}
+ */
+export async function functionPaused(functionName) {
+  const r = await tryAws(["lambda", "get-function-concurrency", "--function-name", functionName, "--region", region(), "--output", "json"]);
+  if (!r.ok) return { ok: false, missing: /ResourceNotFoundException/.test(r.stderr), error: firstLine(r.stderr) };
+  try {
+    return { ok: true, paused: (JSON.parse(r.stdout || "{}") || {}).ReservedConcurrentExecutions === 0 };
+  } catch {
+    return { ok: false, error: "the function service's answer was not JSON" };
+  }
+}
+
+/** Pause (reserved concurrency zero) or resume (no reservation) an app's function. */
+export async function setFunctionPaused(functionName, paused) {
+  const r = await tryAws(paused
+    ? ["lambda", "put-function-concurrency", "--function-name", functionName, "--reserved-concurrent-executions", "0", "--region", region(), "--output", "json"]
+    : ["lambda", "delete-function-concurrency", "--function-name", functionName, "--region", region()]);
+  return r.ok ? { ok: true } : { ok: false, error: firstLine(r.stderr) };
+}
+
+/**
  * Current stack status and outputs, read fresh.
  * @returns {Promise<{status: string|null, outputs: object, statusReason: string|null}>}
  *          status is null when the stack does not exist.

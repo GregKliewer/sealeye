@@ -20,6 +20,7 @@ import { unsupportedNeeds } from "../core/catalog.js";
 import { assembleEvidence, renderEvidence } from "./executor/evidence.js";
 import { rollupNeeds } from "./needs.js";
 import { readLogs } from "./logs.js";
+import { changePaused, pausedState } from "./pause.js";
 import { createInterviewService, NotWaiting, UploadRefused } from "./interview/service.js";
 import { postgresCheckpointer, postgresInterviewStore } from "./interview/pgstore.js";
 import { databaseUrl, closeDb } from "./db.js";
@@ -582,6 +583,10 @@ app.get("/deployments", (req, res) => {
     needs: Array.isArray(dep.needs) ? dep.needs.length : 0,
     // Whether its code was packaged and can be deployed again (PHASE2-PLAN Step 14),
     // and, for one that was itself deployed again, whose code it ran.
+    // Paused as of the last pause or resume made here (read from AWS then). Control
+    // reads it from AWS again (GET /deployments/{id}/paused).
+    paused: dep.paused === true,
+    pauses: Array.isArray(dep.pauses) ? dep.pauses : [],
     packaged: Boolean(dep.artifactKey) && dep.kind !== "static",
     fromDeployment: dep.fromDeployment || null,
     packagedBy: dep.artifactKey && dep.kind !== "static" ? dep.packagedBy || dep.deploymentId : null
@@ -630,6 +635,25 @@ app.get("/deployments/:deploymentId/logs", async (req, res) => {
   const { status, body } = await readLogs(dep, { window: typeof req.query.since === "string" ? req.query.since : "1h" });
   return res.status(status).json(body);
 });
+
+// GET /deployments/{id}/paused, POST /deployments/{id}/pause and /resume (PHASE2-PLAN
+// Step 17): whether its environment's API is taking requests, read from AWS, and the
+// change. Its team, or an organization-wide token, as for a tear-down.
+app.get("/deployments/:deploymentId/paused", async (req, res) => {
+  const dep = getDeployment(req.params.deploymentId);
+  if (!canSee(req, dep)) return res.status(404).json({ error: { code: "NOT_FOUND", message: "deploymentId not found" } });
+  const { status, body } = await pausedState(dep);
+  return res.status(status).json(body);
+});
+for (const [action, paused] of [["pause", true], ["resume", false]]) {
+  app.post(`/deployments/:deploymentId/${action}`, async (req, res) => {
+    const dep = getDeployment(req.params.deploymentId);
+    if (!canSee(req, dep)) return res.status(404).json({ error: { code: "NOT_FOUND", message: "deploymentId not found" } });
+    const by = req.caller ? { user: req.caller.email, name: req.caller.name } : null;
+    const { status, body } = await changePaused(dep, paused, { by, surface: req.surface || "cli" });
+    return res.status(status).json(body);
+  });
+}
 
 // GET /needs — what the drafted plans are waiting on, rolled up by need across apps.
 // Store only; no AWS call.

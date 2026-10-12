@@ -4,7 +4,7 @@
 // change record for any of those deployments (`sealeye evidence`).
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
-import { api, SignedOut, type Evidence, type Logs } from "../api";
+import { api, SignedOut, type DeploymentSummary, type Evidence, type Logs } from "../api";
 import { evidenceSummary } from "../../../core/evidence-summary.js";
 import { useLoad, useSession } from "../session";
 import { ago, groupEnvironments, IN_FLIGHT, publicUrl, statusOf, when, who } from "../model";
@@ -104,6 +104,9 @@ export function Control() {
             </CardContent>
           </Card>
         ) : null}
+        {latest.kind !== "static" && latest.stackName && !["destroyed", "destroying"].includes(latest.status) ? (
+          <PauseCard deploymentId={latest.deploymentId} app={env.app} pauses={env.deploys.flatMap(d => d.pauses || [])} onDone={deployments.reload} />
+        ) : null}
         <Card>
           <CardHeader><CardTitle>Tear down</CardTitle></CardHeader>
           <CardContent className="space-y-4 text-sm">
@@ -156,6 +159,60 @@ export function Control() {
 
       <EvidenceCard key={evidenceFor || latest.deploymentId} deploymentId={evidenceFor || latest.deploymentId} latest={!evidenceFor || evidenceFor === latest.deploymentId} />
     </>
+  );
+}
+
+/**
+ * Pause and resume, as `sealeye pause` and `sealeye resume` do: the API stops taking
+ * requests and starts again. What it shows is read from AWS when the page opens and
+ * after every change.
+ */
+function PauseCard({ deploymentId, app, pauses, onDone }: { deploymentId: string; app: string; pauses: NonNullable<DeploymentSummary["pauses"]>; onDone: () => void }) {
+  const { signedOut } = useSession();
+  const [paused, setPausedState] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    api.paused(deploymentId)
+      .then(r => { if (live) setPausedState(r.paused); })
+      .catch(err => { if (!live) return; if (err instanceof SignedOut) signedOut(err.message); else setError(err.message); });
+    return () => { live = false; };
+  }, [deploymentId, signedOut]);
+
+  async function change(next: boolean) {
+    setBusy(true);
+    setError(null);
+    try {
+      setPausedState((await api.setPaused(deploymentId, next)).paused);
+      onDone();
+    } catch (err) {
+      if (err instanceof SignedOut) return signedOut(err.message);
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const last = [...pauses].sort((a, b) => (a.at < b.at ? 1 : -1))[0];
+  return (
+    <Card data-testid="pause">
+      <CardHeader>
+        <CardTitle>Pause</CardTitle>
+        {paused === null ? null : <Badge tone={paused ? "amber" : "phosphor"} className="ml-auto" data-testid="pause-state">{paused ? "Paused" : "Taking requests"}</Badge>}
+      </CardHeader>
+      <CardContent className="space-y-4 text-sm">
+        <p className="text-dim">{paused
+          ? `${app} takes no requests until it is resumed. Nothing else changes, and nothing is removed.`
+          : `Stops ${app} taking requests, without removing anything. Resume puts it back as it was.`}</p>
+        {last ? <p className="text-dim">{last.action === "paused" ? "Paused" : "Resumed"} by {who(last.by)} from the {last.surface === "portal" ? "portal" : "command line"}, {ago(last.at)}.</p> : null}
+        {paused === null ? null : paused
+          ? <Button onClick={() => change(false)} disabled={busy}>{busy ? "Asking the platform" : "Resume"}</Button>
+          : <Button variant="ghost" onClick={() => change(true)} disabled={busy}>{busy ? "Asking the platform" : "Pause"}</Button>}
+        {error ? <Problem message={error} /> : null}
+      </CardContent>
+    </Card>
   );
 }
 
