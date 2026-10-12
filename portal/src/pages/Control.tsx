@@ -45,8 +45,14 @@ export function Control() {
   }
 
   const status = statusOf(latest);
-  const url = publicUrl(latest);
+  // The environment's address: the latest deployment's, or while a new one is under way,
+  // the one it still answers at.
+  const url = publicUrl(latest) || (IN_FLIGHT.has(latest.status) ? env.deploys.filter(d => d.status === "succeeded").map(publicUrl).find(Boolean) || null : null);
   const canTearDown = !["destroyed", "destroying", "drafted"].includes(latest.status);
+  // The newest deployment whose code was packaged: what Deploy again runs. Only the
+  // environment's own team may (an organization-wide token sees other teams' too).
+  const code = latest.kind === "static" ? null : env.deploys.find(d => d.packaged) || null;
+  const ownTeam = !person || person.auth === "off" || (latest.teamId || "default") === person.team;
 
   return (
     <>
@@ -88,6 +94,16 @@ export function Control() {
           </CardContent>
         </Card>
 
+        <div className="flex flex-col gap-6">
+        {code && ownTeam ? (
+          <Card data-testid="deploy-again">
+            <CardHeader><CardTitle>Deploy again</CardTitle></CardHeader>
+            <CardContent className="space-y-4 text-sm">
+              <p className="text-dim">Deploys the code <span className="font-mono text-ink">{code.packagedBy || code.deploymentId}</span> packaged again, with the plan it had. Nothing is uploaded and no .env is read: settings come from your organization's store.</p>
+              <DeployAgain app={env.app} fromDeployment={code.deploymentId} packagedBy={code.packagedBy || code.deploymentId} busy={IN_FLIGHT.has(latest.status)} onDone={deployments.reload} />
+            </CardContent>
+          </Card>
+        ) : null}
         <Card>
           <CardHeader><CardTitle>Tear down</CardTitle></CardHeader>
           <CardContent className="space-y-4 text-sm">
@@ -97,6 +113,7 @@ export function Control() {
             )}
           </CardContent>
         </Card>
+        </div>
       </div>
 
       {latest.kind !== "static" ? <Settings app={env.app} team={latest.teamId || "default"} /> : null}
@@ -114,7 +131,10 @@ export function Control() {
               const s = statusOf(d);
               return (
                 <TableRow key={d.deploymentId} data-testid="history-row">
-                  <TableCell className="font-mono text-xs">{d.deploymentId}</TableCell>
+                  <TableCell className="font-mono text-xs">
+                    {d.deploymentId}
+                    {d.fromDeployment ? <div className="font-sans text-dim">again, with {d.packagedBy || d.fromDeployment}'s code</div> : null}
+                  </TableCell>
                   <TableCell><Badge tone={s.tone}>{s.label}</Badge></TableCell>
                   <TableCell className="text-xs">{when(d.startedAt)}</TableCell>
                   <TableCell>{who(d.requestedBy)}</TableCell>
@@ -296,6 +316,51 @@ function Settings({ app, team }: { app: string; team: string }) {
         {error ? <Problem message={error} /> : null}
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * Deploy again: one confirmation, because it changes a live environment, then the same
+ * POST /deployments `sealeye deploy --again` sends. A refusal is the platform's sentence.
+ */
+function DeployAgain({ app, fromDeployment, packagedBy, busy: moving, onDone }: { app: string; fromDeployment: string; packagedBy: string; busy: boolean; onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { signedOut } = useSession();
+
+  async function confirm() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.deployAgain(fromDeployment);
+      setOpen(false);
+      onDone();
+    } catch (err) {
+      if (err instanceof SignedOut) signedOut("Your sign-in has ended. Sign in again with your token.");
+      else setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (moving) return <p className="text-dim">Something is under way for this environment. Deploy again once it has finished.</p>;
+  return (
+    <>
+      <Dialog open={open} onOpenChange={o => { setOpen(o); setError(null); }}>
+        <DialogTrigger asChild><Button>Deploy again</Button></DialogTrigger>
+        <DialogContent>
+          <DialogTitle>Deploy {app} again?</DialogTitle>
+          <DialogDescription>The code <span className="font-mono text-ink">{packagedBy}</span> packaged goes to this environment again, with its plan. Settings come from your organization's store.</DialogDescription>
+          {error ? <div className="mt-3"><Problem message={error} /></div> : null}
+          <div className="mt-5 flex justify-end gap-3">
+            <DialogClose asChild><Button variant="ghost">Not now</Button></DialogClose>
+            <Button disabled={busy} onClick={confirm}>{busy ? "Asking the platform" : "Deploy it"}</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      {error && !open ? <Problem message={error} /> : null}
+    </>
   );
 }
 

@@ -49,6 +49,11 @@ export interface DeploymentSummary {
   teamId?: string;
   destroyRequestedBy: RequestedBy | null;
   needs: number;
+  // Whether its code was packaged and can be deployed again (PHASE2-PLAN Step 14), and
+  // for one that was deployed again, whose code it ran.
+  packaged?: boolean;
+  fromDeployment?: string | null;
+  packagedBy?: string | null;
 }
 
 export interface DeploymentRecord extends DeploymentSummary {
@@ -103,6 +108,10 @@ export const api = {
   whoami: () => request<Person>("/whoami"),
   deployments: () => request<{ deployments: DeploymentSummary[] }>("/deployments").then(r => r.deployments),
   deployment: (id: string) => request<DeploymentRecord>(`/deployments/${encodeURIComponent(id)}`),
+  // POST /deployments with fromDeployment: the code that deployment packaged, again,
+  // with its own plan or the one given. Nothing is uploaded; settings come from the store.
+  deployAgain: (fromDeployment: string, plan?: unknown) =>
+    request<DeploymentRecord>("/deployments", { method: "POST", body: { backend: "cloudformation", fromDeployment, ...(plan !== undefined ? { plan } : {}) } }),
   destroy: (id: string) => request<DeploymentRecord>(`/deployments/${encodeURIComponent(id)}`, { method: "DELETE" }),
   health: () => request<Health>("/health"),
   validate: (plan: unknown) => request<Validation>("/plans/validate", { method: "POST", body: plan }),

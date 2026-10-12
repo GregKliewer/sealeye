@@ -1,9 +1,12 @@
 // Validate a plan: paste or drop a sealeye.yaml and see what POST /plans/validate says,
 // in the same words `sealeye validate` uses (core/plan-words.js). A plan with needs is
-// drafted, never simply valid (principle 3). It changes nothing and creates nothing.
-import { useState } from "react";
+// drafted, never simply valid (principle 3). Checking changes nothing. A ready plan for
+// an app whose code the platform already has can then be deployed with that code
+// (PHASE2-PLAN Step 14, `sealeye deploy --again <app> -f sealeye.yaml`).
+import { useEffect, useState } from "react";
+import { Link } from "react-router";
 import YAML from "yaml";
-import { api, SignedOut, type Validation } from "../api";
+import { api, SignedOut, type DeploymentSummary, type Validation } from "../api";
 import { useSession } from "../session";
 import { plainValidationErrors } from "../../../core/plan-words.js";
 import { PageTitle, Problem } from "../Layout";
@@ -14,7 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 const MAX_BYTES = 256 * 1024;
 
 export function Validate() {
-  const { signedOut } = useSession();
+  const { signedOut, person } = useSession();
   const [text, setText] = useState("");
   const [fileName, setFileName] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -116,11 +119,69 @@ export function Validate() {
               </>
             ) : null}
             {result?.valid && result.status !== "drafted" ? (
-              <p className="font-medium text-phosphor">{appName ? <span className="font-mono">{appName}</span> : "This plan"}: valid and ready to deploy.</p>
+              <>
+                <p className="font-medium text-phosphor">{appName ? <span className="font-mono">{appName}</span> : "This plan"}: valid and ready to deploy.</p>
+                {appName ? <DeployPlan key={text} app={appName} plan={plan} team={person?.auth === "off" ? null : person?.team || "default"} /> : null}
+              </>
             ) : null}
           </CardContent>
         </Card>
       </div>
     </>
+  );
+}
+
+/**
+ * Deploy a ready plan with the code the platform already has for its app: the newest
+ * of the team's deployments of it whose code was packaged. With none, it says how the
+ * code gets there. Nothing is deployed until the button is pressed.
+ */
+function DeployPlan({ app, plan, team }: { app: string; plan: unknown; team: string | null }) {
+  const { signedOut } = useSession();
+  const [source, setSource] = useState<DeploymentSummary | null | undefined>(undefined);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [started, setStarted] = useState<{ id: string; key: string } | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    api.deployments()
+      .then(all => { if (live) setSource(all.find(d => d.app?.name === app && d.packaged && (team === null || (d.teamId || "default") === team)) || null); })
+      .catch(err => { if (!live) return; if (err instanceof SignedOut) signedOut(err.message); else setError(err.message); setSource(null); });
+    return () => { live = false; };
+  }, [app, team, signedOut]);
+
+  if (source === undefined) return <p className="text-dim">Looking for code the platform already has for {app}</p>;
+
+  async function deploy() {
+    if (!source) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const made = await api.deployAgain(source.deploymentId, plan);
+      setStarted({ id: made.deploymentId, key: made.stackName || made.deploymentId });
+    } catch (err) {
+      if (err instanceof SignedOut) return signedOut(err.message);
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (started) {
+    return <p role="status" className="text-phosphor">Deploying as <span className="font-mono">{started.id}</span>. <Link className="underline" to={`/environments/${encodeURIComponent(started.key)}`}>Follow it in its environment</Link>.</p>;
+  }
+  return (
+    <div className="space-y-3 border-t border-rule pt-3" data-testid="deploy-plan">
+      {source ? (
+        <>
+          <p className="text-dim">Deploy this plan with the code <span className="font-mono text-ink">{source.packagedBy || source.deploymentId}</span> packaged. Nothing is uploaded and no .env is read: settings come from your organization's store.</p>
+          <Button onClick={deploy} disabled={busy}>{busy ? "Asking the platform" : "Deploy this plan"}</Button>
+        </>
+      ) : (
+        <p className="text-dim">The platform has no code for {app} yet. Run <code className="font-mono text-ink">sealeye run</code> in its folder to send it.</p>
+      )}
+      {error ? <Problem message={error} /> : null}
+    </div>
   );
 }
