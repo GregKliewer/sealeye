@@ -1080,7 +1080,19 @@ in one call with the AWS SDK that Lambda's Node runtime already carries, sets th
 as environment variables, then the app starts. No layer to track, no shell quoting of
 values. CloudFormation's own lookups were ruled out: an encrypted one cannot feed a
 function's environment, and a Secrets Manager one leaves the value in the function's
-configuration. PHASE2-PLAN Step 7 checks it on a real function before Step 10 builds it.
+configuration.
+
+Checked on a real function on Mon Oct 12, 2026 (PHASE2-PLAN Step 7,
+`deploy/spikes/settings-read/`), nodejs20.x (Node 20.20.2), x86, 512 MB:
+
+- The preload loads Lambda's own SDK through `createRequire` and reads the folder.
+- Encrypted values decrypt with only `ssm:GetParametersByPath` on the folder, and no KMS
+  permission, because they use the account's default Parameter Store key.
+- The role kept the function out of another app's folder and out of `/sealeye/`
+  (`AccessDeniedException` for both).
+- Reading took 880 to 980 ms, including loading the SDK. The kit started a fresh Node
+  process on every run, so both runs paid it; in a real app the preload runs once per
+  process, so the cost falls on a cold start only.
 
 **Apps already deployed with sent values (D5).** Nothing moves by itself. The next
 `sealeye run` of such an app offers once to store what its `.env` holds, naming the

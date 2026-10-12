@@ -279,6 +279,9 @@ Half a day, before anything else in Part B.
 
 **Done when:** D3 and D4 are in DESIGN.md with what Step 7 measured.
 
+*Done Mon Oct 12, 2026: every check passed; reading costs about a second at cold start
+(DESIGN.md, "Settings live in the organization's store").*
+
 ### Step 8. Putting values in, on both surfaces
 
 - API: `PUT /apps/{app}/settings/{name}` with `{ value }`, and `GET /apps/{app}/settings`
