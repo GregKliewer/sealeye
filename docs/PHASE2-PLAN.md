@@ -248,6 +248,11 @@ recommendations under "Step 5: recommendations, for Greg to decide".*
 
 ### Step 6. The second-person test (PHASE1-PLAN Step 15)
 
+*Deferred by Greg on Sun Oct 11, 2026, to catch up on later. Everything it needs is
+ready: Steps 1 and 2 are released and checked on the live system, and the welcome note,
+the checklist and the Step 5 decisions are done. Part B goes ahead first. Until Step 6
+runs, Phase 1's "done when" stays open on its first and third lines.*
+
 - Release Steps 1 and 2 (`deploy/release.sh`). Reissue Greg's token as organization-wide.
 - Issue the tester a token on a team of their own:
   `deploy/server.sh token add <their email> "<their name>" pilot-2`.
@@ -415,7 +420,7 @@ Notes on these:
 |---|---|---|
 | 1 to 2 | Team visibility, environment names per team | two to three days |
 | 3 to 5 | Welcome note, checklist, review of what is owed | half a day |
-| 6 | **The second-person test.** Phase 1 "done when" | an hour to watch, then fixes |
+| 6 | **The second-person test.** Phase 1 "done when". *Deferred; Greg runs it later* | an hour to watch, then fixes |
 | 7 | Prove the read path | half a day |
 | 8 to 12 | The secret store, on both surfaces | three to five days |
 | 13 to 14 | Portal pages for existing operations, re-run | three to four days |

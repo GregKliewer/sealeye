@@ -41,7 +41,8 @@ shows what is really there.
 *Status Oct 11, 2026:* the second and fourth lines are met. Each team now sees only its
 own environments, and an organization-wide token sees every team's (PHASE2-PLAN Step 1).
 Each team's environments also have names of their own, so two teams can use the same
-app name (Step 2). Step 6 is the second-person test.
+app name (Step 2). Step 6, the second-person test, is ready and deferred: Greg runs it
+later, and the first and third lines stay open until he does.
 
 **Work:**
 1. **The app reaches the API without a shared disk.** Today `POST /deployments` takes an
