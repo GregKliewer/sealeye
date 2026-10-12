@@ -1122,7 +1122,8 @@ async function main() {
     const { deploymentId, label } = resolved;
 
     say(`Asking seaLeye.run to tear down ${label}`);
-    const started = await destroyDeployment({ apiBaseUrl, deploymentId });
+    const started = await refusedInWords(() => destroyDeployment({ apiBaseUrl, deploymentId }));
+    if (!started) return;
 
     if (jsonOut) {
       console.log(JSON.stringify(started, null, 2));
@@ -1495,6 +1496,14 @@ async function runDeploy({ apiBaseUrl, backend, plan, appPath, requestedBy: who,
 
     // The uploaded copy broke one of the platform's rules (too big, say). The API's
     // sentence is the one to show.
+    // Another change to this environment is under way. Say what, and how to follow it.
+    if (refusal?.code === "ENVIRONMENT_BUSY") {
+      wait.stop();
+      console.error(c.fail(refusal.message));
+      process.exitCode = 1;
+      return null;
+    }
+
     if (refusal?.code === "UPLOAD_REFUSED") {
       const sentence = new Error(`seaLeye.run could not take your app: ${refusal.message}.`);
       sentence.userFacing = true;
