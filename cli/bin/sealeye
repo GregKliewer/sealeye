@@ -34,7 +34,8 @@ import { unsupportedNeeds, refusalClosing, orgName } from "../../core/catalog.js
 import { interviewThroughApi } from "../interview/follow.js";
 import { runDoctor } from "../doctor.js";
 import { writeInterviewFiles, decisionCard } from "../interview/render.js";
-import { plainValidationErrors } from "../interview/explain.js";
+import { plainValidationErrors } from "../../core/plan-words.js";
+import { evidenceSummary } from "../../core/evidence-summary.js";
 
 // Statuses that are history rather than something you can still open: one was torn
 // down, the other was never built because the platform said so.
@@ -1672,115 +1673,18 @@ async function resolveEvidenceTarget({ apiBaseUrl, target }) {
   return null;
 }
 
-/** The first six and last four characters, for a terminal; the file has the whole hash. */
-function shortHash(hash) {
-  const h = String(hash || "");
-  return /^[0-9a-f]{64}$/.test(h) ? `${h.slice(0, 6)}...${h.slice(-4)}` : h;
-}
-
-/** "Sep 27 2026 10:41", local time, for the terminal. The file keeps the ISO string. */
-function localTime(iso) {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return String(iso);
-  const month = d.toLocaleDateString("en-US", { month: "short" });
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mm = String(d.getMinutes()).padStart(2, "0");
-  return `${month} ${d.getDate()} ${d.getFullYear()} ${hh}:${mm}`;
-}
-
-/** "2 min 48 s", or "48 s". */
-function humanDuration(seconds) {
-  if (typeof seconds !== "number") return String(seconds);
-  const m = Math.floor(seconds / 60);
-  const sec = seconds % 60;
-  return m ? `${m} min ${sec} s` : `${sec} s`;
-}
-
 const plural = (n, word) => `${countWord(n).toLowerCase()} ${word}${n === 1 ? "" : "s"}`;
 
 /**
- * The evidence, in six lines. Labels in fg, values dim, and the one line that needs a
- * person in amber, the way statusColour treats failed and drafted.
+ * The evidence, in six lines (core/evidence-summary.js, the portal shows the same).
+ * Labels in fg, values dim, and the one line that needs a person in amber, the way
+ * statusColour treats failed and drafted.
  */
 function evidenceSummaryLines(ev) {
-  const s = ev.subject;
-  const r = ev.requested;
-  const a = ev.approved;
-  const b = ev.built;
-  const n = ev.checkedNow;
-
-  const row = (label, text, tone = c.dim) => `  ${c.fg(label.padEnd(15))}${tone(text)}`;
-  const lines = [];
-
-  const env = s.stackName ? `stack ${s.stackName}, profile ${s.profile}` : `no stack, profile ${s.profile}`;
-  lines.push(c.fg(`Change record for ${s.app?.name || s.deploymentId} (${env})`));
-  lines.push("");
-
-  // Requested
-  const by = r.requestedBy;
-  const person = typeof by === "string" ? by : (by.name ? `${by.name} (${by.user})` : by.user);
-  const who = typeof by === "string" || !by.host ? person : `${person} on ${by.host}`;
-  const when = typeof r.startedAt === "string" && !/not recorded/.test(r.startedAt) ? `, ${localTime(r.startedAt)}` : "";
-  let via = "origin not recorded before 2.16.0";
-  if (typeof r.origin !== "string") {
-    if (r.origin.planSource === "interview") {
-      const count = (r.origin.answers || []).length;
-      via = `via ${product.command} run, ${count ? plural(count, "question") + " answered" : "no questions asked"}`;
-    } else if (r.origin.planSource === "reused") via = `via ${product.command} run, plan reused from ${r.origin.file}`;
-    else if (r.origin.planSource === "file") via = `via ${product.command} deploy -f ${r.origin.file}`;
-  }
-  lines.push(row("Requested by", `${who}${when}, ${via}`));
-  lines.push("");
-
-  // Approved
-  const modules = Array.isArray(a.modules) ? plural(a.modules.length, "module") : `modules ${a.modules}`;
-  const needs = a.needs.length ? plural(a.needs.length, "need") : "no needs";
-  lines.push(row("Approved plan", `sha256 ${shortHash(a.planSha256)}, ${modules}, ${needs}`));
-  lines.push("");
-
-  // Built
-  if (b.none) {
-    lines.push(row("Built", `nothing. ${b.sentence.replace(/^Nothing was built\. /, "")}`));
-  } else {
-    // Which module's template this stack is built from. The file on disk may be the
-    // dist copy with the plan's setting names written into it, so the name comes from
-    // the kind rather than from the path.
-    const tmpl =
-      s.kind === "api" ? "http_api_serverless template"
-      : s.kind === "static" ? "static_site_edge template"
-      : `template ${b.templatePath}`;
-    const art = /^none:/.test(String(b.artifactKey)) ? "no artifact" : `artifact ${b.artifactKey}`;
-    const events = Array.isArray(b.events) ? plural(b.events.length, "CloudFormation event") : "events not checked";
-    const took = typeof r.durationSeconds === "number" ? `, ${humanDuration(r.durationSeconds)}` : "";
-    lines.push(row("Built", `${tmpl}, ${art}, ${events}${took}`));
-  }
-  lines.push("");
-
-  // Checked now
-  if (n.none) {
-    lines.push(row("Checked now", "nothing to check"));
-  } else {
-    const parts = [];
-    let alarm = false;
-    if (!n.stack.exists) { parts.push("the stack is gone"); alarm = true; }
-    if (n.answered.error) { parts.push(`did not answer (${n.answered.error})`); alarm = true; }
-    else parts.push(`answered ${n.answered.status} in ${(n.answered.ms / 1000).toFixed(1)} s`);
-    if (n.template.result === "matches") parts.push("the stack runs the template that was approved");
-    else if (n.template.result === "differs") { parts.push("the stack runs a different template from the one approved"); alarm = true; }
-    else parts.push(`template not compared (${n.template.reason})`);
-    if (typeof n.changesOutside === "string") parts.push(`changes outside ${product.name} ${n.changesOutside}`);
-    else if (!n.changesOutside.length) parts.push(`no changes outside ${product.name}`);
-    else { parts.push(`${plural(n.changesOutside.length, "change")} outside ${product.name}`); alarm = true; }
-    lines.push(row("Checked now", parts.join("; "), alarm ? c.prompt : c.dim));
-  }
-  lines.push("");
-
-  // History
-  const first = ev.history[0];
-  const firstOn = first?.startedAt && !/not recorded/.test(first.startedAt) ? `, the first on ${localTime(first.startedAt).replace(/ \d\d:\d\d$/, "")}` : "";
-  const what = s.stackName ? "to this environment" : "for this app";
-  lines.push(row("History", `${plural(ev.history.length, "deployment")} ${what}${firstOn}`));
-
+  const { title, rows } = evidenceSummary(ev, product);
+  const lines = [c.fg(title), ""];
+  for (const r of rows) lines.push(`  ${c.fg(r.label.padEnd(15))}${(r.alarm ? c.prompt : c.dim)(r.text)}`, "");
+  lines.pop();
   return lines;
 }
 
