@@ -65,7 +65,7 @@ if (args[1] === "get-parameters-by-path") {
   const p = opt("--path");
   process.stdout.write(JSON.stringify(Object.keys(s).filter(k => k.startsWith(p)).map(k => ({ name: k, changedAt: s[k].at }))));
 } else if (args[1] === "put-parameter") {
-  const input = JSON.parse(fs.readFileSync(0, "utf8"));
+  const input = JSON.parse(fs.readFileSync(opt("--cli-input-json").slice("file://".length), "utf8"));
   s[input.Name] = { value: input.Value, at: new Date().toISOString() };
   fs.writeFileSync(store, JSON.stringify(s));
   process.stdout.write("{}");

@@ -24,8 +24,10 @@ const call = (route, { token, method = "GET", body, raw } = {}) =>
   });
 
 // The stand-in aws: ssm get-parameters-by-path, put-parameter and delete-parameter over
-// a JSON file. Every command line it is given is appended to argv.log. AWS_FAIL makes a
-// put fail the way AWS's validation does, quoting the value.
+// a JSON file. Every command line it is given is appended to argv.log. A "fail" file
+// makes a put fail the way AWS's validation does, quoting the value. Like the real CLI,
+// put-parameter reads its input only from the file --cli-input-json names (the real one
+// cannot read it from Node's standard input), and the stand-in records that file's mode.
 const FAKE_AWS = `#!/usr/bin/env node
 const fs = require("fs"), path = require("path");
 const dir = path.dirname(__dirname);
@@ -41,7 +43,11 @@ if (op === "get-parameters-by-path") {
   const rows = Object.keys(s).filter(k => k.startsWith(p) && !k.slice(p.length).includes("/")).map(k => ({ name: k, changedAt: s[k].at }));
   process.stdout.write(JSON.stringify(rows));
 } else if (op === "put-parameter") {
-  const input = JSON.parse(fs.readFileSync(0, "utf8"));
+  const named = opt("--cli-input-json");
+  if (!String(named || "").startsWith("file:///") || String(named).startsWith("file:///dev/")) { process.stderr.write("Error parsing parameter '--cli-input-json': Unable to load paramfile " + named); process.exit(255); }
+  const inputFile = named.slice("file://".length);
+  fs.appendFileSync(path.join(dir, "inputs.log"), JSON.stringify({ file: inputFile, mode: (fs.statSync(inputFile).mode & 0o777).toString(8), dirMode: (fs.statSync(path.dirname(inputFile)).mode & 0o777).toString(8) }) + "\\n");
+  const input = JSON.parse(fs.readFileSync(inputFile, "utf8"));
   if (process.env.AWS_FAIL || fs.existsSync(path.join(dir, "fail"))) {
     process.stderr.write("An error occurred (ValidationException) when calling the PutParameter operation: 1 validation error detected: Value '" + input.Value + "' at 'value' failed to satisfy constraint");
     process.exit(254);
@@ -106,6 +112,13 @@ test("the value is never on a command line, in a response, in the log, a record 
   const argv = fs.readFileSync(path.join(home, "argv.log"), "utf8");
   assert.ok(argv.includes("put-parameter"), "the stand-in was called");
   assert.ok(!argv.includes(SECRET), "never on a command line, where any process could read it");
+  // In a file only the API can read, in a folder of its own, gone once the call ends.
+  const inputs = fs.readFileSync(path.join(home, "inputs.log"), "utf8").trim().split("\n").map(l => JSON.parse(l));
+  for (const i of inputs) {
+    assert.deepEqual([i.mode, i.dirMode], ["600", "700"]);
+    assert.equal(fs.existsSync(i.file), false, "removed after the call");
+    assert.equal(fs.existsSync(path.dirname(i.file)), false);
+  }
   for (const file of ["deployments.json", "setting-changes.json", "tokens.json"]) {
     const text = fs.existsSync(path.join(home, file)) ? fs.readFileSync(path.join(home, file), "utf8") : "";
     assert.ok(!text.includes(SECRET), file);
