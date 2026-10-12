@@ -34,6 +34,8 @@ core/       what cli/ and api/ must agree on: schema.js (the plan contract), cat
             secrets), upload.js and upload-rules.js (what travels to the API, the
             walk both surfaces use), tracing.js, token.js
             (what a token looks like; api/tokens.js issues and checks them),
+            plan-files.js (DEPLOYMENT_PLAN.md and sealeye.yaml, written by the
+            command and sent with the interview's plan for the portal),
             plan-words.js and evidence-summary.js (words the command and the portal
             both say). secrets.js, upload-rules.js, plan-words.js and
             evidence-summary.js run in a browser, so the portal imports them too

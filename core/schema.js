@@ -64,6 +64,12 @@ const LEGACY_MODULE_NEEDS = {
   domain_public: { kind: "custom_domain", line: "a custom domain you already own" }
 };
 
+/**
+ * Any module id, buildable or from an older plan: the one lowercase_snake shape a plan
+ * file has. core/plan-files.js checks every match against the four it may name.
+ */
+export const STRAY_MODULE_ID = new RegExp(`\\b(?:${[...MODULE_IDS, ...Object.keys(LEGACY_MODULE_NEEDS)].join("|")})\\b`);
+
 /** Is this a module this version of the platform builds? */
 export const isBuildable = id => MODULE_IDS.includes(id);
 
