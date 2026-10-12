@@ -6,7 +6,7 @@ export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElemen
 }
 
 export function CardHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("flex items-center gap-3 border-b border-rule px-5 py-3", className)} {...props} />;
+  return <div className={cn("flex flex-wrap items-center gap-3 border-b border-rule px-5 py-3", className)} {...props} />;
 }
 
 export function CardTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {

@@ -199,6 +199,12 @@ Resources:
                 Effect: Allow
                 Action: logs:FilterLogEvents
                 Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/sealeye-*"
+              # sealeye perf and the portal's Performance card (PHASE2-PLAN Step 20):
+              # read an app's function metrics. GetMetricData takes no resource.
+              - Sid: AppMetrics
+                Effect: Allow
+                Action: cloudwatch:GetMetricData
+                Resource: "*"
               - Sid: HttpApis
                 Effect: Allow
                 Action: [apigateway:GET, apigateway:POST, apigateway:PUT, apigateway:PATCH, apigateway:DELETE]

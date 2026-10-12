@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
 import { api, SignedOut, type DeploymentSummary, type Evidence, type Logs } from "../api";
 import { evidenceSummary } from "../../../core/evidence-summary.js";
+import { PerformanceCard } from "./PerformanceCard";
 import { RETENTION_CHOICES, retentionOf, withRetention } from "../../../core/retention.js";
 import { useLoad, useSession } from "../session";
 import { ago, groupEnvironments, IN_FLIGHT, publicUrl, statusOf, when, who } from "../model";
@@ -159,6 +160,8 @@ export function Control() {
           </TableBody>
         </Table>
       </Card>
+
+      {latest.kind !== "static" && env.deploys.some(d => d.stackName) ? <PerformanceCard deploymentId={(env.deploys.find(d => d.stackName) || latest).deploymentId} /> : null}
 
       {latest.kind !== "static" && env.deploys.some(d => d.stackName) ? <LogsCard deploymentId={(env.deploys.find(d => d.stackName) || latest).deploymentId} /> : null}
 
@@ -318,7 +321,7 @@ function LogsCard({ deploymentId }: { deploymentId: string }) {
     <Card className="mt-6" data-testid="logs">
       <CardHeader>
         <CardTitle>Logs</CardTitle>
-        <div className="ml-auto flex gap-1" role="group" aria-label="How far back">
+        <div className="ml-auto flex flex-wrap gap-1" role="group" aria-label="How far back">
           {WINDOWS.map(([key, label]) => (
             <Button key={key} size="sm" variant={key === since ? "primary" : "ghost"} aria-pressed={key === since}
               onClick={() => { setSince(key); if (logs) read(key); }}>{label === "hour" ? "1 hour" : label === "day" ? "1 day" : label}</Button>

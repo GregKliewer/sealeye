@@ -67,6 +67,18 @@ fs.writeFileSync(path.join(home, "deployments.json"), JSON.stringify([
 // there.
 const bin = path.join(home, "bin");
 fs.mkdirSync(bin);
+// Metrics for any function: a day of requests shaped like a working day.
+fs.writeFileSync(path.join(bin, "metrics.cjs"), `const args = process.argv.slice(2), opt = n => args[args.indexOf(n) + 1];
+const start = Date.parse(opt("--start-time")), queries = JSON.parse(opt("--metric-data-queries"));
+const period = queries[0].MetricStat.Period * 1000, count = Math.round((Date.parse(opt("--end-time")) - start) / period);
+const shape = i => Math.max(0, Math.round(40 * Math.sin((i / count) * Math.PI)));
+const per = { requests: shape, errors: i => (i % 7 === 3 ? 1 : 0), refused: () => 0, average: i => 80 + (i % 5) * 10, slowest: i => 200 + (i % 5) * 40 };
+const total = { totalRequests: Array.from({ length: count }, (_, i) => shape(i)).reduce((a, b) => a + b, 0), totalErrors: 3, totalRefused: 0, totalAverage: 96, totalSlowest: 310 };
+process.stdout.write(JSON.stringify(queries.map(q => q.Id in per
+  ? { Id: q.Id, Timestamps: Array.from({ length: count }, (_, i) => new Date(start + i * period).toISOString()), Values: Array.from({ length: count }, (_, i) => per[q.Id](i)) }
+  : { Id: q.Id, Timestamps: [new Date(start).toISOString()], Values: [total[q.Id]] })));
+`);
+
 // Its settings calls keep parameters in a file, names and values, so a test can check a
 // value reached the store and never came back to the page.
 fs.writeFileSync(path.join(bin, "ssm.cjs"), `const fs = require("fs");
@@ -88,6 +100,7 @@ if (args[1] === "get-parameters-by-path") {
 `);
 fs.writeFileSync(path.join(bin, "aws"), `#!/bin/sh
 [ "$1" = ssm ] && exec node "${path.join(bin, "ssm.cjs")}" "$@"
+[ "$2" = get-metric-data ] && exec node "${path.join(bin, "metrics.cjs")}" "$@"
 case "$2" in
   delete-stack) touch "${home}/deleted-$4"; echo '{}' ;;
   describe-stacks)

@@ -22,6 +22,7 @@ import { rollupNeeds } from "./needs.js";
 import { readLogs } from "./logs.js";
 import { changePaused, pausedState } from "./pause.js";
 import { peopleOf } from "./team.js";
+import { readPerformance } from "./performance.js";
 import { createInterviewService, NotWaiting, UploadRefused } from "./interview/service.js";
 import { postgresCheckpointer, postgresInterviewStore } from "./interview/pgstore.js";
 import { databaseUrl, closeDb } from "./db.js";
@@ -655,6 +656,15 @@ for (const [action, paused] of [["pause", true], ["resume", false]]) {
     return res.status(status).json(body);
   });
 }
+
+// GET /deployments/{id}/performance?since=1h|6h|1d|7d — readings of its environment's
+// API: requests, errors, refused, time taken (api/performance.js). Step 20.
+app.get("/deployments/:deploymentId/performance", async (req, res) => {
+  const dep = getDeployment(req.params.deploymentId);
+  if (!canSee(req, dep)) return res.status(404).json({ error: { code: "NOT_FOUND", message: "deploymentId not found" } });
+  const { status, body } = await readPerformance(dep, { window: typeof req.query.since === "string" ? req.query.since : "1d" });
+  return res.status(status).json(body);
+});
 
 // GET /team — the people on your team, from the tokens in use (api/team.js). No tokens,
 // no hashes. PHASE2-PLAN Step 19.

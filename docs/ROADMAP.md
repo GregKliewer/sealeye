@@ -173,7 +173,7 @@ and does nothing real. A blank is not started.
 | Pause and resume | `sealeye pause`, `resume` | `GET /deployments/{id}/paused`, `POST .../pause`, `.../resume` | built | built (Pause, in Control) | 2 |
 | Configure | `sealeye config` (and `sealeye settings`) | `POST /deployments` (`fromDeployment` with the plan changed); the settings endpoints | built | built (Configure and Settings, in Control) | 2 |
 | Logs | `sealeye logs` | `GET /deployments/{id}/logs` | built | built (Logs, in Control) | 2 |
-| Performance | `sealeye perf` | | | mock-up | 2 |
+| Performance | `sealeye perf` | `GET /deployments/{id}/performance` | built | built (Performance, in Control) | 2 |
 | Costs | `sealeye costs` | | | mock-up | 2 |
 | Team and access | `sealeye team` | `GET /team` (issuing stays with the administrator) | built | built (Team) | 2 |
 | Integrations | `sealeye integrations` | | | mock-up (report) | 4 |

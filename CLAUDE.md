@@ -135,7 +135,7 @@ module ids, and only for that. Changing the contract is a DESIGN.md decision.
 
 POST /plans/validate, POST /deployments ({ plan, appPath, zip?, settings? }, or
 { fromDeployment, plan? } to deploy code the platform already has again), GET /deployments,
-GET /deployments/{id}, GET /deployments/{id}/evidence, GET /deployments/{id}/logs (masked), GET /deployments/{id}/paused and POST
+GET /deployments/{id}, GET /deployments/{id}/evidence, GET /deployments/{id}/logs (masked), GET /deployments/{id}/performance (readings), GET /deployments/{id}/paused and POST
 /deployments/{id}/pause and /resume (APIs only), DELETE /deployments/{id},
 GET /needs, GET /health, POST /interviews ({ app, zip }), POST
 /interviews/{id}/answers ({ answer }), GET /interviews/{id}/events (server-sent events),
@@ -245,9 +245,9 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   source, never its value.
 - seaLeye.online (`portal/`) has Environments, New environment (the interview, from a
   folder chosen in the browser), Control (state, deploy again, tear down,
-  pause, settings, configure, history, logs, evidence), Validate (check a plan, and deploy a ready one with the
-  code the platform has), Catalog (modules and the needs ledger), Team and Health. Performance and Costs
-  are drawn in the archived mock-up only; the portal shows nothing it cannot do.
+  pause, settings, configure, history, performance, logs, evidence), Validate (check a plan, and deploy a ready one with the
+  code the platform has), Catalog (modules and the needs ledger), Team and Health. Costs is drawn in the
+  archived mock-up only; the portal shows nothing it cannot do.
 
 ## Working here
 

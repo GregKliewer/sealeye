@@ -1410,3 +1410,23 @@ listed. Issuing and revoking stay with the administrator on their Mac (`deploy/s
 token`): that is access to the platform, and it waits for sign-in (Q16) to move onto a
 page.
 
+## Performance shows readings, not capacity
+
+Decided Mon Oct 12, 2026, before building PHASE2-PLAN Step 20's first half (`sealeye
+perf`, the portal's Performance card, `GET /deployments/{id}/performance`). The name is
+ROADMAP's.
+
+Principle 8 keeps sizes, counts and capacity numbers out of plans, cards and files,
+because a plan that says "handles 500 requests a second" is a promise nobody measured.
+Performance is the other thing: what was measured. It shows requests, errors, requests
+refused (while paused or busy), and the time the app's code took (the average, and the
+time 95 in 100 finished within), per period and over the window, read from CloudWatch
+when asked. Every view of it says these are readings of what happened, and that what an
+app can take is set by a load test. Nothing here is written into a plan or a file, and
+it never says what the app could handle.
+
+The readings are the function's (AWS/Lambda Invocations, Errors, Throttles, Duration):
+what the app itself did. A period with no requests has no time measured, and says so
+rather than showing zero. The deploy role gains cloudwatch:GetMetricData, which takes no
+resource; it reads only what the API asks for, by function name.
+

@@ -206,6 +206,42 @@ export async function setFunctionPaused(functionName, paused) {
 }
 
 /**
+ * Readings from an app's function over a window (PHASE2-PLAN Step 20): requests,
+ * errors, refused requests, and the time its code took, per period and over the whole
+ * window. What happened, never what it can take.
+ * @param {string} functionName
+ * @param {{ startMs: number, endMs: number, periodSec: number }} window
+ * @returns {Promise<{ok: true, results: {Id: string, Timestamps: string[], Values: number[]}[]} | {ok: false, error: string}>}
+ */
+export async function functionMetrics(functionName, { startMs, endMs, periodSec }) {
+  const whole = Math.max(60, Math.ceil((endMs - startMs) / 1000 / 60) * 60);
+  const q = (id, metric, stat, period) => ({
+    Id: id,
+    MetricStat: { Metric: { Namespace: "AWS/Lambda", MetricName: metric, Dimensions: [{ Name: "FunctionName", Value: functionName }] }, Period: period, Stat: stat },
+    ReturnData: true
+  });
+  const queries = [
+    q("requests", "Invocations", "Sum", periodSec), q("errors", "Errors", "Sum", periodSec),
+    q("refused", "Throttles", "Sum", periodSec), q("average", "Duration", "Average", periodSec), q("slowest", "Duration", "p95", periodSec),
+    q("totalRequests", "Invocations", "Sum", whole), q("totalErrors", "Errors", "Sum", whole), q("totalRefused", "Throttles", "Sum", whole),
+    q("totalAverage", "Duration", "Average", whole), q("totalSlowest", "Duration", "p95", whole)
+  ];
+  const r = await tryAws([
+    "cloudwatch", "get-metric-data",
+    "--start-time", new Date(startMs).toISOString(), "--end-time", new Date(endMs).toISOString(),
+    "--metric-data-queries", JSON.stringify(queries),
+    "--query", "MetricDataResults[].{Id: Id, Timestamps: Timestamps, Values: Values}",
+    "--region", region(), "--output", "json"
+  ]);
+  if (!r.ok) return { ok: false, error: firstLine(r.stderr) };
+  try {
+    return { ok: true, results: JSON.parse(r.stdout || "[]") || [] };
+  } catch {
+    return { ok: false, error: "the metrics service's answer was not JSON" };
+  }
+}
+
+/**
  * Current stack status and outputs, read fresh.
  * @returns {Promise<{status: string|null, outputs: object, statusReason: string|null}>}
  *          status is null when the stack does not exist.

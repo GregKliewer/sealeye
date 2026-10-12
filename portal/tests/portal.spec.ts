@@ -398,6 +398,22 @@ test("Team lists the people with tokens on your team, and never a token", async 
   expect(await page.content()).not.toMatch(/sl_[a-z]{20}/);
 });
 
+test("Performance shows readings, in tiles, a chart and a table, never a capacity", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("link", { name: "payments-api", exact: true }).click();
+  const card = page.getByTestId("performance");
+  await card.getByRole("button", { name: "Show readings" }).click();
+  await expect(card.getByTestId("stat").first()).toContainText("Requests");
+  await expect(card.getByTestId("stat").nth(2)).toContainText("96 ms");
+  await expect(card).toContainText("95 in 100 within 310 ms");
+  await card.locator("svg g").nth(12).hover();
+  await expect(card.getByTestId("chart-readout")).toContainText("requests");
+  await card.getByRole("button", { name: "Show as a table" }).click();
+  await expect(card.getByTestId("period-table").locator("tbody tr")).toHaveCount(24);
+  await card.getByRole("button", { name: "7 days" }).click();
+  await expect(card.getByTestId("period-table").locator("tbody tr")).toHaveCount(28);
+});
+
 test("signing out ends the session: the pages ask for sign-in again", async ({ page }) => {
   await signIn(page);
   await page.getByRole("button", { name: "Sign out" }).click();

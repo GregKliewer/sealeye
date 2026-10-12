@@ -135,6 +135,14 @@ export interface Team {
   people: { name: string | null; email: string; team: string; scope: "team" | "org"; issuedAt: string | null; lastUsedAt: string | null }[];
 }
 
+// GET /deployments/{id}/performance: readings over a window, per period and in total.
+export interface Period { at: string; requests: number; errors: number; refused: number; averageMs: number | null; slowestMs: number | null }
+export interface Performance {
+  app: string | null; since: string; from: string; to: string; periodMinutes: number;
+  totals: { requests: number; errors: number; refused: number; averageMs: number | null; slowestMs: number | null };
+  periods: Period[];
+}
+
 const settingsPath = (app: string, team: string, name?: string) =>
   `/apps/${encodeURIComponent(app)}/settings${name ? `/${encodeURIComponent(name)}` : ""}?team=${encodeURIComponent(team)}`;
 
@@ -180,6 +188,7 @@ export const api = {
   logs: (id: string, since: string) => request<Logs>(`/deployments/${encodeURIComponent(id)}/logs?since=${encodeURIComponent(since)}`),
   evidence: (id: string) => request<Evidence>(`/deployments/${encodeURIComponent(id)}/evidence`),
   team: () => request<Team>("/team"),
+  performance: (id: string, since: string) => request<Performance>(`/deployments/${encodeURIComponent(id)}/performance?since=${encodeURIComponent(since)}`),
   catalog: () => request<Catalog>("/catalog"),
   needs: () => request<NeedsLedger>("/needs"),
   settings: (app: string, team: string) => request<AppSettings>(settingsPath(app, team)),

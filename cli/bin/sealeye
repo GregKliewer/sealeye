@@ -18,6 +18,7 @@ import {
   getLogs,
   setPaused,
   getTeam,
+  getPerformance,
   getNeeds,
   answerInterview,
   abandonInterview,
@@ -117,6 +118,7 @@ Usage:
   ${product.command} evidence <app | deploymentId> [--json] [--out <file>] [--api <url>]
   ${product.command} logs <app | deploymentId> [--since 15m|1h|6h|1d] [--json] [--api <url>]
   ${product.command} config <app | deploymentId> [--retention <days>] [--json] [--api <url>]
+  ${product.command} perf <app | deploymentId> [--since 1h|6h|1d|7d] [--json] [--api <url>]
   ${product.command} team [--json] [--api <url>]
   ${product.command} pause <app | deploymentId> [--json] [--api <url>]
   ${product.command} resume <app | deploymentId> [--json] [--api <url>]
@@ -773,6 +775,31 @@ async function main() {
     console.log("");
     if (watchFlag) await runWatch({ apiBaseUrl, deploymentId: deployment.deploymentId });
     else await runBackground({ apiBaseUrl, deploymentId: deployment.deploymentId, appPath: null, plan });
+    return;
+  }
+
+  if (command === "perf") {
+    const target = process.argv[3];
+    if (!target || target.startsWith("--")) {
+      console.error(c.fail(`Missing name: ${product.command} perf <app | deploymentId> [--since 1h|6h|1d|7d]`));
+      process.exit(1);
+    }
+    const env = await environmentTarget({ apiBaseUrl, target });
+    if (!env) return;
+    const since = getArg("--since") || "1d";
+    say(`Reading how ${env.label} has done over the last ${PERF_WORDS[since] || since}`);
+    const result = await refusedInWords(() => getPerformance({ apiBaseUrl, deploymentId: env.deploymentId, since }));
+    if (!result) return;
+    if (jsonOut) return console.log(JSON.stringify(result, null, 2));
+    const t = result.totals;
+    const row = (label, text) => console.log(`  ${c.fg(label.padEnd(15))}${c.dim(text)}`);
+    console.log("");
+    row("Requests", `${t.requests.toLocaleString("en-US")}  ${sparkline(result.periods.map(p => p.requests))}`);
+    row("Errors", t.requests ? `${t.errors.toLocaleString("en-US")} (${((t.errors / t.requests) * 100).toFixed(1)}% of requests)` : t.errors.toLocaleString("en-US"));
+    if (t.refused) row("Refused", `${t.refused.toLocaleString("en-US")} while it was paused or busy`);
+    row("Time taken", t.averageMs === null ? "no requests to measure" : `${t.averageMs} ms on average; 95 in 100 within ${t.slowestMs} ms`);
+    console.log("");
+    say("These are readings of what happened. What your app can take is set by a load test.");
     return;
   }
 
@@ -1514,6 +1541,16 @@ function readCurrentPlanName() {
   } catch {
     return null;
   }
+}
+
+const PERF_WORDS = { "1h": "hour", "6h": "6 hours", "1d": "day", "7d": "7 days" };
+
+/** One small bar per period, for a terminal. */
+function sparkline(values) {
+  const bars = "▁▂▃▄▅▆▇█";
+  const max = Math.max(0, ...values);
+  if (!max) return c.dim(bars[0].repeat(values.length));
+  return c.dim(values.map(v => bars[Math.min(bars.length - 1, Math.round((v / max) * (bars.length - 1)))]).join(""));
 }
 
 const SINCE_WORDS = { "15m": "15 minutes", "1h": "hour", "6h": "6 hours", "1d": "day" };

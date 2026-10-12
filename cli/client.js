@@ -136,6 +136,11 @@ export async function setPaused({ apiBaseUrl, deploymentId, paused }) {
   return platformFetch(apiBaseUrl, `/deployments/${encodeURIComponent(deploymentId)}/${paused ? "pause" : "resume"}`, { method: "POST" });
 }
 
+/** Readings of an environment's API over a window (PHASE2-PLAN Step 20). */
+export async function getPerformance({ apiBaseUrl, deploymentId, since = "1d" }) {
+  return platformFetch(apiBaseUrl, `/deployments/${encodeURIComponent(deploymentId)}/performance?since=${encodeURIComponent(since)}`, { method: "GET" });
+}
+
 /** The people on your team, from the tokens in use (PHASE2-PLAN Step 19). */
 export async function getTeam({ apiBaseUrl }) {
   return platformFetch(apiBaseUrl, "/team", { method: "GET" });
