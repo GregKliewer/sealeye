@@ -111,21 +111,21 @@ ${product.command} - deploy your app to a real AWS environment
 Usage:
   ${product.command} run [--answers <file>] [--team-context] [--watch] [--no-trace] [--api <url>]
   ${product.command} deploy --file <plan.yaml> [--app <path>] [--api <url>] [--json] [--watch]
-  ${product.command} deploy --again <app | deploymentId> [--file <plan.yaml>] [--api <url>] [--json] [--watch]
+  ${product.command} deploy --again [app | deploymentId] [--file <plan.yaml>] [--api <url>] [--json] [--watch]
   ${product.command} validate --file <plan.yaml> [--api <url>] [--json]
-  ${product.command} status <deploymentId> [--api <url>] [--json]
-  ${product.command} watch <deploymentId> [--api <url>]
-  ${product.command} destroy <app | deploymentId> [--api <url>]
+  ${product.command} status [app | deploymentId] [--api <url>] [--json]
+  ${product.command} watch [app | deploymentId] [--api <url>]
+  ${product.command} destroy [app | deploymentId] [--api <url>]
   ${product.command} list [--deployments] [--all] [--api <url>] [--json]
-  ${product.command} evidence <app | deploymentId> [--json] [--out <file>] [--api <url>]
-  ${product.command} logs <app | deploymentId> [--since 15m|1h|6h|1d] [--json] [--api <url>]
-  ${product.command} config <app | deploymentId> [--retention <days>] [--json] [--api <url>]
-  ${product.command} perf <app | deploymentId> [--since 1h|6h|1d|7d] [--json] [--api <url>]
+  ${product.command} evidence [app | deploymentId] [--json] [--out <file>] [--api <url>]
+  ${product.command} logs [app | deploymentId] [--since 15m|1h|6h|1d] [--json] [--api <url>]
+  ${product.command} config [app | deploymentId] [--retention <days>] [--json] [--api <url>]
+  ${product.command} perf [app | deploymentId] [--since 1h|6h|1d|7d] [--json] [--api <url>]
   ${product.command} costs [--since 7d|30d] [--json] [--api <url>]
   ${product.command} interviews [--json] [--api <url>]
   ${product.command} team [--json] [--api <url>]
-  ${product.command} pause <app | deploymentId> [--json] [--api <url>]
-  ${product.command} resume <app | deploymentId> [--json] [--api <url>]
+  ${product.command} pause [app | deploymentId] [--json] [--api <url>]
+  ${product.command} resume [app | deploymentId] [--json] [--api <url>]
   ${product.command} needs [--json] [--request <kind>] [--api <url>]
   ${product.command} doctor [--json] [--api <url>]
   ${product.command} catalog [--json] [--api <url>]
@@ -135,6 +135,10 @@ Usage:
   ${product.command} settings [--app <path>] [--team <team>] [--json] [--api <url>]
   ${product.command} settings set <NAME> [--app <path>] [--team <team>] [--api <url>]
   ${product.command} settings unset <NAME> [--app <path>] [--team <team>] [--api <url>]
+
+An app is named by its name, as it is in sealeye.yaml: your team's environment of that
+name. Left out, it is the app sealeye.yaml in the current folder plans. A deployment id
+still names exactly that deployment.
 
 Options:
   -f, --file      path to your plan YAML
@@ -166,15 +170,16 @@ Options:
 
 Examples:
   ${product.command} run
+  ${product.command} list
+  ${product.command} watch my-app
+  ${product.command} logs my-app --since 15m
+  ${product.command} logs                      (in my-app's folder)
+  ${product.command} pause my-app
+  ${product.command} deploy --again my-app
+  ${product.command} evidence my-app
+  ${product.command} destroy my-app
   ${product.command} validate -f plan.yaml
   ${product.command} deploy -f plan.yaml
-  ${product.command} deploy --again my-app
-  ${product.command} watch dep_1a2b3c4d5e6f
-  ${product.command} list
-  ${product.command} destroy my-app
-  ${product.command} destroy dep_1a2b3c4d5e6f
-  ${product.command} evidence my-app
-  ${product.command} logs my-app --since 15m
   ${product.command} needs --request relational_database
   ${product.command} doctor
   ${product.command} login
@@ -542,7 +547,8 @@ async function main() {
     // --team-context, this is where somebody else's attempt at the same wall gets a
     // mention, after the refusal rather than instead of it.
     if (!deployment) {
-      await showTeamContext(submission.plan);
+      // Only after a refusal for what the platform cannot build, not a busy environment.
+      if ((submission.plan?.needs || []).length) await showTeamContext(submission.plan);
       return;
     }
 
@@ -631,14 +637,12 @@ async function main() {
   }
 
   if (command === "status") {
-    const deploymentId = process.argv[3];
+    const target = nameOrHere(`${product.command} status <app | deploymentId>`);
+    if (!target) return;
+    const env = await environmentTarget({ apiBaseUrl, target, watching: true });
+    if (!env) return;
 
-    if (!deploymentId) {
-      console.error(c.fail(`Missing deploymentId: ${product.command} status <deploymentId>`));
-      process.exit(1);
-    }
-
-    const result = await getDeployment({ apiBaseUrl, deploymentId });
+    const result = await getDeployment({ apiBaseUrl, deploymentId: env.deploymentId });
 
     if (jsonOut) console.log(JSON.stringify(result, null, 2));
     else printDeploymentSummary(result);
@@ -651,11 +655,8 @@ async function main() {
   }
 
   if (command === "evidence") {
-    const target = process.argv[3];
-    if (!target || target.startsWith("--")) {
-      console.error(c.fail(`Missing name: ${product.command} evidence <app | deploymentId>`));
-      process.exit(1);
-    }
+    const target = nameOrHere(`${product.command} evidence <app | deploymentId>`);
+    if (!target) return;
 
     const resolved = await resolveEvidenceTarget({ apiBaseUrl, target });
     if (!resolved) return;
@@ -681,11 +682,8 @@ async function main() {
   }
 
   if (command === "logs") {
-    const target = process.argv[3];
-    if (!target || target.startsWith("--")) {
-      console.error(c.fail(`Missing name: ${product.command} logs <app | deploymentId> [--since 15m|1h|6h|1d]`));
-      process.exit(1);
-    }
+    const target = nameOrHere(`${product.command} logs <app | deploymentId> [--since 15m|1h|6h|1d]`);
+    if (!target) return;
     const env = await environmentTarget({ apiBaseUrl, target });
     if (!env) return;
     const since = getArg("--since") || "1h";
@@ -706,11 +704,8 @@ async function main() {
   }
 
   if (command === "pause" || command === "resume") {
-    const target = process.argv[3];
-    if (!target || target.startsWith("--")) {
-      console.error(c.fail(`Missing name: ${product.command} ${command} <app | deploymentId>`));
-      process.exit(1);
-    }
+    const target = nameOrHere(`${product.command} ${command} <app | deploymentId>`);
+    if (!target) return;
     const env = await environmentTarget({ apiBaseUrl, target });
     if (!env) return;
     const pause = command === "pause";
@@ -725,11 +720,8 @@ async function main() {
   }
 
   if (command === "config") {
-    const target = process.argv[3];
-    if (!target || target.startsWith("--")) {
-      console.error(c.fail(`Missing name: ${product.command} config <app | deploymentId> [--retention <days>]`));
-      process.exit(1);
-    }
+    const target = nameOrHere(`${product.command} config <app | deploymentId> [--retention <days>]`);
+    if (!target) return;
     const env = await environmentTarget({ apiBaseUrl, target });
     if (!env) return;
     const record = await getDeployment({ apiBaseUrl, deploymentId: env.deploymentId });
@@ -783,11 +775,8 @@ async function main() {
   }
 
   if (command === "perf") {
-    const target = process.argv[3];
-    if (!target || target.startsWith("--")) {
-      console.error(c.fail(`Missing name: ${product.command} perf <app | deploymentId> [--since 1h|6h|1d|7d]`));
-      process.exit(1);
-    }
+    const target = nameOrHere(`${product.command} perf <app | deploymentId> [--since 1h|6h|1d|7d]`);
+    if (!target) return;
     const env = await environmentTarget({ apiBaseUrl, target });
     if (!env) return;
     const since = getArg("--since") || "1d";
@@ -1108,10 +1097,28 @@ async function main() {
   }
 
   if (command === "destroy") {
-    const target = process.argv[3];
-    if (!target) {
-      console.error(c.fail(`Missing name: ${product.command} destroy <app | deploymentId>`));
-      process.exit(1);
+    // A tear-down is never a default: a name not typed is asked about first, as the
+    // portal makes you type the app's name, and never taken without a person to ask.
+    const typed = firstName() || null;
+    if (!typed && (jsonOut || !process.stdin.isTTY)) {
+      console.error(c.fail(`Missing name: ${product.command} destroy <app | deploymentId>. A tear-down needs the app named.`));
+      process.exitCode = 1;
+      return;
+    }
+    const target = nameOrHere(`${product.command} destroy <app | deploymentId>`);
+    if (!target) return;
+    if (!typed) {
+      const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+      let go;
+      try {
+        go = await askLine(rl, `Tear down ${target}? [y/N]`);
+      } finally {
+        rl.close();
+      }
+      if (go.trim().toLowerCase() !== "y") {
+        say("Nothing was torn down.");
+        return;
+      }
     }
 
     // Typing the app name is how a developer thinks about what they are deleting. A
@@ -1122,7 +1129,8 @@ async function main() {
     const { deploymentId, label } = resolved;
 
     say(`Asking seaLeye.run to tear down ${label}`);
-    const started = await destroyDeployment({ apiBaseUrl, deploymentId });
+    const started = await refusedInWords(() => destroyDeployment({ apiBaseUrl, deploymentId }));
+    if (!started) return;
 
     if (jsonOut) {
       console.log(JSON.stringify(started, null, 2));
@@ -1172,13 +1180,14 @@ async function main() {
   }
 
   if (command === "watch") {
-    const deploymentId = process.argv[3];
-    if (!deploymentId) {
-      console.error(c.fail(`Missing deploymentId: ${product.command} watch <deploymentId>`));
-      process.exit(1);
-    }
+    // An app name follows its newest change, whatever it is: a build, a deploy again,
+    // a tear-down.
+    const target = nameOrHere(`${product.command} watch <app | deploymentId>`);
+    if (!target) return;
+    const env = await environmentTarget({ apiBaseUrl, target, watching: true });
+    if (!env) return;
 
-    await runWatch({ apiBaseUrl, deploymentId });
+    await runWatch({ apiBaseUrl, deploymentId: env.deploymentId });
 
     return;
   }
@@ -1425,7 +1434,7 @@ async function resolveTarget({ apiBaseUrl, target }) {
 
   if (matches.length === 1) {
     const [env] = matches;
-    return { deploymentId: env.latest.deploymentId, label: `${env.app} (${env.latest.deploymentId})` };
+    return { deploymentId: env.standing.deploymentId, label: `${env.app} (${env.standing.deploymentId})` };
   }
 
   // Two environments answering to one name is not something to guess at.
@@ -1493,6 +1502,14 @@ async function runDeploy({ apiBaseUrl, backend, plan, appPath, requestedBy: who,
       return null;
     }
 
+    // Another change to this environment is under way. Say what, and how to follow it.
+    if (refusal?.code === "ENVIRONMENT_BUSY") {
+      wait.stop();
+      console.error(c.fail(refusal.message));
+      process.exitCode = 1;
+      return null;
+    }
+
     // The uploaded copy broke one of the platform's rules (too big, say). The API's
     // sentence is the one to show.
     if (refusal?.code === "UPLOAD_REFUSED") {
@@ -1526,12 +1543,9 @@ async function runDeploy({ apiBaseUrl, backend, plan, appPath, requestedBy: who,
  * is uploaded, so it needs no app folder. The platform decides what it will do and says
  * why when it will not; this says it in the developer's language.
  */
-async function runDeployAgain({ apiBaseUrl, target, file }) {
-  if (!target || target.startsWith("-")) {
-    console.error(c.fail(`Missing name: ${product.command} deploy --again <app | deploymentId>`));
-    process.exitCode = 1;
-    return;
-  }
+async function runDeployAgain({ apiBaseUrl, target: typed, file }) {
+  const target = nameOrHere(`${product.command} deploy --again <app | deploymentId>`, typed);
+  if (!target) return;
 
   say(`Finding the latest code packaged for ${target}`);
   const [everything, me] = await Promise.all([listDeployments({ apiBaseUrl }), whoAmI({ apiBaseUrl })]);
@@ -1588,6 +1602,37 @@ function readCurrentPlanName() {
   }
 }
 
+/**
+ * What a command acts on: the app name (or a deployment id) typed after it, or with
+ * nothing typed, the app this folder's sealeye.yaml plans, said in one line. With
+ * neither, it says how to name one and returns null.
+ */
+// Flags that take a value, so the word after them is never read as an app's name.
+const VALUE_FLAGS = new Set(["--api", "--since", "--retention", "--out", "--file", "-f", "--again", "--app", "--team", "--request", "--answers", "--backend", "-b"]);
+
+/** The first word after the command that is not a flag or a flag's value. */
+function firstName() {
+  const args = process.argv.slice(3);
+  for (let i = 0; i < args.length; i++) {
+    if (VALUE_FLAGS.has(args[i])) { i++; continue; }
+    if (!args[i].startsWith("-")) return args[i];
+  }
+  return undefined;
+}
+
+function nameOrHere(usageText, typed = firstName()) {
+  if (typed && !typed.startsWith("-")) return typed;
+  const here = readCurrentPlanName();
+  if (here) {
+    say(`Using ${here}, the app ${CONFIG_FILE} in this folder plans`);
+    return here;
+  }
+  console.error(c.fail(`Missing name: ${usageText}`));
+  say(`Name the app, or run this in its folder, where ${CONFIG_FILE} says which app it is.`);
+  process.exitCode = 1;
+  return null;
+}
+
 const PERF_WORDS = { "1h": "hour", "6h": "6 hours", "1d": "day", "7d": "7 days" };
 
 /** One small bar per period, for a terminal. */
@@ -1612,13 +1657,15 @@ function localClock(iso) {
  * that has a stack. An organization-wide token lists every team's, so a name means
  * yours; an id reaches any you can see.
  */
-async function environmentTarget({ apiBaseUrl, target }) {
+async function environmentTarget({ apiBaseUrl, target, watching = false }) {
   const [everything, me] = await Promise.all([listDeployments({ apiBaseUrl }), whoAmI({ apiBaseUrl })]);
   const byId = everything.find(d => d.deploymentId === target);
   if (byId) return { deploymentId: byId.deploymentId, label: byId.app?.name || target, record: byId };
   const mine = d => me.auth === "off" || (d.teamId || "default") === me.team;
-  const found = everything.find(d => mine(d) && d.stackName && safeName(d.app?.name) === safeName(target));
-  if (found && (found.status === "destroyed" || found.status === "destroying")) {
+  // To watch, the newest change of any kind, even one queued before its stack is named
+  // or one tearing the environment down; anything else needs an environment standing.
+  const found = everything.find(d => mine(d) && (d.stackName || (watching && d.environment)) && safeName(d.app?.name) === safeName(target));
+  if (found && !watching && (found.status === "destroyed" || found.status === "destroying")) {
     console.error(c.fail(`${found.app?.name || target} has been torn down. ${product.command} run in its folder builds it again.`));
     process.exitCode = 1;
     return null;
@@ -2189,7 +2236,10 @@ function groupEnvironments(deployments) {
     url: publicUrl(latest) || "-",
     deploys: deploys.length,
     last: latest.startedAt || latest.finishedAt || null,
-    latest
+    latest,
+    // The newest record that reached AWS: what a tear-down acts through. A deploy that
+    // failed before its stack was named has nothing of its own to remove.
+    standing: deploys.find(d => d.stackName) || latest
   }));
 }
 
@@ -2274,9 +2324,15 @@ function printDeploymentTable(deployments) {
     dep,
     id: dep.deploymentId,
     app: label(dep.app?.name || "-", dep),
-    // An interrupted record is the last status we knew, not a live one. Say so.
-    status: dep.interrupted ? `${dep.status} (interrupted)` : dep.status,
-    url: publicUrl(dep) || "-"
+    // An interrupted record is the last status we knew, not a live one. Say so. A
+    // success a newer one has replaced keeps its result, and says it is no longer what
+    // the environment runs; only the current one says it is paused.
+    status: dep.interrupted ? `${dep.status} (interrupted)`
+      : dep.replaced ? `succeeded (replaced${dep.replacedBy ? ` by ${dep.replacedBy}` : ""})`
+      : dep.status === "succeeded" && dep.paused ? "succeeded (paused)"
+      : dep.status,
+    // A replaced deploy's address is the environment's, answered now by the newer one.
+    url: dep.replaced ? "-" : publicUrl(dep) || "-"
   }));
 
   const widthOf = key => Math.max(...rows.map(r => r[key].length));
@@ -2291,6 +2347,7 @@ function printDeploymentTable(deployments) {
   for (const r of rows) {
     const status = r.dep.interrupted
       ? c.prompt(pad(r.status, w.status))
+      : r.dep.replaced ? c.dim(pad(r.status, w.status))
       : statusColour(r.dep.status, pad(r.status, w.status));
     const url = r.url === "-" ? c.dim(r.url) : c.accent(r.url);
 

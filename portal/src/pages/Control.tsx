@@ -9,7 +9,7 @@ import { evidenceSummary } from "../../../core/evidence-summary.js";
 import { PerformanceCard } from "./PerformanceCard";
 import { RETENTION_CHOICES, retentionOf, withRetention } from "../../../core/retention.js";
 import { useLoad, useSession } from "../session";
-import { ago, groupEnvironments, IN_FLIGHT, publicUrl, statusOf, when, who } from "../model";
+import { addressOf, ago, changedAt, doing, elapsed, groupEnvironments, IN_FLIGHT, lockedWhile, statusOf, underWay, when, who } from "../model";
 import { PageTitle, Problem } from "../Layout";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -20,6 +20,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 
 const POLL_MS = 5000;
 
+/** The time now, ticking every second while `on`, so elapsed times count up. */
+function useNow(on: boolean) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!on) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [on]);
+  return on ? now : Date.now();
+}
+
 export function Control() {
   const { person } = useSession();
   const key = decodeURIComponent(useParams().key || "");
@@ -27,15 +38,38 @@ export function Control() {
   const env = useMemo(() => groupEnvironments(deployments.data || []).find(e => e.key === key) || null, [deployments.data, key]);
   const latest = env?.latest;
   const [evidenceFor, setEvidenceFor] = useState<string | null>(null);
+  // A change under way locks everything that would change the environment, as the API
+  // refuses a second change (ENVIRONMENT_BUSY), and says so on each card.
+  // Usually the newest record, but a tear-down asked through an older one is under way
+  // on that one: the API refuses on either, so the page locks on either.
+  const busyDep = env?.deploys.find(d => underWay(d)) || null;
+  const moving = Boolean(busyDep);
+  const now = useNow(moving);
+  const locked = busyDep ? lockedWhile(busyDep, now) : null;
+
+  // The tab says so too, for someone who has gone to another one.
+  useEffect(() => {
+    if (!env) return;
+    document.title = busyDep ? `${doing(busyDep).title} · ${env.app}` : `${env.app} · seaLeye.online`;
+    return () => { document.title = "seaLeye.online"; };
+  }, [env, busyDep]);
 
   // While anything is moving, read it again every five seconds, as `sealeye watch` does.
+  // Keyed on the data, not the render: the elapsed clock re-renders every second, and a
+  // timer restarted on each render would never fire.
+  // A failed read re-arms it too, so the page recovers when the API is back.
+  const inFlight = Boolean(env?.deploys.some(d => IN_FLIGHT.has(d.status) && !d.interrupted));
+  const { reload } = deployments;
   useEffect(() => {
-    if (!latest || !IN_FLIGHT.has(latest.status)) return;
-    const t = setTimeout(deployments.reload, POLL_MS);
+    if (!inFlight) return;
+    const t = setTimeout(reload, POLL_MS);
     return () => clearTimeout(t);
-  }, [latest, deployments]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inFlight, deployments.data, deployments.error]);
 
-  if (deployments.error) return <Problem message={deployments.error} />;
+  // While a change is being followed, a failed read keeps the last page and says so;
+  // the next read puts it right.
+  if (deployments.error && !(inFlight && deployments.data)) return <Problem message={deployments.error} />;
   if (!deployments.data) return <p className="text-dim">Loading</p>;
   if (!env || !latest) {
     return (
@@ -49,7 +83,7 @@ export function Control() {
   const status = statusOf(latest);
   // The environment's address: the latest deployment's, or while a new one is under way,
   // the one it still answers at.
-  const url = publicUrl(latest) || (IN_FLIGHT.has(latest.status) ? env.deploys.filter(d => d.status === "succeeded").map(publicUrl).find(Boolean) || null : null);
+  const url = addressOf(env);
   const canTearDown = !["destroyed", "destroying", "drafted"].includes(latest.status);
   // The newest deployment whose code was packaged: what Deploy again runs. Only the
   // environment's own team may (an organization-wide token sees other teams' too).
@@ -69,9 +103,12 @@ export function Control() {
         ].filter(Boolean).join(", ") || undefined}
       />
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      {deployments.error ? <Problem message={`${deployments.error} Trying again.`} /> : null}
+      {busyDep ? <UnderWay dep={busyDep} app={env.app} now={now} /> : null}
+
+      <div className="grid items-start gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
-          <CardHeader><CardTitle>State</CardTitle><Badge tone={status.tone} className="ml-auto" data-testid="status">{status.label}</Badge></CardHeader>
+          <CardHeader><CardTitle>State</CardTitle><Badge tone={status.tone} moving={busyDep === latest} className="ml-auto" data-testid="status">{status.label}</Badge></CardHeader>
           <CardContent>
             <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-3 text-sm">
               <dt className="text-dim">Address</dt>
@@ -102,18 +139,18 @@ export function Control() {
             <CardHeader><CardTitle>Deploy again</CardTitle></CardHeader>
             <CardContent className="space-y-4 text-sm">
               <p className="text-dim">Deploys the code <span className="font-mono text-ink">{code.packagedBy || code.deploymentId}</span> packaged again, with the plan it had. Nothing is uploaded and no .env is read: settings come from your organization's store.</p>
-              <DeployAgain app={env.app} fromDeployment={code.deploymentId} packagedBy={code.packagedBy || code.deploymentId} busy={IN_FLIGHT.has(latest.status)} onDone={deployments.reload} />
+              <DeployAgain app={env.app} fromDeployment={code.deploymentId} packagedBy={code.packagedBy || code.deploymentId} locked={locked} onDone={deployments.reload} />
             </CardContent>
           </Card>
         ) : null}
         {latest.kind !== "static" && latest.stackName && !["destroyed", "destroying"].includes(latest.status) ? (
-          <PauseCard deploymentId={latest.deploymentId} app={env.app} pauses={env.deploys.flatMap(d => d.pauses || [])} onDone={deployments.reload} />
+          <PauseCard deploymentId={latest.deploymentId} app={env.app} pauses={env.deploys.flatMap(d => d.pauses || [])} locked={locked} onDone={deployments.reload} />
         ) : null}
         <Card>
           <CardHeader><CardTitle>Tear down</CardTitle></CardHeader>
           <CardContent className="space-y-4 text-sm">
             <p className="text-dim">Removes this environment and everything the platform built for it. The address stops working. The plan stays in the developer's folder, so <code className="font-mono text-ink">sealeye run</code> can build it again.</p>
-            {canTearDown ? <TearDown app={env.app} deploymentId={latest.deploymentId} onDone={deployments.reload} /> : (
+            {canTearDown ? <TearDown app={env.app} deploymentId={(env.deploys.find(d => d.stackName) || latest).deploymentId} locked={locked} onDone={deployments.reload} /> : (
               <p className="text-dim">{latest.status === "drafted" ? "Nothing was built for a drafted plan, so there is nothing to tear down." : "There is nothing standing to tear down."}</p>
             )}
           </CardContent>
@@ -121,10 +158,10 @@ export function Control() {
         </div>
       </div>
 
-      {latest.kind !== "static" ? <Settings app={env.app} team={latest.teamId || "default"} /> : null}
+      {latest.kind !== "static" ? <Settings app={env.app} team={latest.teamId || "default"} moving={moving} /> : null}
 
       {latest.kind !== "static" && code && ownTeam ? (
-        <Configure fromDeployment={code.deploymentId} busyNow={IN_FLIGHT.has(latest.status)} onDone={deployments.reload} />
+        <Configure fromDeployment={code.deploymentId} locked={locked} onDone={deployments.reload} />
       ) : null}
 
       <Card className="mt-6">
@@ -138,13 +175,19 @@ export function Control() {
           <TableBody>
             {env.deploys.map(d => {
               const s = statusOf(d);
+              const live = underWay(d, now);
               return (
-                <TableRow key={d.deploymentId} data-testid="history-row">
+                <TableRow key={d.deploymentId} data-testid="history-row" data-under-way={live ? "" : undefined}
+                  className={live ? "bg-phosphor-chip/40 shadow-[inset_3px_0_0_var(--color-phosphor)]" : undefined}>
                   <TableCell className="font-mono text-xs">
                     {d.deploymentId}
                     {d.fromDeployment ? <div className="font-sans text-dim">again, with {d.packagedBy || d.fromDeployment}'s code</div> : null}
                   </TableCell>
-                  <TableCell><Badge tone={s.tone}>{s.label}</Badge></TableCell>
+                  <TableCell>
+                    <Badge tone={s.tone} moving={live}>{s.label}</Badge>
+                    {live && d.step ? <div className="mt-1 max-w-xs text-xs text-dim" data-testid="history-step">{d.step}</div> : null}
+                    {d.replaced ? <div className="mt-1 text-xs text-dim" data-testid="replaced-by">{d.replacedBy ? <>by <span className="font-mono">{d.replacedBy}</span></> : "by a newer deploy"}</div> : null}
+                  </TableCell>
                   <TableCell className="text-xs">{when(d.startedAt)}</TableCell>
                   <TableCell>{who(d.requestedBy)}</TableCell>
                   <TableCell className="text-dim">{d.surface === "portal" ? "Portal" : "Command line"}</TableCell>
@@ -175,7 +218,7 @@ export function Control() {
  * requests and starts again. What it shows is read from AWS when the page opens and
  * after every change.
  */
-function PauseCard({ deploymentId, app, pauses, onDone }: { deploymentId: string; app: string; pauses: NonNullable<DeploymentSummary["pauses"]>; onDone: () => void }) {
+function PauseCard({ deploymentId, app, pauses, locked, onDone }: { deploymentId: string; app: string; pauses: NonNullable<DeploymentSummary["pauses"]>; locked: string | null; onDone: () => void }) {
   const { signedOut } = useSession();
   const [paused, setPausedState] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
@@ -216,8 +259,9 @@ function PauseCard({ deploymentId, app, pauses, onDone }: { deploymentId: string
           : `Stops ${app} taking requests, without removing anything. Resume puts it back as it was.`}</p>
         {last ? <p className="text-dim">{last.action === "paused" ? "Paused" : "Resumed"} by {who(last.by)} from the {last.surface === "portal" ? "portal" : "command line"}, {ago(last.at)}.</p> : null}
         {paused === null ? null : paused
-          ? <Button onClick={() => change(false)} disabled={busy}>{busy ? "Asking the platform" : "Resume"}</Button>
-          : <Button variant="ghost" onClick={() => change(true)} disabled={busy}>{busy ? "Asking the platform" : "Pause"}</Button>}
+          ? <Button onClick={() => change(false)} disabled={busy || Boolean(locked)}>{busy ? "Asking the platform" : "Resume"}</Button>
+          : <Button variant="ghost" onClick={() => change(true)} disabled={busy || Boolean(locked)}>{busy ? "Asking the platform" : "Pause"}</Button>}
+        {locked ? <Locked text={locked} /> : null}
         {error ? <Problem message={error} /> : null}
       </CardContent>
     </Card>
@@ -229,7 +273,7 @@ function PauseCard({ deploymentId, app, pauses, onDone }: { deploymentId: string
  * deploy of the same code again with the plan changed, so it says so, and the history
  * shows it. Settings are the card above.
  */
-function Configure({ fromDeployment, busyNow, onDone }: { fromDeployment: string; busyNow: boolean; onDone: () => void }) {
+function Configure({ fromDeployment, locked, onDone }: { fromDeployment: string; locked: string | null; onDone: () => void }) {
   const { signedOut } = useSession();
   const [plan, setPlan] = useState<Record<string, unknown> | null>(null);
   const [days, setDays] = useState<number | null>(null);
@@ -272,14 +316,14 @@ function Configure({ fromDeployment, busyNow, onDone }: { fromDeployment: string
             <div className="flex flex-wrap items-end gap-3">
               <label className="grid gap-1">
                 <span className="text-dim">Keep logs for</span>
-                <select aria-label="Keep logs for" className="h-9 rounded-md border border-rule bg-surface px-3" value={days ?? now}
+                <select aria-label="Keep logs for" className="h-9 rounded-md border border-rule bg-surface px-3 disabled:opacity-50" value={days ?? now} disabled={Boolean(locked)}
                   onChange={e => setDays(Number(e.target.value))}>
                   {RETENTION_CHOICES.map((d: number) => <option key={d} value={d}>{d === 1 ? "1 day" : `${d} days`}</option>)}
                 </select>
               </label>
-              <Button onClick={apply} disabled={busy || busyNow || days === now}>{busy ? "Asking the platform" : "Deploy with this"}</Button>
+              <Button onClick={apply} disabled={busy || Boolean(locked) || days === now}>{busy ? "Asking the platform" : "Deploy with this"}</Button>
             </div>
-            {busyNow ? <p className="text-dim">Something is under way for this environment. Change it once that has finished.</p> : null}
+            {locked ? <Locked text={locked} /> : null}
           </>
         )}
         {done ? <p role="status" className="text-phosphor">{done}</p> : null}
@@ -436,7 +480,7 @@ function EvidenceCard({ deploymentId, latest }: { deploymentId: string; latest: 
  * plan asks for, whether each is stored, and who changed it. A value can be put in, and
  * is never shown again: the field is cleared the moment it is sent.
  */
-function Settings({ app, team }: { app: string; team: string }) {
+function Settings({ app, team, moving }: { app: string; team: string; moving: boolean }) {
   const settings = useLoad(() => api.settings(app, team), [app, team]);
   const [name, setName] = useState("");
   const [value, setValue] = useState("");
@@ -477,6 +521,7 @@ function Settings({ app, team }: { app: string; team: string }) {
       <CardHeader><CardTitle>Settings</CardTitle></CardHeader>
       <CardContent className="space-y-4 text-sm">
         <p className="text-dim">Kept in your organization's store, encrypted. A value is never shown again, here or anywhere.</p>
+        {moving ? <p className="text-dim" data-testid="settings-while-moving">Storing a value changes nothing that is running, so this stays open. The change under way may already have read its settings: a value stored now is certain to reach the environment at its next deploy.</p> : null}
         {settings.error ? <Problem message={settings.error} /> : null}
         {settings.data && settings.data.settings.length === 0 ? <p className="text-dim">No settings are stored, and the latest plan asks for none.</p> : null}
         {settings.data && settings.data.settings.length > 0 ? (
@@ -521,7 +566,7 @@ function Settings({ app, team }: { app: string; team: string }) {
  * Deploy again: one confirmation, because it changes a live environment, then the same
  * POST /deployments `sealeye deploy --again` sends. A refusal is the platform's sentence.
  */
-function DeployAgain({ app, fromDeployment, packagedBy, busy: moving, onDone }: { app: string; fromDeployment: string; packagedBy: string; busy: boolean; onDone: () => void }) {
+function DeployAgain({ app, fromDeployment, packagedBy, locked, onDone }: { app: string; fromDeployment: string; packagedBy: string; locked: string | null; onDone: () => void }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -542,7 +587,7 @@ function DeployAgain({ app, fromDeployment, packagedBy, busy: moving, onDone }: 
     }
   }
 
-  if (moving) return <p className="text-dim">Something is under way for this environment. Deploy again once it has finished.</p>;
+  if (locked) return <><Button disabled>Deploy again</Button><Locked text={locked} /></>;
   return (
     <>
       <Dialog open={open} onOpenChange={o => { setOpen(o); setError(null); }}>
@@ -563,7 +608,7 @@ function DeployAgain({ app, fromDeployment, packagedBy, busy: moving, onDone }: 
 }
 
 /** A tear-down is asked for twice: once with the button, once by typing the app's name. */
-function TearDown({ app, deploymentId, onDone }: { app: string; deploymentId: string; onDone: () => void }) {
+function TearDown({ app, deploymentId, locked, onDone }: { app: string; deploymentId: string; locked: string | null; onDone: () => void }) {
   const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState("");
   const [busy, setBusy] = useState(false);
@@ -585,6 +630,7 @@ function TearDown({ app, deploymentId, onDone }: { app: string; deploymentId: st
     }
   }
 
+  if (locked) return <><Button variant="danger" disabled>Tear down</Button><Locked text={locked} /></>;
   return (
     <Dialog open={open} onOpenChange={o => { setOpen(o); setTyped(""); setError(null); }}>
       <DialogTrigger asChild><Button variant="danger">Tear down</Button></DialogTrigger>
@@ -599,5 +645,42 @@ function TearDown({ app, deploymentId, onDone }: { app: string; deploymentId: st
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Why a card that would change the environment cannot just now. */
+function Locked({ text }: { text: string }) {
+  return (
+    <p className="flex items-start gap-2 text-dim" data-testid="locked">
+      <svg aria-hidden="true" viewBox="0 0 16 16" className="mt-0.5 size-3.5 shrink-0 fill-current"><path d="M5 7V5a3 3 0 1 1 6 0v2h.5A1.5 1.5 0 0 1 13 8.5v5A1.5 1.5 0 0 1 11.5 15h-7A1.5 1.5 0 0 1 3 13.5v-5A1.5 1.5 0 0 1 4.5 7H5Zm1.5 0h3V5a1.5 1.5 0 1 0-3 0v2Z" /></svg>
+      <span>{text}</span>
+    </p>
+  );
+}
+
+/**
+ * The banner across the top while a change is under way: what it is, the step the
+ * platform is on now (the same line `sealeye watch` prints), how long it has taken,
+ * and who started it. The page reads it again every five seconds.
+ */
+function UnderWay({ dep, app, now }: { dep: DeploymentSummary; app: string; now: number }) {
+  const what = doing(dep);
+  const by = dep.status === "destroying" ? dep.destroyRequestedBy : dep.requestedBy;
+  const from = (dep.status === "destroying" ? dep.destroyRequestedBy?.surface : dep.surface) === "portal" ? "the portal" : "the command line";
+  return (
+    <section aria-label="Under way" aria-live="polite" data-testid="under-way" className="mb-6 overflow-hidden rounded-lg border border-phosphor/30 bg-surface">
+      <div className="relative h-1 overflow-hidden bg-phosphor-chip" aria-hidden="true">
+        <div className="sealeye-sweep absolute inset-y-0 left-0 w-1/4 rounded-full bg-phosphor" />
+      </div>
+      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 px-5 py-4">
+        <span className="font-semibold">{what.title} <span className="font-mono">{app}</span></span>
+        <span className="font-mono text-sm text-dim" data-testid="under-way-elapsed">{elapsed(changedAt(dep), now)}</span>
+        <p className="w-full text-sm" data-testid="under-way-step">{dep.step || "Waiting for the platform's first step"}</p>
+        <p className="w-full text-xs text-dim">
+          <span className="font-mono">{dep.deploymentId}</span>{dep.fromDeployment ? ", deployed again" : ""}, started by {who(by)} from {from}.
+          {" "}This page follows it as it goes; you can leave and come back, or follow it with <code className="font-mono text-ink">sealeye watch {dep.deploymentId}</code>.
+        </p>
+      </div>
+    </section>
   );
 }

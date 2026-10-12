@@ -199,8 +199,18 @@ test("two teams can each have an app of the same name, as two environments", asy
   assert.equal(gregs.parameters.AppName, gregs.stackName, "the bucket and everything else are named after it too");
   assert.equal(gregs.app.name, "test-app", "the developer's app keeps its own name");
 
-  // The same team deploying the same app again is the same environment.
-  assert.equal((await deploy(greg)).stackName, gregs.stackName);
+  // The same team deploying the same app again is the same environment: while Greg's
+  // first deploy is still under way, his second is refused as a change to it, and once
+  // it has ended, the second goes to the same stack.
+  const again = await call("/deployments", { method: "POST", token: greg, body: { backend: "cloudformation", plan: { ...plan, app: { ...plan.app, name: "test-app" } }, appPath: root } });
+  const body = await again.json();
+  if (again.status === 409) {
+    assert.equal(body.error.code, "ENVIRONMENT_BUSY");
+    assert.equal(body.error.details.deploymentId, gregs.deploymentId);
+  } else {
+    assert.equal(again.status, 201, JSON.stringify(body));
+    assert.equal(body.environment, gregs.stackName);
+  }
 });
 
 test("the needs ledger is the organization's; another team's evidence is left out of it", async () => {

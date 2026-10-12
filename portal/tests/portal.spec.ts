@@ -43,18 +43,19 @@ test("Environments shows your team's environments, read live from the API", asyn
   await expect(page.getByText("built for your team, default")).toBeVisible();
   await expect(page.getByText("Northwind Payments")).toBeVisible();
   const rows = page.getByTestId("environment-row");
-  await expect(rows).toHaveCount(3);
+  await expect(rows).toHaveCount(4);
   await expect(rows.filter({ hasText: "payments-api" })).toContainText("Live");
+  await expect(rows.filter({ hasText: "inventory-api" })).toContainText("Building");
   await expect(rows.filter({ hasText: "report-builder" })).toContainText("Failed");
   await expect(page.getByText("not-yours")).toHaveCount(0);
   await expect(page.getByText("another-teams-api")).toHaveCount(0);
 
   await page.getByLabel("Include drafted and torn down").check();
-  await expect(rows).toHaveCount(5);
+  await expect(rows).toHaveCount(6);
   await expect(rows.filter({ hasText: "ledger-sync" })).toContainText("Drafted");
 
   await page.getByLabel("Search apps and people").fill("ana");
-  await expect(rows).toHaveCount(2);
+  await expect(rows).toHaveCount(3);
 });
 
 test("an organization-wide token sees every team's environments, each saying whose", async ({ page }) => {
@@ -116,7 +117,7 @@ test("an environment can be torn down from the portal, and the record says so", 
   await confirm.click();
 
   await expect(page.getByText("Tear down asked by")).toBeVisible();
-  await expect(page.getByText("Greg Kliewer from the portal")).toBeVisible();
+  await expect(page.getByText("Greg Kliewer from the portal", { exact: false }).first()).toBeVisible();
   await expect(page.getByTestId("status")).toHaveText("Torn down", { timeout: 20_000 });
 });
 
@@ -456,4 +457,54 @@ test("signing out ends the session: the pages ask for sign-in again", async ({ p
   await expect(page.getByText("You are signed out.")).toBeVisible();
   await page.goto("/catalog");
   await expect(page).toHaveURL(/\/sign-in$/);
+});
+
+test("an environment being built says so everywhere, and locks what would change it", async ({ page }) => {
+  await signIn(page);
+  const row = page.getByTestId("environment-row").filter({ hasText: "inventory-api" });
+  await expect(row.getByTestId("environment-step")).toContainText("Creating your AWS environment");
+  await expect(row).toContainText("Building");
+
+  await row.getByRole("link", { name: "inventory-api" }).click();
+  const banner = page.getByTestId("under-way");
+  await expect(banner).toContainText("Building inventory-api");
+  await expect(banner.getByTestId("under-way-step")).toContainText("Creating your AWS environment");
+  await expect(banner).toContainText("dep_ggggggggggg1, started by Ana Pereira from the portal");
+  await expect(banner.getByTestId("under-way-elapsed")).toHaveText(/^\d+m \d\ds$/);
+  await expect(page).toHaveTitle("Building · inventory-api");
+
+  // Every card that would change it is locked, and says why.
+  for (const id of ["deploy-again", "pause", "configure"]) {
+    await expect(page.getByTestId(id).getByTestId("locked")).toContainText(/Locked while building, started \d+m ago/);
+  }
+  await expect(page.getByRole("button", { name: "Tear down" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Deploy again" })).toBeDisabled();
+  await expect(page.getByTestId("pause").getByRole("button", { name: "Pause" })).toBeDisabled();
+  await expect(page.getByTestId("settings-while-moving")).toBeVisible();
+
+  // The history: the build under way stands out with its step; the earlier deploy is
+  // replaced only once a newer one has succeeded, so it is still what answers now.
+  const rows = page.getByTestId("history-row");
+  await expect(rows.first()).toHaveAttribute("data-under-way", "");
+  await expect(rows.first().getByTestId("history-step")).toContainText("Creating your AWS environment");
+  await expect(rows.nth(1)).toContainText("Live");
+});
+
+test("the platform refuses a second change while one is under way, in words", async ({ request }) => {
+  const res = await request.delete("/api/deployments/dep_ggggggggggg0", { headers: { authorization: `Bearer ${TOKEN}` } });
+  expect(res.status()).toBe(409);
+  const body = await res.json();
+  expect(body.error.code).toBe("ENVIRONMENT_BUSY");
+  expect(body.error.message).toContain("inventory-api is being built right now (dep_ggggggggggg1");
+});
+
+test("an earlier deploy a newer one replaced says so, and only the newest is Live", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("link", { name: "payments-api", exact: true }).click();
+  const rows = page.getByTestId("history-row");
+  await expect(rows.first()).toContainText("Live");
+  const older = rows.filter({ hasText: "dep_aaaaaaaaaaa0" });
+  await expect(older).toContainText("Replaced");
+  await expect(older.getByTestId("replaced-by")).toContainText("by dep_");
+  await expect(rows.filter({ hasText: "Live" })).toHaveCount(1);
 });

@@ -1522,6 +1522,87 @@ Mon Oct 12, 2026. An independent review before the pull request found these, all
   pause, what the other team runs there now; an organization-wide token still can.
 
 
+## One change at a time
+
+Mon Oct 12, 2026 (Greg asked whether anything stopped a tear-down during a build).
+
+Nothing did. A tear-down while a deploy was packaging was undone when the deploy went on
+to create the stack again, and two deploys at once left one failed for a reason nobody
+chose. Now the API refuses a deploy, a deploy again (configure included), a tear-down, a
+pause or a resume of an environment while another change to it is queued, packaging,
+running or tearing down (`api/busy.js`), with 409 ENVIRONMENT_BUSY and one sentence
+naming what is under way, who started it, from which surface and when, and
+`sealeye watch <id>` to follow it. Both surfaces show that sentence; the portal locks
+its buttons before anyone clicks, with the same reason. The guard is in the API, not
+the clients, so an old command or a script gets it too.
+
+- A drafted plan changes nothing, so it is still saved whatever is under way.
+- A change marked interrupted, or begun more than a day ago, stops counting: a restart
+  picks up what it can (executor/resume.js) and the rest must not lock an environment
+  for ever. A tear-down counts from when it was asked for, not from its deploy's start.
+- Storing a setting is not refused: it changes nothing running. The portal says a value
+  stored during a change is certain to reach the environment at its next deploy.
+
+## A replaced deploy says so
+
+Mon Oct 12, 2026. Greg saw two history rows marked Live after a configure. Each record
+was showing its own result, and both had succeeded. A record keeps its true result, so
+`GET /deployments` now marks a successful deploy that a later successful deploy of the
+same stack has replaced (`replaced`, `replacedBy`, from `api/replaced.js`); a failed
+deploy replaces nothing, since the stack rolled back. The portal shows Replaced, by
+which deploy, and `sealeye list --deployments` says "succeeded (replaced by …)". Paused
+is likewise only the current deploy's to say. `replacedBy` names the newer deploy only
+when the reader can see it.
+
+## A change under way is plain on every page
+
+Mon Oct 12, 2026 (Greg chose A and C of three options). While a change is under way,
+Control shows a banner across the top with what is happening, the step the platform is
+on now (the same line `sealeye watch` prints, now in the `GET /deployments` summary as
+`step`), how long it has taken, to the second, who started it from where, and an
+indeterminate bar, since the platform cannot honestly say how far along it is. Every
+card that would change the environment is locked with the reason. The status badge
+breathes, the history row under way is marked with its step, the tab title says
+"Building · app", and Environments shows the step under the app and reads again every
+five seconds while anything is changing. Motion stops for anyone who has asked their
+system for less.
+
+## Name the app, not the deployment
+
+Mon Oct 12, 2026. Every command that acts on an environment takes the app's name, which
+means your team's environment of that name (two teams can each have one; a name never
+reaches another team's). With no name, it uses the app the current folder's sealeye.yaml
+plans, and says so in a line. `watch` and `status` take an app name too, following its
+newest change. A deployment id still names exactly that deployment.
+
+## The polish: what the review changed
+
+Mon Oct 12, 2026. An independent review before the pull request found these, all fixed:
+
+- **Two deploys again at once both got through.** Deploy again reads the settings store
+  before it records anything, and a second request could pass the check in that wait.
+  It is checked again after the last wait, just before the record is written.
+- **`sealeye destroy` with no name tore down the folder's app without asking.** A
+  tear-down is never a default: with no name it asks "Tear down <app>? [y/N]", and with
+  no one to ask (no terminal, or `--json`) it refuses until the app is named.
+- **A hung packaging step could lock an environment for a day.** A change still queued
+  or packaging after an hour stops counting: nothing has reached AWS for it.
+- **One failed read froze Control.** The page keeps the last state, says the read failed
+  and tries again; Environments the same.
+- **A tear-down through an older record was invisible in the portal.** The pages lock and
+  show the banner for any record of the environment that is under way, as the API does.
+- **Paused could outlive a resume** on a record a failed deploy sat above. Paused is now
+  said by the environment's newest successful record, and cleared on the others.
+- **A tear-down picked a record that never reached AWS** (on main too): when the newest
+  deploy failed before its stack was named, the tear-down marked that record gone and
+  left the environment running. Both surfaces now tear down through the newest record
+  that has a stack.
+
+Left as they were, and owed: after a first create rolls back, the executor's delete of
+that stack is not waited for, so a redeploy at once can meet it still deleting; and a
+tear-down interrupted by a restart is judged stale by its deploy's age, not the
+tear-down's (executor/resume.js).
+
 ## The architecture is written down, as diagrams in text
 
 Mon Oct 12, 2026. With Phase 2's day-two operations built and the repo public, Greg

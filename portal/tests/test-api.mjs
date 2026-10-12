@@ -58,6 +58,14 @@ fs.writeFileSync(path.join(home, "deployments.json"), JSON.stringify([
     plan: { profile: "poc" }, outputs: {}, requestedBy: by("Greg Kliewer", "greg@example.com"), startedAt: ago(9 * 86400_000) },
   { ...base, teamId: "payments", deploymentId: "dep_99999999999a", app: { name: "another-teams-api" }, kind: "api", status: "succeeded", stackName: "sealeye-payments-another-teams-api-0a1b2c",
     plan: apiPlan("another-teams-api"), artifactKey: "sealeye-payments-another-teams-api-0a1b2c/dep_99999999999a.zip", outputs: {}, requestedBy: by("Pat Other", "pat@example.com"), startedAt: ago(3600_000) },
+  // Being built right now, from the portal: the platform carries on following it when the
+  // API starts (its stack stays in progress), and an earlier deploy it will replace.
+  { ...base, surface: "portal", deploymentId: "dep_ggggggggggg1", app: { name: "inventory-api" }, kind: "api", status: "running", stackName: "sealeye-inventory-api",
+    plan: apiPlan("inventory-api"), outputs: {}, requestedBy: by("Ana Pereira", "ana@example.com"), step: "Creating your AWS environment (stack sealeye-inventory-api)",
+    startedAt: ago(150_000) },
+  { ...base, deploymentId: "dep_ggggggggggg0", app: { name: "inventory-api" }, kind: "api", status: "succeeded", stackName: "sealeye-inventory-api",
+    plan: apiPlan("inventory-api"), artifactKey: "sealeye-inventory-api/dep_ggggggggggg0.zip", outputs: { ApiUrl: "https://inv456.lambda-url.ca-central-1.on.aws/" }, requestedBy: by("Ana Pereira", "ana@example.com"),
+    startedAt: ago(26 * 3600_000), finishedAt: ago(26 * 3600_000 - 90_000) },
   { ...base, orgId: "other-org", deploymentId: "dep_fffffffffff1", app: { name: "not-yours" }, kind: "api", status: "succeeded", stackName: "sealeye-not-yours",
     plan: { profile: "dev" }, outputs: {}, requestedBy: by("Other Org", "x@other.example"), startedAt: ago(3600_000) }
 ]));
@@ -112,6 +120,7 @@ fs.writeFileSync(path.join(bin, "aws"), `#!/bin/sh
 case "$2" in
   delete-stack) touch "${home}/deleted-$4"; echo '{}' ;;
   describe-stacks)
+    if [ "$4" = sealeye-inventory-api ]; then echo '{"Stacks":[{"StackStatus":"UPDATE_IN_PROGRESS","Outputs":[]}]}'; exit 0; fi
     if [ -f "${home}/deleted-$4" ]; then echo "Stack does not exist" >&2; exit 254; fi
     echo '{"Stacks":[{"StackStatus":"UPDATE_COMPLETE","Outputs":[{"OutputKey":"ApiUrl","OutputValue":"https://abc123.lambda-url.ca-central-1.on.aws/"}]}]}' ;;
   put-function-concurrency) echo '{"ReservedConcurrentExecutions":0}' > "${home}/concurrency-$4"; cat "${home}/concurrency-$4" ;;

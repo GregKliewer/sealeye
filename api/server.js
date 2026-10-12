@@ -20,6 +20,8 @@ import { unsupportedNeeds } from "../core/catalog.js";
 import { assembleEvidence, renderEvidence } from "./executor/evidence.js";
 import { rollupNeeds } from "./needs.js";
 import { readLogs } from "./logs.js";
+import { busyRefusal, changeUnderWay } from "./busy.js";
+import { replacements } from "./replaced.js";
 import { changePaused, pausedState } from "./pause.js";
 import { peopleOf } from "./team.js";
 import { readPerformance } from "./performance.js";
@@ -271,6 +273,14 @@ async function deployAgain(req, res) {
   if (unsupportedNeeds(plan).length) {
     return refuse(422, "UNSUPPORTED_NEEDS", "This plan is drafted: it needs what the platform does not build yet, so there is nothing to deploy again. Validate it to see what it needs.");
   }
+
+  // One change at a time: the environment this goes to must not be changing now.
+  {
+    const target = namingFor({ app: plan.app.name, org: req.caller?.org || "default", team: req.caller?.team || "default", records: listDeployments() }).stackName;
+    const busy = changeUnderWay(target);
+    if (busy) return res.status(409).json(busyRefusal(busy));
+  }
+
   if (!(plan.modules || []).some(m => m && m.enabled !== false && m.id === "http_api_serverless")) {
     return refuse(409, "DIFFERENT_APP", "That deployment's code is an API, and this plan does not describe one.");
   }
@@ -317,6 +327,12 @@ async function deployAgain(req, res) {
   };
   // Which environment it goes to is known now, so the record says so from the start.
   const naming = namingFor({ app: plan.app.name, org: req.caller?.org || "default", team: req.caller?.team || "default", records: listDeployments() });
+  // Asked again after the store was read: another change may have started while this
+  // waited on it, and from here to putDeployment nothing waits, so nothing can slip in.
+  {
+    const busy = changeUnderWay(naming.stackName);
+    if (busy) return res.status(409).json(busyRefusal(busy));
+  }
   const record = putDeployment({
     deploymentId,
     status: "queued",
@@ -495,6 +511,14 @@ app.post("/deployments", (req, res, next) => {
     });
   }
 
+  // One change at a time: the environment this goes to must not be changing now. (A
+  // drafted plan changes nothing, so it was saved above whatever was under way.)
+  {
+    const target = namingFor({ app: plan.app?.name, org: req.caller?.org || "default", team: req.caller?.team || "default", records: listDeployments() }).stackName;
+    const busy = changeUnderWay(target);
+    if (busy) return res.status(409).json(busyRefusal(busy));
+  }
+
   // An uploaded copy is unpacked now, so a bad upload is a 400 and never a queued
   // deployment that fails later.
   let packageFrom = resolvedAppPath;
@@ -562,7 +586,10 @@ app.post("/deployments", (req, res, next) => {
 // three existing endpoints are unchanged. The full record stays at /deployments/{id},
 // so the rendered report is not repeated for every row.
 app.get("/deployments", (req, res) => {
-  const deployments = visibleDeployments(req).map(dep => ({
+  const visible = visibleDeployments(req);
+  const seen = new Set(visible.map(d => d.deploymentId));
+  const replaced = replacements(listDeployments());
+  const deployments = visible.map(dep => ({
     deploymentId: dep.deploymentId,
     app: dep.app,
     status: dep.status,
@@ -583,12 +610,20 @@ app.get("/deployments", (req, res) => {
     // token sees several, and two of them can share an app name.
     teamId: dep.teamId || "default",
     destroyRequestedBy: dep.destroyRequestedBy || null,
+    // What the platform is doing for it now, in a line (while it is under way).
+    step: dep.step || null,
+    // A successful deploy a newer successful deploy has since replaced: no longer what
+    // its environment runs. Its result stays its own. replacedBy names the newer one
+    // when the reader can see it (a stack from before teams had names can hold another
+    // team's records).
+    replaced: replaced.has(dep.deploymentId),
+    replacedBy: seen.has(replaced.get(dep.deploymentId)) ? replaced.get(dep.deploymentId) : null,
     needs: Array.isArray(dep.needs) ? dep.needs.length : 0,
     // Whether its code was packaged and can be deployed again (PHASE2-PLAN Step 14),
     // and, for one that was itself deployed again, whose code it ran.
     // Paused as of the last pause or resume made here (read from AWS then). Control
     // reads it from AWS again (GET /deployments/{id}/paused).
-    paused: dep.paused === true,
+    paused: dep.paused === true && !replaced.has(dep.deploymentId),
     pauses: Array.isArray(dep.pauses) ? dep.pauses : [],
     packaged: Boolean(dep.artifactKey) && dep.kind !== "static",
     fromDeployment: dep.fromDeployment || null,
@@ -606,7 +641,10 @@ app.get("/deployments/:deploymentId", (req, res) => {
       error: { code: "NOT_FOUND", message: "deploymentId not found" }
     });
   }
-  return res.status(200).json(dep);
+  // Whether a newer success has replaced it, as the list says (DESIGN.md).
+  const replacedBy = replacements(listDeployments()).get(dep.deploymentId);
+  if (!replacedBy) return res.status(200).json(dep);
+  return res.status(200).json({ ...dep, replaced: true, replacedBy: canSee(req, getDeployment(replacedBy)) ? replacedBy : null });
 });
 
 // GET /deployments/{deploymentId}/evidence — the change record: the evidence object
@@ -666,6 +704,8 @@ for (const [action, paused] of [["pause", true], ["resume", false]]) {
     const dep = getDeployment(req.params.deploymentId);
     if (!canSee(req, dep)) return res.status(404).json({ error: { code: "NOT_FOUND", message: "deploymentId not found" } });
     if (runsAnotherTeams(req, res, dep)) return;
+    const busy = changeUnderWay(dep.stackName || dep.environment);
+    if (busy) return res.status(409).json(busyRefusal(busy));
     const by = req.caller ? { user: req.caller.email, name: req.caller.name } : null;
     const { status, body } = await changePaused(dep, paused, { by, surface: req.surface || "cli" });
     return res.status(status).json(body);
@@ -723,6 +763,13 @@ app.delete("/deployments/:deploymentId", (req, res) => {
   // tear-down of the same stack.
   if (dep.status === "destroyed" || dep.status === "destroying") {
     return res.status(200).json(dep);
+  }
+
+  // One change at a time: no tear-down while a deploy to it is under way, this one's own
+  // included, which would otherwise build it again once its packaging finished.
+  {
+    const busy = changeUnderWay(dep.stackName || dep.environment);
+    if (busy) return res.status(409).json(busyRefusal(busy));
   }
 
   // A stack from before teams had names of their own can hold another team's records
