@@ -106,6 +106,9 @@ export async function createDeployment({ apiBaseUrl, backend, plan, appPath, req
   const skip = new Set(storedNames);
   const settings = Object.fromEntries(Object.entries(envValuesFor(plan, appPath)).filter(([name]) => !skip.has(name)));
   if (Object.keys(settings).length) body.settings = settings;
+  // The names the command left out because the store has them, so the platform can stop
+  // rather than start the app without them if its store does not.
+  if (storedNames.length) body.expectStored = [...storedNames];
   if (requestedBy) body.requestedBy = requestedBy;
   if (origin) body.origin = origin;
   return platformFetch(apiBaseUrl, "/deployments", asJson(body));

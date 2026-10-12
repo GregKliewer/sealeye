@@ -79,6 +79,10 @@ export async function startDeployment(record, plan, appPath, sent = {}) {
       const listed = await listStoredSettings(folder);
       if (!listed.ok) throw new Error(`the platform could not ask your organization's settings store which settings this app has (${listed.error})`);
       store = { folder, stored: listed.settings.map(x => x.name) };
+      const gone = (record.expectStored || []).filter(name => !store.stored.includes(name));
+      if (gone.length) {
+        throw new Error(`your command found ${gone.join(", ")} in your organization's settings store for ${plan?.app?.name}, and the platform cannot find ${gone.length === 1 ? "it" : "them"} there now, so nothing was built. Run sealeye settings in the app's folder to check.`);
+      }
     }
     composed = compose(plan, record.deploymentId, appPath, sent, naming, store);
     Object.assign(record, {

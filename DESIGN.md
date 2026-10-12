@@ -1076,9 +1076,15 @@ Guarantees, each tested:
   on the settings routes.
 - Who changed which setting, when and from which surface is kept (`setting_changes`):
   names, never values.
+- Not yet true of a setting that is *not* in the store: a value sent from `.env` reaches
+  `aws cloudformation deploy` as a `--parameter-overrides` argument, where another
+  process on the server could read it while the deploy runs. It was so before Part B;
+  storing the setting is the way out, and passing parameters another way is owed
+  (PHASE2-PLAN, "Owed after this plan").
 - A team reaches only its own folder; an organization-wide token may name a team.
 
-**Reading at start (D4).** A `node --import` preload in the packaged app reads the folder
+**Reading at start (D4).** *As first decided; the reader now signs its own request and
+loads no SDK (below).* A `node --import` preload in the packaged app reads the folder
 in one call with the AWS SDK that Lambda's Node runtime already carries, sets the values
 as environment variables, then the app starts. No layer to track, no shell quoting of
 values. CloudFormation's own lookups were ruled out: an encrypted one cannot feed a
@@ -1115,8 +1121,19 @@ written policy says. So `deploy/deploy-role.yaml` creates `sealeye-function-boun
 (write logs, read under `/sealeye-apps/`), and the deploy role may create a function role,
 or change its policies, only with that boundary on it; removing a boundary is denied.
 Whatever a template or a compromised API writes, a function can do no more than log and
-read app settings, and its own role narrows that to its folder. Function roles made
-before this have no boundary; no API environment from before was live when it shipped.
+read app settings, and its own role narrows that to its folder. A compromised API could
+still point a function at another team's folder, within the boundary; it can read every
+folder itself anyway. Removing a policy, or a role, needs no boundary, since taking
+permissions away gives none, so a function role made before this can still be torn
+down; no API environment from before was live when it shipped. The boundary also allows
+`kms:Decrypt` through Parameter Store only, which a function's own role does not grant,
+so it never stands between a function and its settings.
+
+**No organization in the folder.** `/sealeye-apps/<team>/<app>/` holds no organization,
+because each organization runs in its own account (ROADMAP Phase 1 item 5). Two
+organizations in one account would share folders; that must not happen before item 5.
+The reserved names cover what the platform and the runtime set; others such as `PATH`
+or `TZ` are the app's own to set, and change only the app's environment.
 
 **The plan does not say where values live (Greg, Oct 12).** PHASE2-PLAN Step 9 would have
 added a source to each setting in the plan contract. Where values come from is a fact

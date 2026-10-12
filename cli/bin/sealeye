@@ -163,14 +163,16 @@ Examples:
  * one at a time and nothing is echoed; piped in (`pbpaste | sealeye login`), the first
  * line is read as it comes.
  */
-function readSecret(prompt) {
+function readSecret(prompt, { whole = false } = {}) {
   const input = process.stdin;
   if (!input.isTTY) {
+    // Piped in. A token is its first line; a setting's value is all of it, less one
+    // trailing line break, so a key file arrives whole rather than as its first line.
     return new Promise(resolve => {
       let text = "";
       input.setEncoding("utf8");
       input.on("data", chunk => { text += chunk; });
-      input.on("end", () => resolve(text.split(/\r?\n/)[0] || ""));
+      input.on("end", () => resolve(whole ? text.replace(/\r?\n$/, "") : (text.split(/\r?\n/)[0] || "")));
     });
   }
   process.stdout.write(prompt);
@@ -179,16 +181,23 @@ function readSecret(prompt) {
     input.setRawMode(true);
     input.setEncoding("utf8");
     input.resume();
-    const done = value => {
+    const done = (value, why = "Stopped. Nothing was saved.") => {
       input.setRawMode(false);
       input.pause();
       input.removeListener("data", onData);
       process.stdout.write("\n");
-      value === null ? reject(Object.assign(new Error("Stopped. Nothing was saved."), { userFacing: true })) : resolve(value);
+      value === null ? reject(Object.assign(new Error(why), { userFacing: true })) : resolve(value);
     };
     const onData = chunk => {
-      for (const ch of chunk) {
-        if (ch === "\r" || ch === "\n") return done(text);
+      for (const [i, ch] of [...chunk].entries()) {
+        if (ch === "\r" || ch === "\n") {
+          // A paste with more lines after this one: refuse it whole, rather than keep the
+          // first line and leave the rest for the shell to read, show and remember.
+          if ([...chunk].slice(i + 1).join("").replace(/^\n/, "").length) {
+            return done(null, "A value with more than one line cannot be typed or pasted here. Pipe it in instead, for example: sealeye settings set NAME < file. Nothing was saved.");
+          }
+          return done(text);
+        }
         if (ch === "\u0003") return done(null);                     // Ctrl+C
         if (ch === "\u007f" || ch === "\b") text = text.slice(0, -1);  // backspace
         else if (ch >= " ") text += ch;
@@ -468,7 +477,8 @@ async function main() {
       apiBaseUrl,
       plan: submission.plan,
       appPath,
-      app: appNameFor(appPath),
+      // The store folder is named after the plan's app, as the deploy names it.
+      app: safeName(submission.plan?.app?.name) || appNameFor(appPath),
       interactive: !getArg("--answers") && process.stdin.isTTY,
       prompt: async question => {
         const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -707,7 +717,7 @@ async function main() {
   // from a pipe, and never taken as an argument, so it stays out of shell history.
   if (command === "settings") {
     const folder = getArg("--app") || process.cwd();
-    const app = appNameFor(folder);
+    const app = settingsAppFor(folder);
     const team = getArg("--team");
     const action = process.argv[3] && !process.argv[3].startsWith("-") ? process.argv[3] : "list";
     const name = process.argv[4] && !process.argv[4].startsWith("-") ? process.argv[4] : null;
@@ -723,7 +733,7 @@ async function main() {
     }
 
     if (action === "set") {
-      const value = await readSecret(ask(`Value for ${name} (it is not shown):`));
+      const value = await readSecret(ask(`Value for ${name} (it is not shown):`), { whole: true });
       if (!value) throw Object.assign(new Error("Nothing was typed, so nothing was stored."), { userFacing: true });
       const done = await putSetting({ apiBaseUrl, app, name, value, team });
       console.log(c.accent(`✓ ${name} is stored for ${done.app}, team ${done.team}`));
@@ -1095,6 +1105,25 @@ async function liveEnvironmentFor({ apiBaseUrl, appPath }) {
     modules: (record.resolvedModules || []).map(m => m.id),
     record
   };
+}
+
+/**
+ * The app a folder's settings belong to: the name in its plan (sealeye.yaml), which is
+ * the name a deploy reads the store under; without a plan, the same guess as
+ * appNameFor.
+ */
+function settingsAppFor(folder) {
+  for (const file of [CONFIG_FILE, LEGACY_CONFIG_FILE]) {
+    const planFile = path.join(folder, file);
+    if (!fs.existsSync(planFile)) continue;
+    try {
+      const name = safeName(loadPlanFromYaml(planFile)?.app?.name);
+      if (name) return name;
+    } catch {
+      // A plan nobody can read says nothing about the name; fall back to the folder's.
+    }
+  }
+  return appNameFor(folder);
 }
 
 /** package.json's name, or the folder's, by the same rule that names the stack. */

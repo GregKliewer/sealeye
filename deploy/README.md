@@ -59,7 +59,11 @@ Both `echo` lines should print a real value before you run the deploy. Its outpu
 `DeployRoleArn` is `arn:aws:iam::<account>:role/sealeye-deploy-pilot`.
 
 When `deploy-role.yaml` changes, run the same commands again: the stack is updated in
-place, the role keeps its name, and `SEALEYE_DEPLOY_ROLE_ARN` stays the same.
+place, the role keeps its name, and `SEALEYE_DEPLOY_ROLE_ARN` stays the same. Do it, and
+store any new output it names, before releasing an API that needs it: an API release
+from Oct 12, 2026 on needs `SEALEYE_FUNCTION_BOUNDARY_ARN`, and every API app deploy
+fails without it. A laptop API (`npm start`) needs it in `.env` too, and AWS credentials
+that may read `/sealeye-apps/`; `sealeye doctor --api http://localhost:3000` checks.
 
 ## Once: the API's settings
 

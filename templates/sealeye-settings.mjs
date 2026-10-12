@@ -28,6 +28,7 @@ const RESERVED = /^(PORT|NODE_OPTIONS|AWS_.*|LAMBDA_.*|_.*|SEALEYE_.*)$/;
 const TIMEOUT_MS = 5000;
 const ATTEMPTS = 2;
 const MAX_PAGES = 20;
+const RETRY_AFTER_MS = 300;
 
 const hmac = (key, text) => crypto.createHmac("sha256", key).update(text, "utf8").digest();
 const sha256 = text => crypto.createHash("sha256").update(text, "utf8").digest("hex");
@@ -76,6 +77,7 @@ async function page(path, nextToken, region, credentials) {
   const body = JSON.stringify({ Path: path, WithDecryption: true, ...(nextToken ? { NextToken: nextToken } : {}) });
   let lastReason = "no answer";
   for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
+    if (attempt > 1) await new Promise(r => setTimeout(r, RETRY_AFTER_MS));
     let res;
     try {
       res = await fetch(`https://ssm.${region}.amazonaws.com/`, {
@@ -88,10 +90,14 @@ async function page(path, nextToken, region, credentials) {
       lastReason = err?.name === "TimeoutError" ? "no answer within five seconds" : "the store could not be reached";
       continue;
     }
-    const answer = await res.json().catch(() => ({}));
-    if (res.ok) return answer;
+    const answer = await res.json().catch(() => null);
+    // An answer that is not the store's starts nothing rather than an app with none.
+    if (res.ok) {
+      if (!answer || typeof answer !== "object") throw new Unreadable("the store's answer could not be read");
+      return answer;
+    }
     // Only the error's name: an AWS message can quote what it was given.
-    const type = String(answer.__type || "").split("#").pop() || `status ${res.status}`;
+    const type = String(answer?.__type || "").split("#").pop() || `status ${res.status}`;
     lastReason = type;
     if (res.status < 500 && type !== "ThrottlingException") break;
   }
@@ -121,6 +127,8 @@ export async function loadSettings({ path, env = process.env }) {
     nextToken = answer.NextToken;
     if (!nextToken) break;
   }
+  // Starting with some of its settings is starting without the rest.
+  if (nextToken) throw new Unreadable("the app has more settings than the reader takes");
   for (const [name, value] of found) env[name] = value;
   return [...found.keys()];
 }

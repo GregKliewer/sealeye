@@ -201,7 +201,7 @@ function Settings({ app, team }: { app: string; team: string }) {
           </label>
           <label className="grid gap-1">
             <span className="text-dim">Value</span>
-            <Input className="font-mono w-72" type="password" value={value} onChange={e => setValue(e.target.value)} aria-label="Setting value" autoComplete="new-password" />
+            <Input className="font-mono w-72" type="password" value={value} onChange={e => setValue(e.target.value)} aria-label="Setting value" autoComplete="off" data-1p-ignore="" data-lpignore="true" data-bwignore="true" />
           </label>
           <Button type="submit" disabled={busy}>{busy ? "Storing" : "Store it"}</Button>
         </form>

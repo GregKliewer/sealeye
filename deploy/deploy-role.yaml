@@ -39,6 +39,15 @@ Resources:
           - Effect: Allow
             Action: ssm:GetParametersByPath
             Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/sealeye-apps/*"
+          # Decrypting a setting, only through Parameter Store. A function's own role does
+          # not grant this (the key's policy does), so this line grants nothing by itself;
+          # it is here so the boundary never stands between a function and its settings.
+          - Effect: Allow
+            Action: kms:Decrypt
+            Resource: "*"
+            Condition:
+              StringEquals:
+                kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
 
   DeployRole:
     Type: AWS::IAM::Role
@@ -84,10 +93,13 @@ Resources:
               # when the app has settings, a policy to read its own folder. Created only
               # with FunctionBoundary on it, and its policies changed only while it is.
               # Never this role itself, and never any other.
+              # Taking permissions away never gives any, so removing a policy or the role
+              # needs no boundary: roles made before the boundary can still be torn down.
               - Sid: FunctionRoles
                 Effect: Allow
                 Action:
                   - iam:DeleteRole
+                  - iam:DeleteRolePolicy
                   - iam:GetRole
                   - iam:GetRolePolicy
                   - iam:TagRole
@@ -101,21 +113,27 @@ Resources:
                   - iam:CreateRole
                   - iam:PutRolePermissionsBoundary
                   - iam:PutRolePolicy
-                  - iam:DeleteRolePolicy
                 Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/sealeye-*-FunctionRole-*"
                 Condition:
                   ArnEquals:
                     iam:PermissionsBoundary: !Ref FunctionBoundary
               - Sid: FunctionRolePolicy
                 Effect: Allow
-                Action: [iam:AttachRolePolicy, iam:DetachRolePolicy]
+                Action: iam:AttachRolePolicy
                 Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/sealeye-*-FunctionRole-*"
                 Condition:
                   ArnEquals:
                     iam:PolicyARN: arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
                     iam:PermissionsBoundary: !Ref FunctionBoundary
-              # The boundary is never taken off a role, and no role this one can touch is
-              # given another.
+              - Sid: FunctionRolePolicyRemoved
+                Effect: Allow
+                Action: iam:DetachRolePolicy
+                Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/sealeye-*-FunctionRole-*"
+                Condition:
+                  ArnEquals:
+                    iam:PolicyARN: arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+              # The boundary is never taken off a role: a policy written while it capped
+              # the role would otherwise take full effect.
               - Sid: KeepTheBoundary
                 Effect: Deny
                 Action: iam:DeleteRolePermissionsBoundary

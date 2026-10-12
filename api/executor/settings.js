@@ -32,6 +32,7 @@ export function storeFolder({ team = "default", app }) {
   const appName = safeName(app);
   const teamName = safeName(team);
   if (!appName || !teamName) throw new Error("a settings folder needs a team and an app name");
+  if (appName.length > 100) throw new Error("an app's name is at most 100 characters for its settings to be stored");
   return `/sealeye-apps/${teamName}/${appName}/`;
 }
 

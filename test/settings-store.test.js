@@ -180,13 +180,18 @@ test("sealeye settings set reads the value from a pipe, never from the command l
   const set = cli(["settings", "set", "API_KEY"], `${SECRET}-two\n`);
   assert.equal(set.status, 0, set.stderr + set.stdout);
   assert.ok(!set.stdout.includes(SECRET), "never printed");
-  assert.equal(stored()["/sealeye-apps/payments/lookup-api/API_KEY"].value, `${SECRET}-two`, "the first line of the pipe, without its newline");
+  assert.equal(stored()["/sealeye-apps/payments/lookup-api/API_KEY"].value, `${SECRET}-two`, "the pipe, without its trailing newline");
 
   const list = cli(["settings"]);
   assert.equal(list.status, 0, list.stderr);
   assert.match(list.stdout, /API_KEY\s+set/);
   assert.match(list.stdout, /REGION_NAME\s+not set/);
   assert.ok(!list.stdout.includes(SECRET));
+
+  const pem = `-----BEGIN KEY-----\n${SECRET}\n-----END KEY-----`;
+  const whole = cli(["settings", "set", "API_KEY"], `${pem}\n`);
+  assert.equal(whole.status, 0, whole.stderr);
+  assert.equal(stored()["/sealeye-apps/payments/lookup-api/API_KEY"].value, pem, "a piped value arrives whole, less one trailing line break");
 
   const refused = cli(["settings", "set", "API_KEY", "a-value-on-the-command-line"]);
   assert.notEqual(refused.status, 0, "a value is never taken as an argument");
@@ -269,4 +274,29 @@ test("settings-sources lists the live environments still on .env values, by name
     rec("d4", "gone", "destroyed", "2026-10-12T10:00:00Z", [{ name: "API_KEY", source: ".env" }])
   ]);
   assert.deepEqual(rows.map(r => [r.app, r.names]), [["on-env", ["API_KEY"]]], "only the newest record of each live environment counts");
+});
+
+test("a deploy stops, building nothing, when settings the command found in the store are not there", async () => {
+  const YAML = (await import("yaml")).default;
+  const { createDeployment } = await import("../cli/client.js");
+  const plan = YAML.parse(fs.readFileSync(path.join(root, "plans", "api-plan.yaml"), "utf8"));
+  plan.app = { ...plan.app, name: "guard-api" };
+  const app = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-guard-"));
+  fs.cpSync(path.join(root, "apps", "beneficiary-lookup-api"), app, { recursive: true });
+  process.env.SEALEYE_TOKEN = ana;
+  let deploymentId;
+  try {
+    ({ deploymentId } = await createDeployment({ apiBaseUrl: api, backend: "cloudformation", plan, appPath: app, storedNames: ["GONE_KEY"] }));
+  } finally {
+    delete process.env.SEALEYE_TOKEN;
+  }
+  let record;
+  for (let i = 0; i < 50; i++) {
+    record = await (await call(`/deployments/${deploymentId}`, { token: ana })).json();
+    if (record.status === "failed") break;
+    await new Promise(r => setTimeout(r, 100));
+  }
+  assert.equal(record.status, "failed");
+  assert.match(record.failureReason, /found GONE_KEY in your organization's settings store .* nothing was built/);
+  assert.equal(record.stackName, undefined, "it stopped before naming anything in AWS");
 });

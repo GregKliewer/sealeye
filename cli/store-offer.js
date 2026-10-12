@@ -57,11 +57,18 @@ export async function settingsFromTheStore({ apiBaseUrl, plan, appPath, app, int
     say("Your organization's settings store can keep them, encrypted, and your environment then reads them from there instead of from this .env with each deploy.");
     const reply = String(await prompt("Store them there? [y/N]")).trim().toLowerCase();
     if (reply === "y") {
+      const storedNow = [];
       for (const name of missing) {
-        await putSetting({ apiBaseUrl, app: listed.app, name, value: values[name] });
-        already.push(name);
+        try {
+          await putSetting({ apiBaseUrl, app: listed.app, name, value: values[name] });
+          storedNow.push(name);
+          already.push(name);
+        } catch (err) {
+          // The rest still go with this deploy from .env, as before.
+          say(`${name} could not be stored (${err.message}); it goes with this deploy from your .env.`);
+        }
       }
-      done(`✓ Stored ${missing.join(", ")} for ${listed.app}, team ${listed.team}`);
+      if (storedNow.length) done(`✓ Stored ${storedNow.join(", ")} for ${listed.app}, team ${listed.team}`);
     } else {
       declined[key] = new Date().toISOString();
       try {

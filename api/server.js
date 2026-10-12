@@ -376,6 +376,11 @@ app.post("/deployments", (req, res) => {
   // deploy, for now"): only for settings this plan asks for, handed to this deployment
   // and never put on the record, in a response or in a log.
   const sent = acceptSent(plan, req.body?.settings);
+  // Names the command did not send because it found them in the store: the executor
+  // stops if the store does not have them, rather than build the app without them.
+  record.expectStored = Array.isArray(req.body?.expectStored)
+    ? req.body.expectStored.filter(n => storableName(n)).slice(0, 200)
+    : [];
 
   startDeployment(record, plan, packageFrom, sent)
     .catch(err => {

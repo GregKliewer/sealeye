@@ -111,6 +111,16 @@ test("a dropped connection or throttling is tried once more", () => {
   assert.match(down.stderr, /\(ThrottlingException\)/);
 });
 
+test("an answer that is not the store's, or more pages than it takes, stops the app", () => {
+  const html = start({ answers: [{ body: "not the store" }] });
+  assert.equal(html.status, 1);
+  assert.match(html.stderr, /could not be read/);
+  const many = start({ answers: [{ body: { Parameters: [param("API_KEY", SECRET)], NextToken: "always-more" } }] });
+  assert.equal(many.status, 1, "it never starts with only some of them");
+  assert.equal(many.stdout, "");
+  assert.equal(many.asked.length, 20);
+});
+
 test("a settings folder that is not an app's, or missing credentials, stops the app", () => {
   for (const settingsPath of ["/", "/sealeye/", "/sealeye-apps/payments/", "/sealeye-apps/../x/"]) {
     const r = start({ answers: [{ body: {} }], settingsPath });
