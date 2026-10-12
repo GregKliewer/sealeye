@@ -73,7 +73,10 @@ export async function startDeployment(record, plan, appPath, sent = {}) {
     // starts without settings it has.
     let store = {};
     const isApi = (plan?.modules || []).some(m => m && m.enabled !== false && m.id === "http_api_serverless");
-    if (isApi) {
+    // An app's name over 100 characters cannot have stored settings (storeFolder), so it
+    // deploys as before, unless the command expected some there.
+    const storable = String(plan?.app?.name || "").length <= 100 || (record.expectStored || []).length > 0;
+    if (isApi && storable) {
       const folder = storeFolder({ team: record.teamId || "default", app: plan?.app?.name });
       set("packaging", { step: "Checking which of your settings are in your organization's store" });
       const listed = await listStoredSettings(folder);

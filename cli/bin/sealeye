@@ -163,7 +163,9 @@ Examples:
  * one at a time and nothing is echoed; piped in (`pbpaste | sealeye login`), the first
  * line is read as it comes.
  */
-function readSecret(prompt, { whole = false } = {}) {
+const MULTI_LINE = "A value with more than one line cannot be typed or pasted here. Pipe it in instead, for example: sealeye settings set NAME < file. Nothing was saved.";
+
+function readSecret(prompt, { whole = false, multiLine = MULTI_LINE } = {}) {
   const input = process.stdin;
   if (!input.isTTY) {
     // Piped in. A token is its first line; a setting's value is all of it, less one
@@ -188,15 +190,20 @@ function readSecret(prompt, { whole = false } = {}) {
       process.stdout.write("\n");
       value === null ? reject(Object.assign(new Error(why), { userFacing: true })) : resolve(value);
     };
+    // After the line break, a moment's wait for more: a paste with more lines, in this
+    // chunk or the next, is refused whole, rather than keeping the first line and leaving
+    // the rest for the shell to read, show and remember.
+    let ending = null;
     const onData = chunk => {
+      if (ending) {
+        clearTimeout(ending);
+        return done(null, multiLine);
+      }
       for (const [i, ch] of [...chunk].entries()) {
         if (ch === "\r" || ch === "\n") {
-          // A paste with more lines after this one: refuse it whole, rather than keep the
-          // first line and leave the rest for the shell to read, show and remember.
-          if ([...chunk].slice(i + 1).join("").replace(/^\n/, "").length) {
-            return done(null, "A value with more than one line cannot be typed or pasted here. Pipe it in instead, for example: sealeye settings set NAME < file. Nothing was saved.");
-          }
-          return done(text);
+          if ([...chunk].slice(i + 1).join("").replace(/^\n/, "").length) return done(null, multiLine);
+          ending = setTimeout(() => done(text), 50);
+          return;
         }
         if (ch === "\u0003") return done(null);                     // Ctrl+C
         if (ch === "\u007f" || ch === "\b") text = text.slice(0, -1);  // backspace
@@ -667,7 +674,7 @@ async function main() {
   // request. Typed without being shown, or piped in, never as an argument, so it stays
   // out of shell history.
   if (command === "login") {
-    const token = (await readSecret(ask("Paste your seaLeye token (it is not shown):"))).trim();
+    const token = (await readSecret(ask("Paste your seaLeye token (it is not shown):"), { multiLine: "A token is one line. Copy it again from where your platform team sent it, then run sealeye login. Nothing was saved." })).trim();
     if (!looksLikeToken(token)) {
       const err = new Error("That is not a seaLeye token: a token starts with sl_ and is 46 characters long. Copy it again from where your platform team sent it.");
       err.userFacing = true;

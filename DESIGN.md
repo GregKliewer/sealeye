@@ -1148,7 +1148,9 @@ setting is passed as before. A store that cannot be asked stops the deploy.
 **Apps already deployed with sent values (D5).** Nothing moves by itself. The next
 `sealeye run` of such an app offers once to store what its `.env` holds, naming the
 settings and never showing a value (`cli/store-offer.js`); a no is remembered on that
-machine. Values already in the store are not sent with a deploy, and `sealeye run` says
+machine. The command tells the API which names it left out because the store had them,
+and the deploy stops if the store does not: a safety net against the two disagreeing,
+not a security control, since an older client sends no such list. Values already in the store are not sent with a deploy, and `sealeye run` says
 in one line that they come from the store, so editing `.env` is not mistaken for changing
 the deployed app. `deploy/server.sh settings-sources` lists the live environments still
 on `.env` values, by name.
