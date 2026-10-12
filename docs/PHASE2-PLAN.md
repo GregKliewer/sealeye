@@ -370,6 +370,9 @@ the operations in Steps 16 to 20 need new endpoints and new permissions.
 
 About two to three days.
 
+**Built Oct 12**, except deploying an existing plan, which comes with Step 14. Validate
+now answers ready or drafted, so neither surface calls a plan with needs simply valid.
+
 - **Evidence:** a tab in Control that renders `GET /deployments/{id}/evidence`, with the
   same content `sealeye evidence` writes, and a download of the markdown. It changes
   nothing and creates nothing.

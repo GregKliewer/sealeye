@@ -1187,3 +1187,25 @@ Decided Mon Oct 12, 2026 (PHASE2-PLAN D6 to D8, Greg chose each as recommended).
   Jira and Teams, which are Phase 4 work; a page now would show nothing it can do, which
   the portal does not do.
 
+## The portal shares words with the command through core/
+
+Decided Mon Oct 12, 2026, building PHASE2-PLAN Step 13 (Evidence, Validate, Health).
+
+- **One set of words.** The evidence summary (`core/evidence-summary.js`) and the plain
+  sentences for contract errors (`core/plan-words.js`, moved from `cli/interview/`) are
+  imported by the command and by the portal's pages, so the two surfaces cannot drift.
+  A core file the portal imports must run in a browser, with everything it imports:
+  `test/boundaries.test.js` checks it. Step 15's upload rules will use the same path.
+- **Validate says ready or drafted.** `POST /plans/validate` adds `status` and `needs`
+  (each in the catalog's words, with the plan's evidence) to a plan that meets the
+  contract, worked out from the needs and never from the status a plan claims. Before
+  this, `sealeye validate` said "Your plan is valid" of a plan with needs, which
+  principle 3 does not allow.
+- **Evidence is read when asked.** Reading it asks AWS what it says now and sends one GET
+  to the app's address, so Control shows a button rather than reading it on every visit.
+  The download is the same DEPLOYMENT_EVIDENCE.md the command writes.
+- **Health is the portal's `sealeye doctor`.** The page is called Health, as the parity
+  table has it, because the browser has nothing of a machine to check: it shows whether
+  the platform answers and its version, who is signed in and what they see, and whether
+  the page itself is the platform's version (a page left open across a release is not).
+

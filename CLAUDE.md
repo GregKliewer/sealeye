@@ -23,7 +23,7 @@ Two surfaces, one product: **seaLeye.run** is the `sealeye` command, and
 
 ```
 cli/        the sealeye command: bin/sealeye, client.js (talks to the API), interview/
-            (follow.js streams the interview; render.js, explain.js), doctor.js,
+            (follow.js streams the interview; render.js), doctor.js,
             store-offer.js (moving .env values into the store),
             brand.js (the only place terminal colours live)
 api/        the API: server.js, store.js, db.js, migrations/, needs.js, mappings.js, validate.js, interview/
@@ -32,7 +32,9 @@ api/        the API: server.js, store.js, db.js, migrations/, needs.js, mappings
 core/       what cli/ and api/ must agree on: schema.js (the plan contract), catalog.js,
             config.js (settings and paths), names.js, secrets.js (which files hold
             secrets), upload.js (what travels to the API), tracing.js, token.js
-            (what a token looks like; api/tokens.js issues and checks them)
+            (what a token looks like; api/tokens.js issues and checks them),
+            plan-words.js and evidence-summary.js (words the command and the portal
+            both say; these import nothing, so the portal can import them too)
 prompts/    system prompt, plan contract, plan, report and evidence templates, catalog
 templates/  one CloudFormation template per buildable module, plus run.sh and
             sealeye-settings.mjs (the settings reader run.sh loads first)
@@ -49,8 +51,10 @@ archive/    the October 2026 demo: marketing sites, transcripts, day notes. Read
 ```
 
 **The import boundary.** `cli/` and `api/` import from `core/` and never from each other.
-`core/` imports only from `core/`. `test/boundaries.test.js` enforces it. If the CLI
-needs something the API has, it belongs in `core/` or behind an endpoint.
+`core/` imports only from `core/`. `portal/src` may import a `core/` file only if it, and
+everything it imports, runs in a browser (no `node:` modules, no packages).
+`test/boundaries.test.js` enforces it. If the CLI needs something the API has, it belongs
+in `core/` or behind an endpoint.
 
 ## Principles (invariants)
 

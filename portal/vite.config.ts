@@ -6,6 +6,11 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import fs from "node:fs";
+
+// The version the portal was built from, so the Health page can say when the page in
+// the browser is older or newer than the platform behind it.
+const version = JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8")).version;
 
 const target = process.env.SEALEYE_PORTAL_API || "http://localhost:3000";
 const proxy = {
@@ -18,7 +23,10 @@ const proxy = {
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  server: { proxy },
+  define: { __PORTAL_VERSION__: JSON.stringify(version) },
+  // Pages share words with the command through ../core (test/boundaries.test.js keeps
+  // those files browser-safe), so the dev server may read there too.
+  server: { proxy, fs: { allow: [".", "../core"] } },
   preview: { proxy },
   build: { sourcemap: false }
 });

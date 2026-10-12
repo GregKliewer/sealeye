@@ -9,7 +9,9 @@ import { cn } from "./lib/utils";
 
 const NAV = [
   { to: "/", label: "Environments", end: true },
-  { to: "/catalog", label: "Catalog", end: false }
+  { to: "/validate", label: "Validate", end: false },
+  { to: "/catalog", label: "Catalog", end: false },
+  { to: "/health", label: "Health", end: false }
 ];
 
 export function Layout() {
