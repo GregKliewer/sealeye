@@ -386,6 +386,18 @@ test("Configure changes how long logs are kept, as a deploy of the same code aga
   await expect(page.getByTestId("history-row").first()).toContainText("again, with dep_aaaaaaaaaaa1's code");
 });
 
+test("Team lists the people with tokens on your team, and never a token", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("link", { name: "Team" }).click();
+  const rows = page.getByTestId("person-row");
+  // Lee's organization-wide token is on team default too.
+  await expect(rows).toHaveCount(2);
+  await expect(rows.filter({ hasText: "Greg Kliewer" })).toHaveCount(1);
+  await expect(rows.filter({ hasText: "Lee Admin" })).toContainText("every team");
+  await expect(page.getByText("Everyone on team default")).toBeVisible();
+  expect(await page.content()).not.toMatch(/sl_[a-z]{20}/);
+});
+
 test("signing out ends the session: the pages ask for sign-in again", async ({ page }) => {
   await signIn(page);
   await page.getByRole("button", { name: "Sign out" }).click();

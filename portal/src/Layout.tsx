@@ -11,6 +11,7 @@ const NAV = [
   { to: "/", label: "Environments", end: true },
   { to: "/validate", label: "Validate", end: false },
   { to: "/catalog", label: "Catalog", end: false },
+  { to: "/team", label: "Team", end: false },
   { to: "/health", label: "Health", end: false }
 ];
 

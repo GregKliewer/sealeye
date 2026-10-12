@@ -17,6 +17,7 @@ import {
   getEvidence,
   getLogs,
   setPaused,
+  getTeam,
   getNeeds,
   answerInterview,
   abandonInterview,
@@ -116,6 +117,7 @@ Usage:
   ${product.command} evidence <app | deploymentId> [--json] [--out <file>] [--api <url>]
   ${product.command} logs <app | deploymentId> [--since 15m|1h|6h|1d] [--json] [--api <url>]
   ${product.command} config <app | deploymentId> [--retention <days>] [--json] [--api <url>]
+  ${product.command} team [--json] [--api <url>]
   ${product.command} pause <app | deploymentId> [--json] [--api <url>]
   ${product.command} resume <app | deploymentId> [--json] [--api <url>]
   ${product.command} needs [--json] [--request <kind>] [--api <url>]
@@ -771,6 +773,26 @@ async function main() {
     console.log("");
     if (watchFlag) await runWatch({ apiBaseUrl, deploymentId: deployment.deploymentId });
     else await runBackground({ apiBaseUrl, deploymentId: deployment.deploymentId, appPath: null, plan });
+    return;
+  }
+
+  if (command === "team") {
+    const result = await getTeam({ apiBaseUrl });
+    if (jsonOut) return console.log(JSON.stringify(result, null, 2));
+    console.log("");
+    if (result.note) return say(result.note);
+    const rows = result.people.map(p => ({
+      name: p.name || "Not recorded",
+      email: p.email,
+      team: p.scope === "org" ? `${p.team} (every team)` : p.team,
+      used: p.lastUsedAt ? relativeTime(p.lastUsedAt) : "never"
+    }));
+    const w = key => Math.max(key.length, ...rows.map(r => r[key].length));
+    const [wn, we, wt] = [w("name"), w("email"), w("team")];
+    console.log(c.dim(`${pad("NAME", wn)}  ${pad("EMAIL", we)}  ${result.everyTeam ? `${pad("TEAM", wt)}  ` : ""}LAST USED`));
+    for (const r of rows) console.log(`${pad(r.name, wn)}  ${c.dim(pad(r.email, we))}  ${result.everyTeam ? `${pad(r.team, wt)}  ` : ""}${c.dim(r.used)}`);
+    console.log("");
+    say(result.everyTeam ? "Everyone in your organization with a seaLeye token." : `Everyone on team ${result.team} with a seaLeye token. Your platform team issues them.`);
     return;
   }
 

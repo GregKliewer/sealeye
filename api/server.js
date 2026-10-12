@@ -21,6 +21,7 @@ import { assembleEvidence, renderEvidence } from "./executor/evidence.js";
 import { rollupNeeds } from "./needs.js";
 import { readLogs } from "./logs.js";
 import { changePaused, pausedState } from "./pause.js";
+import { peopleOf } from "./team.js";
 import { createInterviewService, NotWaiting, UploadRefused } from "./interview/service.js";
 import { postgresCheckpointer, postgresInterviewStore } from "./interview/pgstore.js";
 import { databaseUrl, closeDb } from "./db.js";
@@ -654,6 +655,16 @@ for (const [action, paused] of [["pause", true], ["resume", false]]) {
     return res.status(status).json(body);
   });
 }
+
+// GET /team — the people on your team, from the tokens in use (api/team.js). No tokens,
+// no hashes. PHASE2-PLAN Step 19.
+app.get("/team", async (req, res) => {
+  try {
+    return res.status(200).json(await peopleOf(req.caller));
+  } catch (err) {
+    return res.status(500).json({ error: { code: "TEAM_FAILED", message: err.message } });
+  }
+});
 
 // GET /needs — what the drafted plans are waiting on, rolled up by need across apps.
 // Store only; no AWS call.

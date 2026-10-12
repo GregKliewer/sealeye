@@ -136,6 +136,11 @@ export async function setPaused({ apiBaseUrl, deploymentId, paused }) {
   return platformFetch(apiBaseUrl, `/deployments/${encodeURIComponent(deploymentId)}/${paused ? "pause" : "resume"}`, { method: "POST" });
 }
 
+/** The people on your team, from the tokens in use (PHASE2-PLAN Step 19). */
+export async function getTeam({ apiBaseUrl }) {
+  return platformFetch(apiBaseUrl, "/team", { method: "GET" });
+}
+
 /** The change record for one deployment: the evidence object and its markdown. */
 export async function getEvidence({ apiBaseUrl, deploymentId }) {
   return platformFetch(apiBaseUrl, `/deployments/${deploymentId}/evidence`, { method: "GET" });

@@ -8,6 +8,7 @@ import { CatalogPage } from "./pages/Catalog";
 import { Validate } from "./pages/Validate";
 import { Health } from "./pages/Health";
 import { NewEnvironment } from "./pages/NewEnvironment";
+import { TeamPage } from "./pages/Team";
 
 function SignedIn({ children }: { children: React.ReactNode }) {
   const { person, checked } = useSession();
@@ -27,6 +28,7 @@ export function App() {
           <Route path="new" element={<NewEnvironment />} />
           <Route path="validate" element={<Validate />} />
           <Route path="catalog" element={<CatalogPage />} />
+          <Route path="team" element={<TeamPage />} />
           <Route path="health" element={<Health />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

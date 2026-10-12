@@ -1397,3 +1397,16 @@ does not accept, before anything is built.
 The developer's sealeye.yaml is not changed (principle 5), so both surfaces say that it
 still has the old value, and that the next `sealeye run` with it puts it back.
 
+## Team shows people, never tokens
+
+Built Mon Oct 12, 2026 (PHASE2-PLAN Step 19), as `sealeye team`, the portal's Team page
+and `GET /team`. The name is ROADMAP's.
+
+It lists the people with a token in use, one row per person and team: name, email, when
+they were first given one, and when they last used seaLeye. Never a token, a hash or a
+token id. A team's token sees its team; an organization-wide token sees every team in
+its organization, and is itself marked "every team". A revoked token's person is not
+listed. Issuing and revoking stay with the administrator on their Mac (`deploy/server.sh
+token`): that is access to the platform, and it waits for sign-in (Q16) to move onto a
+page.
+

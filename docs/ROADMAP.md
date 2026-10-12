@@ -175,7 +175,7 @@ and does nothing real. A blank is not started.
 | Logs | `sealeye logs` | `GET /deployments/{id}/logs` | built | built (Logs, in Control) | 2 |
 | Performance | `sealeye perf` | | | mock-up | 2 |
 | Costs | `sealeye costs` | | | mock-up | 2 |
-| Team and access | `sealeye team` | | | mock-up | 2 |
+| Team and access | `sealeye team` | `GET /team` (issuing stays with the administrator) | built | built (Team) | 2 |
 | Integrations | `sealeye integrations` | | | mock-up (report) | 4 |
 | Sign in | `sealeye login` | tokens; `POST /sessions`, `DELETE /sessions` for the portal; `GET /whoami` | built | built (token paste, then a session) | 1 |
 | Settings in the secret store | `sealeye settings`, `settings set`, `settings unset` | `GET /apps/{app}/settings`, `PUT` and `DELETE /apps/{app}/settings/{name}` | built | built (Settings, in Control) | 1 (item 10) |

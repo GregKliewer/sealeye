@@ -127,6 +127,14 @@ export interface InterviewEvent {
 // GET /deployments/{id}/logs: an environment's recent lines, newest first, masked.
 export interface Logs { app: string | null; since: string; more: boolean; note?: string; lines: { at: string; message: string }[] }
 
+// GET /team: the people on your team, from the tokens in use. Never a token.
+export interface Team {
+  team: string | null;
+  everyTeam?: boolean;
+  note?: string;
+  people: { name: string | null; email: string; team: string; scope: "team" | "org"; issuedAt: string | null; lastUsedAt: string | null }[];
+}
+
 const settingsPath = (app: string, team: string, name?: string) =>
   `/apps/${encodeURIComponent(app)}/settings${name ? `/${encodeURIComponent(name)}` : ""}?team=${encodeURIComponent(team)}`;
 
@@ -171,6 +179,7 @@ export const api = {
     request<{ app: string | null; paused: boolean }>(`/deployments/${encodeURIComponent(id)}/${paused ? "pause" : "resume"}`, { method: "POST" }),
   logs: (id: string, since: string) => request<Logs>(`/deployments/${encodeURIComponent(id)}/logs?since=${encodeURIComponent(since)}`),
   evidence: (id: string) => request<Evidence>(`/deployments/${encodeURIComponent(id)}/evidence`),
+  team: () => request<Team>("/team"),
   catalog: () => request<Catalog>("/catalog"),
   needs: () => request<NeedsLedger>("/needs"),
   settings: (app: string, team: string) => request<AppSettings>(settingsPath(app, team)),
