@@ -15,6 +15,7 @@ import {
   listDeployments,
   destroyDeployment,
   getEvidence,
+  getLogs,
   getNeeds,
   answerInterview,
   abandonInterview,
@@ -111,6 +112,7 @@ Usage:
   ${product.command} destroy <app | deploymentId> [--api <url>]
   ${product.command} list [--deployments] [--all] [--api <url>] [--json]
   ${product.command} evidence <app | deploymentId> [--json] [--out <file>] [--api <url>]
+  ${product.command} logs <app | deploymentId> [--since 15m|1h|6h|1d] [--json] [--api <url>]
   ${product.command} needs [--json] [--request <kind>] [--api <url>]
   ${product.command} doctor [--json] [--api <url>]
   ${product.command} catalog [--json] [--api <url>]
@@ -159,6 +161,7 @@ Examples:
   ${product.command} destroy my-app
   ${product.command} destroy dep_1a2b3c4d5e6f
   ${product.command} evidence my-app
+  ${product.command} logs my-app --since 15m
   ${product.command} needs --request relational_database
   ${product.command} doctor
   ${product.command} login
@@ -661,6 +664,31 @@ async function main() {
     for (const line of evidenceSummaryLines(evidence)) console.log(line);
     console.log("");
     say(`Wrote ${outFile}`);
+    return;
+  }
+
+  if (command === "logs") {
+    const target = process.argv[3];
+    if (!target || target.startsWith("--")) {
+      console.error(c.fail(`Missing name: ${product.command} logs <app | deploymentId> [--since 15m|1h|6h|1d]`));
+      process.exit(1);
+    }
+    const env = await environmentTarget({ apiBaseUrl, target });
+    if (!env) return;
+    const since = getArg("--since") || "1h";
+    say(`Reading what ${env.label} wrote in the last ${SINCE_WORDS[since] || since}`);
+    const result = await refusedInWords(() => getLogs({ apiBaseUrl, deploymentId: env.deploymentId, since }));
+    if (!result) return;
+    if (jsonOut) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    console.log("");
+    if (result.note) say(result.note);
+    else if (!result.lines.length) say(`Nothing in the last ${SINCE_WORDS[since] || since}.`);
+    // Oldest at the top, as a terminal reads: the API gives newest first.
+    for (const line of [...result.lines].reverse()) console.log(`${c.dim(localClock(line.at))}  ${line.message}`);
+    if (result.more) say(`Only the most recent lines are shown. ${product.command} logs ${target} --since 15m narrows it.`);
     return;
   }
 
@@ -1381,6 +1409,47 @@ function readCurrentPlanName() {
     return loadPlanFromYaml(path.join(process.cwd(), CONFIG_FILE))?.app?.name || null;
   } catch {
     return null;
+  }
+}
+
+const SINCE_WORDS = { "15m": "15 minutes", "1h": "hour", "6h": "6 hours", "1d": "day" };
+
+/** "14:03:22", local time, for a log line. */
+function localClock(iso) {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? String(iso) : d.toTimeString().slice(0, 8);
+}
+
+/**
+ * Which environment a day-two command is about (logs, pause, resume, config, perf,
+ * costs): an exact deployment id, or the newest record of that app in your own team
+ * that has a stack. An organization-wide token lists every team's, so a name means
+ * yours; an id reaches any you can see.
+ */
+async function environmentTarget({ apiBaseUrl, target }) {
+  const [everything, me] = await Promise.all([listDeployments({ apiBaseUrl }), whoAmI({ apiBaseUrl })]);
+  const byId = everything.find(d => d.deploymentId === target);
+  if (byId) return { deploymentId: byId.deploymentId, label: byId.app?.name || target, record: byId };
+  const mine = d => me.auth === "off" || (d.teamId || "default") === me.team;
+  const found = everything.find(d => mine(d) && d.stackName && safeName(d.app?.name) === safeName(target) && d.status !== "destroyed");
+  if (found) return { deploymentId: found.deploymentId, label: found.app?.name || target, record: found };
+  console.error(c.fail(`There is no environment called ${target} that your team has. ${product.command} list shows what there is.`));
+  process.exitCode = 1;
+  return null;
+}
+
+/** Run a call; a refusal from the platform is said as the platform's sentence. */
+async function refusedInWords(call) {
+  try {
+    return await call();
+  } catch (err) {
+    const refusal = err?.details?.error;
+    if (refusal?.message) {
+      console.error(c.fail(refusal.message));
+      process.exitCode = 1;
+      return null;
+    }
+    throw err;
   }
 }
 

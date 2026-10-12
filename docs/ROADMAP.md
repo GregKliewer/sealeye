@@ -172,7 +172,7 @@ and does nothing real. A blank is not started.
 | Catalog | `sealeye catalog` | `GET /catalog` | built | built | 1 |
 | Pause and resume | `sealeye pause`, `resume` | | | mock-up | 2 |
 | Configure | `sealeye config` | | | mock-up | 2 |
-| Logs | `sealeye logs` | | | mock-up | 2 |
+| Logs | `sealeye logs` | `GET /deployments/{id}/logs` | built | built (Logs, in Control) | 2 |
 | Performance | `sealeye perf` | | | mock-up | 2 |
 | Costs | `sealeye costs` | | | mock-up | 2 |
 | Team and access | `sealeye team` | | | mock-up | 2 |

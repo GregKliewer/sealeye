@@ -121,6 +121,9 @@ export interface InterviewEvent {
   message?: string;
 }
 
+// GET /deployments/{id}/logs: an environment's recent lines, newest first, masked.
+export interface Logs { app: string | null; since: string; more: boolean; note?: string; lines: { at: string; message: string }[] }
+
 const settingsPath = (app: string, team: string, name?: string) =>
   `/apps/${encodeURIComponent(app)}/settings${name ? `/${encodeURIComponent(name)}` : ""}?team=${encodeURIComponent(team)}`;
 
@@ -160,6 +163,7 @@ export const api = {
   destroy: (id: string) => request<DeploymentRecord>(`/deployments/${encodeURIComponent(id)}`, { method: "DELETE" }),
   health: () => request<Health>("/health"),
   validate: (plan: unknown) => request<Validation>("/plans/validate", { method: "POST", body: plan }),
+  logs: (id: string, since: string) => request<Logs>(`/deployments/${encodeURIComponent(id)}/logs?since=${encodeURIComponent(since)}`),
   evidence: (id: string) => request<Evidence>(`/deployments/${encodeURIComponent(id)}/evidence`),
   catalog: () => request<Catalog>("/catalog"),
   needs: () => request<NeedsLedger>("/needs"),

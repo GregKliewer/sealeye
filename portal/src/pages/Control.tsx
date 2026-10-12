@@ -4,7 +4,7 @@
 // change record for any of those deployments (`sealeye evidence`).
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
-import { api, SignedOut, type Evidence } from "../api";
+import { api, SignedOut, type Evidence, type Logs } from "../api";
 import { evidenceSummary } from "../../../core/evidence-summary.js";
 import { useLoad, useSession } from "../session";
 import { ago, groupEnvironments, IN_FLIGHT, publicUrl, statusOf, when, who } from "../model";
@@ -152,8 +152,76 @@ export function Control() {
         </Table>
       </Card>
 
+      {latest.kind !== "static" && env.deploys.some(d => d.stackName) ? <LogsCard deploymentId={(env.deploys.find(d => d.stackName) || latest).deploymentId} /> : null}
+
       <EvidenceCard key={evidenceFor || latest.deploymentId} deploymentId={evidenceFor || latest.deploymentId} latest={!evidenceFor || evidenceFor === latest.deploymentId} />
     </>
+  );
+}
+
+const WINDOWS: [string, string][] = [["15m", "15 minutes"], ["1h", "hour"], ["6h", "6 hours"], ["1d", "day"]];
+
+/**
+ * What the app wrote, as `sealeye logs` shows it: the most recent lines over a window,
+ * newest first, with anything that looks like a secret taken out by the platform. Read
+ * when asked, since it asks AWS.
+ */
+function LogsCard({ deploymentId }: { deploymentId: string }) {
+  const { signedOut } = useSession();
+  const [since, setSince] = useState("1h");
+  const [logs, setLogs] = useState<Logs | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function read(window = since) {
+    setBusy(true);
+    setError(null);
+    try {
+      setLogs(await api.logs(deploymentId, window));
+    } catch (err) {
+      if (err instanceof SignedOut) return signedOut(err.message);
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const words = WINDOWS.find(([k]) => k === since)?.[1] || since;
+  return (
+    <Card className="mt-6" data-testid="logs">
+      <CardHeader>
+        <CardTitle>Logs</CardTitle>
+        <div className="ml-auto flex gap-1" role="group" aria-label="How far back">
+          {WINDOWS.map(([key, label]) => (
+            <Button key={key} size="sm" variant={key === since ? "primary" : "ghost"} aria-pressed={key === since}
+              onClick={() => { setSince(key); if (logs) read(key); }}>{label === "hour" ? "1 hour" : label === "day" ? "1 day" : label}</Button>
+          ))}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        {!logs ? (
+          <>
+            <p className="text-dim">What your app wrote, newest first, as <code className="font-mono text-ink">sealeye logs</code> shows it. Anything that looks like a secret, and the value of any setting in the store, is taken out before it reaches this page; a value printed on its own, with no name beside it, cannot be told from other text.</p>
+            <Button onClick={() => read()} disabled={busy}>{busy ? "Reading your app's logs" : "Show logs"}</Button>
+          </>
+        ) : (
+          <>
+            {logs.note ? <p className="text-dim">{logs.note}</p> : null}
+            {!logs.note && !logs.lines.length ? <p className="text-dim">Nothing in the last {words}.</p> : null}
+            {logs.lines.length ? (
+              <ol className="max-h-[32rem] overflow-auto rounded-md border border-rule bg-ground p-3 font-mono text-xs" data-testid="log-lines">
+                {logs.lines.map((l, i) => (
+                  <li key={i} className="flex gap-3 py-0.5"><span className="shrink-0 text-dim">{new Date(l.at).toLocaleTimeString()}</span><span className="whitespace-pre-wrap break-all">{l.message}</span></li>
+                ))}
+              </ol>
+            ) : null}
+            {logs.more ? <p className="text-dim">Only the most recent lines are shown. A shorter window shows fewer.</p> : null}
+            <Button variant="ghost" onClick={() => read()} disabled={busy}>{busy ? "Reading" : "Read again"}</Button>
+          </>
+        )}
+        {error ? <Problem message={error} /> : null}
+      </CardContent>
+    </Card>
   );
 }
 

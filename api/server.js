@@ -19,6 +19,7 @@ import { resumeInFlight } from "./executor/resume.js";
 import { unsupportedNeeds } from "../core/catalog.js";
 import { assembleEvidence, renderEvidence } from "./executor/evidence.js";
 import { rollupNeeds } from "./needs.js";
+import { readLogs } from "./logs.js";
 import { createInterviewService, NotWaiting, UploadRefused } from "./interview/service.js";
 import { postgresCheckpointer, postgresInterviewStore } from "./interview/pgstore.js";
 import { databaseUrl, closeDb } from "./db.js";
@@ -619,6 +620,15 @@ app.get("/deployments/:deploymentId/evidence", async (req, res) => {
       error: { code: "EVIDENCE_FAILED", message: err.message }
     });
   }
+});
+
+// GET /deployments/{deploymentId}/logs?since=15m|1h|6h|1d — its environment's recent
+// log lines, newest first, masked (api/logs.js). Read only. PHASE2-PLAN Step 16.
+app.get("/deployments/:deploymentId/logs", async (req, res) => {
+  const dep = getDeployment(req.params.deploymentId);
+  if (!canSee(req, dep)) return res.status(404).json({ error: { code: "NOT_FOUND", message: "deploymentId not found" } });
+  const { status, body } = await readLogs(dep, { window: typeof req.query.since === "string" ? req.query.since : "1h" });
+  return res.status(status).json(body);
 });
 
 // GET /needs — what the drafted plans are waiting on, rolled up by need across apps.

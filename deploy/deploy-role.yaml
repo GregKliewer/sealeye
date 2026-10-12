@@ -188,6 +188,12 @@ Resources:
                 Effect: Allow
                 Action: logs:DescribeLogGroups
                 Resource: "*"
+              # sealeye logs and the portal's Logs card (PHASE2-PLAN Step 16): read an
+              # app's own log lines. The API masks them before anyone sees them.
+              - Sid: AppLogs
+                Effect: Allow
+                Action: logs:FilterLogEvents
+                Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/sealeye-*"
               - Sid: HttpApis
                 Effect: Allow
                 Action: [apigateway:GET, apigateway:POST, apigateway:PUT, apigateway:PATCH, apigateway:DELETE]

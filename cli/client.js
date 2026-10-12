@@ -126,6 +126,11 @@ export async function deployAgain({ apiBaseUrl, fromDeployment, plan, file }) {
   return platformFetch(apiBaseUrl, "/deployments", asJson(body));
 }
 
+/** An environment's recent log lines, newest first, masked (PHASE2-PLAN Step 16). */
+export async function getLogs({ apiBaseUrl, deploymentId, since = "1h" }) {
+  return platformFetch(apiBaseUrl, `/deployments/${encodeURIComponent(deploymentId)}/logs?since=${encodeURIComponent(since)}`, { method: "GET" });
+}
+
 /** The change record for one deployment: the evidence object and its markdown. */
 export async function getEvidence({ apiBaseUrl, deploymentId }) {
   return platformFetch(apiBaseUrl, `/deployments/${deploymentId}/evidence`, { method: "GET" });

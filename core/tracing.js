@@ -63,6 +63,7 @@ const SECRET_PATTERNS = [
   [/\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g, () => REDACTED],              // AWS access key ids
   [/sk-ant-[A-Za-z0-9_-]{8,}/g, () => REDACTED],                   // Anthropic keys
   [/sk-lf-[A-Za-z0-9_-]{8,}/g, () => REDACTED],                    // LangFuse secret keys
+  [/\bsl_[A-Za-z0-9_-]{40,}/g, () => REDACTED],                    // seaLeye tokens
   [/\bBearer\s+[A-Za-z0-9._~+/-]{16,}=*/g, () => `Bearer ${REDACTED}`],
   // NAME=value where the name says it is a secret. The name stays; the value goes.
   [

@@ -1338,3 +1338,24 @@ certificate as `ca.pem` say, or that installs from a private registry through it
 `.npmrc`, does not get it. That app needs the file under another name, or the value in
 the store; a private registry for installs is a platform setting still to come.
 
+## Logs pass through the masking traces do
+
+Decided Mon Oct 12, 2026, building PHASE2-PLAN Step 16 (`sealeye logs`, the portal's
+Logs card, `GET /deployments/{id}/logs`). The command's name is the one ROADMAP
+proposed.
+
+An app's logs are its own output and may hold anything a developer printed. Principle 6
+says no secret value reaches the terminal or the portal, so the API masks every line
+before either surface sees it: the patterns traces are masked with (core/tracing.js:
+private keys, AWS access key ids, Anthropic and LangFuse keys, bearer tokens, seaLeye
+tokens, now added, and `NAME=value` where the name says key, secret, token or password),
+and `NAME=value` or `NAME: value` for every setting the app has in the store, whose
+values the API never reads. Masking is a backstop, not a guarantee: a value printed
+bare, with no name beside it, cannot be told from any other text, and that is said on
+the page.
+
+Lines come newest first over a window of 15 minutes, an hour, 6 hours or a day, at most
+200 of them; the command prints them oldest first, as a terminal reads. They are read
+when asked, never stored. A static site has no code running and says so. The deploy role
+gains `logs:FilterLogEvents` on `/aws/lambda/sealeye-*` only.
+

@@ -39,6 +39,30 @@ export function artifactKeyFor(resourceName, deploymentId) {
 }
 
 /**
+ * Whether a stack is another team's now. Only a stack from before teams had names of
+ * their own can hold more than one team's records. Whoever deployed to it last is in it
+ * (an earlier team's code was replaced), so it is that record's team's unless that
+ * record is torn down. Records are newest first; a draft has no stack.
+ */
+export function sharedWithAnotherTeam(stackName, { org = "default", team = "default", records = [] }) {
+  if (!stackName) return false;
+  const occupant = records.find(r => r.stackName === stackName);
+  return Boolean(occupant) &&
+    occupant.status !== "destroyed" &&
+    ((occupant.orgId || "default") !== org || (occupant.teamId || "default") !== team);
+}
+
+/**
+ * What everything in a record's environment is named after (its function, log group,
+ * API). Records from before names were kept kept the bare app name only as the AppName
+ * parameter, or only in the stack's name.
+ */
+export function resourceNameOf(record) {
+  if (!record?.stackName) return null;
+  return record.resourceName || record.parameters?.AppName || record.stackName.replace(/^sealeye-/, "");
+}
+
+/**
  * Which names a deployment of this app, for this team, uses (DESIGN.md, "Each team's
  * environments have names of their own"):
  *
@@ -60,20 +84,6 @@ export function artifactKeyFor(resourceName, deploymentId) {
  * @param {object[]} [args.records] every record, newest first
  * @returns {{ stackName: string, resourceName: string, reused: boolean }}
  */
-/**
- * Whether a stack is another team's now. Only a stack from before teams had names of
- * their own can hold more than one team's records. Whoever deployed to it last is in it
- * (an earlier team's code was replaced), so it is that record's team's unless that
- * record is torn down. Records are newest first; a draft has no stack.
- */
-export function sharedWithAnotherTeam(stackName, { org = "default", team = "default", records = [] }) {
-  if (!stackName) return false;
-  const occupant = records.find(r => r.stackName === stackName);
-  return Boolean(occupant) &&
-    occupant.status !== "destroyed" &&
-    ((occupant.orgId || "default") !== org || (occupant.teamId || "default") !== team);
-}
-
 export function namingFor({ app, org = "default", team = "default", records = [] }) {
   const appName = safeName(app);
   const sameEnvironment = r =>
@@ -88,9 +98,7 @@ export function namingFor({ app, org = "default", team = "default", records = []
     latest.status !== "destroying" &&
     !sharedWithAnotherTeam(latest.stackName, { org, team, records });
   if (reusable) {
-    // Records from before this kept the bare app name only as the AppName parameter.
-    const resourceName = latest.resourceName || latest.parameters?.AppName || latest.stackName.replace(/^sealeye-/, "");
-    return { stackName: latest.stackName, resourceName, reused: true };
+    return { stackName: latest.stackName, resourceName: resourceNameOf(latest), reused: true };
   }
   const name = environmentName({ org, team, app });
   return { stackName: name, resourceName: name, reused: false };

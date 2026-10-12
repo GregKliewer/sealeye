@@ -339,6 +339,26 @@ test("saying not now keeps the plan to download and deploys nothing", async ({ p
   await expect(plan.getByRole("button", { name: "Download DEPLOYMENT_PLAN.md" })).toBeVisible();
 });
 
+test("Logs shows what the app wrote, newest first, with secrets taken out", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("link", { name: "payments-api", exact: true }).click();
+  const card = page.getByTestId("logs");
+  await card.getByRole("button", { name: "15 minutes" }).click();
+  await card.getByRole("button", { name: "Show logs" }).click();
+  const lines = card.getByTestId("log-lines").locator("li");
+  await expect(lines).toHaveCount(2);
+  await expect(lines.first()).toContainText("GET /orders with Bearer [value redacted]");
+  await expect(lines.last()).toContainText("listening on 8080");
+  expect(await page.content()).not.toContain("abcdefghijklmnop");
+});
+
+test("a static site has no Logs card", async ({ page }) => {
+  await signIn(page);
+  await page.goto(`/environments/${encodeURIComponent("sealeye-old-demo")}`);
+  await expect(page.getByRole("heading", { name: "old-demo" })).toBeVisible();
+  await expect(page.getByTestId("logs")).toHaveCount(0);
+});
+
 test("signing out ends the session: the pages ask for sign-in again", async ({ page }) => {
   await signIn(page);
   await page.getByRole("button", { name: "Sign out" }).click();
