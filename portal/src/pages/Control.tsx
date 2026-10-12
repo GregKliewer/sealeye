@@ -40,30 +40,36 @@ export function Control() {
   const [evidenceFor, setEvidenceFor] = useState<string | null>(null);
   // A change under way locks everything that would change the environment, as the API
   // refuses a second change (ENVIRONMENT_BUSY), and says so on each card.
-  const moving = underWay(latest);
+  // Usually the newest record, but a tear-down asked through an older one is under way
+  // on that one: the API refuses on either, so the page locks on either.
+  const busyDep = env?.deploys.find(d => underWay(d)) || null;
+  const moving = Boolean(busyDep);
   const now = useNow(moving);
-  const locked = latest && moving ? lockedWhile(latest, now) : null;
+  const locked = busyDep ? lockedWhile(busyDep, now) : null;
 
   // The tab says so too, for someone who has gone to another one.
   useEffect(() => {
     if (!env) return;
-    document.title = latest && moving ? `${doing(latest).title} · ${env.app}` : `${env.app} · seaLeye.online`;
+    document.title = busyDep ? `${doing(busyDep).title} · ${env.app}` : `${env.app} · seaLeye.online`;
     return () => { document.title = "seaLeye.online"; };
-  }, [env, latest, moving]);
+  }, [env, busyDep]);
 
   // While anything is moving, read it again every five seconds, as `sealeye watch` does.
   // Keyed on the data, not the render: the elapsed clock re-renders every second, and a
   // timer restarted on each render would never fire.
-  const inFlight = Boolean(latest && IN_FLIGHT.has(latest.status));
+  // A failed read re-arms it too, so the page recovers when the API is back.
+  const inFlight = Boolean(env?.deploys.some(d => IN_FLIGHT.has(d.status) && !d.interrupted));
   const { reload } = deployments;
   useEffect(() => {
     if (!inFlight) return;
     const t = setTimeout(reload, POLL_MS);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inFlight, deployments.data]);
+  }, [inFlight, deployments.data, deployments.error]);
 
-  if (deployments.error) return <Problem message={deployments.error} />;
+  // While a change is being followed, a failed read keeps the last page and says so;
+  // the next read puts it right.
+  if (deployments.error && !(inFlight && deployments.data)) return <Problem message={deployments.error} />;
   if (!deployments.data) return <p className="text-dim">Loading</p>;
   if (!env || !latest) {
     return (
@@ -97,11 +103,12 @@ export function Control() {
         ].filter(Boolean).join(", ") || undefined}
       />
 
-      {moving ? <UnderWay dep={latest} app={env.app} now={now} /> : null}
+      {deployments.error ? <Problem message={`${deployments.error} Trying again.`} /> : null}
+      {busyDep ? <UnderWay dep={busyDep} app={env.app} now={now} /> : null}
 
       <div className="grid items-start gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
-          <CardHeader><CardTitle>State</CardTitle><Badge tone={status.tone} moving={moving} className="ml-auto" data-testid="status">{status.label}</Badge></CardHeader>
+          <CardHeader><CardTitle>State</CardTitle><Badge tone={status.tone} moving={busyDep === latest} className="ml-auto" data-testid="status">{status.label}</Badge></CardHeader>
           <CardContent>
             <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-3 text-sm">
               <dt className="text-dim">Address</dt>
@@ -143,7 +150,7 @@ export function Control() {
           <CardHeader><CardTitle>Tear down</CardTitle></CardHeader>
           <CardContent className="space-y-4 text-sm">
             <p className="text-dim">Removes this environment and everything the platform built for it. The address stops working. The plan stays in the developer's folder, so <code className="font-mono text-ink">sealeye run</code> can build it again.</p>
-            {canTearDown ? <TearDown app={env.app} deploymentId={latest.deploymentId} locked={locked} onDone={deployments.reload} /> : (
+            {canTearDown ? <TearDown app={env.app} deploymentId={(env.deploys.find(d => d.stackName) || latest).deploymentId} locked={locked} onDone={deployments.reload} /> : (
               <p className="text-dim">{latest.status === "drafted" ? "Nothing was built for a drafted plan, so there is nothing to tear down." : "There is nothing standing to tear down."}</p>
             )}
           </CardContent>

@@ -117,3 +117,26 @@ test("what counts as under way, and the words for it", () => {
     "c is being torn down right now (d3, a tear-down started by Lee from the portal, 5 minutes ago). One change at a time: wait for it to finish, or follow it with sealeye watch d3.");
   assert.match(busyRefusal(records[0], { now: t }).error.message, /^a is waiting to start right now \(d1, a deploy from the command line, just now\)/);
 });
+
+test("two deploys again at once: the second is refused, even while the first waits on the store", async () => {
+  const slowStack = "sealeye-default-slow-api-cccccc";
+  const slowPlan = { ...plan("slow-api"), modules: [...plan("slow-api").modules, { id: "config_basic", inputs: { variables: { GREETING: "" } } }] };
+  const slow = await startApi({
+    tokens: [{ token: ANA, id: "ana", name: "Ana", team: "default" }],
+    records: [{ ...base, surface: "cli", deploymentId: "dep_slow0000001", app: { name: "slow-api" }, status: "succeeded", stackName: slowStack, resourceName: slowStack,
+      plan: slowPlan, startedAt: now, artifactKey: `${slowStack}/dep_slow0000001.zip`, artifactSha256: "c".repeat(64), settings: [{ name: "GREETING", source: "store" }] }],
+    aws: `
+if (args[1] === "get-parameters-by-path") { setTimeout(() => out([{ name: opt("--path") + "GREETING", changedAt: null }]), 800); return; }
+if (args[1] === "describe-stacks") out({ Stacks: [{ StackStatus: "UPDATE_IN_PROGRESS", Outputs: [] }] });
+`,
+    env: { SEALEYE_BUCKET: "artifacts", SEALEYE_LWA_VERSION: "25", SEALEYE_FUNCTION_BOUNDARY_ARN: "arn:aws:iam::123456789012:policy/boundary" }
+  });
+  try {
+    const again = () => slow.call("/deployments", { token: ANA, method: "POST", body: { backend: "cloudformation", fromDeployment: "dep_slow0000001" } });
+    const results = await Promise.all([again(), again()]);
+    assert.deepEqual(results.map(r => r.status).sort(), [201, 409], JSON.stringify(results.map(r => r.body)));
+    assert.equal(results.find(r => r.status === 409).body.error.code, "ENVIRONMENT_BUSY");
+  } finally {
+    slow.stop();
+  }
+});

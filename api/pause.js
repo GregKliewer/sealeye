@@ -46,11 +46,19 @@ export async function changePaused(record, paused, { by, surface }) {
   const state = await functionPaused(fn);
   if (!state.ok) return refusal(502, "STATE_UNAVAILABLE", `The platform ${paused ? "paused" : "resumed"} your app and could not read it back (${state.error}).`);
 
-  // On the environment's newest record, so its history says who did it and when.
-  const newest = listDeployments().find(r => r.stackName === record.stackName) || record;
-  newest.paused = state.paused;
+  // On the environment's newest record, so its history says who did it and when. Paused
+  // is said by the deploy that is running, the newest that succeeded (a failed one
+  // rolled back to it), and by no other record of the environment.
+  const same = listDeployments().filter(r => r.stackName === record.stackName);
+  const newest = same[0] || record;
+  const current = same.find(r => r.status === "succeeded") || newest;
+  for (const r of same) {
+    if (r !== current && r.paused) { r.paused = false; if (r !== newest) putDeployment(r); }
+  }
+  current.paused = state.paused;
   newest.pauses = [...(newest.pauses || []), { action: paused ? "paused" : "resumed", by, surface, at: new Date().toISOString(), confirmed: state.paused === paused }];
   putDeployment(newest);
+  if (current !== newest) putDeployment(current);
 
   if (state.paused !== paused) {
     return refusal(502, "STATE_DIFFERS", `The platform asked AWS to ${paused ? "pause" : "resume"} your app, and AWS still says it is ${state.paused ? "paused" : "taking requests"}.`);

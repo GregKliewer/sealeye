@@ -10,7 +10,11 @@ import { listDeployments } from "./store.js";
 export const UNDER_WAY = new Set(["queued", "packaging", "running", "destroying"]);
 // A change still marked as under way after a day is not one: the platform would have
 // resolved it when it restarted. It stops counting rather than lock the environment.
+// Getting an app ready (queued, packaging) takes minutes, so one stuck there for an hour
+// has hung, and stops counting sooner: nothing has reached AWS for it yet.
 const STALE_MS = 24 * 60 * 60 * 1000;
+const STALE_BEFORE_AWS_MS = 60 * 60 * 1000;
+const staleAfter = r => (r.status === "queued" || r.status === "packaging" ? STALE_BEFORE_AWS_MS : STALE_MS);
 
 const environmentOf = r => r?.stackName || r?.environment || null;
 // When the change under way began: a tear-down when it was asked for, a deploy when it started.
@@ -24,7 +28,7 @@ export function changeUnderWay(environment, { except = null, now = Date.now(), r
     environmentOf(r) === environment &&
     UNDER_WAY.has(r.status) &&
     !r.interrupted &&
-    now - Date.parse(changedAt(r) || 0) < STALE_MS) || null;
+    now - Date.parse(changedAt(r) || 0) < staleAfter(r)) || null;
 }
 
 const WORDS = {

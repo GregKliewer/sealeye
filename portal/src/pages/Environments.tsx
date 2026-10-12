@@ -30,14 +30,14 @@ export function Environments() {
 
   // While any of them is changing, read the list again every five seconds, so its step
   // line and status follow the platform.
-  const anyMoving = environments.some(env => underWay(env.latest));
+  const anyMoving = environments.some(env => env.deploys.some(d => underWay(d)));
   const { reload } = deployments;
   useEffect(() => {
     if (!anyMoving) return;
     const t = setTimeout(reload, 5000);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [anyMoving, deployments.data]);
+  }, [anyMoving, deployments.data, deployments.error]);
   // An organization-wide token sees every team's, and two teams can share an app name,
   // so then each row says whose it is.
   const severalTeams = new Set(environments.map(e => e.latest.teamId || "default")).size > 1;
@@ -100,13 +100,14 @@ export function Environments() {
             {shown.map(env => {
               const status = statusOf(env.latest);
               const url = addressOf(env);
-              const moving = underWay(env.latest);
+              const busy = env.deploys.find(d => underWay(d));
+              const moving = Boolean(busy);
               return (
                 <TableRow key={env.key} data-testid="environment-row">
                   <TableCell>
                     <Link to={`/environments/${encodeURIComponent(env.key)}`} className="font-mono font-bold text-ink hover:text-phosphor">{env.app}</Link>
                     {severalTeams ? <span className="ml-2 text-xs text-dim" data-testid="team">team {env.latest.teamId || "default"}</span> : null}
-                    {moving ? <div className="mt-1 max-w-sm text-xs text-dim" data-testid="environment-step">{env.latest.step || "Waiting for the platform's first step"}</div> : null}
+                    {busy ? <div className="mt-1 max-w-sm text-xs text-dim" data-testid="environment-step">{busy.step || "Waiting for the platform's first step"}</div> : null}
                   </TableCell>
                   <TableCell>{who(env.latest.requestedBy)}</TableCell>
                   <TableCell><Badge tone={status.tone} moving={moving}>{status.label}</Badge></TableCell>

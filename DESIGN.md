@@ -1574,3 +1574,31 @@ means your team's environment of that name (two teams can each have one; a name 
 reaches another team's). With no name, it uses the app the current folder's sealeye.yaml
 plans, and says so in a line. `watch` and `status` take an app name too, following its
 newest change. A deployment id still names exactly that deployment.
+
+## The polish: what the review changed
+
+Mon Oct 12, 2026. An independent review before the pull request found these, all fixed:
+
+- **Two deploys again at once both got through.** Deploy again reads the settings store
+  before it records anything, and a second request could pass the check in that wait.
+  It is checked again after the last wait, just before the record is written.
+- **`sealeye destroy` with no name tore down the folder's app without asking.** A
+  tear-down is never a default: with no name it asks "Tear down <app>? [y/N]", and with
+  no one to ask (no terminal, or `--json`) it refuses until the app is named.
+- **A hung packaging step could lock an environment for a day.** A change still queued
+  or packaging after an hour stops counting: nothing has reached AWS for it.
+- **One failed read froze Control.** The page keeps the last state, says the read failed
+  and tries again; Environments the same.
+- **A tear-down through an older record was invisible in the portal.** The pages lock and
+  show the banner for any record of the environment that is under way, as the API does.
+- **Paused could outlive a resume** on a record a failed deploy sat above. Paused is now
+  said by the environment's newest successful record, and cleared on the others.
+- **A tear-down picked a record that never reached AWS** (on main too): when the newest
+  deploy failed before its stack was named, the tear-down marked that record gone and
+  left the environment running. Both surfaces now tear down through the newest record
+  that has a stack.
+
+Left as they were, and owed: after a first create rolls back, the executor's delete of
+that stack is not waited for, so a redeploy at once can meet it still deleting; and a
+tear-down interrupted by a restart is judged stale by its deploy's age, not the
+tear-down's (executor/resume.js).

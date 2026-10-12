@@ -117,6 +117,13 @@ test("with no name, the command uses the app this folder's sealeye.yaml plans", 
     cwd: api.home, env: { ...process.env, HOME: api.home, SEALEYE_HOME: api.home, SEALEYE_TOKEN: ANA, NO_COLOR: "1" }
   }), err => /Missing name: sealeye logs/.test(err.stderr) && /run this in its folder/.test(err.stdout));
 
+  // A tear-down is never taken from the folder without a person to ask.
+  await assert.rejects(run("destroy"), err => /A tear-down needs the app named/.test(err.stderr));
+  assert.ok(!api.awsCalls().some(l => /delete-stack/.test(l)));
+
+  // A flag before the name does not hide it.
+  assert.match((await run("status", "--json", "orders-api")).stdout, /"deploymentId": "dep_api00000001"/);
+
   // status takes the app's name too.
   assert.match((await run("status", "orders-api", "--json")).stdout, /"deploymentId": "dep_api00000001"/);
 });

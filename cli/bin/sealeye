@@ -547,7 +547,8 @@ async function main() {
     // --team-context, this is where somebody else's attempt at the same wall gets a
     // mention, after the refusal rather than instead of it.
     if (!deployment) {
-      await showTeamContext(submission.plan);
+      // Only after a refusal for what the platform cannot build, not a busy environment.
+      if ((submission.plan?.needs || []).length) await showTeamContext(submission.plan);
       return;
     }
 
@@ -1096,8 +1097,29 @@ async function main() {
   }
 
   if (command === "destroy") {
+    // A tear-down is never a default: a name not typed is asked about first, as the
+    // portal makes you type the app's name, and never taken without a person to ask.
+    const typed = firstName() || null;
+    if (!typed && (jsonOut || !process.stdin.isTTY)) {
+      console.error(c.fail(`Missing name: ${product.command} destroy <app | deploymentId>. A tear-down needs the app named.`));
+      process.exitCode = 1;
+      return;
+    }
     const target = nameOrHere(`${product.command} destroy <app | deploymentId>`);
     if (!target) return;
+    if (!typed) {
+      const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+      let go;
+      try {
+        go = await askLine(rl, `Tear down ${target}? [y/N]`);
+      } finally {
+        rl.close();
+      }
+      if (go.trim().toLowerCase() !== "y") {
+        say("Nothing was torn down.");
+        return;
+      }
+    }
 
     // Typing the app name is how a developer thinks about what they are deleting. A
     // deployment id still works, and still means exactly the record it names.
@@ -1412,7 +1434,7 @@ async function resolveTarget({ apiBaseUrl, target }) {
 
   if (matches.length === 1) {
     const [env] = matches;
-    return { deploymentId: env.latest.deploymentId, label: `${env.app} (${env.latest.deploymentId})` };
+    return { deploymentId: env.standing.deploymentId, label: `${env.app} (${env.standing.deploymentId})` };
   }
 
   // Two environments answering to one name is not something to guess at.
@@ -1480,8 +1502,6 @@ async function runDeploy({ apiBaseUrl, backend, plan, appPath, requestedBy: who,
       return null;
     }
 
-    // The uploaded copy broke one of the platform's rules (too big, say). The API's
-    // sentence is the one to show.
     // Another change to this environment is under way. Say what, and how to follow it.
     if (refusal?.code === "ENVIRONMENT_BUSY") {
       wait.stop();
@@ -1490,6 +1510,8 @@ async function runDeploy({ apiBaseUrl, backend, plan, appPath, requestedBy: who,
       return null;
     }
 
+    // The uploaded copy broke one of the platform's rules (too big, say). The API's
+    // sentence is the one to show.
     if (refusal?.code === "UPLOAD_REFUSED") {
       const sentence = new Error(`seaLeye.run could not take your app: ${refusal.message}.`);
       sentence.userFacing = true;
@@ -1571,17 +1593,13 @@ async function runDeployAgain({ apiBaseUrl, target: typed, file }) {
   else await runBackground({ apiBaseUrl, deploymentId: deployment.deploymentId, appPath: reportHere ? process.cwd() : null, plan: deployment.plan });
 }
 
-/** The app name in this folder's sealeye.yaml (or an older deployme.yaml), or null. */
+/** The app name in this folder's sealeye.yaml, or null. */
 function readCurrentPlanName() {
-  for (const file of [CONFIG_FILE, LEGACY_CONFIG_FILE]) {
-    try {
-      const name = loadPlanFromYaml(path.join(process.cwd(), file))?.app?.name;
-      if (name) return name;
-    } catch {
-      // Not there, or not a plan: nothing to say about which app this is.
-    }
+  try {
+    return loadPlanFromYaml(path.join(process.cwd(), CONFIG_FILE))?.app?.name || null;
+  } catch {
+    return null;
   }
-  return null;
 }
 
 /**
@@ -1589,7 +1607,20 @@ function readCurrentPlanName() {
  * nothing typed, the app this folder's sealeye.yaml plans, said in one line. With
  * neither, it says how to name one and returns null.
  */
-function nameOrHere(usageText, typed = process.argv[3]) {
+// Flags that take a value, so the word after them is never read as an app's name.
+const VALUE_FLAGS = new Set(["--api", "--since", "--retention", "--out", "--file", "-f", "--again", "--app", "--team", "--request", "--answers", "--backend", "-b"]);
+
+/** The first word after the command that is not a flag or a flag's value. */
+function firstName() {
+  const args = process.argv.slice(3);
+  for (let i = 0; i < args.length; i++) {
+    if (VALUE_FLAGS.has(args[i])) { i++; continue; }
+    if (!args[i].startsWith("-")) return args[i];
+  }
+  return undefined;
+}
+
+function nameOrHere(usageText, typed = firstName()) {
   if (typed && !typed.startsWith("-")) return typed;
   const here = readCurrentPlanName();
   if (here) {
@@ -2205,7 +2236,10 @@ function groupEnvironments(deployments) {
     url: publicUrl(latest) || "-",
     deploys: deploys.length,
     last: latest.startedAt || latest.finishedAt || null,
-    latest
+    latest,
+    // The newest record that reached AWS: what a tear-down acts through. A deploy that
+    // failed before its stack was named has nothing of its own to remove.
+    standing: deploys.find(d => d.stackName) || latest
   }));
 }
 

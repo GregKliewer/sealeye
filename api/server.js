@@ -327,6 +327,12 @@ async function deployAgain(req, res) {
   };
   // Which environment it goes to is known now, so the record says so from the start.
   const naming = namingFor({ app: plan.app.name, org: req.caller?.org || "default", team: req.caller?.team || "default", records: listDeployments() });
+  // Asked again after the store was read: another change may have started while this
+  // waited on it, and from here to putDeployment nothing waits, so nothing can slip in.
+  {
+    const busy = changeUnderWay(naming.stackName);
+    if (busy) return res.status(409).json(busyRefusal(busy));
+  }
   const record = putDeployment({
     deploymentId,
     status: "queued",
@@ -635,7 +641,10 @@ app.get("/deployments/:deploymentId", (req, res) => {
       error: { code: "NOT_FOUND", message: "deploymentId not found" }
     });
   }
-  return res.status(200).json(dep);
+  // Whether a newer success has replaced it, as the list says (DESIGN.md).
+  const replacedBy = replacements(listDeployments()).get(dep.deploymentId);
+  if (!replacedBy) return res.status(200).json(dep);
+  return res.status(200).json({ ...dep, replaced: true, replacedBy: canSee(req, getDeployment(replacedBy)) ? replacedBy : null });
 });
 
 // GET /deployments/{deploymentId}/evidence — the change record: the evidence object
