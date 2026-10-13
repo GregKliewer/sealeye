@@ -181,6 +181,10 @@ holds file contents.
 - The catalog becomes the organization's, and a need becomes buildable when a module
   supports it.
 - A second backend: Terraform, since that is what most platform libraries are.
+- A gap report (added Oct 13, 2026): what developers asked for that the catalog cannot
+  build, taken from the needs ledger, with how often and by which teams. Read-only, from
+  what discovery and the ledger already hold. Gaps come from demand first; a generic
+  best-practice checklist only breaks ties.
 - How the swarm reads the library is Q17.
 - How discovery is tested without a customer (decided Oct 13, 2026), cheapest first:
   - seaLeye's own four building blocks in `templates/`, whose right catalog entries are
@@ -189,7 +193,8 @@ holds file contents.
     a few pipeline files, with an answer key. It plants the hard cases on purpose: two
     modules that overlap (discovery must pause and ask), a deprecated module (must be
     refused), a usage rule only in a README, a fake key (the scanner must stop it before
-    any model), and later commits that test "only what changed is read again". It is
+    any model), later commits that test "only what changed is read again", and two
+    or three known gaps the gap report must find. It is
     read the way a customer's library is read (Q17), in an account opened for it, and
     becomes the regression set a catalog must pass to go live. Built at the start of
     Phase 4, so every change to discovery is graded against it.
@@ -207,6 +212,9 @@ holds file contents.
 - Approvals through the organization's change tool (ServiceNow first). The interview
   graph waits on an approval as an `interrupt()` held in Postgres, for days if need be.
 - Gap tickets from the needs ledger into the platform team's queue (Jira first).
+- Each gap ticket carries two or three ways to fill the gap, the effort and trade-offs of
+  each, and a recommendation (added Oct 13, 2026). Advice only: the platform team
+  chooses.
 - Notifications where people are (Teams and Slack).
 - `sealeye integrations` and its portal page: which of these are connected (moved from
   Phase 2, PHASE2-PLAN D8).
@@ -237,6 +245,22 @@ exactly what a developer gets.
 - Single-tenant and in-network deployment; a model the organization runs.
 - More regions, runtimes and clouds.
 - The command on Windows (Q7).
+
+### Phase 8: seaLeye drafts modules
+
+Added Oct 13, 2026, last on purpose; it can be pulled forward if an organization wants
+it sooner. **Goal:** a gap the platform team chose to fill arrives as a module to review,
+not only a ticket.
+
+- seaLeye writes the specification: the gap, the option the platform team chose, the
+  organization's conventions from the catalog, and what must be refused.
+- A coding agent writes the module from it, through the Phase 6 door; seaLeye does not
+  grow its own code writer.
+- The module arrives as a pull request in the platform team's own repository, after
+  passing seaLeye's tests, the must-refuse plans included.
+- seaLeye never merges its own module. It enters the catalog only when a platform
+  engineer merges it: the team that runs a service owns it (as in Q17).
+- Graded on the made-up organization's planted gaps before any customer sees it.
 
 ## Parity backlog
 

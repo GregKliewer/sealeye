@@ -1736,3 +1736,13 @@ otherwise.
   one, so discovery reads it the same way it will read a customer's (Q17). seaLeye's own
   building blocks are the smoke test before it; public module libraries test scale and
   cost; a paying customer tests usefulness last. ROADMAP Phase 4 lists the four layers.
+- **seaLeye finds gaps and advises; drafting modules comes last.** Greg asked whether
+  seaLeye should do more than discover: find gaps, offer options and fill them. Decided
+  Oct 13, 2026, in three steps. Phase 4 adds a gap report, built from the needs ledger
+  so each gap is backed by what developers asked for, not by a generic checklist.
+  Phase 5's gap tickets carry options, effort and a recommendation; the platform team
+  chooses. A new Phase 8, last on purpose and movable if an organization wants it
+  sooner, has seaLeye draft the module as a pull request in the platform team's
+  repository, written by a coding agent from seaLeye's specification. seaLeye never
+  merges its own module: code that creates an organization's infrastructure needs an
+  accountable owner, the team that runs it.

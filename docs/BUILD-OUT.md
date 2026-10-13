@@ -18,12 +18,13 @@ When ROADMAP.md changes what a phase holds, fix its picture here in the same com
 | 1 | Team release | Mostly done Oct 11, 2026 | Hosted API, tokens, Postgres, the live portal, CI. Open: the second-person test, which runs alongside Phase 3 |
 | 2 | Day-two parity | Built Oct 12, 2026 | Logs, performance, costs, pause, configure, the settings store and evidence, on both surfaces |
 | 3 | Governed backbone | **New**, next ([PHASE3-PLAN.md](PHASE3-PLAN.md)) | agentgateway in front of every model call, identity per caller, routing, spend caps |
-| 4 | Learn the platform | Planned | A discovery swarm reads the organization's library into its catalog, with must-refuse tests and Terraform; LangFuse self-hosted in Canada |
-| 5 | The path to production | Planned | Promote, approvals in ServiceNow, Jira gap tickets, team accounts, Cognito sign-in |
+| 4 | Learn the platform | Planned | A discovery swarm reads the organization's library into its catalog, with must-refuse tests and Terraform; a gap report; LangFuse self-hosted in Canada |
+| 5 | The path to production | Planned | Promote, approvals in ServiceNow, Jira gap tickets with options and a recommendation, team accounts, Cognito sign-in |
 | 6 | seaLeye for agents | **New**, planned | seaLeye's tools as MCP behind the gateway, for coding agents |
 | 7 | Delivery and breadth | Planned | In-network or single tenant, the organization's own model, more clouds and regions, Windows |
+| 8 | seaLeye drafts modules | **New**, last | A chosen gap arrives as a module in a pull request to the platform team; seaLeye never merges it |
 
-Phases 3 and 6 were added on Oct 13, 2026; the old Phases 3, 4 and 5 became 4, 5 and 7.
+Phases 3, 6 and 8 were added on Oct 13, 2026; the old Phases 3, 4 and 5 became 4, 5 and 7.
 
 ## Today: Phases 0 to 2, as built (v2.21.0)
 
@@ -402,4 +403,24 @@ flowchart TB
   gateway ~~~ models
   classDef new fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#111
   class cli,cloud,models,records new
+```
+
+## Phase 8: seaLeye drafts modules
+
+Phase 8 lets seaLeye draft the module that fills a gap the platform team chose. The picture is Phase 7's; one path changes, drawn here.
+
+Key flow: a chosen gap becomes a module the platform team reviews. seaLeye proposes; a platform engineer decides.
+
+```mermaid
+flowchart LR
+  gap["<b>Gap ticket</b><br/>option chosen<br/>by the platform team"] --> spec["<b>Specification</b><br/>conventions and<br/>must-refuse rules"]
+  spec --> coder["<b>Coding agent</b><br/>through the<br/>Phase 6 door"]
+  coder --> tests["<b>seaLeye's tests</b><br/>must-refuse plans<br/>included"]
+  tests -- fail --> coder
+  tests -- pass --> pr["<b>Pull request</b><br/>in the platform<br/>team's repository"]
+  pr --> review{"Platform engineer<br/>merges?"}
+  review -- yes --> catalog["<b>Org catalog</b><br/>the need is<br/>now buildable"]
+  review -- no --> gap
+  classDef new fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#111
+  class spec,coder,tests,pr new
 ```
