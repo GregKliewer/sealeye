@@ -52,7 +52,7 @@ capacity claims.
 All eight pages served locally. The link check passes across them (299 internal references,
 including `#steps`, `#apps`, `#deployment`, `#sandboxed-apps`, `#questions` and
 `security.html#deployment`), and the only external URLs are the two product sites and Google
-Fonts. No em dashes, no deployme, no Blitzy, lorem, TODO or "coming soon", no href to
+Fonts. No em dashes, no deployme, no third-party names, lorem, TODO or "coming soon", no href to
 sealeye.com. The arithmetic was checked by script, and so was the agreement with Get Started
 and Security (step names, eight weeks, one senior engineer, the four options' wording, the
 model endpoint wording). Pricing was screenshotted at 1440, 960 and 390 wide, the top bar at

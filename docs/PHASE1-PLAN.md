@@ -2,11 +2,11 @@
 
 Written Thu Oct 8, 2026. Part A was built on the branch `langfuse-tracing` and merged to
 `main` on Fri Oct 9 (pull request #4), when Greg decided tracing stays in the product
-(DESIGN.md, "Tracing stays in the product"). The plan first held that decision until after
-the Lightworks interview on Tue Oct 13; it did not need to wait.
+(DESIGN.md, "Tracing stays in the product"). The plan first held that decision for a few
+days; it did not need to wait.
 
 The plan has two parts. **Part A** (Steps 0 to 7) adds LangFuse to the interview as it runs
-today, on Greg's machine, and can be finished before Tuesday. **Part B** (Steps 8 to 15) is
+today, on Greg's machine, and can be finished in a few days. **Part B** (Steps 8 to 15) is
 Phase 1 proper: the API is hosted, the interview moves behind it, and tracing moves with
 it. Part B starts from `main` on Sat Oct 10.
 
@@ -62,7 +62,7 @@ file contents. It is also untested against the `@anthropic-ai/sdk` 0.127 this re
 Hand-written spans let seaLeye decide what a trace contains. That is the principle-6
 answer, and it is the more useful thing to learn.
 
-## Part A: tracing the interview (before Tuesday)
+## Part A: tracing the interview
 
 **Status:** built and checked by hand on Fri Oct 9, 2026, on `langfuse-tracing` (pull
 request #4, merged Fri Oct 9). Where the build differs from the steps below, DESIGN.md says

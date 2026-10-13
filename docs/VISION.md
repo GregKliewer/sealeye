@@ -1,6 +1,6 @@
 # seaLeye: vision
 
-First written Oct 8, 2026, from the Oct 2 dry run of the Blitzy pitch and the code as it
+First written Oct 8, 2026, from the Oct 2 product dry run and the code as it
 stood at 2.16.0. This file changes rarely. When a decision changes it, the same commit
 records the decision in DESIGN.md. "The surfaces" was brought up to date with what is
 built on Oct 12, 2026; how each part is built is in ARCHITECTURE.md.
