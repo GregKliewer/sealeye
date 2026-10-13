@@ -1729,3 +1729,10 @@ otherwise.
   account, but residency of inference is now Q18, with the commands that settle it for
   a given account. Until then the interview's calls to the Anthropic API, in the US, are
   acceptable for the friendly team and the sample apps, and ARCHITECTURE.md says so.
+- **Discovery is tested on a made-up organization first.** No customer's library is
+  needed to test Phase 4. A private repository for a fictional organization holds
+  Terraform modules with known right answers and planted hard cases, much as the
+  interview is graded on three sample apps. It lives in its own repository, not in this
+  one, so discovery reads it the same way it will read a customer's (Q17). seaLeye's own
+  building blocks are the smoke test before it; public module libraries test scale and
+  cost; a paying customer tests usefulness last. ROADMAP Phase 4 lists the four layers.

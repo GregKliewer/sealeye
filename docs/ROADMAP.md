@@ -182,6 +182,21 @@ holds file contents.
   supports it.
 - A second backend: Terraform, since that is what most platform libraries are.
 - How the swarm reads the library is Q17.
+- How discovery is tested without a customer (decided Oct 13, 2026), cheapest first:
+  - seaLeye's own four building blocks in `templates/`, whose right catalog entries are
+    already known. The smoke test.
+  - A made-up organization in its own private repository: 10 to 15 Terraform modules and
+    a few pipeline files, with an answer key. It plants the hard cases on purpose: two
+    modules that overlap (discovery must pause and ask), a deprecated module (must be
+    refused), a usage rule only in a README, a fake key (the scanner must stop it before
+    any model), and later commits that test "only what changed is read again". It is
+    read the way a customer's library is read (Q17), in an account opened for it, and
+    becomes the regression set a catalog must pass to go live. Built at the start of
+    Phase 4, so every change to discovery is graded against it.
+  - Public module libraries on GitHub, for scale and cost caps. No answer key; checked
+    by hand.
+  - The first paid customer run, to judge whether the catalog is useful, after the
+    three above have caught the mechanical failures.
 
 ### Phase 5: The path to production
 
