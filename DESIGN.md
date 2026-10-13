@@ -353,12 +353,10 @@ trace contains.
 Decided Fri Oct 9, 2026, by Greg. Part A (pull request #4) merges to `main` now, and Part B
 of PHASE1-PLAN starts from `main` on Sat Oct 10.
 
-The plan held this decision until after the Lightworks interview on Tue Oct 13, for two
-reasons: Step 8 moves tracing into the API, so building it before deciding risked wasted
-work, and the interview demo ran on this code. Neither holds. Tracing is in, and Part A is
-not being demoed. Working on Part B now is also the point: seaLeye is how Greg is learning
-LangFuse, and how a real AI-native product is built, hands on, alongside the interview
-process.
+The plan first held this decision for a few days, because Step 8 moves tracing into the
+API and building it before deciding risked wasted work. That no longer holds: tracing is
+in. Working on Part B now is also the point: seaLeye is how Greg is learning LangFuse, and
+how a real AI-native product is built, hands on.
 
 What stays open is unchanged: where traces live for an organization (Q13), and the Part B
 decisions that are not yet made (Q1's folder upload before Step 8, D6 and D7 before Steps
