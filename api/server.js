@@ -612,6 +612,10 @@ app.get("/deployments", (req, res) => {
     destroyRequestedBy: dep.destroyRequestedBy || null,
     // What the platform is doing for it now, in a line (while it is under way).
     step: dep.step || null,
+    // A failed first create whose dead stack is being removed: no other change until
+    // it is gone (api/busy.js).
+    cleaningUp: dep.cleaningUp === true,
+    cleanupStartedAt: dep.cleanupStartedAt || null,
     // A successful deploy a newer successful deploy has since replaced: no longer what
     // its environment runs. Its result stays its own. replacedBy names the newer one
     // when the reader can see it (a stack from before teams had names can hold another

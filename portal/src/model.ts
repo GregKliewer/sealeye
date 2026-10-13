@@ -87,7 +87,7 @@ const DAY_MS = 24 * 3600_000;
 
 /** When the change under way began: a tear-down when it was asked for. */
 export function changedAt(dep: DeploymentSummary): string | null {
-  return (dep.status === "destroying" && dep.destroyRequestedBy?.at) || dep.startedAt;
+  return (dep.status === "destroying" && dep.destroyRequestedBy?.at) || (dep.cleaningUp && dep.cleanupStartedAt) || dep.startedAt;
 }
 
 /**
@@ -96,6 +96,10 @@ export function changedAt(dep: DeploymentSummary): string | null {
  * not interrupted, and begun within the last day.
  */
 export function underWay(dep: DeploymentSummary | null | undefined, now = Date.now()): boolean {
+  if (dep?.status === "failed" && dep.cleaningUp) {
+    const began = Date.parse(dep.cleanupStartedAt || "");
+    return Number.isFinite(began) && now - began < 30 * 60_000;
+  }
   if (!dep || !IN_FLIGHT.has(dep.status) || dep.interrupted) return false;
   const at = Date.parse(changedAt(dep) || "");
   return Number.isFinite(at) && now - at < DAY_MS;
@@ -107,6 +111,7 @@ export function doing(dep: DeploymentSummary): { title: string; verb: string } {
     case "queued": return { title: "Waiting to start", verb: "waiting to start" };
     case "packaging": return { title: "Packaging your app", verb: "packaging" };
     case "destroying": return { title: "Tearing down", verb: "tearing down" };
+    case "failed": return { title: "Clearing a build that failed", verb: "clearing a build that failed" };
     default: return { title: "Building", verb: "building" };
   }
 }

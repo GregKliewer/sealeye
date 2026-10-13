@@ -2328,6 +2328,7 @@ function printDeploymentTable(deployments) {
     // success a newer one has replaced keeps its result, and says it is no longer what
     // the environment runs; only the current one says it is paused.
     status: dep.interrupted ? `${dep.status} (interrupted)`
+      : dep.cleaningUp ? "failed (removing what it left)"
       : dep.replaced ? `succeeded (replaced${dep.replacedBy ? ` by ${dep.replacedBy}` : ""})`
       : dep.status === "succeeded" && dep.paused ? "succeeded (paused)"
       : dep.status,

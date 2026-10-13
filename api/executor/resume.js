@@ -8,7 +8,7 @@
 // - queued or packaging: the platform stopped while getting it ready, before the stack
 //   step. That work cannot be resumed, and saying so is the honest status.
 import { listDeployments, putDeployment } from "../store.js";
-import { followStack, settersFor, startDestroy } from "./index.js";
+import { finishCleanup, followStack, settersFor, startDestroy } from "./index.js";
 import { removeUpload, uploadDirFor } from "./uploads.js";
 
 const now = () => new Date().toISOString();
@@ -21,16 +21,20 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * - imported from another machine's store (`deploy/server.sh import`), whose role and
  *   account may not be this server's;
  * - more than a day old: whatever it was doing ended long ago, and its stack may since
- *   belong to a newer deployment;
- * - not the newest record for its stack: acting on it could tear down or take the
- *   result of the deployment that came after it.
+ *   belong to a newer deployment (a tear-down's age counts from when it was asked for);
+ * - a newer deployment started on its stack after it began: acting on it could tear
+ *   down or take the result of the deployment that came after it.
  */
+// When what was interrupted began: a tear-down when it was asked for, which can be long
+// after its deployment started; anything else when it started.
+const begunAt = dep => (dep.status === "destroying" && dep.destroyRequestedBy?.at) || dep.startedAt || "";
+
 function stillOurs(dep, all, nowMs) {
   if (dep.importedAt) return "imported from another machine";
-  const started = Date.parse(dep.startedAt || "");
+  const started = Date.parse(begunAt(dep));
   if (!Number.isFinite(started) || nowMs - started > DAY_MS) return "older than a day";
   if (dep.stackName) {
-    const newer = all.some(o => o !== dep && o.stackName === dep.stackName && String(o.startedAt || "") > String(dep.startedAt || ""));
+    const newer = all.some(o => o !== dep && o.stackName === dep.stackName && String(o.startedAt || "") > String(begunAt(dep)));
     if (newer) return "a newer deployment has used the same environment since";
   }
   return null;
@@ -42,6 +46,12 @@ export function resumeInFlight({ nowMs = Date.now() } = {}) {
   const all = listDeployments();
 
   for (const dep of all) {
+    // A failed first create whose removal was under way: wait for it again.
+    if (dep.status === "failed" && dep.cleaningUp && dep.stackName) {
+      finishCleanup(dep).catch(err => { dep.cleaningUp = false; dep.cleanupError = err.message; putDeployment(dep); });
+      picked.push({ deploymentId: dep.deploymentId, as: "waiting again for the failed stack to be removed" });
+      continue;
+    }
     if (!dep.interrupted) continue;
     const notOurs = stillOurs(dep, all, nowMs);
     if (notOurs) {
