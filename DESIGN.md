@@ -1705,3 +1705,7 @@ otherwise.
   Until then Phase 3's gateway spans join the run's trace in LangFuse Cloud, and tracing
   stays off for any pilot on real code. The answer to Q13 is unchanged; only its timing
   moved.
+- **The pictures draw discovery where it runs.** BUILD-OUT.md had the swarm inside "one
+  small server in ca-central-1", while the decision above it puts each run in a new
+  account opened for the customer. Phases 4 to 7 now draw the swarm in that account,
+  apart from seaLeye's API; the catalog it writes lives with the API.

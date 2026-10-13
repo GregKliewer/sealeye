@@ -135,7 +135,7 @@ flowchart LR
 
 ## Phase 4: Learn the platform
 
-Phase 4 teaches seaLeye the platform the organization already has. A discovery swarm reads the library overnight; the front door agent then works from what it found.
+Phase 4 teaches seaLeye the platform the organization already has. A discovery swarm reads the library overnight, in a new account opened for that customer, not on seaLeye's own server; the front door agent then works from the catalog it writes.
 
 ```mermaid
 flowchart TB
@@ -155,8 +155,10 @@ flowchart TB
     executor["<b>Executor</b><br/>the org's modules<br/>scoped deploy role"]
     daytwo["<b>Day-two operations</b><br/>logs, perf, costs,<br/>pause, settings"]
     records["<b>Records</b><br/>Postgres, per team<br/>tokens, evidence"]
-    discovery["<b>Discovery swarm</b><br/>LangGraph fan-out,<br/>people in the loop"]
     catalog["<b>Org catalog</b><br/>modules, usage rules,<br/>what must be refused"]
+  end
+  subgraph discoveryacct["Discovery: a new account per customer, a paid run"]
+    discovery["<b>Discovery swarm</b><br/>LangGraph fan-out,<br/>people in the loop"]
   end
   frontdoor ~~~ records
   contract ~~~ discovery
@@ -224,9 +226,11 @@ flowchart TB
     executor["<b>Executor</b><br/>the org's modules<br/>role per team account"]
     daytwo["<b>Day-two operations</b><br/>logs, perf, costs,<br/>pause, settings"]
     records["<b>Records</b><br/>Postgres, per team<br/>tokens, evidence"]
-    discovery["<b>Discovery swarm</b><br/>LangGraph fan-out,<br/>people in the loop"]
     catalog["<b>Org catalog</b><br/>modules, usage rules,<br/>what must be refused"]
     promote["<b>Promote, approvals</b><br/>approvals wait days<br/>as graph interrupts"]
+  end
+  subgraph discoveryacct["Discovery: a new account per customer, a paid run"]
+    discovery["<b>Discovery swarm</b><br/>LangGraph fan-out,<br/>people in the loop"]
   end
   frontdoor ~~~ records
   contract ~~~ discovery
@@ -292,9 +296,11 @@ flowchart TB
     executor["<b>Executor</b><br/>the org's modules<br/>role per team account"]
     daytwo["<b>Day-two operations</b><br/>logs, perf, costs,<br/>pause, settings"]
     records["<b>Records</b><br/>Postgres, per team<br/>tokens, evidence"]
-    discovery["<b>Discovery swarm</b><br/>LangGraph fan-out,<br/>people in the loop"]
     catalog["<b>Org catalog</b><br/>modules, usage rules,<br/>what must be refused"]
     promote["<b>Promote, approvals</b><br/>approvals wait days<br/>as graph interrupts"]
+  end
+  subgraph discoveryacct["Discovery: a new account per customer, a paid run"]
+    discovery["<b>Discovery swarm</b><br/>LangGraph fan-out,<br/>people in the loop"]
   end
   frontdoor ~~~ records
   contract ~~~ discovery
@@ -359,9 +365,11 @@ flowchart TB
     executor["<b>Executor</b><br/>the org's modules<br/>role per team account"]
     daytwo["<b>Day-two operations</b><br/>logs, perf, costs,<br/>pause, settings"]
     records["<b>Records</b><br/>managed database<br/>per org, per team"]
-    discovery["<b>Discovery swarm</b><br/>LangGraph fan-out,<br/>people in the loop"]
     catalog["<b>Org catalog</b><br/>modules, usage rules,<br/>what must be refused"]
     promote["<b>Promote, approvals</b><br/>approvals wait days<br/>as graph interrupts"]
+  end
+  subgraph discoveryacct["Discovery: a new account per customer, a paid run"]
+    discovery["<b>Discovery swarm</b><br/>LangGraph fan-out,<br/>people in the loop"]
   end
   frontdoor ~~~ records
   contract ~~~ discovery
