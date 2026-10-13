@@ -87,7 +87,7 @@ You asked for:
   [38;2;127;216;194mhttp_api_serverless[0m
   [38;2;127;216;194mobservability_basic[0m
 
-[38;2;138;150;163m  Uploading the artifact to s3://deployme-artifacts-682542496821-ca-central-1/sample-expressjs/dep_689650c0fd51.zip[0m
+[38;2;138;150;163m  Uploading the artifact to s3://deployme-artifacts-123456789012-ca-central-1/sample-expressjs/dep_689650c0fd51.zip[0m
 
 [38;2;138;150;163mStatus: packaging...[0m[1;1H[0J[38;2;127;216;194m                __
   ___ ___ ___ _/ /  ___ __ _____
@@ -105,7 +105,7 @@ You asked for:
   [38;2;127;216;194mhttp_api_serverless[0m
   [38;2;127;216;194mobservability_basic[0m
 
-[38;2;138;150;163m  Uploading the artifact to s3://deployme-artifacts-682542496821-ca-central-1/sample-expressjs/dep_689650c0fd51.zip[0m
+[38;2;138;150;163m  Uploading the artifact to s3://deployme-artifacts-123456789012-ca-central-1/sample-expressjs/dep_689650c0fd51.zip[0m
 
 [38;2;138;150;163mStatus: packaging.[0m[1;1H[0J[38;2;127;216;194m                __
   ___ ___ ___ _/ /  ___ __ _____
