@@ -222,6 +222,8 @@ exactly what a developer gets.
   goes through it too.
 - The same plan contract, the same human yes, the same evidence, with the agent named on
   the record and in the trace.
+- The human yes is a queue in the portal: an agent's plan waits there until a person on
+  its team approves or refuses it, and the agent is told which (decided Oct 13, 2026).
 - It comes after Phase 5 so an agent gets the whole path, approvals included, not a
   side door to dev.
 
@@ -260,6 +262,7 @@ and does nothing real. A blank is not started.
 | Settings in the secret store | `sealeye settings`, `settings set`, `settings unset` | `GET /apps/{app}/settings`, `PUT` and `DELETE /apps/{app}/settings/{name}` | built | built (Settings, in Control) | 1 (item 10) |
 | Onboard and ingest | `sealeye admin ingest` | | | | 4 |
 | Promote | `sealeye promote` | | | | 5 |
+| Approve an agent's plan | | | | | 6 (a queue in the portal) |
 | Raise a gap ticket | `sealeye needs --request` | | prints text only | | 5 |
 
 Command names not yet built are proposals; settle each one in DESIGN.md before

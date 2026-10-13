@@ -1717,3 +1717,7 @@ otherwise.
   secret, but never as the only check. It is built for the interview now and becomes the
   discovery swarm's first node in Phase 4. Where it runs, and whether a finding stops a
   deploy, are PHASE3-PLAN D3 and D4.
+- **An agent's plan waits in a queue in the portal.** In Phase 6 the human yes that a
+  developer gives at the terminal is given in the portal for an agent: its plan waits
+  there until a person on the agent's team approves or refuses it, and the agent is told
+  which. Nothing an agent asks for is built without that yes.

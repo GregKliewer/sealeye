@@ -290,7 +290,7 @@ flowchart TB
   end
   subgraph surfaces["Surfaces"]
     cli["<b>sealeye command</b><br/>seaLeye.run<br/>interview, day two"]
-    portal["<b>seaLeye.online</b><br/>same operations,<br/>Cognito sign-in"]
+    portal["<b>seaLeye.online</b><br/>Cognito sign-in,<br/>agents' plans queue"]
     mcp["<b>MCP server</b><br/>plan, validate,<br/>deploy, evidence"]
   end
   dev ~~~ cli
@@ -327,10 +327,10 @@ flowchart TB
   end
   gateway ~~~ models
   classDef new fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#111
-  class agents,gateway,mcp new
+  class agents,gateway,mcp,portal new
 ```
 
-Key flow: a coding agent asks seaLeye for an environment through MCP. An agent gets exactly what a developer gets, and no more.
+Key flow: a coding agent asks seaLeye for an environment through MCP. An agent gets exactly what a developer gets, and no more: its plan waits in a queue in the portal until a person on its team says yes.
 
 ```mermaid
 flowchart LR
@@ -339,11 +339,13 @@ flowchart LR
   allowed -- no --> refused["<b>Refused, logged</b><br/>agent named"]
   allowed -- yes --> mcp["<b>MCP server</b><br/>plan, validate"]
   mcp --> contract["<b>Plan contract</b><br/>refuse, never shrink"]
-  contract --> yes["<b>A person says yes</b><br/>as for a developer"]
-  yes --> build["<b>Executor builds</b><br/>certified modules"]
+  contract --> queue["<b>Portal queue</b><br/>plan waits there"]
+  queue --> yes{"Team approves?"}
+  yes -- no --> told["<b>Agent told why</b><br/>nothing is built"]
+  yes -- yes --> build["<b>Executor builds</b><br/>certified modules"]
   build --> ev["<b>Evidence, trace</b><br/>name the agent"]
   classDef new fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#111
-  class agent,gw,allowed,refused,mcp,ev new
+  class agent,gw,allowed,refused,mcp,queue,yes,told,ev new
 ```
 
 ## Phase 7: Delivery and breadth
@@ -360,7 +362,7 @@ flowchart TB
   end
   subgraph surfaces["Surfaces"]
     cli["<b>sealeye command</b><br/>seaLeye.run<br/>macOS and Windows"]
-    portal["<b>seaLeye.online</b><br/>same operations,<br/>Cognito sign-in"]
+    portal["<b>seaLeye.online</b><br/>Cognito sign-in,<br/>agents' plans queue"]
     mcp["<b>MCP server</b><br/>plan, validate,<br/>deploy, evidence"]
   end
   dev ~~~ cli
