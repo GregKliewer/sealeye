@@ -485,7 +485,7 @@ LangGraph's own checkpoint tables also live in `interview_state`.
 | Uploaded copies | `~/.sealeye/deploy-uploads/<deploymentId>/` on the server | until the deployment ends |
 | Interview scratch folders | on the server | until the interview ends, or a day |
 | Backups | config bucket, `backups/` | 30 days |
-| Traces | LangFuse, when keys are set | LangFuse's retention (self-hosted from Phase 3) |
+| Traces | LangFuse, when keys are set | LangFuse's retention (self-hosted from Phase 4) |
 | The developer's files | the app folder: DEPLOYMENT_PLAN.md, sealeye.yaml, DEPLOYMENT_REPORT.md, DEPLOYMENT_EVIDENCE.md | the developer's |
 
 ### 8.3 The plan contract
@@ -533,7 +533,7 @@ flowchart LR
 
 Open security decisions are in [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md): Q16
 (identity-provider sign-in replacing tokens). Where an organization's traces live was
-Q13, answered Oct 13, 2026: LangFuse self-hosted in ca-central-1, in ROADMAP Phase 3.
+Q13, answered Oct 13, 2026: LangFuse self-hosted in ca-central-1, in ROADMAP Phase 4.
 
 ## 10. Cross-cutting concerns
 
@@ -584,6 +584,8 @@ The decisions that shaped the architecture, by DESIGN.md heading.
 | Tokens instead of sign-in | A handful of people | Phase 5: Cognito (Q16) |
 | Four modules, CloudFormation only | The demo platform | Phase 4: the organization's own modules, Terraform |
 | ca-central-1, Node 20, no CloudFront | The pilot's scope | Phase 7 |
-| Traces in LangFuse Cloud (US) | Sample apps only | Phase 3: self-hosted in ca-central-1 |
+| Traces in LangFuse Cloud (US) | Sample apps only; off for any pilot on real code | Phase 4: self-hosted in ca-central-1, before discovery reads an organization's code |
 | No promotion past dev | Developers deploy to dev | Phase 5 |
-| No gateway in front of the model | One agent, one box | Phase 3: agentgateway, routing and spend caps |
+| No gateway in front of the model | One agent, one box | Phase 3: a cap per run in seaLeye's graph; agentgateway for identity, routing and the outer budget |
+| The interview sends an app's code to the Anthropic API, in the US | Sample apps and a friendly team | Phase 3: a route to Claude on Bedrock in the organization's account; whether it stays in Canada is Q18 |
+| A key written into code (not a secret file) can reach the model | Sample apps and a friendly team | Phase 3: a secret scanner before any model (Q6) |

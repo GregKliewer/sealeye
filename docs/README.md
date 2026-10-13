@@ -26,18 +26,19 @@ There are two surfaces and one product:
 - **seaLeye.online**, the web portal, for anyone who prefers a browser.
 - Both are clients of one **seaLeye API**, so they can always do the same things.
 
-## Where it stands (Oct 12, 2026, version 2.20.0)
+## Where it stands (Oct 13, 2026, version 2.21.1)
 
 - **Live** for a pilot: the API at https://api.sealeye.online, the portal at
   https://sealeye.online, and the command installed from https://sealeye.run.
 - **Built:** the interview, planning, refusal and deploy; every day-two operation in
   both surfaces; app settings in the organization's own secret store; one token per
   person and a team's environments kept to that team.
-- **Next:** the second-person test (someone other than Greg, on their own machine), then
-  the governed backbone (Phase 3: a gateway, routing and spend caps in front of every
-  model call), learning an organization's own platform (Phase 4), the path to
-  production (Phase 5) and seaLeye for agents (Phase 6). [BUILD-OUT.md](BUILD-OUT.md)
-  draws each phase.
+- **Next:** the governed backbone (Phase 3: a secret scanner before the model, and a
+  gateway, identity, routing and spend caps in front of every model call), with the
+  second-person test (someone other than Greg, on their own machine) alongside it. Then
+  learning an organization's own platform (Phase 4), the path to production (Phase 5)
+  and seaLeye for agents (Phase 6). [PHASE3-PLAN.md](PHASE3-PLAN.md) is the current
+  plan; [BUILD-OUT.md](BUILD-OUT.md) draws each phase.
 
 [ROADMAP.md](ROADMAP.md) has the detail and the parity table.
 
@@ -61,7 +62,8 @@ There are two surfaces and one product:
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Architecture | How it is built: context, containers, deployment, flows, data, security | When a diagram would be wrong |
 | [DESIGN.md](../DESIGN.md) | Decisions | Each decision, dated, with its reason | Every decision a later reader would have to guess |
 | [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md) | Decisions not yet made | What is undecided, the options, the leaning, what it blocks | When a question is asked or answered |
-| [PHASE2-PLAN.md](PHASE2-PLAN.md) | Plan (current) | The step-by-step plan now being worked, and what it leaves for later | With the work |
+| [PHASE3-PLAN.md](PHASE3-PLAN.md) | Plan (current) | The step-by-step plan now being worked, and what it leaves for later | With the work |
+| [PHASE2-PLAN.md](PHASE2-PLAN.md) | Plan (done) | How the team release, the secret store and day-two parity were built; its "Owed" list still stands | Not any more |
 | [PHASE1-PLAN.md](PHASE1-PLAN.md) | Plan (done) | How Phase 1 was built | Not any more |
 | [WELCOME.md](WELCOME.md) | Guide | A new developer's first twenty minutes | When the first run changes |
 | [STEP15-CHECKLIST.md](STEP15-CHECKLIST.md) | Checklist | What to watch for in the second-person test | Before the test |

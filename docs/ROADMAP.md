@@ -6,9 +6,10 @@ the same commit as the work that changes it. Questions that block a phase are in
 OPEN-QUESTIONS.md.
 
 **Plans.** `docs/PHASE1-PLAN.md` built Phase 1 up to the second-person test (done Oct
-11, 2026). `docs/PHASE2-PLAN.md` is current: it finishes Phase 1 for a friendly team
-(Part A), builds item 10 (Part B), then Phase 2 (Part C). What it leaves for later, and
-what brings each item forward, is its last section, "Owed after this plan".
+11, 2026). `docs/PHASE2-PLAN.md` finished Phase 1 for a friendly team, item 10 and Phase
+2 (done Oct 12, 2026, all but Step 6, the second-person test); its last section, "Owed
+after this plan", still stands. `docs/PHASE3-PLAN.md` is current: Phase 3, with the
+second-person test alongside.
 
 **Renumbered Oct 13, 2026.** Phase 3 (governed backbone) and Phase 6 (seaLeye for agents)
 are new; the old Phases 3, 4 and 5 are now 4, 5 and 7. DESIGN.md entries and the two
@@ -43,11 +44,12 @@ shows what is really there.
   team's environments without the rights to.
 - `npm test` runs on every push.
 
-*Status Oct 11, 2026:* the second and fourth lines are met. Each team now sees only its
+*Status Oct 13, 2026:* the second and fourth lines are met. Each team now sees only its
 own environments, and an organization-wide token sees every team's (PHASE2-PLAN Step 1).
 Each team's environments also have names of their own, so two teams can use the same
-app name (Step 2). Step 6, the second-person test, is ready and deferred: Greg runs it
-later, and the first and third lines stay open until he does.
+app name (Step 2). The second-person test (PHASE2-PLAN Step 6) is ready, and runs
+alongside Phase 3 rather than before it (decided Oct 13, 2026); the first and third
+lines stay open until it does.
 
 **Work:**
 1. **The app reaches the API without a shared disk.** Today `POST /deployments` takes an
@@ -92,26 +94,13 @@ later, and the first and third lines stay open until he does.
    interview with LangFuse"). It moved to the API with the interview on Oct 10, 2026,
    one trace across the interview's pauses; where an organization's traces live is Q13.
 10. **Setting values move to the organization's secret store.** *Done Oct 12, 2026
-    (PHASE2-PLAN Part B; DESIGN.md, "Settings live in the organization's store"). The
-    plan contract did not change: the platform asks the store at deploy time.* Decided Oct 10,
-    2026 (DESIGN.md, "Setting values travel with the deploy, for now"): for now the CLI
-    sends an app's setting values from its `.env` with each deploy. A bank will want
-    them in its own secret store instead, with nothing secret passing through seaLeye.
-    About three to five days:
-    - the plan names where each value lives (a contract change, so a new planVersion,
-      a prompt change and `npm run eval:interview`);
-    - the injected `run.sh` reads the values from the store when the app starts, so
-      the app is still not modified;
-    - the function may read only its own entries, and the deploy role reads them in
-      the team's own account;
-    - `sealeye secrets set`, an endpoint and a portal page (parity) put values in, and
-      the first deploy of an app offers to store what its `.env` holds;
-    - `sealeye run` says once that deployed settings come from the store, not `.env`;
-    - apps already deployed with sent values are moved: the records with a `sent` or
-      `.env` setting source are the list.
-    The sent-values path stays for dev and the sample apps. **Due before any pilot that
-    deploys an organization's real secrets.** Planned as PHASE2-PLAN Part B, before
-    Phase 2, so the portal's re-run, interview and Configure are built on the store.
+    (PHASE2-PLAN Part B; DESIGN.md, "Settings live in the organization's store").*
+    Until then the command sent an app's setting values from its `.env` with each
+    deploy (DESIGN.md, "Setting values travel with the deploy, for now"). Now each
+    value lives in the organization's own store, the plan says so, the app reads its
+    values when it starts without being modified, and `sealeye settings` and the
+    portal's Settings page put values in. The sent-values path stays for dev and the
+    sample apps.
 
 ### Phase 2: Day-two parity
 
@@ -134,23 +123,34 @@ Added Oct 13, 2026. **Goal:** every model call, and later every tool and agent c
 through one governed door before Phase 4 adds a swarm of agents.
 
 - agentgateway (agentgateway.dev, open source, in the Agentic AI Foundation) on the
-  API's network, in front of every model call. `SEALEYE_MODEL_URL` already points the
-  interview at it (DESIGN.md, "The model's address is a setting").
-- Identity per caller: a key per person and per agent or worker, so spend and traces
-  name who did it.
-- Spend caps per run and per worker, and a rate limit, so a looping run is stopped by a
-  cap and a person is told why.
+  API's network, in front of every model call. The interview already has the seam for
+  it: `SEALEYE_MODEL_URL` (DESIGN.md, "The model's address is a setting").
+- Identity per caller: every model call names its person, team, run and worker, so
+  spend and traces say who did it. How it is carried is PHASE3-PLAN D1.
+- Spend caps per run and per worker, held by seaLeye itself: the graph counts what each
+  run has used and stops it at its cap, and a person is told why. agentgateway has no
+  notion of a run; its budget per key and its rate limit are the outer limit behind
+  seaLeye's cap (DESIGN.md, "Phase 3, settled after review").
 - Routing by task and by data class: the frontier model for plans and rules, a small
   model for bulk reading, and an organization's code only to an endpoint in its own
-  account (Claude on Bedrock).
-- LangFuse self-hosted in ca-central-1 (answers Q13). Gateway spans join the run's
-  trace.
+  account (Claude on Bedrock). Bedrock serves Claude in Canada only through profiles
+  that may run inference in other regions, so whether a call stays in Canada is Q18.
+- Gateway spans join the run's trace in LangFuse Cloud, as today. Self-hosting
+  LangFuse in Canada moves to Phase 4 (DESIGN.md, "Phase 3, settled after review");
+  until then tracing stays off for any pilot on real code.
 - The gateway logs no request bodies: file names, never contents, as for traces
   (DESIGN.md, "Tracing the interview with LangFuse").
+- A deterministic secret scanner (answers Q6; brought forward from Phase 4 on Oct 13,
+  2026). A key written into an app's code, not only a secret file, never reaches the
+  model, a trace or the gateway: a file with a finding travels as a name only, and the
+  developer is told which file and line. The same scanner becomes the discovery swarm's
+  first node in Phase 4. Where it runs and what a finding does to a deploy are
+  PHASE3-PLAN D3 and D4.
 
-**Done when:** a looping run is stopped by a cap rather than by a person; every model
-call in a trace names its caller and its route; no trace or gateway log holds file
-contents.
+**Done when:** a looping run is stopped by seaLeye's own cap rather than by a person,
+and told why; the gateway's budget refuses calls once it is crossed, as the outer limit;
+every model call in a trace names its caller and its route; no trace or gateway log
+holds file contents.
 
 ### Phase 4: Learn the platform
 
@@ -160,12 +160,16 @@ contents.
 - The discovery agent is a swarm, built on Phase 3 from the start: a LangGraph
   supervisor fans work out to parallel workers, one module each, gathers their findings,
   and pauses for a platform engineer (`interrupt()`) on anything ambiguous.
-- Its first node is a deterministic secret scanner: a file with a finding never reaches
-  a model (Q6).
+- Its first node is the secret scanner built in Phase 3: a file with a finding never
+  reaches a model.
 - Spend: small models read, the frontier model writes the usage rules; hard caps per run
   and per worker; only modules changed since the last run are read again.
 - Where it runs: a new account opened for the prospect or customer, and the run is paid
   (decided Oct 13, 2026).
+- LangFuse self-hosted in ca-central-1 (answers Q13; moved here from Phase 3 on Oct 13,
+  2026), before the first discovery run reads an organization's code. It needs
+  ClickHouse, Redis and blob storage beside Postgres, so it does not share the pilot's
+  small server.
 - What it learns is the organization's catalog: each module, what it is for, its usage
   rules and what must be refused. The front door agent plans from that catalog. No model
   is fine-tuned.
@@ -208,6 +212,8 @@ exactly what a developer gets.
   goes through it too.
 - The same plan contract, the same human yes, the same evidence, with the agent named on
   the record and in the trace.
+- The human yes is a queue in the portal: an agent's plan waits there until a person on
+  its team approves or refuses it, and the agent is told which (decided Oct 13, 2026).
 - It comes after Phase 5 so an agent gets the whole path, approvals included, not a
   side door to dev.
 
@@ -246,6 +252,7 @@ and does nothing real. A blank is not started.
 | Settings in the secret store | `sealeye settings`, `settings set`, `settings unset` | `GET /apps/{app}/settings`, `PUT` and `DELETE /apps/{app}/settings/{name}` | built | built (Settings, in Control) | 1 (item 10) |
 | Onboard and ingest | `sealeye admin ingest` | | | | 4 |
 | Promote | `sealeye promote` | | | | 5 |
+| Approve an agent's plan | | | | | 6 (a queue in the portal) |
 | Raise a gap ticket | `sealeye needs --request` | | prints text only | | 5 |
 
 Command names not yet built are proposals; settle each one in DESIGN.md before

@@ -1683,3 +1683,51 @@ Entries above this one, and PHASE1-PLAN and PHASE2-PLAN, keep the old numbers.
   MCP server where one exists, plain code otherwise, and no MCP servers built by seaLeye
   for other teams' services.
 
+
+## Phase 3, settled after review
+
+Tue Oct 13, 2026, by Greg, after a review of the new roadmap the same day. Each bullet
+below was a concern raised in that review, and each is Greg's call unless it says
+otherwise.
+
+- **seaLeye holds the cap on a run; the gateway is the outer limit.** agentgateway's
+  budgets belong to an API key in its configuration, over fixed time windows, and are
+  charged after a response returns: the call that crosses a budget completes, and only
+  the next one is refused. It has no notion of a run or a worker. So the cap per run and
+  per worker lives in the graph, which already stops a stuck interview after
+  `MAX_TURNS`: it adds up `usage` from each response, stops the run at its cap and says
+  why. The gateway's budget and rate limit sit behind that, for whatever the graph gets
+  wrong. Phase 3's "done when" says so.
+- **Self-hosting LangFuse moves to Phase 4.** It needs ClickHouse, Redis and blob
+  storage beside Postgres, which the pilot's one small server cannot carry, and nothing
+  in Phase 3 sends an organization's code through a trace. Phase 4's discovery is the
+  first work that does, so LangFuse moves to Canada before the first discovery run.
+  Until then Phase 3's gateway spans join the run's trace in LangFuse Cloud, and tracing
+  stays off for any pilot on real code. The answer to Q13 is unchanged; only its timing
+  moved.
+- **The pictures draw discovery where it runs.** BUILD-OUT.md had the swarm inside "one
+  small server in ca-central-1", while the decision above it puts each run in a new
+  account opened for the customer. Phases 4 to 7 now draw the swarm in that account,
+  apart from seaLeye's API; the catalog it writes lives with the API.
+- **The secret scanner comes forward to Phase 3, and answers Q6.** Today a secret file
+  travels as an empty name, but a key written into `config.js` reaches the model and the
+  trace. A deterministic scanner, never a model, decides: a file with a finding travels
+  as a name only, `read_file` refuses it as it refuses `.env`, and the developer is told
+  the file and line, never the value. The model may still say something looks like a
+  secret, but never as the only check. It is built for the interview now and becomes the
+  discovery swarm's first node in Phase 4. Where it runs, and whether a finding stops a
+  deploy, are PHASE3-PLAN D3 and D4.
+- **An agent's plan waits in a queue in the portal.** In Phase 6 the human yes that a
+  developer gives at the terminal is given in the portal for an agent: its plan waits
+  there until a person on the agent's team approves or refuses it, and the agent is told
+  which. Nothing an agent asks for is built without that yes.
+- **The second-person test runs alongside Phase 3.** It needs nothing Phase 3 builds,
+  and Phase 3 needs nothing it finds. One overlap to watch: if the scanner (D4) refuses
+  a deploy with a finding, WELCOME.md and the sample apps must agree with it before the
+  tester runs them.
+- **"Bedrock in the organization's account" is not "in Canada".** Checked the same day:
+  Bedrock serves Claude to ca-central-1 only through cross-region profiles, not in
+  region. The routing rule still holds, since the endpoint is in the organization's own
+  account, but residency of inference is now Q18, with the commands that settle it for
+  a given account. Until then the interview's calls to the Anthropic API, in the US, are
+  acceptable for the friendly team and the sample apps, and ARCHITECTURE.md says so.

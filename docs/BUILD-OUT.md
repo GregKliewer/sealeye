@@ -15,10 +15,10 @@ When ROADMAP.md changes what a phase holds, fix its picture here in the same com
 | Phase | Name | State | What it adds |
 |---|---|---|---|
 | 0 | Foundation | Done Oct 8, 2026 | The demo becomes a product repo: cli, api and core, tests, CLAUDE.md, the roadmap |
-| 1 | Team release | Mostly done Oct 11, 2026 | Hosted API, tokens, Postgres, the live portal, CI. Open: the second-person test |
+| 1 | Team release | Mostly done Oct 11, 2026 | Hosted API, tokens, Postgres, the live portal, CI. Open: the second-person test, which runs alongside Phase 3 |
 | 2 | Day-two parity | Built Oct 12, 2026 | Logs, performance, costs, pause, configure, the settings store and evidence, on both surfaces |
-| 3 | Governed backbone | **New**, next | agentgateway in front of every model call, routing, spend caps, LangFuse self-hosted in ca-central-1 |
-| 4 | Learn the platform | Planned | A discovery swarm reads the organization's library into its catalog, with must-refuse tests and Terraform |
+| 3 | Governed backbone | **New**, next ([PHASE3-PLAN.md](PHASE3-PLAN.md)) | agentgateway in front of every model call, identity per caller, routing, spend caps |
+| 4 | Learn the platform | Planned | A discovery swarm reads the organization's library into its catalog, with must-refuse tests and Terraform; LangFuse self-hosted in Canada |
 | 5 | The path to production | Planned | Promote, approvals in ServiceNow, Jira gap tickets, team accounts, Cognito sign-in |
 | 6 | seaLeye for agents | **New**, planned | seaLeye's tools as MCP behind the gateway, for coding agents |
 | 7 | Delivery and breadth | Planned | In-network or single tenant, the organization's own model, more clouds and regions, Windows |
@@ -78,7 +78,7 @@ flowchart LR
 
 ## Phase 3: Governed backbone
 
-Phase 3 puts one governed door in front of every model call. Built before discovery, so the swarm runs on it from day one.
+Phase 3 puts one governed door in front of every model call, and a secret scanner in front of the model. Built before discovery, so the swarm runs on both from day one. The second-person test (Phase 1) can run alongside it.
 
 ```mermaid
 flowchart TB
@@ -98,14 +98,15 @@ flowchart TB
     executor["<b>Executor</b><br/>4 certified templates<br/>scoped deploy role"]
     daytwo["<b>Day-two operations</b><br/>logs, perf, costs,<br/>pause, settings"]
     records["<b>Records</b><br/>Postgres, per team<br/>tokens, evidence"]
+    scanner["<b>Secret scanner</b><br/>before any model,<br/>findings as names"]
+    caps["<b>Run caps</b><br/>per run, per worker,<br/>in seaLeye's graph"]
   end
   frontdoor ~~~ records
   cli ~~~ frontdoor
   subgraph backbone["Governed backbone: every model call goes through it"]
-    gateway["<b>agentgateway</b><br/>one door to models,<br/>keys per person"]
+    gateway["<b>agentgateway</b><br/>names every caller,<br/>outer budget, rate limit"]
     routing["<b>Model routing</b><br/>cheap for bulk work,<br/>bank code in-account"]
-    caps["<b>Spend caps</b><br/>per run, per worker,<br/>rate limits"]
-    langfuse["<b>LangFuse</b><br/>self-hosted, Canada<br/>traces, scores, evals"]
+    langfuse["<b>LangFuse Cloud</b><br/>gateway spans join<br/>the run's trace"]
   end
   records ~~~ gateway
   subgraph outside["Outside seaLeye"]
@@ -114,28 +115,31 @@ flowchart TB
   end
   gateway ~~~ models
   classDef new fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#111
-  class caps,gateway,langfuse,models,routing new
+  class caps,gateway,models,routing,scanner new
 ```
 
-Key flow: one model call through the backbone. Every model call is identified, budgeted and routed before it leaves.
+Key flow: one model call through the backbone. Nothing with a secret in it is sent. seaLeye stops a run at its own cap; the gateway names the caller, holds the outer budget and routes the call.
 
 ```mermaid
 flowchart LR
-  agent["<b>seaLeye agent</b><br/>asks for a model call"] --> gw["<b>agentgateway</b><br/>who is calling?"]
-  gw --> budget{"Under budget?"}
-  budget -- no --> stop["<b>Run stopped</b><br/>a person is told why"]
+  upload["<b>Upload scanned</b><br/>a finding: name only"] --> agent["<b>seaLeye agent</b><br/>asks for a model call"]
+  agent --> cap{"Run under<br/>its cap?"}
+  cap -- no --> stop["<b>Run stopped</b><br/>a person is told why"]
+  cap -- yes --> gw["<b>agentgateway</b><br/>checks the signed caller"]
+  gw --> budget{"Key under<br/>budget?"}
+  budget -- no --> outer["<b>Refused</b><br/>outer limit, says who to ask"]
   budget -- yes --> router["<b>Model routing</b><br/>task and data class"]
   router --> inacct["<b>In-account model</b><br/>for bank code"]
   router --> small["<b>Small model</b><br/>for bulk reading"]
   router --> frontier["<b>Frontier model</b><br/>for plans and rules"]
   gw -. trace .-> lf["<b>LangFuse</b><br/>span joins run trace"]
   classDef new fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#111
-  class gw,budget,stop,router,lf new
+  class upload,cap,stop,gw,budget,outer,router,inacct,small new
 ```
 
 ## Phase 4: Learn the platform
 
-Phase 4 teaches seaLeye the platform the organization already has. A discovery swarm reads the library overnight; the front door agent then works from what it found.
+Phase 4 teaches seaLeye the platform the organization already has. A discovery swarm reads the library overnight, in a new account opened for that customer, not on seaLeye's own server; the front door agent then works from the catalog it writes.
 
 ```mermaid
 flowchart TB
@@ -155,17 +159,20 @@ flowchart TB
     executor["<b>Executor</b><br/>the org's modules<br/>scoped deploy role"]
     daytwo["<b>Day-two operations</b><br/>logs, perf, costs,<br/>pause, settings"]
     records["<b>Records</b><br/>Postgres, per team<br/>tokens, evidence"]
-    discovery["<b>Discovery swarm</b><br/>LangGraph fan-out,<br/>people in the loop"]
+    scanner["<b>Secret scanner</b><br/>before any model,<br/>findings as names"]
+    caps["<b>Run caps</b><br/>per run, per worker,<br/>in seaLeye's graph"]
     catalog["<b>Org catalog</b><br/>modules, usage rules,<br/>what must be refused"]
+  end
+  subgraph discoveryacct["Discovery: a paid account per customer"]
+    discovery["<b>Discovery swarm</b><br/>LangGraph fan-out,<br/>people in the loop"]
   end
   frontdoor ~~~ records
   contract ~~~ discovery
   executor ~~~ catalog
   cli ~~~ frontdoor
   subgraph backbone["Governed backbone: every model call goes through it"]
-    gateway["<b>agentgateway</b><br/>one door to models,<br/>keys per person"]
+    gateway["<b>agentgateway</b><br/>names every caller,<br/>outer budget, rate limit"]
     routing["<b>Model routing</b><br/>cheap for bulk work,<br/>bank code in-account"]
-    caps["<b>Spend caps</b><br/>per run, per worker,<br/>rate limits"]
     langfuse["<b>LangFuse</b><br/>self-hosted, Canada<br/>traces, scores, evals"]
   end
   records ~~~ gateway
@@ -176,14 +183,14 @@ flowchart TB
   end
   gateway ~~~ models
   classDef new fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#111
-  class admin,catalog,cloud,contract,discovery,executor,frontdoor,library new
+  class admin,catalog,cloud,contract,discovery,executor,frontdoor,langfuse,library new
 ```
 
 Key flow: one discovery run, overnight, in a new account for the customer; the run is paid. The swarm reads in parallel, asks people when unsure, and is tested before use.
 
 ```mermaid
 flowchart TB
-  start["<b>Admin starts run</b><br/>new paid account"] --> scan["<b>Secret scanner</b><br/>findings never sent"]
+  start["<b>Admin starts run</b><br/>new paid account"] --> scan["<b>Secret scanner</b><br/>from Phase 3, never sent"]
   scan --> sup["<b>Supervisor</b><br/>changed modules only"]
   sup --> w1["<b>Worker</b><br/>one module, small model"]
   sup --> w2["<b>Worker</b><br/>one module, small model"]
@@ -199,7 +206,7 @@ flowchart TB
   catalog --> evals["<b>Must-refuse evals</b><br/>in LangFuse"]
   evals -- pass --> use["<b>Front door agent</b><br/>plans from the catalog"]
   classDef new fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#111
-  class scan,sup,w1,w2,w3,gather,unclear,person,synth,catalog,evals new
+  class sup,w1,w2,w3,gather,unclear,person,synth,catalog,evals new
 ```
 
 ## Phase 5: The path to production
@@ -224,9 +231,13 @@ flowchart TB
     executor["<b>Executor</b><br/>the org's modules<br/>role per team account"]
     daytwo["<b>Day-two operations</b><br/>logs, perf, costs,<br/>pause, settings"]
     records["<b>Records</b><br/>Postgres, per team<br/>tokens, evidence"]
-    discovery["<b>Discovery swarm</b><br/>LangGraph fan-out,<br/>people in the loop"]
+    scanner["<b>Secret scanner</b><br/>before any model,<br/>findings as names"]
+    caps["<b>Run caps</b><br/>per run, per worker,<br/>in seaLeye's graph"]
     catalog["<b>Org catalog</b><br/>modules, usage rules,<br/>what must be refused"]
     promote["<b>Promote, approvals</b><br/>approvals wait days<br/>as graph interrupts"]
+  end
+  subgraph discoveryacct["Discovery: a paid account per customer"]
+    discovery["<b>Discovery swarm</b><br/>LangGraph fan-out,<br/>people in the loop"]
   end
   frontdoor ~~~ records
   contract ~~~ discovery
@@ -234,9 +245,8 @@ flowchart TB
   daytwo ~~~ promote
   cli ~~~ frontdoor
   subgraph backbone["Governed backbone: every model call goes through it"]
-    gateway["<b>agentgateway</b><br/>one door to models,<br/>keys per person"]
+    gateway["<b>agentgateway</b><br/>names every caller,<br/>outer budget, rate limit"]
     routing["<b>Model routing</b><br/>cheap for bulk work,<br/>bank code in-account"]
-    caps["<b>Spend caps</b><br/>per run, per worker,<br/>rate limits"]
     langfuse["<b>LangFuse</b><br/>self-hosted, Canada<br/>traces, scores, evals"]
   end
   records ~~~ gateway
@@ -282,7 +292,7 @@ flowchart TB
   end
   subgraph surfaces["Surfaces"]
     cli["<b>sealeye command</b><br/>seaLeye.run<br/>interview, day two"]
-    portal["<b>seaLeye.online</b><br/>same operations,<br/>Cognito sign-in"]
+    portal["<b>seaLeye.online</b><br/>Cognito sign-in,<br/>agents' plans queue"]
     mcp["<b>MCP server</b><br/>plan, validate,<br/>deploy, evidence"]
   end
   dev ~~~ cli
@@ -292,9 +302,13 @@ flowchart TB
     executor["<b>Executor</b><br/>the org's modules<br/>role per team account"]
     daytwo["<b>Day-two operations</b><br/>logs, perf, costs,<br/>pause, settings"]
     records["<b>Records</b><br/>Postgres, per team<br/>tokens, evidence"]
-    discovery["<b>Discovery swarm</b><br/>LangGraph fan-out,<br/>people in the loop"]
+    scanner["<b>Secret scanner</b><br/>before any model,<br/>findings as names"]
+    caps["<b>Run caps</b><br/>per run, per worker,<br/>in seaLeye's graph"]
     catalog["<b>Org catalog</b><br/>modules, usage rules,<br/>what must be refused"]
     promote["<b>Promote, approvals</b><br/>approvals wait days<br/>as graph interrupts"]
+  end
+  subgraph discoveryacct["Discovery: a paid account per customer"]
+    discovery["<b>Discovery swarm</b><br/>LangGraph fan-out,<br/>people in the loop"]
   end
   frontdoor ~~~ records
   contract ~~~ discovery
@@ -304,7 +318,6 @@ flowchart TB
   subgraph backbone["Governed backbone: every model, tool and agent call"]
     gateway["<b>agentgateway</b><br/>models, MCP and A2A,<br/>policy per agent"]
     routing["<b>Model routing</b><br/>cheap for bulk work,<br/>bank code in-account"]
-    caps["<b>Spend caps</b><br/>per run, per worker,<br/>rate limits"]
     langfuse["<b>LangFuse</b><br/>self-hosted, Canada<br/>traces, scores, evals"]
   end
   records ~~~ gateway
@@ -316,10 +329,10 @@ flowchart TB
   end
   gateway ~~~ models
   classDef new fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#111
-  class agents,gateway,mcp new
+  class agents,gateway,mcp,portal new
 ```
 
-Key flow: a coding agent asks seaLeye for an environment through MCP. An agent gets exactly what a developer gets, and no more.
+Key flow: a coding agent asks seaLeye for an environment through MCP. An agent gets exactly what a developer gets, and no more: its plan waits in a queue in the portal until a person on its team says yes.
 
 ```mermaid
 flowchart LR
@@ -328,11 +341,13 @@ flowchart LR
   allowed -- no --> refused["<b>Refused, logged</b><br/>agent named"]
   allowed -- yes --> mcp["<b>MCP server</b><br/>plan, validate"]
   mcp --> contract["<b>Plan contract</b><br/>refuse, never shrink"]
-  contract --> yes["<b>A person says yes</b><br/>as for a developer"]
-  yes --> build["<b>Executor builds</b><br/>certified modules"]
+  contract --> queue["<b>Portal queue</b><br/>plan waits there"]
+  queue --> yes{"Team approves?"}
+  yes -- no --> told["<b>Agent told why</b><br/>nothing is built"]
+  yes -- yes --> build["<b>Executor builds</b><br/>certified modules"]
   build --> ev["<b>Evidence, trace</b><br/>name the agent"]
   classDef new fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#111
-  class agent,gw,allowed,refused,mcp,ev new
+  class agent,gw,allowed,refused,mcp,queue,yes,told,ev new
 ```
 
 ## Phase 7: Delivery and breadth
@@ -349,7 +364,7 @@ flowchart TB
   end
   subgraph surfaces["Surfaces"]
     cli["<b>sealeye command</b><br/>seaLeye.run<br/>macOS and Windows"]
-    portal["<b>seaLeye.online</b><br/>same operations,<br/>Cognito sign-in"]
+    portal["<b>seaLeye.online</b><br/>Cognito sign-in,<br/>agents' plans queue"]
     mcp["<b>MCP server</b><br/>plan, validate,<br/>deploy, evidence"]
   end
   dev ~~~ cli
@@ -359,9 +374,13 @@ flowchart TB
     executor["<b>Executor</b><br/>the org's modules<br/>role per team account"]
     daytwo["<b>Day-two operations</b><br/>logs, perf, costs,<br/>pause, settings"]
     records["<b>Records</b><br/>managed database<br/>per org, per team"]
-    discovery["<b>Discovery swarm</b><br/>LangGraph fan-out,<br/>people in the loop"]
+    scanner["<b>Secret scanner</b><br/>before any model,<br/>findings as names"]
+    caps["<b>Run caps</b><br/>per run, per worker,<br/>in seaLeye's graph"]
     catalog["<b>Org catalog</b><br/>modules, usage rules,<br/>what must be refused"]
     promote["<b>Promote, approvals</b><br/>approvals wait days<br/>as graph interrupts"]
+  end
+  subgraph discoveryacct["Discovery: a paid account per customer"]
+    discovery["<b>Discovery swarm</b><br/>LangGraph fan-out,<br/>people in the loop"]
   end
   frontdoor ~~~ records
   contract ~~~ discovery
@@ -371,7 +390,6 @@ flowchart TB
   subgraph backbone["Governed backbone: every model, tool and agent call"]
     gateway["<b>agentgateway</b><br/>models, MCP and A2A,<br/>policy per agent"]
     routing["<b>Model routing</b><br/>cheap for bulk work,<br/>bank code in-account"]
-    caps["<b>Spend caps</b><br/>per run, per worker,<br/>rate limits"]
     langfuse["<b>LangFuse</b><br/>self-hosted, Canada<br/>traces, scores, evals"]
   end
   records ~~~ gateway
