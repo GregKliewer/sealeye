@@ -1725,3 +1725,9 @@ otherwise.
   and Phase 3 needs nothing it finds. One overlap to watch: if the scanner (D4) refuses
   a deploy with a finding, WELCOME.md and the sample apps must agree with it before the
   tester runs them.
+- **"Bedrock in the organization's account" is not "in Canada".** Checked the same day:
+  Bedrock serves Claude to ca-central-1 only through cross-region profiles, not in
+  region. The routing rule still holds, since the endpoint is in the organization's own
+  account, but residency of inference is now Q18, with the commands that settle it for
+  a given account. Until then the interview's calls to the Anthropic API, in the US, are
+  acceptable for the friendly team and the sample apps, and ARCHITECTURE.md says so.

@@ -145,7 +145,8 @@ through one governed door before Phase 4 adds a swarm of agents.
   seaLeye's cap (DESIGN.md, "Phase 3, settled after review").
 - Routing by task and by data class: the frontier model for plans and rules, a small
   model for bulk reading, and an organization's code only to an endpoint in its own
-  account (Claude on Bedrock).
+  account (Claude on Bedrock). Bedrock serves Claude in Canada only through profiles
+  that may run inference in other regions, so whether a call stays in Canada is Q18.
 - Gateway spans join the run's trace in LangFuse Cloud, as today. Self-hosting
   LangFuse in Canada moves to Phase 4 (DESIGN.md, "Phase 3, settled after review");
   until then tracing stays off for any pilot on real code.
