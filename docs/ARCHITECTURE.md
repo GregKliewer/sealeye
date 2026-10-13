@@ -485,7 +485,7 @@ LangGraph's own checkpoint tables also live in `interview_state`.
 | Uploaded copies | `~/.sealeye/deploy-uploads/<deploymentId>/` on the server | until the deployment ends |
 | Interview scratch folders | on the server | until the interview ends, or a day |
 | Backups | config bucket, `backups/` | 30 days |
-| Traces | LangFuse, when keys are set | LangFuse's retention (Q13) |
+| Traces | LangFuse, when keys are set | LangFuse's retention (self-hosted from Phase 3) |
 | The developer's files | the app folder: DEPLOYMENT_PLAN.md, sealeye.yaml, DEPLOYMENT_REPORT.md, DEPLOYMENT_EVIDENCE.md | the developer's |
 
 ### 8.3 The plan contract
@@ -531,8 +531,9 @@ flowchart LR
 | Secrets in output | Setting values never appear in records, evidence, logs, the terminal or the portal; logs pass through the same masking traces do. |
 | Traces | Shapes of turns, file paths and sizes; never file contents. Off without LangFuse keys, or with `--no-trace`. |
 
-Open security decisions are in [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md): Q13 (where an
-organization's traces live) and Q16 (identity-provider sign-in replacing tokens).
+Open security decisions are in [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md): Q16
+(identity-provider sign-in replacing tokens). Where an organization's traces live was
+Q13, answered Oct 13, 2026: LangFuse self-hosted in ca-central-1, in ROADMAP Phase 3.
 
 ## 10. Cross-cutting concerns
 
@@ -579,9 +580,10 @@ The decisions that shaped the architecture, by DESIGN.md heading.
 | Limit today | Why it is acceptable now | What changes it |
 |---|---|---|
 | One API process; the store reads from memory | One pilot server | Staged hosting (PHASE2-PLAN, "Owed after this plan"): a managed database, then containers when downtime matters |
-| One shared AWS account and deploy role | The pilot is one organization | Phase 1 item 5: a role per team, in the team's account |
-| Tokens instead of sign-in | A handful of people | Q16: Cognito |
-| Four modules, CloudFormation only | The demo platform | Phase 3: the organization's own modules, Terraform |
-| ca-central-1, Node 20, no CloudFront | The pilot's scope | Phase 5 |
-| Traces in LangFuse Cloud (US) | Sample apps only | Q13 |
-| No promotion past dev | Developers deploy to dev | Phase 4 |
+| One shared AWS account and deploy role | The pilot is one organization | Phase 5: a role per team, in the team's account |
+| Tokens instead of sign-in | A handful of people | Phase 5: Cognito (Q16) |
+| Four modules, CloudFormation only | The demo platform | Phase 4: the organization's own modules, Terraform |
+| ca-central-1, Node 20, no CloudFront | The pilot's scope | Phase 7 |
+| Traces in LangFuse Cloud (US) | Sample apps only | Phase 3: self-hosted in ca-central-1 |
+| No promotion past dev | Developers deploy to dev | Phase 5 |
+| No gateway in front of the model | One agent, one box | Phase 3: agentgateway, routing and spend caps |

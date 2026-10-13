@@ -10,6 +10,11 @@ OPEN-QUESTIONS.md.
 (Part A), builds item 10 (Part B), then Phase 2 (Part C). What it leaves for later, and
 what brings each item forward, is its last section, "Owed after this plan".
 
+**Renumbered Oct 13, 2026.** Phase 3 (governed backbone) and Phase 6 (seaLeye for agents)
+are new; the old Phases 3, 4 and 5 are now 4, 5 and 7. DESIGN.md entries and the two
+PHASE plans written before then use the old numbers (DESIGN.md, "The roadmap gains a
+governed backbone and a door for agents"). [BUILD-OUT.md](BUILD-OUT.md) draws each phase.
+
 ## Phases
 
 ### Phase 0: Foundation (done Oct 8, 2026)
@@ -61,7 +66,8 @@ later, and the first and third lines stay open until he does.
    and interview carries the token's person, organization and team (DESIGN.md, "Every
    caller has a token, until sign-in"). The identity provider is Cognito (DESIGN.md,
    "Phase 1: who it is for"); how it replaces tokens is Q16. Deferred past
-   PHASE2-PLAN, until more than a handful of people or a bank pilot.*
+   PHASE2-PLAN, until more than a handful of people or a bank pilot. Moved to Phase 5
+   on Oct 13, 2026.*
 4. **A real store**: records move from `~/.sealeye/deployments.json` to a database, with
    organization and team on every record (Q2). *Done Oct 10, 2026: Postgres on the
    server, with nightly backups; organization and team are "default" until sign-in
@@ -70,7 +76,7 @@ later, and the first and third lines stay open until he does.
    assumes, not with one person's credentials (Q4). *Designed for, not built: every
    deploy goes through `sealeye-deploy-pilot` in one shared account (DESIGN.md, "Phase
    1: who it is for"). Deferred past PHASE2-PLAN, until a team brings its own account
-   or a bank pilot.*
+   or a bank pilot. Moved to Phase 5 on Oct 13, 2026.*
 6. **The model key**: the API holds it, not each developer (Q8). *Done Oct 10, 2026:*
    the interview runs in the API as a LangGraph graph, and `sealeye run` streams it
    (DESIGN.md, "The interview runs in the API").
@@ -116,40 +122,96 @@ later, and the first and third lines stay open until he does.
 - In the portal: New environment, Evidence, Validate, Health and Deploy again are
   built (Oct 12); the needs ledger is in Catalog.
 - Each starts as an API endpoint.
-- Planned as PHASE2-PLAN Part C. Integrations moved to Phase 4 (D8, Oct 12), where the
+- Planned as PHASE2-PLAN Part C. Integrations moved to Phase 5 (D8, Oct 12; Phase 4 before the renumbering), where the
   tools it would connect to are.
 - Polish (Oct 12): one change at a time per environment, refused in the API on both
   surfaces; a change under way shown on every page; replaced deploys say so; commands
   take the app's name, or the folder's.
 
-### Phase 3: Learn the platform
+### Phase 3: Governed backbone
+
+Added Oct 13, 2026. **Goal:** every model call, and later every tool and agent call, goes
+through one governed door before Phase 4 adds a swarm of agents.
+
+- agentgateway (agentgateway.dev, open source, in the Agentic AI Foundation) on the
+  API's network, in front of every model call. `SEALEYE_MODEL_URL` already points the
+  interview at it (DESIGN.md, "The model's address is a setting").
+- Identity per caller: a key per person and per agent or worker, so spend and traces
+  name who did it.
+- Spend caps per run and per worker, and a rate limit, so a looping run is stopped by a
+  cap and a person is told why.
+- Routing by task and by data class: the frontier model for plans and rules, a small
+  model for bulk reading, and an organization's code only to an endpoint in its own
+  account (Claude on Bedrock).
+- LangFuse self-hosted in ca-central-1 (answers Q13). Gateway spans join the run's
+  trace.
+- The gateway logs no request bodies: file names, never contents, as for traces
+  (DESIGN.md, "Tracing the interview with LangFuse").
+
+**Done when:** a looping run is stopped by a cap rather than by a person; every model
+call in a trace names its caller and its route; no trace or gateway log holds file
+contents.
+
+### Phase 4: Learn the platform
 
 **Goal:** seaLeye builds from the organization's own modules, not only its four.
 
 - Admin onboarding: identity provider, repositories, which automation is strategic.
-- The discovery agent: ingest modules and pipelines, stop on hardcoded secrets (Q6),
-  flag ambiguity for a person.
+- The discovery agent is a swarm, built on Phase 3 from the start: a LangGraph
+  supervisor fans work out to parallel workers, one module each, gathers their findings,
+  and pauses for a platform engineer (`interrupt()`) on anything ambiguous.
+- Its first node is a deterministic secret scanner: a file with a finding never reaches
+  a model (Q6).
+- Spend: small models read, the frontier model writes the usage rules; hard caps per run
+  and per worker; only modules changed since the last run are read again.
+- Where it runs: a new account opened for the prospect or customer, and the run is paid
+  (decided Oct 13, 2026).
+- What it learns is the organization's catalog: each module, what it is for, its usage
+  rules and what must be refused. The front door agent plans from that catalog. No model
+  is fine-tuned.
 - Self-test: plans that must be refused, and are. It starts from the interview
   regression set (`npm run eval:interview`): three sample apps, each graded on its
-  outcome, building blocks and needs, compared run against run in LangFuse. Phase 3
-  grows it to the organization's own apps and modules.
+  outcome, building blocks and needs, compared run against run in LangFuse. Phase 4
+  grows it to the organization's own apps and modules, and a catalog goes live only
+  when it passes.
 - The catalog becomes the organization's, and a need becomes buildable when a module
   supports it.
 - A second backend: Terraform, since that is what most platform libraries are.
+- How the swarm reads the library is Q17.
 
-### Phase 4: The path to production
+### Phase 5: The path to production
 
 **Goal:** a developer can ask to promote, and the organization's process decides.
 
 - `sealeye promote` and the Promote button: check what the next stage is missing, then
   request it.
-- Approvals through the organization's change tool (ServiceNow first).
+- Approvals through the organization's change tool (ServiceNow first). The interview
+  graph waits on an approval as an `interrupt()` held in Postgres, for days if need be.
 - Gap tickets from the needs ledger into the platform team's queue (Jira first).
 - Notifications where people are (Teams and Slack).
 - `sealeye integrations` and its portal page: which of these are connected (moved from
   Phase 2, PHASE2-PLAN D8).
+- AWS access per team: the executor assumes a role in each team's account (Phase 1
+  item 5, moved here Oct 13, 2026).
+- Sign-in through Cognito replaces tokens (Phase 1 item 3 and Q16, moved here Oct 13,
+  2026). Both wait on the same thing: a bank pilot.
 
-### Phase 5: Delivery and breadth
+### Phase 6: seaLeye for agents
+
+Added Oct 13, 2026. **Goal:** a coding agent can ask seaLeye for an environment, and gets
+exactly what a developer gets.
+
+- seaLeye's operations (plan, validate, deploy, evidence) as an MCP server behind
+  agentgateway: a third client of the same API endpoints, so no operation exists only
+  for agents.
+- The gateway decides which agent may call which tool. Agent-to-agent traffic (A2A)
+  goes through it too.
+- The same plan contract, the same human yes, the same evidence, with the agent named on
+  the record and in the trace.
+- It comes after Phase 5 so an agent gets the whole path, approvals included, not a
+  side door to dev.
+
+### Phase 7: Delivery and breadth
 
 - Single-tenant and in-network deployment; a model the organization runs.
 - More regions, runtimes and clouds.
@@ -179,12 +241,12 @@ and does nothing real. A blank is not started.
 | Performance | `sealeye perf` | `GET /deployments/{id}/performance` | built | built (Performance, in Control) | 2 |
 | Costs | `sealeye costs` | `GET /costs` (by tag, a day behind) | built | built (Costs) | 2 |
 | Team and access | `sealeye team` | `GET /team` (issuing stays with the administrator) | built | built (Team) | 2 |
-| Integrations | `sealeye integrations` | | | mock-up (report) | 4 |
+| Integrations | `sealeye integrations` | | | mock-up (report) | 5 |
 | Sign in | `sealeye login` | tokens; `POST /sessions`, `DELETE /sessions` for the portal; `GET /whoami` | built | built (token paste, then a session) | 1 |
 | Settings in the secret store | `sealeye settings`, `settings set`, `settings unset` | `GET /apps/{app}/settings`, `PUT` and `DELETE /apps/{app}/settings/{name}` | built | built (Settings, in Control) | 1 (item 10) |
-| Onboard and ingest | `sealeye admin ingest` | | | | 3 |
-| Promote | `sealeye promote` | | | | 4 |
-| Raise a gap ticket | `sealeye needs --request` | | prints text only | | 4 |
+| Onboard and ingest | `sealeye admin ingest` | | | | 4 |
+| Promote | `sealeye promote` | | | | 5 |
+| Raise a gap ticket | `sealeye needs --request` | | prints text only | | 5 |
 
 Command names not yet built are proposals; settle each one in DESIGN.md before
 building it.
