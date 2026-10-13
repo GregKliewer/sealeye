@@ -136,10 +136,12 @@ through one governed door before Phase 4 adds a swarm of agents.
 - agentgateway (agentgateway.dev, open source, in the Agentic AI Foundation) on the
   API's network, in front of every model call. `SEALEYE_MODEL_URL` already points the
   interview at it (DESIGN.md, "The model's address is a setting").
-- Identity per caller: a key per person and per agent or worker, so spend and traces
-  name who did it.
-- Spend caps per run and per worker, and a rate limit, so a looping run is stopped by a
-  cap and a person is told why.
+- Identity per caller: every model call names its person, team, run and worker, so
+  spend and traces say who did it. How it is carried is PHASE3-PLAN D1.
+- Spend caps per run and per worker, held by seaLeye itself: the graph counts what each
+  run has used and stops it at its cap, and a person is told why. agentgateway has no
+  notion of a run; its budget per key and its rate limit are the outer limit behind
+  seaLeye's cap (DESIGN.md, "Phase 3, settled after review").
 - Routing by task and by data class: the frontier model for plans and rules, a small
   model for bulk reading, and an organization's code only to an endpoint in its own
   account (Claude on Bedrock).
@@ -148,9 +150,10 @@ through one governed door before Phase 4 adds a swarm of agents.
 - The gateway logs no request bodies: file names, never contents, as for traces
   (DESIGN.md, "Tracing the interview with LangFuse").
 
-**Done when:** a looping run is stopped by a cap rather than by a person; every model
-call in a trace names its caller and its route; no trace or gateway log holds file
-contents.
+**Done when:** a looping run is stopped by seaLeye's own cap rather than by a person,
+and told why; the gateway's budget refuses calls once it is crossed, as the outer limit;
+every model call in a trace names its caller and its route; no trace or gateway log
+holds file contents.
 
 ### Phase 4: Learn the platform
 

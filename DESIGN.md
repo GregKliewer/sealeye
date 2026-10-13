@@ -1683,3 +1683,18 @@ Entries above this one, and PHASE1-PLAN and PHASE2-PLAN, keep the old numbers.
   MCP server where one exists, plain code otherwise, and no MCP servers built by seaLeye
   for other teams' services.
 
+
+## Phase 3, settled after review
+
+Tue Oct 13, 2026, by Greg, after a review of the new roadmap the same day. Each bullet
+below was a concern raised in that review, and each is Greg's call unless it says
+otherwise.
+
+- **seaLeye holds the cap on a run; the gateway is the outer limit.** agentgateway's
+  budgets belong to an API key in its configuration, over fixed time windows, and are
+  charged after a response returns: the call that crosses a budget completes, and only
+  the next one is refused. It has no notion of a run or a worker. So the cap per run and
+  per worker lives in the graph, which already stops a stuck interview after
+  `MAX_TURNS`: it adds up `usage` from each response, stops the run at its cap and says
+  why. The gateway's budget and rate limit sit behind that, for whatever the graph gets
+  wrong. Phase 3's "done when" says so.
