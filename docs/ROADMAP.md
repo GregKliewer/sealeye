@@ -123,8 +123,8 @@ Added Oct 13, 2026. **Goal:** every model call, and later every tool and agent c
 through one governed door before Phase 4 adds a swarm of agents.
 
 - agentgateway (agentgateway.dev, open source, in the Agentic AI Foundation) on the
-  API's network, in front of every model call. `SEALEYE_MODEL_URL` already points the
-  interview at it (DESIGN.md, "The model's address is a setting").
+  API's network, in front of every model call. The interview already has the seam for
+  it: `SEALEYE_MODEL_URL` (DESIGN.md, "The model's address is a setting").
 - Identity per caller: every model call names its person, team, run and worker, so
   spend and traces say who did it. How it is carried is PHASE3-PLAN D1.
 - Spend caps per run and per worker, held by seaLeye itself: the graph counts what each

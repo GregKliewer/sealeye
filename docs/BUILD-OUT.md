@@ -99,13 +99,13 @@ flowchart TB
     daytwo["<b>Day-two operations</b><br/>logs, perf, costs,<br/>pause, settings"]
     records["<b>Records</b><br/>Postgres, per team<br/>tokens, evidence"]
     scanner["<b>Secret scanner</b><br/>before any model,<br/>findings as names"]
+    caps["<b>Run caps</b><br/>per run, per worker,<br/>in seaLeye's graph"]
   end
   frontdoor ~~~ records
   cli ~~~ frontdoor
   subgraph backbone["Governed backbone: every model call goes through it"]
-    gateway["<b>agentgateway</b><br/>one door to models,<br/>names every caller"]
+    gateway["<b>agentgateway</b><br/>names every caller,<br/>outer budget, rate limit"]
     routing["<b>Model routing</b><br/>cheap for bulk work,<br/>bank code in-account"]
-    caps["<b>Spend caps</b><br/>per run, per worker,<br/>rate limits"]
     langfuse["<b>LangFuse Cloud</b><br/>gateway spans join<br/>the run's trace"]
   end
   records ~~~ gateway
@@ -134,7 +134,7 @@ flowchart LR
   router --> frontier["<b>Frontier model</b><br/>for plans and rules"]
   gw -. trace .-> lf["<b>LangFuse</b><br/>span joins run trace"]
   classDef new fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#111
-  class upload,cap,stop,gw,budget,outer,router new
+  class upload,cap,stop,gw,budget,outer,router,inacct,small new
 ```
 
 ## Phase 4: Learn the platform
@@ -160,6 +160,7 @@ flowchart TB
     daytwo["<b>Day-two operations</b><br/>logs, perf, costs,<br/>pause, settings"]
     records["<b>Records</b><br/>Postgres, per team<br/>tokens, evidence"]
     scanner["<b>Secret scanner</b><br/>before any model,<br/>findings as names"]
+    caps["<b>Run caps</b><br/>per run, per worker,<br/>in seaLeye's graph"]
     catalog["<b>Org catalog</b><br/>modules, usage rules,<br/>what must be refused"]
   end
   subgraph discoveryacct["Discovery: a paid account per customer"]
@@ -170,9 +171,8 @@ flowchart TB
   executor ~~~ catalog
   cli ~~~ frontdoor
   subgraph backbone["Governed backbone: every model call goes through it"]
-    gateway["<b>agentgateway</b><br/>one door to models,<br/>names every caller"]
+    gateway["<b>agentgateway</b><br/>names every caller,<br/>outer budget, rate limit"]
     routing["<b>Model routing</b><br/>cheap for bulk work,<br/>bank code in-account"]
-    caps["<b>Spend caps</b><br/>per run, per worker,<br/>rate limits"]
     langfuse["<b>LangFuse</b><br/>self-hosted, Canada<br/>traces, scores, evals"]
   end
   records ~~~ gateway
@@ -232,6 +232,7 @@ flowchart TB
     daytwo["<b>Day-two operations</b><br/>logs, perf, costs,<br/>pause, settings"]
     records["<b>Records</b><br/>Postgres, per team<br/>tokens, evidence"]
     scanner["<b>Secret scanner</b><br/>before any model,<br/>findings as names"]
+    caps["<b>Run caps</b><br/>per run, per worker,<br/>in seaLeye's graph"]
     catalog["<b>Org catalog</b><br/>modules, usage rules,<br/>what must be refused"]
     promote["<b>Promote, approvals</b><br/>approvals wait days<br/>as graph interrupts"]
   end
@@ -244,9 +245,8 @@ flowchart TB
   daytwo ~~~ promote
   cli ~~~ frontdoor
   subgraph backbone["Governed backbone: every model call goes through it"]
-    gateway["<b>agentgateway</b><br/>one door to models,<br/>names every caller"]
+    gateway["<b>agentgateway</b><br/>names every caller,<br/>outer budget, rate limit"]
     routing["<b>Model routing</b><br/>cheap for bulk work,<br/>bank code in-account"]
-    caps["<b>Spend caps</b><br/>per run, per worker,<br/>rate limits"]
     langfuse["<b>LangFuse</b><br/>self-hosted, Canada<br/>traces, scores, evals"]
   end
   records ~~~ gateway
@@ -303,6 +303,7 @@ flowchart TB
     daytwo["<b>Day-two operations</b><br/>logs, perf, costs,<br/>pause, settings"]
     records["<b>Records</b><br/>Postgres, per team<br/>tokens, evidence"]
     scanner["<b>Secret scanner</b><br/>before any model,<br/>findings as names"]
+    caps["<b>Run caps</b><br/>per run, per worker,<br/>in seaLeye's graph"]
     catalog["<b>Org catalog</b><br/>modules, usage rules,<br/>what must be refused"]
     promote["<b>Promote, approvals</b><br/>approvals wait days<br/>as graph interrupts"]
   end
@@ -317,7 +318,6 @@ flowchart TB
   subgraph backbone["Governed backbone: every model, tool and agent call"]
     gateway["<b>agentgateway</b><br/>models, MCP and A2A,<br/>policy per agent"]
     routing["<b>Model routing</b><br/>cheap for bulk work,<br/>bank code in-account"]
-    caps["<b>Spend caps</b><br/>per run, per worker,<br/>rate limits"]
     langfuse["<b>LangFuse</b><br/>self-hosted, Canada<br/>traces, scores, evals"]
   end
   records ~~~ gateway
@@ -375,6 +375,7 @@ flowchart TB
     daytwo["<b>Day-two operations</b><br/>logs, perf, costs,<br/>pause, settings"]
     records["<b>Records</b><br/>managed database<br/>per org, per team"]
     scanner["<b>Secret scanner</b><br/>before any model,<br/>findings as names"]
+    caps["<b>Run caps</b><br/>per run, per worker,<br/>in seaLeye's graph"]
     catalog["<b>Org catalog</b><br/>modules, usage rules,<br/>what must be refused"]
     promote["<b>Promote, approvals</b><br/>approvals wait days<br/>as graph interrupts"]
   end
@@ -389,7 +390,6 @@ flowchart TB
   subgraph backbone["Governed backbone: every model, tool and agent call"]
     gateway["<b>agentgateway</b><br/>models, MCP and A2A,<br/>policy per agent"]
     routing["<b>Model routing</b><br/>cheap for bulk work,<br/>bank code in-account"]
-    caps["<b>Spend caps</b><br/>per run, per worker,<br/>rate limits"]
     langfuse["<b>LangFuse</b><br/>self-hosted, Canada<br/>traces, scores, evals"]
   end
   records ~~~ gateway

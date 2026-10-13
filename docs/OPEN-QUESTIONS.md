@@ -50,7 +50,9 @@ aws bedrock get-inference-profile --region ca-central-1 \
   --inference-profile-identifier <an id from the first command> --query 'models[].modelArn' --output text
 ```
 
-Each region in the second command's ARNs is somewhere a call may run. Today the
+Each region in the second command's ARNs is somewhere a call may run. The interview
+uses `claude-sonnet-5`; the Bedrock list for Canada names Sonnet 5.5, so the Bedrock
+route would use that, after the interview's eval set passes on it. Today the
 interview sends an app's code to the Anthropic API, in the US, which is acceptable for
 the friendly team and the sample apps.
 

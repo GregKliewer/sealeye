@@ -60,7 +60,7 @@ filled in here.
 | D4 | What a finding does to a deploy | The deploy is refused until the value moves to a setting, or the line is allowed in `.sealeye-allow` (which records the file, line and rule, never the value, and shows in evidence) | Step 2 | |
 | D5 | How big the caps are | A run's cap: three times the largest run Step 1 measures. The gateway's budget: a monthly amount Greg names | Steps 3 and 7 | |
 | D6 | Which route the pilot uses | Build the Bedrock route and prove it in Greg's account; keep the Anthropic API as the pilot's route until Q18 is answered for a bank | Step 8 | |
-| D7 | Where the gateway runs | A container on the same server, reachable only from the API, holding the model key in place of the API. Move to a t4g.medium only if Step 4 shows the small one cannot carry it | Step 5 | |
+| D7 | Where the gateway runs (informed by Step 4) | A container on the same server, reachable only from the API, holding the model key in place of the API. Move to a t4g.medium only if Step 4 shows the small one cannot carry it | Step 5 | |
 
 **D1, in more detail.** The gateway sees one caller, the API process, so the person,
 team, run and worker have to travel with each call. Three ways:
@@ -200,6 +200,9 @@ High stakes: an independent review before the pull request.
   calls.
 - The pilot stays on the Anthropic API route (D6). The Bedrock route is proven in
   Greg's account; the server's role gains Bedrock permission in its own stack change.
+  Bedrock lists Sonnet 5.5, not the interview's Sonnet 5, for Canada, so
+  `npm run eval:interview` must pass on Sonnet 5.5 before that route carries an
+  interview.
 - Each span names its route: the last line of the "done when".
 
 ### Step 9. Write it down
@@ -223,7 +226,7 @@ marked built; and ROADMAP.md's Phase 3 ticked.
 | 8 | Routing | one to two days |
 | 9 | Write it down | one day |
 
-About eleven to fifteen days in all. Steps 2 and 6 decide what leaves a developer's
+About twelve to fifteen days in all. Steps 2 and 6 decide what leaves a developer's
 machine and who a call is said to come from: review those diffs line by line.
 
 **What a developer notices.** Almost nothing, by design: a refused file says why, a
