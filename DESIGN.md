@@ -1746,3 +1746,47 @@ otherwise.
   repository, written by a coding agent from seaLeye's specification. seaLeye never
   merges its own module: code that creates an organization's infrastructure needs an
   accountable owner, the team that runs it.
+
+## Phase 3's decisions, as recommended
+
+Tue Oct 13, 2026, by Greg. He accepted every recommendation in PHASE3-PLAN's decision
+table, and chose where the gateway's image comes from the same evening. D2 is the entry
+above ("seaLeye holds the cap on a run"); the rest are here, with the reason each
+recommendation gave.
+
+- **D1. A model call names its caller with a token the API signs.** Each call carries a
+  token that lasts five minutes: `iss` the API, `aud` the gateway, `sub` the person's
+  token id (never an email, since the gateway logs it), and `org`, `team`, `run`,
+  `worker` and `surface`. The gateway checks it with `jwtAuth` against the API's public
+  key. A key per person or worker was refused because every new person or Phase 4 worker
+  would mean a gateway configuration change, and a held key can leak. Plain headers were
+  refused because anything that can reach the gateway could claim to be anyone. The API
+  also holds one gateway key of its own, because agentgateway attaches a budget to a key:
+  the token says who, the key carries the budget. In Phase 6 Cognito becomes a second
+  issuer on the same policy, so nothing here is thrown away.
+- **D3. The scanner runs twice.** Shared rules in `core/`, before upload on both
+  surfaces, so a finding never leaves the developer's machine; then gitleaks in the API
+  over what arrived, as the deeper check and, in Phase 4, the swarm's first node. One
+  set of rules means the command and the portal can never disagree about a file.
+- **D4. A finding stops a deploy.** The deploy is refused until the value moves to a
+  setting, or the line is listed in `.sealeye-allow`, which records the file, line and
+  rule, never the value, and shows in evidence. Deploying a key that is known to be in
+  the code would put it in the artifact, so a warning is not enough; the allow file is
+  the way past a false finding, and it leaves a record. For the interview, a file with a
+  finding travels as a name only, as a `.env` does.
+- **D5. A run's cap is three times the largest run Step 1 measures.** Large enough that
+  no honest run meets it, small enough that a loop is stopped in minutes. The gateway's
+  monthly budget is a figure Greg names before Step 7; it is not named yet.
+- **D6. The pilot stays on the Anthropic API; the Bedrock route is built and proved.**
+  Bedrock serves Claude to Canada only through cross-region profiles (Q18), so moving the
+  pilot there gains no residency until Q18 is answered for a bank, and it would change the
+  interview's model to Sonnet 5.5 before the eval set has passed on it. Building the route
+  now means the bank pilot finds it ready.
+- **D7. The gateway is a container on the same server, its image pulled by digest from
+  its public registry.** It is reachable only from the API, on Compose's internal
+  network with no published port, and it holds the model key in place of the API. The
+  server moves to a t4g.medium only if Step 4 shows the small one cannot carry it. The
+  image is not mirrored into a second ECR repository: a digest already fixes exactly
+  what runs, and a mirror would add a repository and push rights for CI to keep, for no
+  gain in a pilot. Revisit if an organization requires every image to come from its own
+  account.

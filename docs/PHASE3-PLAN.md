@@ -50,17 +50,18 @@ or gateway log holds file contents.
 ## Decisions this plan needs from Greg
 
 Each answer goes in DESIGN.md with its date and reason, and the "Decided" column is
-filled in here.
+filled in here. All seven are recorded in DESIGN.md, "Phase 3's decisions, as
+recommended" (D2 in "Phase 3, settled after review").
 
 | # | Decision | Recommendation | Needed by | Decided |
 |---|---|---|---|---|
-| D1 | How a model call says who made it | The API signs a short-lived token for each call (below). Nobody holds a gateway key but the API. | Step 6 | |
+| D1 | How a model call says who made it | The API signs a short-lived token for each call (below). Nobody holds a gateway key but the API. | Step 6 | As recommended (Tue Oct 13) |
 | D2 | Where the cap on a run lives | In the graph; the gateway's budget is the outer limit | Step 3 | As recommended (Tue Oct 13) |
-| D3 | Where the scanner runs | Twice. Shared rules in `core/`, before upload, on both surfaces, so a finding never leaves the machine; then gitleaks in the API over what arrived, as the deeper check and the swarm's first node later | Step 2 | |
-| D4 | What a finding does to a deploy | The deploy is refused until the value moves to a setting, or the line is allowed in `.sealeye-allow` (which records the file, line and rule, never the value, and shows in evidence) | Step 2 | |
-| D5 | How big the caps are | A run's cap: three times the largest run Step 1 measures. The gateway's budget: a monthly amount Greg names | Steps 3 and 7 | |
-| D6 | Which route the pilot uses | Build the Bedrock route and prove it in Greg's account; keep the Anthropic API as the pilot's route until Q18 is answered for a bank | Step 8 | |
-| D7 | Where the gateway runs (informed by Step 4) | A container on the same server, reachable only from the API, holding the model key in place of the API. Move to a t4g.medium only if Step 4 shows the small one cannot carry it | Step 5 | |
+| D3 | Where the scanner runs | Twice. Shared rules in `core/`, before upload, on both surfaces, so a finding never leaves the machine; then gitleaks in the API over what arrived, as the deeper check and the swarm's first node later | Step 2 | As recommended (Tue Oct 13) |
+| D4 | What a finding does to a deploy | The deploy is refused until the value moves to a setting, or the line is allowed in `.sealeye-allow` (which records the file, line and rule, never the value, and shows in evidence) | Step 2 | As recommended (Tue Oct 13) |
+| D5 | How big the caps are | A run's cap: three times the largest run Step 1 measures. The gateway's budget: a monthly amount Greg names | Steps 3 and 7 | As recommended (Tue Oct 13); the monthly budget is not named yet |
+| D6 | Which route the pilot uses | Build the Bedrock route and prove it in Greg's account; keep the Anthropic API as the pilot's route until Q18 is answered for a bank | Step 8 | As recommended (Tue Oct 13) |
+| D7 | Where the gateway runs (informed by Step 4) | A container on the same server, reachable only from the API, holding the model key in place of the API. Move to a t4g.medium only if Step 4 shows the small one cannot carry it | Step 5 | As recommended (Tue Oct 13); the image pulled by digest from its public registry |
 
 **D1, in more detail.** The gateway sees one caller, the API process, so the person,
 team, run and worker have to travel with each call. Three ways:
