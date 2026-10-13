@@ -1721,3 +1721,7 @@ otherwise.
   developer gives at the terminal is given in the portal for an agent: its plan waits
   there until a person on the agent's team approves or refuses it, and the agent is told
   which. Nothing an agent asks for is built without that yes.
+- **The second-person test runs alongside Phase 3.** It needs nothing Phase 3 builds,
+  and Phase 3 needs nothing it finds. One overlap to watch: if the scanner (D4) refuses
+  a deploy with a finding, WELCOME.md and the sample apps must agree with it before the
+  tester runs them.

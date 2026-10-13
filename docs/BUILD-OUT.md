@@ -15,9 +15,9 @@ When ROADMAP.md changes what a phase holds, fix its picture here in the same com
 | Phase | Name | State | What it adds |
 |---|---|---|---|
 | 0 | Foundation | Done Oct 8, 2026 | The demo becomes a product repo: cli, api and core, tests, CLAUDE.md, the roadmap |
-| 1 | Team release | Mostly done Oct 11, 2026 | Hosted API, tokens, Postgres, the live portal, CI. Open: the second-person test |
+| 1 | Team release | Mostly done Oct 11, 2026 | Hosted API, tokens, Postgres, the live portal, CI. Open: the second-person test, which runs alongside Phase 3 |
 | 2 | Day-two parity | Built Oct 12, 2026 | Logs, performance, costs, pause, configure, the settings store and evidence, on both surfaces |
-| 3 | Governed backbone | **New**, next | agentgateway in front of every model call, identity per caller, routing, spend caps |
+| 3 | Governed backbone | **New**, next ([PHASE3-PLAN.md](PHASE3-PLAN.md)) | agentgateway in front of every model call, identity per caller, routing, spend caps |
 | 4 | Learn the platform | Planned | A discovery swarm reads the organization's library into its catalog, with must-refuse tests and Terraform; LangFuse self-hosted in Canada |
 | 5 | The path to production | Planned | Promote, approvals in ServiceNow, Jira gap tickets, team accounts, Cognito sign-in |
 | 6 | seaLeye for agents | **New**, planned | seaLeye's tools as MCP behind the gateway, for coding agents |
