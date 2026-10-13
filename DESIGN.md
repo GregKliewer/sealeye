@@ -1709,3 +1709,11 @@ otherwise.
   small server in ca-central-1", while the decision above it puts each run in a new
   account opened for the customer. Phases 4 to 7 now draw the swarm in that account,
   apart from seaLeye's API; the catalog it writes lives with the API.
+- **The secret scanner comes forward to Phase 3, and answers Q6.** Today a secret file
+  travels as an empty name, but a key written into `config.js` reaches the model and the
+  trace. A deterministic scanner, never a model, decides: a file with a finding travels
+  as a name only, `read_file` refuses it as it refuses `.env`, and the developer is told
+  the file and line, never the value. The model may still say something looks like a
+  secret, but never as the only check. It is built for the interview now and becomes the
+  discovery swarm's first node in Phase 4. Where it runs, and whether a finding stops a
+  deploy, are PHASE3-PLAN D3 and D4.

@@ -6,13 +6,6 @@ date and reason, and delete it from here.
 
 ## Blocking Phase 4
 
-### Q6. How are hardcoded secrets detected during ingestion?
-
-Asked in the dry run, and deferred. **Leaning:** a deterministic scanner (gitleaks or
-similar) runs before any file reaches the model, and a file with a finding is never
-sent. The model can flag what looks like a secret, but never as the only check. In
-ROADMAP Phase 4 the scanner is the discovery swarm's first node. Blocks Phase 4.
-
 ### Q17. How does the discovery swarm read the platform library?
 
 The swarm (ROADMAP Phase 4) reads an organization's repositories, module registry and

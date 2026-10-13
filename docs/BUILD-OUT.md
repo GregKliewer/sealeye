@@ -78,7 +78,7 @@ flowchart LR
 
 ## Phase 3: Governed backbone
 
-Phase 3 puts one governed door in front of every model call. Built before discovery, so the swarm runs on it from day one.
+Phase 3 puts one governed door in front of every model call, and a secret scanner in front of the model. Built before discovery, so the swarm runs on both from day one. The second-person test (Phase 1) can run alongside it.
 
 ```mermaid
 flowchart TB
@@ -98,6 +98,7 @@ flowchart TB
     executor["<b>Executor</b><br/>4 certified templates<br/>scoped deploy role"]
     daytwo["<b>Day-two operations</b><br/>logs, perf, costs,<br/>pause, settings"]
     records["<b>Records</b><br/>Postgres, per team<br/>tokens, evidence"]
+    scanner["<b>Secret scanner</b><br/>before any model,<br/>findings as names"]
   end
   frontdoor ~~~ records
   cli ~~~ frontdoor
@@ -114,14 +115,15 @@ flowchart TB
   end
   gateway ~~~ models
   classDef new fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#111
-  class caps,gateway,models,routing new
+  class caps,gateway,models,routing,scanner new
 ```
 
-Key flow: one model call through the backbone. Every model call is identified, budgeted and routed before it leaves.
+Key flow: one model call through the backbone. Nothing with a secret in it is sent; every model call is identified, budgeted and routed before it leaves.
 
 ```mermaid
 flowchart LR
-  agent["<b>seaLeye agent</b><br/>asks for a model call"] --> gw["<b>agentgateway</b><br/>who is calling?"]
+  upload["<b>Upload scanned</b><br/>a finding: name only"] --> agent["<b>seaLeye agent</b><br/>asks for a model call"]
+  agent --> gw["<b>agentgateway</b><br/>who is calling?"]
   gw --> budget{"Under budget?"}
   budget -- no --> stop["<b>Run stopped</b><br/>a person is told why"]
   budget -- yes --> router["<b>Model routing</b><br/>task and data class"]
@@ -130,7 +132,7 @@ flowchart LR
   router --> frontier["<b>Frontier model</b><br/>for plans and rules"]
   gw -. trace .-> lf["<b>LangFuse</b><br/>span joins run trace"]
   classDef new fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#111
-  class gw,budget,stop,router,lf new
+  class upload,gw,budget,stop,router new
 ```
 
 ## Phase 4: Learn the platform
@@ -155,6 +157,7 @@ flowchart TB
     executor["<b>Executor</b><br/>the org's modules<br/>scoped deploy role"]
     daytwo["<b>Day-two operations</b><br/>logs, perf, costs,<br/>pause, settings"]
     records["<b>Records</b><br/>Postgres, per team<br/>tokens, evidence"]
+    scanner["<b>Secret scanner</b><br/>before any model,<br/>findings as names"]
     catalog["<b>Org catalog</b><br/>modules, usage rules,<br/>what must be refused"]
   end
   subgraph discoveryacct["Discovery: a new account per customer, a paid run"]
@@ -185,7 +188,7 @@ Key flow: one discovery run, overnight, in a new account for the customer; the r
 
 ```mermaid
 flowchart TB
-  start["<b>Admin starts run</b><br/>new paid account"] --> scan["<b>Secret scanner</b><br/>findings never sent"]
+  start["<b>Admin starts run</b><br/>new paid account"] --> scan["<b>Secret scanner</b><br/>from Phase 3, never sent"]
   scan --> sup["<b>Supervisor</b><br/>changed modules only"]
   sup --> w1["<b>Worker</b><br/>one module, small model"]
   sup --> w2["<b>Worker</b><br/>one module, small model"]
@@ -201,7 +204,7 @@ flowchart TB
   catalog --> evals["<b>Must-refuse evals</b><br/>in LangFuse"]
   evals -- pass --> use["<b>Front door agent</b><br/>plans from the catalog"]
   classDef new fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#111
-  class scan,sup,w1,w2,w3,gather,unclear,person,synth,catalog,evals new
+  class sup,w1,w2,w3,gather,unclear,person,synth,catalog,evals new
 ```
 
 ## Phase 5: The path to production
@@ -226,6 +229,7 @@ flowchart TB
     executor["<b>Executor</b><br/>the org's modules<br/>role per team account"]
     daytwo["<b>Day-two operations</b><br/>logs, perf, costs,<br/>pause, settings"]
     records["<b>Records</b><br/>Postgres, per team<br/>tokens, evidence"]
+    scanner["<b>Secret scanner</b><br/>before any model,<br/>findings as names"]
     catalog["<b>Org catalog</b><br/>modules, usage rules,<br/>what must be refused"]
     promote["<b>Promote, approvals</b><br/>approvals wait days<br/>as graph interrupts"]
   end
@@ -296,6 +300,7 @@ flowchart TB
     executor["<b>Executor</b><br/>the org's modules<br/>role per team account"]
     daytwo["<b>Day-two operations</b><br/>logs, perf, costs,<br/>pause, settings"]
     records["<b>Records</b><br/>Postgres, per team<br/>tokens, evidence"]
+    scanner["<b>Secret scanner</b><br/>before any model,<br/>findings as names"]
     catalog["<b>Org catalog</b><br/>modules, usage rules,<br/>what must be refused"]
     promote["<b>Promote, approvals</b><br/>approvals wait days<br/>as graph interrupts"]
   end
@@ -365,6 +370,7 @@ flowchart TB
     executor["<b>Executor</b><br/>the org's modules<br/>role per team account"]
     daytwo["<b>Day-two operations</b><br/>logs, perf, costs,<br/>pause, settings"]
     records["<b>Records</b><br/>managed database<br/>per org, per team"]
+    scanner["<b>Secret scanner</b><br/>before any model,<br/>findings as names"]
     catalog["<b>Org catalog</b><br/>modules, usage rules,<br/>what must be refused"]
     promote["<b>Promote, approvals</b><br/>approvals wait days<br/>as graph interrupts"]
   end

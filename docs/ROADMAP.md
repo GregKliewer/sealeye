@@ -150,6 +150,12 @@ through one governed door before Phase 4 adds a swarm of agents.
   until then tracing stays off for any pilot on real code.
 - The gateway logs no request bodies: file names, never contents, as for traces
   (DESIGN.md, "Tracing the interview with LangFuse").
+- A deterministic secret scanner (answers Q6; brought forward from Phase 4 on Oct 13,
+  2026). A key written into an app's code, not only a secret file, never reaches the
+  model, a trace or the gateway: a file with a finding travels as a name only, and the
+  developer is told which file and line. The same scanner becomes the discovery swarm's
+  first node in Phase 4. Where it runs and what a finding does to a deploy are
+  PHASE3-PLAN D3 and D4.
 
 **Done when:** a looping run is stopped by seaLeye's own cap rather than by a person,
 and told why; the gateway's budget refuses calls once it is crossed, as the outer limit;
@@ -164,8 +170,8 @@ holds file contents.
 - The discovery agent is a swarm, built on Phase 3 from the start: a LangGraph
   supervisor fans work out to parallel workers, one module each, gathers their findings,
   and pauses for a platform engineer (`interrupt()`) on anything ambiguous.
-- Its first node is a deterministic secret scanner: a file with a finding never reaches
-  a model (Q6).
+- Its first node is the secret scanner built in Phase 3: a file with a finding never
+  reaches a model.
 - Spend: small models read, the frontier model writes the usage rules; hard caps per run
   and per worker; only modules changed since the last run are read again.
 - Where it runs: a new account opened for the prospect or customer, and the run is paid

@@ -587,3 +587,4 @@ The decisions that shaped the architecture, by DESIGN.md heading.
 | Traces in LangFuse Cloud (US) | Sample apps only; off for any pilot on real code | Phase 4: self-hosted in ca-central-1, before discovery reads an organization's code |
 | No promotion past dev | Developers deploy to dev | Phase 5 |
 | No gateway in front of the model | One agent, one box | Phase 3: agentgateway, routing and spend caps |
+| A key written into code (not a secret file) can reach the model | Sample apps and a friendly team | Phase 3: a secret scanner before any model (Q6) |
