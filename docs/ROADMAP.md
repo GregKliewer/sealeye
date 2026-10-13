@@ -6,9 +6,10 @@ the same commit as the work that changes it. Questions that block a phase are in
 OPEN-QUESTIONS.md.
 
 **Plans.** `docs/PHASE1-PLAN.md` built Phase 1 up to the second-person test (done Oct
-11, 2026). `docs/PHASE2-PLAN.md` is current: it finishes Phase 1 for a friendly team
-(Part A), builds item 10 (Part B), then Phase 2 (Part C). What it leaves for later, and
-what brings each item forward, is its last section, "Owed after this plan".
+11, 2026). `docs/PHASE2-PLAN.md` finished Phase 1 for a friendly team, item 10 and Phase
+2 (done Oct 12, 2026, all but Step 6, the second-person test); its last section, "Owed
+after this plan", still stands. `docs/PHASE3-PLAN.md` is current: Phase 3, with the
+second-person test alongside.
 
 **Renumbered Oct 13, 2026.** Phase 3 (governed backbone) and Phase 6 (seaLeye for agents)
 are new; the old Phases 3, 4 and 5 are now 4, 5 and 7. DESIGN.md entries and the two
@@ -93,26 +94,13 @@ lines stay open until it does.
    interview with LangFuse"). It moved to the API with the interview on Oct 10, 2026,
    one trace across the interview's pauses; where an organization's traces live is Q13.
 10. **Setting values move to the organization's secret store.** *Done Oct 12, 2026
-    (PHASE2-PLAN Part B; DESIGN.md, "Settings live in the organization's store"). The
-    plan contract did not change: the platform asks the store at deploy time.* Decided Oct 10,
-    2026 (DESIGN.md, "Setting values travel with the deploy, for now"): for now the CLI
-    sends an app's setting values from its `.env` with each deploy. A bank will want
-    them in its own secret store instead, with nothing secret passing through seaLeye.
-    About three to five days:
-    - the plan names where each value lives (a contract change, so a new planVersion,
-      a prompt change and `npm run eval:interview`);
-    - the injected `run.sh` reads the values from the store when the app starts, so
-      the app is still not modified;
-    - the function may read only its own entries, and the deploy role reads them in
-      the team's own account;
-    - `sealeye secrets set`, an endpoint and a portal page (parity) put values in, and
-      the first deploy of an app offers to store what its `.env` holds;
-    - `sealeye run` says once that deployed settings come from the store, not `.env`;
-    - apps already deployed with sent values are moved: the records with a `sent` or
-      `.env` setting source are the list.
-    The sent-values path stays for dev and the sample apps. **Due before any pilot that
-    deploys an organization's real secrets.** Planned as PHASE2-PLAN Part B, before
-    Phase 2, so the portal's re-run, interview and Configure are built on the store.
+    (PHASE2-PLAN Part B; DESIGN.md, "Settings live in the organization's store").*
+    Until then the command sent an app's setting values from its `.env` with each
+    deploy (DESIGN.md, "Setting values travel with the deploy, for now"). Now each
+    value lives in the organization's own store, the plan says so, the app reads its
+    values when it starts without being modified, and `sealeye settings` and the
+    portal's Settings page put values in. The sent-values path stays for dev and the
+    sample apps.
 
 ### Phase 2: Day-two parity
 

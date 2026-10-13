@@ -70,9 +70,10 @@ Phase 7.
 
 ### Q10. When does the CLI get published?
 
-Today it is installed with `npm link` from a clone. **Options:** a private npm package;
-a public one; a single binary. Matters once anyone outside the repo uses it (Phase 1 if
-Q5 is users).
+Today it is installed from seaLeye.run (`curl -fsSL https://sealeye.run/install | sh`),
+which runs `npm install -g` on a package that site serves. That is enough for the
+friendly team. **Options:** keep that; a public npm package; a single binary. Matters
+once people outside a friendly team install it.
 
 ### Q11. Where do the marketing sites live?
 
