@@ -145,8 +145,9 @@ through one governed door before Phase 4 adds a swarm of agents.
 - Routing by task and by data class: the frontier model for plans and rules, a small
   model for bulk reading, and an organization's code only to an endpoint in its own
   account (Claude on Bedrock).
-- LangFuse self-hosted in ca-central-1 (answers Q13). Gateway spans join the run's
-  trace.
+- Gateway spans join the run's trace in LangFuse Cloud, as today. Self-hosting
+  LangFuse in Canada moves to Phase 4 (DESIGN.md, "Phase 3, settled after review");
+  until then tracing stays off for any pilot on real code.
 - The gateway logs no request bodies: file names, never contents, as for traces
   (DESIGN.md, "Tracing the interview with LangFuse").
 
@@ -169,6 +170,10 @@ holds file contents.
   and per worker; only modules changed since the last run are read again.
 - Where it runs: a new account opened for the prospect or customer, and the run is paid
   (decided Oct 13, 2026).
+- LangFuse self-hosted in ca-central-1 (answers Q13; moved here from Phase 3 on Oct 13,
+  2026), before the first discovery run reads an organization's code. It needs
+  ClickHouse, Redis and blob storage beside Postgres, so it does not share the pilot's
+  small server.
 - What it learns is the organization's catalog: each module, what it is for, its usage
   rules and what must be refused. The front door agent plans from that catalog. No model
   is fine-tuned.

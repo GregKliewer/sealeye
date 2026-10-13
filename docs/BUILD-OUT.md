@@ -17,8 +17,8 @@ When ROADMAP.md changes what a phase holds, fix its picture here in the same com
 | 0 | Foundation | Done Oct 8, 2026 | The demo becomes a product repo: cli, api and core, tests, CLAUDE.md, the roadmap |
 | 1 | Team release | Mostly done Oct 11, 2026 | Hosted API, tokens, Postgres, the live portal, CI. Open: the second-person test |
 | 2 | Day-two parity | Built Oct 12, 2026 | Logs, performance, costs, pause, configure, the settings store and evidence, on both surfaces |
-| 3 | Governed backbone | **New**, next | agentgateway in front of every model call, routing, spend caps, LangFuse self-hosted in ca-central-1 |
-| 4 | Learn the platform | Planned | A discovery swarm reads the organization's library into its catalog, with must-refuse tests and Terraform |
+| 3 | Governed backbone | **New**, next | agentgateway in front of every model call, identity per caller, routing, spend caps |
+| 4 | Learn the platform | Planned | A discovery swarm reads the organization's library into its catalog, with must-refuse tests and Terraform; LangFuse self-hosted in Canada |
 | 5 | The path to production | Planned | Promote, approvals in ServiceNow, Jira gap tickets, team accounts, Cognito sign-in |
 | 6 | seaLeye for agents | **New**, planned | seaLeye's tools as MCP behind the gateway, for coding agents |
 | 7 | Delivery and breadth | Planned | In-network or single tenant, the organization's own model, more clouds and regions, Windows |
@@ -105,7 +105,7 @@ flowchart TB
     gateway["<b>agentgateway</b><br/>one door to models,<br/>keys per person"]
     routing["<b>Model routing</b><br/>cheap for bulk work,<br/>bank code in-account"]
     caps["<b>Spend caps</b><br/>per run, per worker,<br/>rate limits"]
-    langfuse["<b>LangFuse</b><br/>self-hosted, Canada<br/>traces, scores, evals"]
+    langfuse["<b>LangFuse Cloud</b><br/>gateway spans join<br/>the run's trace"]
   end
   records ~~~ gateway
   subgraph outside["Outside seaLeye"]
@@ -114,7 +114,7 @@ flowchart TB
   end
   gateway ~~~ models
   classDef new fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#111
-  class caps,gateway,langfuse,models,routing new
+  class caps,gateway,models,routing new
 ```
 
 Key flow: one model call through the backbone. Every model call is identified, budgeted and routed before it leaves.
@@ -176,7 +176,7 @@ flowchart TB
   end
   gateway ~~~ models
   classDef new fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#111
-  class admin,catalog,cloud,contract,discovery,executor,frontdoor,library new
+  class admin,catalog,cloud,contract,discovery,executor,frontdoor,langfuse,library new
 ```
 
 Key flow: one discovery run, overnight, in a new account for the customer; the run is paid. The swarm reads in parallel, asks people when unsure, and is tested before use.

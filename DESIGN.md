@@ -1698,3 +1698,10 @@ otherwise.
   `MAX_TURNS`: it adds up `usage` from each response, stops the run at its cap and says
   why. The gateway's budget and rate limit sit behind that, for whatever the graph gets
   wrong. Phase 3's "done when" says so.
+- **Self-hosting LangFuse moves to Phase 4.** It needs ClickHouse, Redis and blob
+  storage beside Postgres, which the pilot's one small server cannot carry, and nothing
+  in Phase 3 sends an organization's code through a trace. Phase 4's discovery is the
+  first work that does, so LangFuse moves to Canada before the first discovery run.
+  Until then Phase 3's gateway spans join the run's trace in LangFuse Cloud, and tracing
+  stays off for any pilot on real code. The answer to Q13 is unchanged; only its timing
+  moved.
