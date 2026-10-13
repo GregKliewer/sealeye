@@ -241,7 +241,7 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   records and interviews in Postgres, or locally with a JSON file and interviews in
   memory (no `DATABASE_URL`). No sign-in yet: each person has a token, issued with
   `deploy/server.sh token add` and kept by `sealeye login`, a stand-in until Q3 (ROADMAP
-  Phase 1 item 3, Q16). Every token is org "default" until there is a second
+  Phase 5, Q16). Every token is org "default" until there is a second
   organization. A token is for one team, or issued `--org-wide` to see every team's.
   The store reads from memory, written through to Postgres: one API process only.
 - An app's settings live in the organization's store (Parameter Store,
@@ -257,7 +257,7 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   folder chosen in the browser), Control (state, deploy again, tear down,
   pause, settings, configure, history, performance, logs, evidence), Validate (check a plan, and deploy a ready one with the
   code the platform has), Catalog (modules and the needs ledger), Costs, Team and Health. Integrations is
-  drawn in the archived mock-up only (Phase 4); the portal shows nothing it cannot do.
+  drawn in the archived mock-up only (Phase 5); the portal shows nothing it cannot do.
 
 ## Working here
 

@@ -1642,3 +1642,44 @@ A tear-down interrupted by a restart is now judged by when it was asked for, not
 its deployment started, so tearing down a deploy from last week is finished after a
 restart like any other. "A newer deployment has used the stack" likewise means one that
 started after the tear-down was asked for.
+
+## The roadmap gains a governed backbone and a door for agents
+
+Tue Oct 13, 2026, by Greg, after working through how seaLeye would use the stack an
+agent control plane is built from (LangGraph, LangFuse, agentgateway). Two phases are
+added and the rest renumbered: old Phase 3 is now 4, old 4 is now 5, old 5 is now 7.
+Entries above this one, and PHASE1-PLAN and PHASE2-PLAN, keep the old numbers.
+`docs/BUILD-OUT.md` draws each phase.
+
+- **Phase 3, a governed backbone, comes before discovery.** This answers Q14.
+  agentgateway goes in front of every model call, with a key per caller, spend caps per
+  run and per worker, a rate limit, and routing. Q14 leaned against a gateway for the
+  pilot because one interview on one box gained little from it. The Phase 4 swarm
+  changes that: many workers spending at once, reads to authorize, and one audit trail
+  to keep. Building discovery on the gateway from its first day is cheaper than adding
+  one later.
+- **Routing has two reasons, and they differ by phase.** In discovery it is cost: small
+  models for bulk reading, the frontier model for the rules. Everywhere it is data: an
+  organization's code goes only to an endpoint in its own account. Routing lowers the
+  cost of a call; caps and the graph's own limits are what stop a runaway.
+- **Traces live in Canada (answers Q13).** LangFuse is self-hosted in ca-central-1 in
+  Phase 3. Until then, the old leaning holds: tracing off for any pilot on real code.
+- **Gateways log no bodies.** The rule for traces ("file names, never contents")
+  applies to the gateway too, since a swarm reading an organization's code would
+  otherwise copy it into gateway logs.
+- **Discovery runs in a new account opened for the prospect or customer, and the run
+  is paid.** This settles the ingestion-sandbox question left open after the October
+  demo.
+- **Learning the platform means a catalog, not a fine-tuned model.** The swarm writes
+  each module's purpose, usage rules and what must be refused. The front door agent
+  plans from it, and must-refuse evals in LangFuse decide whether it goes live.
+- **Team accounts and Cognito sign-in move to Phase 5.** Both were deferred in Phase 1
+  until a bank pilot, and the path to production is where a bank pilot needs them.
+- **Phase 6, seaLeye for agents, comes after the path to production.** seaLeye's
+  operations become MCP tools behind the gateway, so a coding agent gets what a
+  developer gets: the same contract, the same human yes, the same evidence, with the
+  agent named. After Phase 5, so agents get the whole path, not a side door to dev.
+- **How the swarm reads the library is open (Q17).** The leaning is the provider's own
+  MCP server where one exists, plain code otherwise, and no MCP servers built by seaLeye
+  for other teams' services.
+

@@ -34,8 +34,10 @@ There are two surfaces and one product:
   both surfaces; app settings in the organization's own secret store; one token per
   person and a team's environments kept to that team.
 - **Next:** the second-person test (someone other than Greg, on their own machine), then
-  learning an organization's own platform (Phase 3) and the path to production
-  (Phase 4).
+  the governed backbone (Phase 3: a gateway, routing and spend caps in front of every
+  model call), learning an organization's own platform (Phase 4), the path to
+  production (Phase 5) and seaLeye for agents (Phase 6). [BUILD-OUT.md](BUILD-OUT.md)
+  draws each phase.
 
 [ROADMAP.md](ROADMAP.md) has the detail and the parity table.
 
@@ -55,6 +57,7 @@ There are two surfaces and one product:
 |---|---|---|---|
 | [VISION.md](VISION.md) | Vision | Why seaLeye exists, who it serves, its principles | Rarely, with a DESIGN.md entry |
 | [ROADMAP.md](ROADMAP.md) | Roadmap | The phases, what is done, the parity table | With the work |
+| [BUILD-OUT.md](BUILD-OUT.md) | Roadmap pictures | What the system looks like after each phase, on one layout | With ROADMAP.md |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Architecture | How it is built: context, containers, deployment, flows, data, security | When a diagram would be wrong |
 | [DESIGN.md](../DESIGN.md) | Decisions | Each decision, dated, with its reason | Every decision a later reader would have to guess |
 | [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md) | Decisions not yet made | What is undecided, the options, the leaning, what it blocks | When a question is asked or answered |
