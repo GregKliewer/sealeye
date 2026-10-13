@@ -103,7 +103,7 @@ flowchart TB
   frontdoor ~~~ records
   cli ~~~ frontdoor
   subgraph backbone["Governed backbone: every model call goes through it"]
-    gateway["<b>agentgateway</b><br/>one door to models,<br/>keys per person"]
+    gateway["<b>agentgateway</b><br/>one door to models,<br/>names every caller"]
     routing["<b>Model routing</b><br/>cheap for bulk work,<br/>bank code in-account"]
     caps["<b>Spend caps</b><br/>per run, per worker,<br/>rate limits"]
     langfuse["<b>LangFuse Cloud</b><br/>gateway spans join<br/>the run's trace"]
@@ -118,21 +118,23 @@ flowchart TB
   class caps,gateway,models,routing,scanner new
 ```
 
-Key flow: one model call through the backbone. Nothing with a secret in it is sent; every model call is identified, budgeted and routed before it leaves.
+Key flow: one model call through the backbone. Nothing with a secret in it is sent. seaLeye stops a run at its own cap; the gateway names the caller, holds the outer budget and routes the call.
 
 ```mermaid
 flowchart LR
   upload["<b>Upload scanned</b><br/>a finding: name only"] --> agent["<b>seaLeye agent</b><br/>asks for a model call"]
-  agent --> gw["<b>agentgateway</b><br/>who is calling?"]
-  gw --> budget{"Under budget?"}
-  budget -- no --> stop["<b>Run stopped</b><br/>a person is told why"]
+  agent --> cap{"Run under<br/>its cap?"}
+  cap -- no --> stop["<b>Run stopped</b><br/>a person is told why"]
+  cap -- yes --> gw["<b>agentgateway</b><br/>checks the signed caller"]
+  gw --> budget{"Key under<br/>budget?"}
+  budget -- no --> outer["<b>Refused</b><br/>outer limit, says who to ask"]
   budget -- yes --> router["<b>Model routing</b><br/>task and data class"]
   router --> inacct["<b>In-account model</b><br/>for bank code"]
   router --> small["<b>Small model</b><br/>for bulk reading"]
   router --> frontier["<b>Frontier model</b><br/>for plans and rules"]
   gw -. trace .-> lf["<b>LangFuse</b><br/>span joins run trace"]
   classDef new fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#111
-  class upload,gw,budget,stop,router new
+  class upload,cap,stop,gw,budget,outer,router new
 ```
 
 ## Phase 4: Learn the platform
@@ -160,7 +162,7 @@ flowchart TB
     scanner["<b>Secret scanner</b><br/>before any model,<br/>findings as names"]
     catalog["<b>Org catalog</b><br/>modules, usage rules,<br/>what must be refused"]
   end
-  subgraph discoveryacct["Discovery: a new account per customer, a paid run"]
+  subgraph discoveryacct["Discovery: a paid account per customer"]
     discovery["<b>Discovery swarm</b><br/>LangGraph fan-out,<br/>people in the loop"]
   end
   frontdoor ~~~ records
@@ -168,7 +170,7 @@ flowchart TB
   executor ~~~ catalog
   cli ~~~ frontdoor
   subgraph backbone["Governed backbone: every model call goes through it"]
-    gateway["<b>agentgateway</b><br/>one door to models,<br/>keys per person"]
+    gateway["<b>agentgateway</b><br/>one door to models,<br/>names every caller"]
     routing["<b>Model routing</b><br/>cheap for bulk work,<br/>bank code in-account"]
     caps["<b>Spend caps</b><br/>per run, per worker,<br/>rate limits"]
     langfuse["<b>LangFuse</b><br/>self-hosted, Canada<br/>traces, scores, evals"]
@@ -233,7 +235,7 @@ flowchart TB
     catalog["<b>Org catalog</b><br/>modules, usage rules,<br/>what must be refused"]
     promote["<b>Promote, approvals</b><br/>approvals wait days<br/>as graph interrupts"]
   end
-  subgraph discoveryacct["Discovery: a new account per customer, a paid run"]
+  subgraph discoveryacct["Discovery: a paid account per customer"]
     discovery["<b>Discovery swarm</b><br/>LangGraph fan-out,<br/>people in the loop"]
   end
   frontdoor ~~~ records
@@ -242,7 +244,7 @@ flowchart TB
   daytwo ~~~ promote
   cli ~~~ frontdoor
   subgraph backbone["Governed backbone: every model call goes through it"]
-    gateway["<b>agentgateway</b><br/>one door to models,<br/>keys per person"]
+    gateway["<b>agentgateway</b><br/>one door to models,<br/>names every caller"]
     routing["<b>Model routing</b><br/>cheap for bulk work,<br/>bank code in-account"]
     caps["<b>Spend caps</b><br/>per run, per worker,<br/>rate limits"]
     langfuse["<b>LangFuse</b><br/>self-hosted, Canada<br/>traces, scores, evals"]
@@ -304,7 +306,7 @@ flowchart TB
     catalog["<b>Org catalog</b><br/>modules, usage rules,<br/>what must be refused"]
     promote["<b>Promote, approvals</b><br/>approvals wait days<br/>as graph interrupts"]
   end
-  subgraph discoveryacct["Discovery: a new account per customer, a paid run"]
+  subgraph discoveryacct["Discovery: a paid account per customer"]
     discovery["<b>Discovery swarm</b><br/>LangGraph fan-out,<br/>people in the loop"]
   end
   frontdoor ~~~ records
@@ -376,7 +378,7 @@ flowchart TB
     catalog["<b>Org catalog</b><br/>modules, usage rules,<br/>what must be refused"]
     promote["<b>Promote, approvals</b><br/>approvals wait days<br/>as graph interrupts"]
   end
-  subgraph discoveryacct["Discovery: a new account per customer, a paid run"]
+  subgraph discoveryacct["Discovery: a paid account per customer"]
     discovery["<b>Discovery swarm</b><br/>LangGraph fan-out,<br/>people in the loop"]
   end
   frontdoor ~~~ records

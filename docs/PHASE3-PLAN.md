@@ -185,8 +185,8 @@ High stakes: an independent review before the pull request.
 - A budget on the API's gateway key for the period Greg names, and a token rate limit
   keyed on `jwt.run`, so one run cannot starve the rest.
 - When the gateway refuses, the interview stops and says plainly that seaLeye's model
-  budget is used up for now and the administrator has been told; it never retries into
-  the refusal.
+  budget is used up for now and to ask the platform administrator; it never retries into
+  the refusal. The refusal is in the gateway's log, so the administrator can see it.
 - Shown once on the server, on purpose, with a tiny budget. This is the second half of
   the "done when".
 
