@@ -1,8 +1,9 @@
 # seaLeye: the build-out, phase by phase
 
 First written Tue Oct 13, 2026, at 2.21.0. One picture per phase of [ROADMAP.md](ROADMAP.md),
-all on the same layout, so a reader can flip between them and see what each phase adds.
-Parts new or changed in a phase are drawn in blue. [ARCHITECTURE.md](ARCHITECTURE.md)
+all on the same layout, so a reader can flip between them and see what each phase adds,
+and under it the one flow that shows the phase at work. Parts new or changed in a phase
+are drawn in blue. [ARCHITECTURE.md](ARCHITECTURE.md)
 describes the system as built today; this file describes where it is going. Why each
 change is made lives in [DESIGN.md](../DESIGN.md), "The roadmap gains a governed backbone
 and a door for agents".
@@ -61,6 +62,20 @@ flowchart TB
   modelurl ~~~ models
 ```
 
+Key flow today: one `sealeye run`. A plan with needs is refused; only a ready plan is built. Every step is traced in LangFuse, file names but never contents.
+
+```mermaid
+flowchart LR
+  run["<b>sealeye run</b><br/>in the app folder"] --> upload["<b>Filtered upload</b><br/>secret files as names"]
+  upload --> agent["<b>Front door agent</b><br/>reads, asks 4 at most"]
+  agent --> plan["<b>Plan submitted</b><br/>to the contract"]
+  plan --> needs{"Any needs?"}
+  needs -- none --> yes["<b>Deploy this? y</b><br/>a person says yes"]
+  yes --> build["<b>Executor builds</b><br/>certified template"]
+  build --> url["<b>Address and report</b><br/>status read from AWS"]
+  needs -- needs --> refused["<b>Drafted, refused</b><br/>saved, nothing built"]
+```
+
 ## Phase 3: Governed backbone
 
 Phase 3 puts one governed door in front of every model call. Built before discovery, so the swarm runs on it from day one.
@@ -100,6 +115,22 @@ flowchart TB
   gateway ~~~ models
   classDef new fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#111
   class caps,gateway,langfuse,models,routing new
+```
+
+Key flow: one model call through the backbone. Every model call is identified, budgeted and routed before it leaves.
+
+```mermaid
+flowchart LR
+  agent["<b>seaLeye agent</b><br/>asks for a model call"] --> gw["<b>agentgateway</b><br/>who is calling?"]
+  gw --> budget{"Under budget?"}
+  budget -- no --> stop["<b>Run stopped</b><br/>a person is told why"]
+  budget -- yes --> router["<b>Model routing</b><br/>task and data class"]
+  router --> inacct["<b>In-account model</b><br/>for bank code"]
+  router --> small["<b>Small model</b><br/>for bulk reading"]
+  router --> frontier["<b>Frontier model</b><br/>for plans and rules"]
+  gw -. trace .-> lf["<b>LangFuse</b><br/>span joins run trace"]
+  classDef new fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#111
+  class gw,budget,stop,router,lf new
 ```
 
 ## Phase 4: Learn the platform
@@ -146,6 +177,29 @@ flowchart TB
   gateway ~~~ models
   classDef new fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#111
   class admin,catalog,cloud,contract,discovery,executor,frontdoor,library new
+```
+
+Key flow: one discovery run, overnight, in a new account for the customer; the run is paid. The swarm reads in parallel, asks people when unsure, and is tested before use.
+
+```mermaid
+flowchart TB
+  start["<b>Admin starts run</b><br/>new paid account"] --> scan["<b>Secret scanner</b><br/>findings never sent"]
+  scan --> sup["<b>Supervisor</b><br/>changed modules only"]
+  sup --> w1["<b>Worker</b><br/>one module, small model"]
+  sup --> w2["<b>Worker</b><br/>one module, small model"]
+  sup --> w3["<b>Worker</b><br/>one module, small model"]
+  w1 --> gather["<b>Gather findings</b><br/>supervisor merges"]
+  w2 --> gather
+  w3 --> gather
+  gather --> unclear{"Unclear?"}
+  unclear -- yes --> person["<b>Platform engineer</b><br/>answers, run waits"]
+  person --> synth
+  unclear -- no --> synth["<b>Write the rules</b><br/>frontier model"]
+  synth --> catalog["<b>Org catalog</b><br/>usage and refusals"]
+  catalog --> evals["<b>Must-refuse evals</b><br/>in LangFuse"]
+  evals -- pass --> use["<b>Front door agent</b><br/>plans from the catalog"]
+  classDef new fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#111
+  class scan,sup,w1,w2,w3,gather,unclear,person,synth,catalog,evals new
 ```
 
 ## Phase 5: The path to production
@@ -197,6 +251,23 @@ flowchart TB
   class executor,portal,promote,tools new
 ```
 
+Key flow: one promotion, dev to the next stage. Promotion asks; the change process decides, even if it takes days. The graph waits as an interrupt while the change is reviewed.
+
+```mermaid
+flowchart LR
+  ask["<b>sealeye promote</b><br/>developer asks"] --> check["<b>Check next stage</b><br/>what is missing?"]
+  check --> gaps{"Any gaps?"}
+  gaps -- yes --> jira["<b>Gap ticket in Jira</b><br/>developer told what"]
+  gaps -- no --> snow["<b>Change request</b><br/>in ServiceNow"]
+  snow --> wait["<b>Graph waits</b><br/>interrupt, for days"]
+  wait --> cab{"Approved?"}
+  cab -- yes --> build["<b>Builds there</b><br/>team account role"]
+  build --> ev["<b>Evidence, report</b><br/>change number on it"]
+  cab -- no --> told["<b>Told why</b><br/>nothing is built"]
+  classDef new fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#111
+  class ask,check,gaps,jira,snow,wait,cab,build new
+```
+
 ## Phase 6: seaLeye for agents
 
 Phase 6 opens the same governed door to other agents. Agents get what developers get: the same tools, the same policy, the same evidence.
@@ -246,6 +317,22 @@ flowchart TB
   gateway ~~~ models
   classDef new fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#111
   class agents,gateway,mcp new
+```
+
+Key flow: a coding agent asks seaLeye for an environment through MCP. An agent gets exactly what a developer gets, and no more.
+
+```mermaid
+flowchart LR
+  agent["<b>Coding agent</b><br/>Claude Code, Copilot, ADK"] --> gw["<b>agentgateway</b><br/>checks agent and tool"]
+  gw --> allowed{"Allowed?"}
+  allowed -- no --> refused["<b>Refused, logged</b><br/>agent named"]
+  allowed -- yes --> mcp["<b>MCP server</b><br/>plan, validate"]
+  mcp --> contract["<b>Plan contract</b><br/>refuse, never shrink"]
+  contract --> yes["<b>A person says yes</b><br/>as for a developer"]
+  yes --> build["<b>Executor builds</b><br/>certified modules"]
+  build --> ev["<b>Evidence, trace</b><br/>name the agent"]
+  classDef new fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#111
+  class agent,gw,allowed,refused,mcp,ev new
 ```
 
 ## Phase 7: Delivery and breadth
