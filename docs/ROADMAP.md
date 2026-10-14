@@ -164,6 +164,12 @@ and told why; the gateway's budget refuses calls once it is crossed, as the oute
 every model call in a trace names its caller and its route; no trace or gateway log
 holds file contents.
 
+*Where it stands (Oct 14, 2026): each run's own cap (Step 3) and the gateway's budget,
+shown refusing on the server (Step 7), are done. Gateway logs and the record of calls
+hold no content (Steps 5 to 7). Every call names its caller in the gateway's log and
+record, with the run's trace id (Step 6); the gateway's own span in that trace is owed
+(Step 6b), and routes come with Step 8.*
+
 ### Phase 4: Learn the platform
 
 **Goal:** seaLeye builds from the organization's own modules, not only its four.

@@ -2462,3 +2462,7 @@ this adds the rest.
   - `unixepoch(completed_at)` reads the gateway's timestamps;
   - reading as the gateway's own user keeps the files it shares with the gateway
     owned by it.
+- **Shown on the server, Oct 14.** Greg released it, set the budget below what the
+  period had spent, and ran an interview. It was refused in plain words, and worked
+  again once the budget was put back. That completes the second half of Phase 3's
+  "done when".
