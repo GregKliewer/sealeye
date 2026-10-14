@@ -1827,3 +1827,34 @@ Step 3).
   with the model provider, which are the only hard ceiling on what you are charged."
   This goes in the material the first organization reads before it starts
   (PHASE3-PLAN, "Owed after this plan").
+
+## What a run costs, and a cap of a dollar
+
+Wed Oct 14, 2026, by Greg, from PHASE3-PLAN Step 1. `npm run eval:interview` on the
+three sample apps, with `claude-sonnet-5` at list prices (US dollars), read back from
+LangFuse:
+
+| App | Turns | Input | Output | Cache read | Cache write | Cost |
+|---|---|---|---|---|---|---|
+| beneficiary-lookup-api | 6 | 8,999 | 2,224 | 56,145 | 11,229 | $0.0795 |
+| payment-events-processor | 2 | 5,735 | 2,545 | 22,458 | 0 | $0.0414 |
+| static-website | 2 | 2,758 | 1,091 | 22,458 | 0 | $0.0209 |
+
+The largest run was 6 turns and $0.0795; the typical one 2 turns and $0.0414. An
+earlier pass had the largest at 4 turns and $0.0749, so runs vary a little from pass to
+pass. The cached system prompt is 11,229 tokens; writing it costs about $0.028 and falls
+on whichever run comes first in a five-minute window, which in a pilot is most runs.
+
+- **A run's cap is $1.00, not three times the largest sample run.** D5 as written gives
+  about $0.24. The sample apps are a few small files, and only the system prompt is
+  cached, so each turn sends the whole conversation again, every file read so far
+  included: a run's cost grows with roughly the square of what it reads. By estimate,
+  not measurement, an honest run on a real app (twelve turns, eight files of real size)
+  costs $0.40 to $0.60, which $0.24 would stop; a run that reads a 20 KB file every turn
+  until `MAX_TURNS` costs about $3.00. A dollar leaves room for the first and stops the
+  second around its fourteenth turn.
+- **Measured again on a real app before Step 3 makes it bind.** One interview on an app
+  larger than the samples; if its cost is more than a third of the cap, the cap is
+  raised before it can stop anyone.
+- **Caching the conversation, not only the system prompt, would cut long runs'
+  cost several-fold.** Not part of Phase 3; noted so the cap is revisited if it is done.
