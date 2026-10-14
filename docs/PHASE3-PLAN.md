@@ -100,7 +100,7 @@ Done Wed Oct 14 (DESIGN.md, "What a run costs, and a cap of a dollar"): the larg
 sample run was 6 turns and $0.0795, the typical one 2 turns and $0.0414. The real app
 measured before Step 3: 6 turns and $0.152.
 
-Greg can also run the two commands in OPEN-QUESTIONS Q18 from his Mac, so Step 8 knows
+Greg ran the two commands now in DESIGN.md ("Inference from Canada") on Oct 14, so Step 8 knows
 where a Bedrock call from Canada may run.
 
 ### Step 2. The secret scanner (D3, D4)
