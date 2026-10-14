@@ -29,6 +29,7 @@ import { readCosts } from "./costs.js";
 import { createInterviewService, ModelNotPriced, NotWaiting, UploadRefused } from "./interview/service.js";
 import { scanApp, ScanFailed } from "./secret-scan.js";
 import { deployRefusalMessage } from "../core/scan.js";
+import { interviewNotesFor, noteInterviewPlan, planDigest, planFilesFor, planView } from "./plan-record.js";
 
 // When the deeper check could not run, nothing that depended on it goes ahead.
 const SCAN_FAILED_WORDS = "seaLeye could not finish checking your code for secrets, so nothing went any further. Try again in a minute; if it keeps happening, tell your platform team.";
@@ -358,6 +359,11 @@ async function deployAgain(req, res) {
     appPath: null,
     resolvedModules: (plan.modules || []).filter(m => m.enabled !== false).map(m => ({ id: m.id, mappedTo: backendMappings[backend][m.id] || null })),
     plan,
+    // The same plan as the deployment it repeats keeps that deployment's files, which are
+    // what was approved; a plan changed with Configure is written down from the plan.
+    ...(source.planFiles && source.plan && planDigest(source.plan) === planDigest(plan)
+      ? { planFiles: source.planFiles }
+      : planFilesFor(plan, null)),
     ...(req.caller ? { orgId: req.caller.org, teamId: req.caller.team, tokenId: req.caller.tokenId } : {}),
     surface: req.surface || "cli",
     ...(requestedBy ? { requestedBy } : {}),
@@ -506,6 +512,8 @@ async function deployNew(req, res) {
       resolvedModules,
       plan,
       needs,
+      // The plan as the developer saw it, so either surface can show it later.
+      ...planFilesFor(plan, interviewNotesFor(req.caller, plan)),
       ...provenance,
       outputs: {},
       failureReason: null,
@@ -586,6 +594,9 @@ async function deployNew(req, res) {
     // The whole plan, so a later run can say what it is about to change. Additive:
     // records written before this exist without it and are read as before.
     plan,
+    // And written down as the developer approved it (api/plan-record.js), for
+    // GET /deployments/{id}/plan.
+    ...planFilesFor(plan, interviewNotesFor(req.caller, plan)),
     // What the secret scan let through on the developer's word (.sealeye-allow), and
     // whether gitleaks ran: file, line and rule, never a value. The evidence lists it.
     secretScan: { allowed: scan.allowed.map(({ file, line, rule }) => ({ file, line, rule })), gitleaks: scan.gitleaks },
@@ -688,6 +699,20 @@ app.get("/deployments/:deploymentId", (req, res) => {
   const replacedBy = replacements(listDeployments()).get(dep.deploymentId);
   if (!replacedBy) return res.status(200).json(dep);
   return res.status(200).json({ ...dep, replaced: true, replacedBy: canSee(req, getDeployment(replacedBy)) ? replacedBy : null });
+});
+
+// GET /deployments/{deploymentId}/plan — the plan this deployment was approved with, as
+// DEPLOYMENT_PLAN.md and sealeye.yaml, and its DEPLOYMENT_REPORT.md when it has one. Reads
+// the record only. A record from before plans were kept has its files written from its
+// plan now, marked rebuilt (api/plan-record.js). Added Oct 14, 2026.
+app.get("/deployments/:deploymentId/plan", (req, res) => {
+  const dep = getDeployment(req.params.deploymentId);
+  if (!canSee(req, dep)) {
+    return res.status(404).json({
+      error: { code: "NOT_FOUND", message: "deploymentId not found" }
+    });
+  }
+  return res.status(200).json(planView(dep));
 });
 
 // GET /deployments/{deploymentId}/evidence — the change record: the evidence object
@@ -917,6 +942,10 @@ app.post("/interviews/:interviewId/answers", (req, res) => {
     return res.status(400).json({ error: { code: "MISSING_ANSWER", message: "answer is required" } });
   }
   try {
+    // "Deploy this?" is being answered: note what the interview said about its plan, so
+    // the deploy that follows keeps DEPLOYMENT_PLAN.md as the developer saw it.
+    const open = interviews.get(req.params.interviewId);
+    if (open?.waitingFor === "confirm" && open.result?.plan) noteInterviewPlan(req.caller, open.result);
     const result = interviews.answer(req.params.interviewId, value);
     if (!result) return res.status(404).json({ error: { code: "NOT_FOUND", message: "interviewId not found" } });
     return res.status(202).json(result);
