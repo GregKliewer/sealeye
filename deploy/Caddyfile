@@ -81,15 +81,11 @@
 	file_server
 }
 
-# sealeye.org: kept, and sent to seaLeye.run for now.
-{$ORG_DOMAIN} {
-	redir https://{$RUN_DOMAIN}{uri} 302
-}
-
 www.{$PORTAL_DOMAIN} {
 	redir https://{$PORTAL_DOMAIN}{uri} permanent
 }
 
-www.{$RUN_DOMAIN}, www.{$ORG_DOMAIN} {
+# sealeye.org is served by GitHub Pages, not here (DESIGN.md).
+www.{$RUN_DOMAIN} {
 	redir https://{$RUN_DOMAIN}{uri} permanent
 }

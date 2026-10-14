@@ -1,0 +1,37 @@
+# seaLeye.org, the project's home, is served by GitHub Pages from sites/org/, so it
+# stays up whether or not the pilot server does (DESIGN.md, "seaLeye.org is the
+# project's home"). A push to main that changes sites/org/ publishes it; nothing else
+# here touches AWS. Repository Settings > Pages > Source must be "GitHub Actions", and
+# the custom domain sealeye.org (sites/org/CNAME says the same).
+name: pages
+
+on:
+  push:
+    branches: [main]
+    paths: ["sites/org/**", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: sites/org
+      - id: deployment
+        uses: actions/deploy-pages@v4
