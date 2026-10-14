@@ -35,46 +35,6 @@ tokens survive for automation; how a person's team and an organization-wide scop
 **Leaning:** its own plan, once seaLeye goes past a handful of people or to a bank.
 Moved to Phase 5 on Oct 13, 2026. Blocks a wider pilot, not the friendly team.
 
-### Q18. Must model inference stay in Canada?
-
-Checked Oct 13, 2026. Bedrock serves Claude Sonnet 5.5 and Haiku 5.5 to ca-central-1
-and ca-west-1 only through cross-region profiles (geographic or global), not in-region.
-AWS's Canada guidance names only US and global profiles, and says logs and stored data
-stay in Canada while inference may run in other regions. AWS's own advice is to read a
-profile's destinations rather than trust its prefix. Greg can do that from his Mac:
-
-```sh
-aws bedrock list-inference-profiles --region ca-central-1 --type-equals SYSTEM_DEFINED \
-  --query "inferenceProfileSummaries[?contains(inferenceProfileId,'claude')].inferenceProfileId" --output text
-aws bedrock get-inference-profile --region ca-central-1 \
-  --inference-profile-identifier <an id from the first command> --query 'models[].modelArn' --output text
-```
-
-Each region in the second command's ARNs is somewhere a call may run. Today the
-interview sends an app's code to the Anthropic API, in the US, which is acceptable for
-the friendly team and the sample apps.
-
-**Read in Greg's account, Oct 14, 2026.** From ca-central-1, every Claude profile is
-`us.` or `global.`; there is no Canadian geographic profile. Claude Sonnet 5, the
-interview's own model, is offered, so the Bedrock route needs no change of model.
-Where a call may run:
-
-| Profile | Regions a call may run in |
-|---|---|
-| `us.anthropic.claude-sonnet-5` | ca-central-1, us-east-1, us-east-2, us-west-2 |
-| `global.anthropic.claude-sonnet-5` | ca-central-1, or any commercial region |
-
-Bedrock chooses the region for each call, so neither keeps inference in Canada: the US
-profile keeps it in Canada or the US, the global profile anywhere. So for a bank the
-choice is between disclosed US-or-Canada inference, waiting for a Canadian profile, and
-a model the organization runs.
-
-**Options:** accept the US profile, disclosed (Canada or the US, never elsewhere), with
-stored data in Canada; wait for a Canadian profile; or a model the organization runs
-(Phase 7). The global profile is not an option for a bank's code.
-**Leaning:** the US profile for a pilot, stated in the evidence, and the bank decides. Blocks a
-bank pilot (Phase 5), not Phase 3: Phase 3 builds the route and its setting either way.
-
 ## Later
 
 ### Q7. Windows

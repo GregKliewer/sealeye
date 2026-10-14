@@ -218,7 +218,7 @@ High stakes: an independent review before the pull request.
 - Shown once on the server, on purpose, with a tiny budget. This is the second half of
   the "done when".
 
-### Step 8. Routing (D6, Q18)
+### Step 8. Routing (D6; DESIGN.md, "Inference from Canada")
 
 - Named routes in the gateway: the frontier model for plans (the interview today), a
   small model for bulk reading (defined now, first used by Phase 4's workers), and an
@@ -229,10 +229,14 @@ High stakes: an independent review before the pull request.
 - The pilot stays on the Anthropic API route (D6). The Bedrock route is proven in
   Greg's account; the server's role gains Bedrock permission in its own stack change.
   It uses `us.anthropic.claude-sonnet-5`, the interview's own model, read in Greg's
-  account on Oct 14 (OPEN-QUESTIONS Q18): no change of model, and no global profile.
+  account on Oct 14 (DESIGN.md, "Inference from Canada"): no change of model, and no
+  global profile.
   The permission names the profile and the foundation model in each region it may
   send to (ca-central-1, us-east-1, us-east-2, us-west-2); a policy naming only the
   profile is refused. The price table gains Bedrock's name for the model.
+- Where inference runs is disclosed, as Greg decided on Oct 14: the evidence for a
+  deployment names the route its interview took and the regions a call on it may run
+  in, read from the gateway's configuration, never typed in (principle 7).
 - Each span names its route: the last line of the "done when".
 
 ### Step 9. Write it down
@@ -271,7 +275,7 @@ around a false finding.
 | Item | Where it stands | Bring it forward when |
 |---|---|---|
 | **LangFuse in Canada** (Q13's answer) | LangFuse Cloud; tracing off for any pilot on real code. Moved to Phase 4 on Oct 13. | Before the first discovery run reads an organization's code, or any pilot that wants traces on real code. |
-| **Inference in Canada** (Q18) | The route is built (Step 8); Bedrock in Canada runs only through cross-region profiles. | A bank pilot (Phase 5). |
+| **Inference in Canada** | Decided Oct 14: disclosed, not kept in Canada (US profile: Canada or the US). | A bank that will not grant an exception: then a Canadian profile, or a model of the organization's own (Phase 7). |
 | **Agents as callers** (Phase 6) | The token in D1 has room for a second issuer. | Phase 6, after Cognito (Phase 5). |
 | **The small model** | Routed (Step 8), not used. | Phase 4's workers. |
 | **Checking prices against the bill** | The cap's prices are checked by hand and dated (Step 3); the eval compares them with LangFuse's. A monthly script comparing a month of the platform's own totals with Anthropic's Cost API (an Admin key, kept off the server) and, once Bedrock carries traffic, Cost Explorer. It only finds drift where there is traffic. | Once an organization is using seaLeye every week. |

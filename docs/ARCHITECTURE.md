@@ -596,4 +596,4 @@ The decisions that shaped the architecture, by DESIGN.md heading.
 | Traces in LangFuse Cloud (US) | Sample apps only; off for any pilot on real code | Phase 4: self-hosted in ca-central-1, before discovery reads an organization's code |
 | No promotion past dev | Developers deploy to dev | Phase 5 |
 | No gateway in front of the model | One agent, one box | Phase 3: a cap per run in seaLeye's graph; agentgateway for identity, routing and the outer budget |
-| The interview sends an app's code to the Anthropic API, in the US | Sample apps and a friendly team | Phase 3: a route to Claude on Bedrock in the organization's account; whether it stays in Canada is Q18 |
+| The interview sends an app's code to the Anthropic API, in the US | Sample apps and a friendly team | Phase 3: a route to Claude on Bedrock in the organization's account, which may run in Canada or the US; disclosed, not kept in Canada (DESIGN.md, "Inference from Canada") |
