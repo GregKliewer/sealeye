@@ -35,32 +35,6 @@ tokens survive for automation; how a person's team and an organization-wide scop
 **Leaning:** its own plan, once seaLeye goes past a handful of people or to a bank.
 Moved to Phase 5 on Oct 13, 2026. Blocks a wider pilot, not the friendly team.
 
-### Q18. Must model inference stay in Canada?
-
-Checked Oct 13, 2026. Bedrock serves Claude Sonnet 5.5 and Haiku 5.5 to ca-central-1
-and ca-west-1 only through cross-region profiles (geographic or global), not in-region.
-AWS's Canada guidance names only US and global profiles, and says logs and stored data
-stay in Canada while inference may run in other regions. AWS's own advice is to read a
-profile's destinations rather than trust its prefix. Greg can do that from his Mac:
-
-```sh
-aws bedrock list-inference-profiles --region ca-central-1 --type-equals SYSTEM_DEFINED \
-  --query "inferenceProfileSummaries[?contains(inferenceProfileId,'claude')].inferenceProfileId" --output text
-aws bedrock get-inference-profile --region ca-central-1 \
-  --inference-profile-identifier <an id from the first command> --query 'models[].modelArn' --output text
-```
-
-Each region in the second command's ARNs is somewhere a call may run. The interview
-uses `claude-sonnet-5`; the Bedrock list for Canada names Sonnet 5.5, so the Bedrock
-route would use that, after the interview's eval set passes on it. Today the
-interview sends an app's code to the Anthropic API, in the US, which is acceptable for
-the friendly team and the sample apps.
-
-**Options:** accept a geographic profile, disclosed, with stored data in Canada; wait
-for in-region Claude in Canada; or a model the organization runs (Phase 7).
-**Leaning:** the first for a pilot, stated in the evidence, and the bank decides. Blocks a
-bank pilot (Phase 5), not Phase 3: Phase 3 builds the route and its setting either way.
-
 ## Later
 
 ### Q7. Windows

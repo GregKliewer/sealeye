@@ -137,7 +137,8 @@ through one governed door before Phase 4 adds a swarm of agents.
 - Routing by task and by data class: the frontier model for plans and rules, a small
   model for bulk reading, and an organization's code only to an endpoint in its own
   account (Claude on Bedrock). Bedrock serves Claude in Canada only through profiles
-  that may run inference in other regions, so whether a call stays in Canada is Q18.
+  that may run inference in other regions: it is disclosed, not kept in Canada
+  (DESIGN.md, "Inference from Canada: disclosed, on the US profile").
 - Gateway spans join the run's trace in LangFuse Cloud, as today. Self-hosting
   LangFuse in Canada moves to Phase 4 (DESIGN.md, "Phase 3, settled after review");
   until then tracing stays off for any pilot on real code.
@@ -281,6 +282,7 @@ and does nothing real. A blank is not started.
 | Status and watch | `sealeye status`, `watch` (an app or an id) | `GET /deployments/{id}`; `step` in `GET /deployments` | built | built (Control, with the change under way across the top) | 1 |
 | Tear down | `sealeye destroy` | `DELETE /deployments/{id}` | built | built (Control) | 1 |
 | Evidence | `sealeye evidence` | `GET /deployments/{id}/evidence` | built | built (Evidence, in Control) | 2 |
+| Plan and report for a deployment | `sealeye plan` (`--report`, `--out <folder>`) | `GET /deployments/{id}/plan` | built | built (Plan and report, in Control) | 2 (added Oct 14, 2026, 2.27.0) |
 | Needs ledger | `sealeye needs` | `GET /needs` | built | built (in Catalog) | 1 |
 | Health check | `sealeye doctor` | `GET /health`, `GET /whoami` | built | built (Health) | 2 |
 | Catalog | `sealeye catalog` | `GET /catalog` | built | built | 1 |
