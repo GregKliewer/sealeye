@@ -294,6 +294,51 @@ deploy/server.sh gateway-restart
 
 Model calls are refused for the few seconds `gateway-restart` takes, between the gateway's restart and the API's.
 
+## The record of model calls, and the outer limit shown once
+
+Every model call is kept in the gateway's own file on the server, with no prompt or
+reply, for 90 days (a nightly job removes older ones). Unlike `gateway-logs`, it
+survives a gateway restart.
+
+The last 50 calls, the last 5, one run's calls, and one person's last 20:
+
+```bash
+deploy/server.sh gateway-calls
+deploy/server.sh gateway-calls 5
+deploy/server.sh gateway-calls int_097529c27e48a35a
+deploy/server.sh gateway-calls greg@opmoadvisory.com 20
+```
+
+Each row has the time (UTC), person, team, run, worker, surface, model, tokens in and
+out, cost in US dollars, and status: 200 for a call that was answered, 429 for one the
+budget or a run's limit refused. It needs the release that brought it, whose image
+carries sqlite3. Add `AWS_PAGER=` in front if the output scrolls oddly. The nightly
+job's result is in the server's journal (`journalctl -u sealeye-gateway-prune` in a
+shell on the server); nothing tells you if it fails.
+
+**The outer limit, shown once** (PHASE3-PLAN Step 7). Note the budget now (no output
+means the default, 20), then shrink it below what this period has already spent,
+restart the gateway, and run an interview:
+
+```bash
+aws ssm get-parameter --region ca-central-1 --name /sealeye/SEALEYE_GATEWAY_BUDGET --query Parameter.Value --output text
+aws ssm put-parameter --region ca-central-1 --name /sealeye/SEALEYE_GATEWAY_BUDGET --type String --value 0.01 --overwrite --query Version --output text
+deploy/server.sh gateway-restart
+```
+
+Then `sealeye run` in `apps/static-website`. Success: it stops at once and says
+"seaLeye has used its model budget for this period, so the interview stopped. Nothing
+was written to your folder and nothing was built. Tell whoever runs the API."
+`deploy/server.sh gateway-calls 5` shows the refusal as status 429. Then put the
+budget back to what it was (20 here):
+
+```bash
+aws ssm put-parameter --region ca-central-1 --name /sealeye/SEALEYE_GATEWAY_BUDGET --type String --value 20 --overwrite --query Version --output text
+deploy/server.sh gateway-restart
+```
+
+and run the interview once more to see it work again.
+
 ## Once: the addresses
 
 Each of seaLeye's domains has one job, all served by the one server's Caddy, which gets

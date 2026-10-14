@@ -9,6 +9,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { catalogForPrompt, orgName } from "../../core/catalog.js";
 import { repoRoot, loadEnv, loadUserConfig, setting } from "../../core/config.js";
 import { traceTurn } from "../../core/tracing.js";
+import { spendingLimitWords } from "../../core/model-prices.js";
 
 // The Sonnet id from the Day 1 curl test. Overridable, because the id is the one
 // thing here that changes without the platform changing.
@@ -202,9 +203,27 @@ export function isBudgetSpent(err) {
   return err?.status === 429 && err?.error?.error?.code === "budget_exceeded";
 }
 
+/**
+ * The platform's gateway refused the call because this run has used its tokens for the
+ * day (deploy/gateway.yaml, the per-run limit). Waiting does not help this run, so it is
+ * never retried. The gateway adds x-ratelimit-* headers to every reply it lets through,
+ * Anthropic's own 429 included, so those alone do not tell them apart. Only the
+ * gateway's own refusal is plain text (the SDK finds no error object in it) and carries
+ * no Anthropic request id.
+ */
+export function isRunLimitReached(err) {
+  return (
+    err?.status === 429 &&
+    !isBudgetSpent(err) &&
+    !err?.error &&
+    !err?.headers?.get?.("request-id") &&
+    Boolean(err?.headers?.get?.("x-ratelimit-limit"))
+  );
+}
+
 /** A timeout, a dropped connection, a rate limit or a server fault is worth one retry. */
 function isRetryable(err) {
-  if (isBudgetSpent(err)) return false;
+  if (isBudgetSpent(err) || isRunLimitReached(err)) return false;
   if (err instanceof Anthropic.APIConnectionError) return true;   // timeouts included
   const status = err?.status;
   return status === 408 || status === 429 || (typeof status === "number" && status >= 500);
@@ -233,6 +252,14 @@ function asUserFacing(err) {
       "seaLeye has used its model budget for this period, so the interview stopped. Nothing was written to your folder and nothing was built. Tell whoever runs the API.",
       err
     );
+  }
+
+  // The same words as the run's own cap: to the developer it is one limit. The reason
+  // lets the graph end the run as the cap does, stopped rather than failed.
+  if (isRunLimitReached(err)) {
+    const stopped = userFacing(spendingLimitWords(COMMAND), err);
+    stopped.reason = "spending_limit";
+    return stopped;
   }
 
   if (err?.status === 429) {

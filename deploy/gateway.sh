@@ -8,6 +8,8 @@
 #   gateway.sh restart              restart it now, with what secrets/gateway.env holds
 #   gateway.sh ready                wait until it answers, asked through the API
 #   gateway.sh logs                 its last lines, without any that hold one of its keys
+#   gateway.sh calls [run|email] [n] the record of model calls, newest first (default 50)
+#   gateway.sh prune                remove calls older than 90 days from that record
 #
 # No value is ever printed or put on a command line.
 set -euo pipefail
@@ -187,6 +189,50 @@ case "${1:-}" in
 
   logs)
     docker compose logs --tail "${2:-40}" --no-log-prefix gateway 2>&1 | filtered ;;
+
+  calls)
+    # The gateway keeps each call in its own SQLite file, which outlives its log
+    # (PHASE3-PLAN Step 7). Read with the API's image, which carries sqlite3, as the
+    # gateway's own user, so no file it shares with the gateway changes owner. Only the
+    # fields below are read: the file holds no prompt or reply (database.llm: metadata),
+    # and this never asks for one.
+    WHO="${2:-}"
+    LIMIT="${3:-50}"
+    # A lone number is how many calls, not a name: gateway.sh calls 5.
+    if [[ "$WHO" =~ ^[0-9]+$ && -z "${3:-}" ]]; then LIMIT="$WHO"; WHO=""; fi
+    if [[ -n "$WHO" && ! "$WHO" =~ ^[A-Za-z0-9@._+-]+$ ]]; then
+      echo "Name a run (int_...) or a person's email, or nothing for every call."; exit 1
+    fi
+    [[ "$LIMIT" =~ ^[0-9]{1,5}$ ]] || { echo "The number of calls must be a whole number."; exit 1; }
+    WHERE=""
+    if [[ "$WHO" == int_* ]]; then
+      WHERE="WHERE json_extract(attributes_json, '\$.run') = '$WHO'"
+    elif [ -n "$WHO" ]; then
+      WHERE="WHERE json_extract(attributes_json, '\$.\"jwt.sub\"') = '$WHO'"
+    fi
+    source ./.env
+    docker run --rm --user 65532:65532 -v "$PWD/gateway-data:/data" --entrypoint sqlite3 "$SEALEYE_IMAGE" \
+      -readonly -box -cmd ".timeout 5000" /data/gateway.db \
+      "SELECT substr(completed_at, 1, 19) AS time,
+              json_extract(attributes_json, '\$.\"jwt.sub\"') AS person,
+              json_extract(attributes_json, '\$.team') AS team,
+              json_extract(attributes_json, '\$.run') AS run,
+              json_extract(attributes_json, '\$.worker') AS worker,
+              json_extract(attributes_json, '\$.surface') AS surface,
+              gen_ai_request_model AS model,
+              input_tokens AS input, output_tokens AS output,
+              printf('%.4f', cost) AS cost_usd,
+              http_status AS status
+       FROM request_logs $WHERE ORDER BY completed_at DESC LIMIT $LIMIT;" ;;
+
+  prune)
+    # Calls older than 90 days leave the record (DESIGN.md, "The record of model calls").
+    # Only the call log: the budget's own tables are the gateway's and are not touched.
+    source ./.env
+    docker run --rm --user 65532:65532 -v "$PWD/gateway-data:/data" --entrypoint sqlite3 "$SEALEYE_IMAGE" -cmd ".timeout 10000" /data/gateway.db \
+      "DELETE FROM request_log_payloads WHERE log_id IN (SELECT id FROM request_logs WHERE unixepoch(completed_at) < unixepoch('now', '-90 days'));
+       DELETE FROM request_logs WHERE unixepoch(completed_at) < unixepoch('now', '-90 days');
+       SELECT 'Removed ' || changes() || ' calls older than 90 days from the record';" ;;
 
   *)
     sed -n '2,10p' "$0"; exit 1 ;;

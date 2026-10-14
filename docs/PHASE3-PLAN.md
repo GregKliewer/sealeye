@@ -244,10 +244,9 @@ High stakes: an independent review before the pull request.
   of their own, how to read the file while the gateway writes it, and how long rows
   are kept. Then a retention to set, written in DESIGN.md.
 
-*Already done in Step 5 (DESIGN.md, "The model gateway on the server"): the $20 budget
-on the API's key, and a spent budget is never retried and is told in plain words. Still
-to do: the per-run token limit, now that each call names its run (Step 6), the showing
-on the server, and the record of calls.*
+*Status (Oct 14): built; DESIGN.md, "The outer limit, and a record of calls kept 90
+days". The budget and its words came with Step 5. Owed: Greg's spike run of the stored
+row's claims, and the showing on the server (deploy/README.md).*
 
 ### Step 8. Routing (D6; DESIGN.md, "Inference from Canada")
 

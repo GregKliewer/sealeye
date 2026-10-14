@@ -144,3 +144,25 @@ test("the server's scripts ask Parameter Store only what the server's role may a
     assert.doesNotMatch(read(file), /ssm describe-parameters|"describe-parameters"/, file);
   }
 });
+
+test("one run cannot use up what every run shares: a token limit keyed on the run", () => {
+  const [limit] = gateway.llm.policies.localRateLimit;
+  assert.equal(limit.type, "tokens");
+  assert.equal(limit.key, "jwt.run");
+  assert.equal(limit.maxTokens, limit.tokensPerFill);
+  assert.equal(limit.fillInterval, "24h");
+});
+
+test("the record of calls is read as the gateway's own user, never asks for content, and keeps 90 days", () => {
+  const calls = gatewaySh.slice(gatewaySh.indexOf("  calls)"), gatewaySh.indexOf("  prune)"));
+  assert.match(calls, /--user 65532:65532/);
+  assert.match(calls, /-readonly/);
+  assert.doesNotMatch(calls, /request_prompt_json|response_completion_json|request_log_payloads/);
+  assert.match(calls, /=~ \^\[A-Za-z0-9@\._\+-\]\+\$/, "a name or run is checked before it reaches the query");
+  const prune = gatewaySh.slice(gatewaySh.indexOf("  prune)"));
+  assert.match(prune, /unixepoch\('now', '-90 days'\)/);
+  assert.match(prune, /--user 65532:65532/);
+  assert.match(updateSh, /sealeye-gateway-prune\.timer/);
+  assert.match(read("Dockerfile"), /\bsqlite3\b/, "the API's image carries sqlite3 to read it with");
+  assert.match(read("deploy/server.sh"), /gateway-calls\)/);
+});

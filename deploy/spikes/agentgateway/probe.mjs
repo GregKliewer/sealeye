@@ -312,7 +312,7 @@ function logs({ sentinel, run, apiRecord }) {
   note("logs: the fields of one model call's line (names only)", { fields: Object.keys(sample).sort() });
 }
 
-function database({ sentinel }) {
+function database({ sentinel, apiRecord }) {
   const dir = path.join(WORK, "data");
   if (!fs.existsSync(dir)) return note("database: no folder", {});
   const files = fs.readdirSync(dir);
@@ -321,6 +321,31 @@ function database({ sentinel }) {
   check("database: no prompt, reply, token or key stored", !text.includes(`SENTINEL ${sentinel}`) && !text.includes(`SENTINEL-REPLY-${sentinel}`) && !text.includes("Rule 17: read the folder") && !Object.values(env()).some(v => text.includes(v)), {
     files: files.map(f => `${f} ${fs.statSync(path.join(dir, f)).size} bytes`)
   });
+
+  // The record of calls the server reads (PHASE3-PLAN Step 7, deploy/gateway.sh calls):
+  // each stored row should carry the token's claims, as the log line does. Read from a
+  // copy, with the sqlite3 every Mac has, so the gateway's own file is not touched.
+  if (apiRecord) {
+    const copy = fs.mkdtempSync(path.join(WORK, "dbcopy-"));
+    try {
+      for (const f of files) fs.copyFileSync(path.join(dir, f), path.join(copy, f));
+      const out = execFileSync("sqlite3", ["-json", path.join(copy, "gateway.db"),
+        `SELECT json_extract(attributes_json, '$."jwt.sub"') AS person, json_extract(attributes_json, '$.team') AS team,
+                json_extract(attributes_json, '$.run') AS run, json_extract(attributes_json, '$.worker') AS worker,
+                json_extract(attributes_json, '$.surface') AS surface, json_extract(attributes_json, '$.trace') AS trace,
+                gen_ai_request_model AS model, input_tokens, output_tokens, cost, http_status,
+                (SELECT count(*) FROM request_log_payloads) AS payloads
+         FROM request_logs WHERE json_extract(attributes_json, '$.run') = '${apiRecord.id}'`], { encoding: "utf8" });
+      const [row] = JSON.parse(out || "[]");
+      check("database: the stored call names its person, team, run, worker, surface and trace, and holds no content", Boolean(row) &&
+        row.person === "greg@example.org" && row.team === "payments" && row.worker === "interview" && row.surface === "portal" &&
+        row.trace === apiRecord.traceId && row.payloads === 0, { row: row && { ...row } });
+    } catch (err) {
+      note("database: could not read the stored calls with sqlite3", { error: String(err.message).slice(0, 200) });
+    } finally {
+      fs.rmSync(copy, { recursive: true, force: true });
+    }
+  }
 }
 
 async function restart({ run }) {
@@ -371,7 +396,7 @@ async function mock({ quick }) {
   if (!quick) await slow();
   await sleep(1500); // the access log and the database are written a moment after
   logs({ sentinel, run, apiRecord });
-  database({ sentinel });
+  database({ sentinel, apiRecord });
   await restart({ run });
 }
 

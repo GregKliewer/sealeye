@@ -2413,3 +2413,52 @@ for each model call, and nobody but the API holds the means to make one.
   leaks. Its findings were about the rollout: no check that the two halves match, a
   key script that could leave half a pair, settings started before they were checked,
   and a claim of a spike run that had not happened yet. Each is fixed above.
+
+## The outer limit, and a record of calls kept 90 days
+
+Wed Oct 14, 2026, PHASE3-PLAN Step 7. The budget and its plain words came with Step 5;
+this adds the rest.
+
+- **A per-run limit in the gateway**: two million tokens a day for each run, keyed on
+  the token's `run` claim, counted after each reply. A run's own dollar
+  (`core/model-prices.js`) stops it long before that, since a dollar is a few hundred
+  thousand tokens of the interview's mix. So the limit acts only on a run the API's own
+  count failed to stop: a bug, or a worker without a cap. It lives in the gateway's
+  memory, so a restart resets it, which is acceptable for a backstop. It is a fixed
+  number in `deploy/gateway.yaml`, not a setting, because nobody should need to tune it.
+- **Told as the run's limit.** The gateway refuses with a 429 in plain text and
+  `x-ratelimit-*` headers, but it adds those headers to every reply it lets through,
+  Anthropic's 429 included, so the headers alone do not tell them apart. Only the gateway's own refusal
+  is plain text with no Anthropic request id (`isRunLimitReached` in
+  `api/interview/model.js`). A run the gateway stops is not retried, and ends as the
+  run's own cap ends it: stopped, reason `spending_limit`, with the same words and the
+  same trace score. To the developer it is one limit. Anthropic's 429 is still a busy
+  model, retried once.
+- **The record of calls is the gateway's own SQLite file**, read, never written, by
+  `deploy/server.sh gateway-calls`. It runs `sqlite3` from the API's image, as the
+  gateway's own user (65532), so no file it shares with the gateway changes owner. It
+  shows one row per call: time, person, team, run, worker, surface, model, tokens, cost
+  and status. It can be narrowed to a run or a person, checked against a plain pattern
+  before it reaches the query. It never selects the payload columns, which stay empty
+  (`database.llm: metadata`).
+- **Kept 90 days** (Greg's choice). A nightly job (`sealeye-gateway-prune`, 03:45
+  Toronto, after the backup) deletes older calls. It touches only the call log, never
+  the budget's own tables. The gateway itself keeps calls forever.
+- **Whether a stored row carries the token's claims** is from the gateway's source:
+  a row's attributes are the log line's fields. The spike now checks it with `sqlite3`
+  on a copy of the file. Until Greg's run confirms it, a row that lacks them would show
+  empty person and run columns, and no more.
+- **Shown once on the server**, on purpose: a budget below what the period has spent,
+  one interview refused in plain words with the refusal in the record, then the budget
+  put back (deploy/README.md, "The record of model calls, and the outer limit shown
+  once"). That is the second half of Phase 3's "done when".
+- **Reviewed before the pull request** by a separate agent. Its main finding was the
+  one above: the first version took Anthropic's own 429, seen through the gateway, for
+  the run's limit. It also found that a stopped run ended as failed, and that
+  `gateway-calls 5` was read as a name. Each is fixed; a lone number is now how many
+  calls. The reviewer checked the SQLite handling against the gateway's source:
+  - deleting while the gateway writes is safe;
+  - the budget cannot lose spend;
+  - `unixepoch(completed_at)` reads the gateway's timestamps;
+  - reading as the gateway's own user keeps the files it shares with the gateway
+    owned by it.

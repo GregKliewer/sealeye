@@ -152,7 +152,7 @@ flowchart TB
 | Portal | `portal/` | the API only, at `/api` on its own origin | Imports a few browser-safe `core/` files so both surfaces say the same words. Every value on a page comes from an API call. |
 | Caddy | `deploy/Caddyfile` | the API, static files | Certificates for sealeye.online, api.sealeye.online, sealeye.run, sealeye.org. Passes the interview's event stream through unbuffered. |
 | API | `api/`, `core/`, `prompts/`, `templates/` | Postgres, AWS (CLI), the model gateway, LangFuse | The only part that reaches AWS. One process. On the server it holds a key for the gateway, not a model key; on a laptop, with no `SEALEYE_GATEWAY_KEY`, it calls Anthropic with its own key. |
-| Model gateway | `deploy/gateway.yaml`, `deploy/gateway.sh` | Anthropic | agentgateway, pinned by digest. The only part on the server that holds the model key. Lets through only the API's key with a token the API signed for that call (person, team, run, worker, surface), and logs those names; keeps a money budget for each 30-day period in its own SQLite file, and logs no prompts or replies. On a network of its own that only the API joins; no published port. |
+| Model gateway | `deploy/gateway.yaml`, `deploy/gateway.sh` | Anthropic | agentgateway, pinned by digest. The only part on the server that holds the model key. Lets through only the API's key with a token the API signed for that call (person, team, run, worker, surface), and logs those names; keeps a money budget for each 30-day period and a record of every call (90 days, read by `deploy/server.sh gateway-calls`) in its own SQLite file, and a per-run token limit in memory; logs no prompts or replies. On a network of its own that only the API joins; no published port. |
 | Postgres | `api/migrations/` | | Reachable only from the API, on the server's own network. |
 
 ## 5. Inside the API (C4 level 3)
@@ -230,7 +230,7 @@ flowchart TB
 
   subgraph mac["Administrator's Mac"]
     release["<b>deploy/release.sh</b><br/>Builds the portal and package,<br/>sends the release"]
-    serversh["<b>deploy/server.sh</b><br/>backup, restore-check, import,<br/>restart, logs, token add/revoke/list,<br/>gateway-restart, gateway-logs"]
+    serversh["<b>deploy/server.sh</b><br/>backup, restore-check, import,<br/>restart, logs, token add/revoke/list,<br/>gateway-restart, gateway-logs,<br/>gateway-calls"]
   end
 
   subgraph acct["AWS account, ca-central-1"]
