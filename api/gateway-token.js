@@ -8,15 +8,18 @@
 // The signing key is SEALEYE_GATEWAY_SIGNING_KEY, an Ed25519 private key in PEM, kept in
 // the server's settings and made by deploy/gateway-signing-key.mjs, which also stores the
 // public half for the gateway. Node's own crypto signs; no package. Nothing here is ever
-// logged: a token is a credential for five minutes.
+// logged: a token is a credential for a minute.
 import crypto from "node:crypto";
 
 import { setting } from "../core/config.js";
 
 export const ISSUER = "sealeye-api";
 export const AUDIENCE = "sealeye-gateway";
-/** Long enough for a turn and its one retry (two times 120 seconds), and no longer. */
-export const TOKEN_LIFETIME_S = 300;
+/**
+ * The gateway checks a token when the call arrives, and every call (a retry included)
+ * signs its own, so a minute is ample, with room for a clock a little off.
+ */
+export const TOKEN_LIFETIME_S = 60;
 
 const b64url = value => Buffer.from(value).toString("base64url");
 
@@ -85,17 +88,18 @@ export function signerFromSettings(value = setting("GATEWAY_SIGNING_KEY")) {
 /**
  * What a call's token says, for an interview. A person is the token's (their email) when
  * the API checks tokens; on a laptop with checks off there is no person, and the run is
- * named as the API's own.
+ * named as the API's own. What the record does not know is said as "unknown", never
+ * guessed: an interview saved before tokens existed knows its owner but not its team.
  */
 export function claimsFor(record, { worker = "interview" } = {}) {
   const caller = record.caller || null;
   return {
-    sub: caller?.email || "sealeye-api",
-    org: caller?.org || "default",
-    team: caller?.team || "default",
+    sub: caller?.email || record.owner || "sealeye-api",
+    org: caller?.org || "unknown",
+    team: caller?.team || "unknown",
     run: record.id,
     worker,
-    surface: record.surface || "cli",
+    surface: record.surface || "unknown",
     trace: record.traceId || undefined
   };
 }

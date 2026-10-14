@@ -80,10 +80,15 @@ export function createInterviewService({
   // Only a call to the platform's own gateway carries one: a call straight to Anthropic,
   // with the model key, never sends a second credential beside it.
   let signer = null;
-  try {
-    if (modelCredential()?.gatewayKey) signer = signerFromSettings();
-  } catch (err) {
-    console.error(`seaLeye API: SEALEYE_GATEWAY_SIGNING_KEY could not be read (${err.message}), so model calls carry no token`);
+  if (modelCredential()?.gatewayKey) {
+    try {
+      signer = signerFromSettings();
+      console.log(signer
+        ? `seaLeye API: model calls are signed with key ${signer.kid}`
+        : "seaLeye API: there is no SEALEYE_GATEWAY_SIGNING_KEY, so model calls carry no token and the gateway will refuse them");
+    } catch (err) {
+      console.error(`seaLeye API: SEALEYE_GATEWAY_SIGNING_KEY could not be read (${err.message}), so model calls carry no token and the gateway will refuse them`);
+    }
   }
 
   const graph = buildInterviewGraph({

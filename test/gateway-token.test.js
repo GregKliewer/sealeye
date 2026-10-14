@@ -89,6 +89,14 @@ test("each call signs its own token, and a client with no signer is left as it i
   assert.equal(claims.sub, "sealeye-api", "with token checks off there is no person, and the API says so");
 });
 
+test("an interview saved before tokens existed names its owner, and says unknown for what it never knew", () => {
+  const restored = claimsFor({ id: "int_old", owner: "ana@example.com" });
+  assert.equal(restored.sub, "ana@example.com");
+  assert.equal(restored.team, "unknown");
+  assert.equal(restored.org, "unknown");
+  assert.equal(restored.surface, "unknown");
+});
+
 // ---------------------------------------------------------------------------------
 // End to end: the API, with tokens, and a stand-in gateway.
 

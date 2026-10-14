@@ -265,8 +265,11 @@ Success: `Stored a new signing key, id ...`. It stores the private half at
 `/sealeye/gateway/JWKS`, which the gateway gets. It prints neither. Without them the
 release stops, changing nothing, and says to run this.
 
-**2. The release,** `deploy/release.sh`. Success: the same lines as before, ending with
-`The model gateway is up`. Calls that are in flight during the release itself may fail
+**2. The release,** `deploy/release.sh`. Success: the same lines as before, with `The
+model gateway's settings are valid` before the restart, and ending with `The model
+gateway is up, and checks the key the API signs with (...)`. If it says the two keys
+differ, run `node deploy/gateway-signing-key.mjs --replace` and `deploy/server.sh
+gateway-restart`. Calls that are in flight during the release itself may fail
 once, between the API's restart and the gateway's.
 
 **3. Check,** with one interview (`sealeye run` in `apps/static-website`, answering N),
@@ -278,8 +281,8 @@ deploy/server.sh gateway-logs
 
 Success: each model call's line has `jwt.sub` (your email), `team`, `run` (the
 interview's id, `int_...`), `worker` (`interview`) and `surface` (`cli`). If the
-interview fails with "The model key the seaLeye API is using was refused", the gateway
-did not accept the API's token. Its log shows the reason, and switching back
+interview fails with "The seaLeye API's credentials for the model were refused", the
+gateway did not accept the API's token. Its log shows the reason, and switching back
 ("Once: the model gateway") works as before.
 
 **A new signing key** (for example, if the old one may have been seen):

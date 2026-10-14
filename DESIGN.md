@@ -2357,9 +2357,11 @@ for each model call, and nobody but the API holds the means to make one.
   - `surface`: `cli` or `portal`, as the API already decides for records.
   - `trace`: the run's LangFuse trace id, when it has one.
 
-  The issuer is `sealeye-api` and the audience `sealeye-gateway`. Each token lasts
-  five minutes, enough for a turn and its one retry, and has an id of its own. Every
-  call signs a fresh one (`api/gateway-token.js`).
+  The issuer is `sealeye-api` and the audience `sealeye-gateway`. Every call, a retry
+  included, signs a fresh token with an id of its own, and the gateway checks it when
+  the call arrives, so each lasts a minute (`api/gateway-token.js`). An interview saved
+  before tokens existed names its owner and says `unknown` for the team and surface it
+  never recorded.
 - **Ed25519, with Node's own crypto.** It needs no package. The Step 4 spike showed the
   gateway accepts EdDSA. The key's id is the first 16 hex characters of the SHA-256 of
   its public half, so the token and the key set agree without a second setting.
@@ -2375,9 +2377,18 @@ for each model call, and nobody but the API holds the means to make one.
   call (the gateway's source, `eval_keep_empty`).
 - **Only a call to the platform's gateway carries a token.** An API calling Anthropic
   with the model key sends no second credential, even if it has a signing key.
-- **A key that cannot be read is said at start, by name, and the API carries on.** The
-  gateway then refuses the calls, and the developer reads that the model key was
-  refused and to tell whoever runs the API. Deploys and the portal keep working.
+- **The API says at start which key it signs with**, by its public id, or that it has
+  none or cannot read it, and carries on: deploys and the portal keep working, the
+  gateway refuses the calls, and the developer reads that the API's credentials for the
+  model were refused. A release checks that the id the API signs with is the one in the
+  gateway's key set (`scripts/gateway-key-id.js`, `gateway.sh ready`), and fails, saying
+  how to fix it, when they differ while the API uses the gateway.
+- **A release checks the gateway's settings before anything restarts** (`gateway.sh
+  validate`, before `docker compose up`), so a mistake in them stops the release with
+  the old gateway still running.
+- **The key script cannot leave half a pair.** It stores the public half first. If the
+  private half then fails, it puts the previous public half back, or says the halves no
+  longer match. A pair found half stored is made again.
 - **Joining the trace, for now, is by id.** The plan asked for the gateway's own span
   in the run's LangFuse trace. The gateway can export spans (OTLP), but that puts
   LangFuse's keys in the gateway and needs the API to send a trace header on each
@@ -2387,6 +2398,11 @@ for each model call, and nobody but the API holds the means to make one.
 - **Tested two ways.** `test/gateway-token.test.js` starts the real API with tokens,
   runs one interview from the command and one from the portal, and checks each call's
   token against the public half. The spike (`deploy/spikes/agentgateway/probe.mjs`)
-  now signs with the API's own signer, so the gateway itself is shown to accept the
-  API's tokens and to log their claims. The refused cases (none, expired, another key,
-  another issuer or audience) run there too, since CI does not run the gateway.
+  now signs with the API's own signer, so a run of it on Greg's Mac shows whether the
+  gateway itself accepts the API's tokens and logs their claims. The refused cases
+  (none, expired, another key, another issuer or audience) run there too, since CI does
+  not run the gateway. That run is owed before the release.
+- **Reviewed before the pull request** by a separate agent. It found nothing that
+  leaks. Its findings were about the rollout: no check that the two halves match, a
+  key script that could leave half a pair, settings started before they were checked,
+  and a claim of a spike run that had not happened yet. Each is fixed above.

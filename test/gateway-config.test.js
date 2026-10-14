@@ -112,6 +112,10 @@ test("the gateway requires the API's signed token, checked with the public half 
   assert.match(gatewaySh, /> gateway-jwks\.json\.new/);
   assert.match(gatewaySh, /\/sealeye\/SEALEYE_GATEWAY_SIGNING_KEY/, "the release stops when the API has no key to sign with");
   assert.match(gatewaySh, /cat gateway\.yaml "\$ENV_FILE" gateway-jwks\.json/, "a new key set restarts the gateway");
+  assert.match(gatewaySh, /scripts\/gateway-key-id\.js/, "a release checks the API signs with the key the gateway checks");
+  assert.ok(fs.existsSync(path.join(root, "scripts", "gateway-key-id.js")));
+  const at = text => updateSh.indexOf(text);
+  assert.ok(at("bash ./gateway.sh validate") > at("docker compose pull") && at("bash ./gateway.sh validate") < at("docker compose up -d --remove-orphans"), "settings are checked before anything restarts");
   // The spike checks the same issuer and audience against the API's own signer.
   for (const f of ["config.mock.yaml", "config.real.yaml", "config.bedrock.yaml"]) {
     const spike = YAML.parse(read(`deploy/spikes/agentgateway/${f}`)).llm.policies.jwtAuth;

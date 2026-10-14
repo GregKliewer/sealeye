@@ -3,6 +3,7 @@
 # model gateway"). Run on the server, in /opt/sealeye, by update.sh and deploy/server.sh.
 #
 #   gateway.sh settings             write secrets/gateway.env from Parameter Store
+#   gateway.sh validate             check its settings, keys filled in, without starting it
 #   gateway.sh restart-if-changed   restart the gateway when its settings or keys changed
 #   gateway.sh restart              restart it now, with what secrets/gateway.env holds
 #   gateway.sh ready                wait until it answers, asked through the API
@@ -57,8 +58,10 @@ case "${1:-}" in
     # any call whose token it does not sign. Only whether the private half is stored is
     # checked here: its value is the API's alone.
     JWKS="$(param_value /sealeye/gateway/JWKS)" || exit 1
-    SIGNING_KEY_STORED="$(param_value /sealeye/SEALEYE_GATEWAY_SIGNING_KEY)" || exit 1
-    SIGNING_KEY_STORED="${SIGNING_KEY_STORED:+yes}"
+    # Asked without decrypting it.
+    SIGNING_KEY_STORED="$(aws ssm describe-parameters --region "$REGION" --parameter-filters Key=Name,Values=/sealeye/SEALEYE_GATEWAY_SIGNING_KEY --query 'length(Parameters)' --output text 2>/dev/null)" || {
+      echo "Could not ask Parameter Store about /sealeye/SEALEYE_GATEWAY_SIGNING_KEY. Nothing was changed." >&2; exit 1; }
+    [ "$SIGNING_KEY_STORED" = "1" ] || SIGNING_KEY_STORED=""
     if [ -z "$MODEL_KEY" ] || [ -z "$GATEWAY_KEY" ]; then
       unset MODEL_KEY GATEWAY_KEY
       echo "The model gateway needs /sealeye/gateway/ANTHROPIC_API_KEY and /sealeye/SEALEYE_GATEWAY_KEY. deploy/README.md, \"The model gateway\", says how to create them. Nothing was changed."
@@ -98,6 +101,18 @@ case "${1:-}" in
     mkdir -p gateway-data && chown 65532:65532 gateway-data && chmod 700 gateway-data
     echo "The model gateway's settings are written (budget: ${GATEWAY_BUDGET} US dollars a 30-day period)" ;;
 
+  validate)
+    # Run by update.sh before the new compose file starts anything, so a mistake in this
+    # release's gateway settings stops the release with the old gateway still running.
+    if ! ( umask 077; docker compose run --rm --no-deps gateway --validate-only -f /config/gateway.yaml > secrets/gateway-check 2>&1 ); then
+      echo "The model gateway's settings in this release are not valid, so nothing was restarted. What it said:"
+      filtered < secrets/gateway-check
+      rm -f secrets/gateway-check
+      exit 1
+    fi
+    rm -f secrets/gateway-check
+    echo "The model gateway's settings are valid" ;;
+
   restart-if-changed)
     # .gateway-started records the settings and keys the running gateway started with.
     NOW="$(cat gateway.yaml "$ENV_FILE" gateway-jwks.json | sha256sum | cut -d' ' -f1)"
@@ -126,20 +141,33 @@ case "${1:-}" in
     # the API asks it. Until the API is switched to the gateway (SEALEYE_MODEL_URL set),
     # a gateway that is not ready is a warning: the API does not use it yet.
     IN_USE="$(param_value /sealeye/SEALEYE_MODEL_URL)" || exit 1
+    UP=""
     for _ in $(seq 1 12); do
       if docker compose exec -T api node -e "fetch('http://gateway:15021/healthz/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" 2>/dev/null; then
-        echo "The model gateway is up"
-        exit 0
+        UP=1
+        break
       fi
       sleep 5
     done
-    echo "The model gateway did not become ready within a minute. Its last lines:"
-    docker compose logs --tail 40 --no-log-prefix gateway 2>&1 | filtered
+    if [ -n "$UP" ]; then
+      # The key the API signs with must be the one the gateway checks against, or every
+      # call is refused. Both ids are public.
+      API_KID="$(docker compose exec -T api node deploy/with-settings.mjs scripts/gateway-key-id.js 2>/dev/null | tail -1 || true)"
+      GATEWAY_KID="$(grep -o '"kid":"[^"]*"' gateway-jwks.json | head -1 | cut -d'"' -f4)"
+      if [ -n "$API_KID" ] && [ "$API_KID" = "$GATEWAY_KID" ]; then
+        echo "The model gateway is up, and checks the key the API signs with ($API_KID)"
+        exit 0
+      fi
+      echo "The model gateway is up, but the API signs with key '${API_KID:-unknown}' and the gateway checks key '${GATEWAY_KID:-none}'. Make them match: node deploy/gateway-signing-key.mjs --replace, then deploy/server.sh gateway-restart."
+    else
+      echo "The model gateway did not become ready within a minute. Its last lines:"
+      docker compose logs --tail 40 --no-log-prefix gateway 2>&1 | filtered
+    fi
     if [ -z "$IN_USE" ]; then
       echo "The API does not use the gateway yet, so it is unaffected. Fix the gateway before switching the API to it (deploy/README.md, \"The model gateway\")."
       exit 0
     fi
-    echo "The API sends its model calls to the gateway, so interviews fail until it is up. To switch the API back, see deploy/README.md, \"The model gateway\"."
+    echo "The API sends its model calls to the gateway, so interviews fail until this is fixed. To switch the API back, see deploy/README.md, \"The model gateway\"."
     exit 1 ;;
 
   logs)
