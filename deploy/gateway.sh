@@ -17,6 +17,22 @@ source ./server.env
 
 ENV_FILE=secrets/gateway.env
 
+# A parameter's name if it is stored, or nothing, read without decrypting its value.
+param_name() {
+  local out err
+  err="$(mktemp)"
+  if out="$(aws ssm get-parameter --region "$REGION" --name "$1" --query Parameter.Name --output text 2>"$err")"; then
+    rm -f "$err"
+    printf '%s' "$out"
+  elif grep -q ParameterNotFound "$err"; then
+    rm -f "$err"
+  else
+    rm -f "$err"
+    echo "Could not ask Parameter Store about $1. Nothing was changed." >&2
+    exit 1
+  fi
+}
+
 # A parameter's value, or nothing when there is no such parameter. Any other failure
 # (no permission, throttled, no network) stops here, naming the parameter, so a stored
 # budget is never quietly read as the default.
@@ -58,10 +74,9 @@ case "${1:-}" in
     # any call whose token it does not sign. Only whether the private half is stored is
     # checked here: its value is the API's alone.
     JWKS="$(param_value /sealeye/gateway/JWKS)" || exit 1
-    # Asked without decrypting it.
-    SIGNING_KEY_STORED="$(aws ssm describe-parameters --region "$REGION" --parameter-filters Key=Name,Values=/sealeye/SEALEYE_GATEWAY_SIGNING_KEY --query 'length(Parameters)' --output text 2>/dev/null)" || {
-      echo "Could not ask Parameter Store about /sealeye/SEALEYE_GATEWAY_SIGNING_KEY. Nothing was changed." >&2; exit 1; }
-    [ "$SIGNING_KEY_STORED" = "1" ] || SIGNING_KEY_STORED=""
+    # Asked without decrypting it: only its name comes back. (Not describe-parameters,
+    # which the server's role may not call: it names /sealeye/ parameters only.)
+    SIGNING_KEY_STORED="$(param_name /sealeye/SEALEYE_GATEWAY_SIGNING_KEY)" || exit 1
     if [ -z "$MODEL_KEY" ] || [ -z "$GATEWAY_KEY" ]; then
       unset MODEL_KEY GATEWAY_KEY
       echo "The model gateway needs /sealeye/gateway/ANTHROPIC_API_KEY and /sealeye/SEALEYE_GATEWAY_KEY. deploy/README.md, \"The model gateway\", says how to create them. Nothing was changed."
