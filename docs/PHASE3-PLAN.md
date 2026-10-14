@@ -168,6 +168,13 @@ dollar, so the cap stands.
 
 In `deploy/spikes/agentgateway/`, before anything is built:
 
+*Status (Oct 14): done for the Anthropic route. Run on Greg's Mac against a stand-in
+model (26 of 26) and against Anthropic (8 of 8), with memory measured (14 to 21 MiB).
+DESIGN.md, "agentgateway, read and run (Step 4)", has what it showed. Still to run:
+Bedrock, which waits on the account's access, and is not needed for Step 5 (D6 keeps
+the Anthropic API as the pilot's route).*
+
+
 - The Anthropic SDK, with `SEALEYE_MODEL_URL` set, reaches the Anthropic API through
   agentgateway with tool use, prompt caching and the interview's timeouts unchanged.
 - The same call reaches Claude on Bedrock through the gateway, in Greg's account, if

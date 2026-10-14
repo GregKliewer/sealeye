@@ -1,0 +1,83 @@
+# yaml-language-server: $schema=https://agentgateway.dev/schema/config
+# The spike's gateway in front of Anthropic's API, with a real key. The same as
+# config.mock.yaml but for `llm.models`.
+#
+# agentgateway expands every dollar-sign name in this file before reading it, comments
+# included, and refuses to start when one is unset. Each one in a value below comes
+# from .work/env, which `probe.mjs setup` writes, or from the shell compose runs in.
+# So no comment here may hold a dollar sign (the schema line at the top is the one
+# exception the gateway makes).
+config:
+  readinessAddr: 0.0.0.0:15021        # /healthz/ready
+  statsAddr: 0.0.0.0:15020            # /metrics
+  adminAddr: "off"                    # its debug view logs token claims
+  logging:
+    format: json
+  # The money budget needs a database. SQLite, in the spike's own folder, so the
+  # restart check can see whether spend survives a restart.
+  database:
+    url: sqlite:///data/gateway.db
+  # No `tracing:` block: nothing leaves the gateway as a trace.
+
+gateways:
+  default:
+    port: 4000
+
+frontendPolicies:
+  accessLog:
+    add:
+      run: jwt.run                    # jwt.sub is a default field already
+      worker: jwt.worker
+    database:
+      llm: metadata                   # never `full`: that stores prompts and replies
+
+llm:
+  gateways: default
+  policies:
+    # Who is calling: the API's own key, in a header of its own, carrying the money
+    # budget (D5's outer limit).
+    apiKey:
+      mode: strict
+      location:
+        header:
+          name: x-sealeye-gateway-key
+      keys:
+      - key: $GATEWAY_KEY_MAIN
+        metadata: { name: api }
+        budgets:
+        - name: monthly
+          limit: { unit: USD, amount: 100 }
+          window: { rolling: 30d }
+          onBudgetExceeded: Block
+      # A key with a tiny budget, so the probe can watch a budget run out.
+      - key: $GATEWAY_KEY_TINY
+        metadata: { name: tiny-budget }
+        budgets:
+        - name: monthly
+          limit: { unit: USD, amount: 0.05 }
+          window: { rolling: 30d }
+          onBudgetExceeded: Block
+    # Which run and which person: a short-lived token the API signs for each call (D1).
+    jwtAuth:
+      mode: strict                    # the default is `optional`, which lets no token through
+      issuer: https://api.sealeye.test
+      audiences: [sealeye-gateway]
+      jwks:
+        file: /config/.work/jwks.json
+      jwtValidationOptions:
+        requiredClaims: [exp, iss, aud, sub]
+    # A per-run limit in tokens, keyed by the token's `run` claim, in memory.
+    localRateLimit:
+    - type: tokens
+      maxTokens: 25000
+      tokensPerFill: 25000
+      fillInterval: 24h
+      key: jwt.run
+    timeout:
+      requestTimeout: 15m             # until the reply's headers arrive
+      responseIdleTimeout: 5m         # the longest silence inside a streamed reply
+  models:
+  - name: claude-*
+    provider: anthropic
+    params:
+      apiKey: $ANTHROPIC_API_KEY     # held by the gateway; the API never sends it

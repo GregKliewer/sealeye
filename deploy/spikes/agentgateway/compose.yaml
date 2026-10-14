@@ -1,0 +1,35 @@
+# deploy/spikes/agentgateway/compose.yaml
+# The gateway and a stand-in model, for PHASE3-PLAN Step 4. Run from this folder after
+# `node probe.mjs setup` (README.md). AGW_CONFIG picks the route: config.mock.yaml (the
+# default), config.real.yaml or config.bedrock.yaml.
+name: sealeye-gateway-spike
+
+services:
+  gateway:
+    # v1.6.0 by its digest, read on Oct 14 (DESIGN.md); Step 5 pulls the same (D7).
+    image: ${AGW_IMAGE:-ghcr.io/agentgateway/agentgateway:v1.6.0@sha256:9d3e6044ddcdc0878b1787f77bd401252b95e22684203fb5e874c4c42d2ed90c}
+    command: ["-f", "/config/${AGW_CONFIG:-config.mock.yaml}"]
+    env_file: .work/env
+    environment:
+      # Only the real and Bedrock routes read these; empty is fine for the mock.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+    volumes:
+      - ./:/config:ro
+      - ./.work/data:/data
+    ports:
+      - "127.0.0.1:4000:4000"     # the gateway
+      - "127.0.0.1:15020:15020"   # metrics
+      - "127.0.0.1:15021:15021"   # ready
+    depends_on: [mock]
+
+  mock:
+    image: node:20-alpine
+    command: ["node", "/mock/mock.mjs"]
+    env_file: .work/env
+    volumes:
+      - ./mock.mjs:/mock/mock.mjs:ro
+    ports:
+      - "127.0.0.1:8090:8080"     # the probe reads GET /seen here
