@@ -311,7 +311,7 @@ test("New environment holds the interview in the browser, stores what the plan n
 // A value shaped like a Stripe key, put together here so no file holds one.
 const FAKE_KEY = ["sk", "_live_", "Q7rT2vX9mK4pL8wN3bZ6cF1h"].join("");
 
-test("a key written into the code is sent as a name only, and its deploy is refused, as sealeye run says", async ({ page }) => {
+test("a key written into the code is never sent, the rest of its file is read, and its deploy is refused, as sealeye run says", async ({ page }) => {
   await signIn(page);
   await page.goto("/new");
   const dir = appFolder("orders-api", {
@@ -324,11 +324,11 @@ test("a key written into the code is sent as a name only, and its deploy is refu
   // Before anything else: which file, which line, what kind, and what happens next.
   const note = page.getByTestId("secret-findings");
   await expect(note).toContainText("index.js, line 2, looks like it holds a Stripe key.");
-  await expect(note).toContainText("sent as names only, so the interview cannot read it");
+  await expect(note).toContainText("That line was not sent: the interview reads the rest of the file without it.");
 
-  // The model asks to read it and is refused, so the interview carries on without it.
+  // The model reads the file, with that line replaced by one that says why.
   const lines = page.getByTestId("interview-lines");
-  await expect(lines).toContainText("Nothing to read at index.js, moving on", { timeout: 20_000 });
+  await expect(lines).toContainText("Reading index.js", { timeout: 20_000 });
   await expect(lines).toContainText("Who calls this API?", { timeout: 20_000 });
   await page.getByLabel("Your answer").fill("Our checkout service");
   await page.getByRole("button", { name: "Answer" }).click();

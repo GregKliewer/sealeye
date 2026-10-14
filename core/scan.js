@@ -401,12 +401,72 @@ export const allowLine = f => `${f.file}:${f.line}:${f.rule}`;
 /** What an interview did with files that hold something like a secret. */
 export function interviewFindingWords(findings) {
   if (!findings.length) return [];
-  const files = [...new Set(findings.map(f => f.file))];
+  const whole = [...new Set(findings.filter(f => f.whole).map(f => f.file))];
+  const partly = findings.some(f => !f.whole);
   return [
     ...findings.map(findingSentence),
-    `${files.length === 1 ? "That file was" : "Those files were"} sent as names only, so the interview cannot read ${files.length === 1 ? "it" : "them"}. ` +
-      "A deploy will be refused until each value moves into a setting."
+    ...(partly ? [`${findings.filter(f => !f.whole).length === 1 ? "That line was" : "Those lines were"} not sent: the interview reads the rest of the file without ${findings.filter(f => !f.whole).length === 1 ? "it" : "them"}.`] : []),
+    ...(whole.length ? [`${whole.join(", ")} ${whole.length === 1 ? "was" : "were"} sent as ${whole.length === 1 ? "a name" : "names"} only, since a private key runs over many lines.`] : []),
+    "A deploy will be refused until each value moves into a setting."
   ];
+}
+
+// ---------------------------------------------------------------------------------
+// What an interview sends of a file with a finding: the file, with each flagged line
+// replaced by a line that says why (so the model reads the rest, and line numbers
+// stay true), or, where a value runs over many lines (a private key) or the file is
+// not text, nothing but its name.
+
+const MARKER = "[seaLeye: this line was not sent";
+
+/** The line sent in place of one that looks like it holds a secret. Never the value. */
+export const redactedLine = kind => `${MARKER}: it looks like it holds ${kind}]`;
+
+/** Is this line one seaLeye wrote in place of a secret? */
+export const isRedactedLine = line => String(line).trimStart().startsWith(MARKER);
+
+/** A rule whose value runs over many lines, so blanking one line would not hide it. */
+export const wholeFileRule = rule => /private[-_]?key/i.test(String(rule));
+
+/**
+ * Mark which findings mean the whole file is withheld: a private key, a value gitleaks
+ * found over several lines (`wholeFiles`), or a file that is not text.
+ */
+export function markWhole(findings, { wholeFiles = [], binaryFiles = [] } = {}) {
+  const whole = new Set([...wholeFiles, ...binaryFiles, ...findings.filter(f => wholeFileRule(f.rule)).map(f => f.file)]);
+  return findings.map(f => (whole.has(f.file) ? { ...f, whole: true } : { ...f }));
+}
+
+const encoder = new TextEncoder();
+
+/**
+ * A file's contents with each given line replaced by redactedLine(kind). Lines are
+ * counted as scanText counts them (ending at \n), and a \r before the \n is kept.
+ *
+ * @param {Uint8Array|string} contents
+ * @param {Map<number, string>} kinds line number to the kind of value on it
+ * @returns {Uint8Array}
+ */
+export function redactLines(contents, kinds) {
+  const text = typeof contents === "string" ? contents : decoder.decode(contents);
+  const lines = text.split("\n");
+  for (const [number, kind] of kinds) {
+    const i = number - 1;
+    if (i < 0 || i >= lines.length) continue;
+    lines[i] = redactedLine(kind) + (lines[i].endsWith("\r") ? "\r" : "");
+  }
+  return encoder.encode(lines.join("\n"));
+}
+
+/** For each file with findings that are not whole, its lines and their kinds. */
+export function linesByFile(findings) {
+  const out = new Map();
+  for (const f of findings) {
+    if (f.whole) continue;
+    if (!out.has(f.file)) out.set(f.file, new Map());
+    out.get(f.file).set(f.line, f.kind || kindOf(f.rule));
+  }
+  return out;
 }
 
 /**

@@ -43,17 +43,28 @@ const holds = (bytes, value) => Buffer.from(bytes).toString("latin1").includes(v
 // ---------------------------------------------------------------------------------
 // On the developer's side: the walk both surfaces use.
 
-test("an interview upload sends a file with a finding as its name only, and says which line", async () => {
+test("an interview upload replaces each flagged line with one that says why, and keeps the rest", async () => {
   const dir = keyApp({ ".gitignore": "scratch/\n", "scratch/notes.txt": `token=${FAKE.githubToken}` });
   const { zip, findings, withheld } = await zipFolder(dir);
   const entries = unzipSync(zip);
 
   assert.deepEqual(findings, [{ file: "config.js", line: 2, rule: "stripe-key", kind: "a Stripe key" }]);
-  assert.equal(entries["config.js"].length, 0, "sent as a name only");
+  assert.equal(Buffer.from(entries["config.js"]).toString("utf8"),
+    "// settings\n[seaLeye: this line was not sent: it looks like it holds a Stripe key]\n", "line 2 says why; line 1 and the line count are kept");
   assert.ok(entries["index.js"].length > 0);
   assert.deepEqual(withheld, [".env"], "secret files are still names only, as before");
   assert.ok(!("scratch/notes.txt" in entries), "what .gitignore leaves out is neither sent nor scanned");
   assert.ok(!holds(zip, FAKE.stripeKey) && !holds(zip, FAKE.password));
+});
+
+test("a private key, which runs over many lines, sends its file as a name only", async () => {
+  const body = ["MIIEowIBAAKCAQEA0", "b3BlbnNzaC1rZXktdjEAAAAA", "AAAAB3NzaC1yc2EAAAADAQAB"];
+  const dir = keyApp({ "certs/dev-key.js": `module.exports = \`\n${FAKE.privateKeyHeader}\n${body.join("\n")}\n${FAKE.privateKeyFooter}\n\`;\n` });
+  const { zip, findings } = await zipFolder(dir);
+  const entries = unzipSync(zip);
+  assert.equal(entries["certs/dev-key.js"].length, 0);
+  assert.deepEqual(findings.filter(f => f.whole).map(f => f.file), ["certs/dev-key.js"]);
+  assert.ok(body.every(b => !holds(zip, b)), "no line of the key's body travels");
 });
 
 test("a deploy with a finding is refused before anything is zipped, in words, with the line to allow", async () => {
@@ -195,7 +206,7 @@ function recordingModel(turns) {
   return { seen, messages: { create: async params => { seen.push(JSON.stringify(params)); return turns[Math.min(i++, turns.length - 1)]; } } };
 }
 
-test("an upload that still holds a key is emptied by the API, and read_file says why", async () => {
+test("an upload that still holds a key has that line replaced by the API, and the rest is read", async () => {
   const model = recordingModel([
     { content: [{ type: "tool_use", id: "t1", name: "read_file", input: { path: "config.js" } }], stop_reason: "tool_use", usage: {} },
     { content: [{ type: "text", text: "This version cannot build that." }], stop_reason: "end_turn", usage: {} }
@@ -206,30 +217,42 @@ test("an upload that still holds a key is emptied by the API, and read_file says
   // As an older client, or a tampered one, would send it: the key in the file.
   const zip = zipSync({
     "index.js": strToU8("require('./config')"),
-    "config.js": strToU8(`module.exports = {\n  key: "${FAKE.cloudAccessKey}"\n};\n`),
+    "config.js": strToU8(`module.exports = {\n  key: "${FAKE.cloudAccessKey}",\n  region: "ca-central-1"\n};\n`),
     "notes.md": strToU8("# notes\n")
   });
-  // And a claim that a file with contents was held back: it cannot hide that file.
+  // And claims that cannot be true: a line that arrived as it was, and a path outside.
   const started = await service.startFromUpload({ zip, app: "orders-api", findings: [{ file: "notes.md", line: 1, rule: "stripe-key" }, { file: "../x", line: 1, rule: "r" }] });
   assert.deepEqual(started.findings.map(f => `${f.file}:${f.line}:${f.rule}`), ["config.js:2:cloud-access-key"]);
 
   await service.settled(started.interviewId);
   const all = model.seen.join("\n");
   assert.ok(!all.includes(FAKE.cloudAccessKey), "the model never saw the key");
-  assert.match(all, /config\.js looks like it holds a secret on line 2 \(a cloud access key\), so it was not sent and its contents are never read/);
+  assert.match(all, /\[seaLeye: this line was not sent: it looks like it holds a cloud access key\]/);
+  assert.match(all, /region: \\"ca-central-1\\"/, "and read the rest of the file");
   service.close();
 });
 
-test("a file the client held back for a finding is refused by name, and package.json is not parsed", async () => {
+test("what the client held back is believed only where it arrived held back", async () => {
   const model = recordingModel([
     { content: [{ type: "tool_use", id: "t1", name: "read_file", input: { path: "./src/../package.json" } }], stop_reason: "tool_use", usage: {} },
     { content: [{ type: "text", text: "This version cannot build that." }], stop_reason: "end_turn", usage: {} }
   ]);
   const scratchBase = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-svc-"));
   const service = createInterviewService({ client: model, scratchBase, checkpointer: new MemorySaver() });
-  const zip = zipSync({ "package.json": new Uint8Array(0), "src/index.js": strToU8("x") });
-  const started = await service.startFromUpload({ zip, app: "orders-api", findings: [{ file: "package.json", line: 3, rule: "npm-token" }] });
-  assert.deepEqual(started.findings, [{ file: "package.json", line: 3, rule: "npm-token", kind: "an npm token" }]);
+  const zip = zipSync({
+    "package.json": new Uint8Array(0),
+    "src/a.js": strToU8("one\n[seaLeye: this line was not sent: it looks like it holds a GitHub token]\nthree\n"),
+    "src/b.js": strToU8("one\ntwo\n")
+  });
+  const started = await service.startFromUpload({ zip, app: "orders-api", findings: [
+    { file: "package.json", line: 3, rule: "npm-token" },
+    { file: "src/a.js", line: 2, rule: "github-token" },
+    { file: "src/b.js", line: 2, rule: "github-token" }
+  ] });
+  assert.deepEqual(started.findings, [
+    { file: "package.json", line: 3, rule: "npm-token", kind: "an npm token", whole: true },
+    { file: "src/a.js", line: 2, rule: "github-token", kind: "a GitHub token", whole: false }
+  ], "src/b.js line 2 arrived as it was, so the claim is dropped");
   await service.settled(started.interviewId);
   assert.match(model.seen[0], /package\.json: present, but not read: it looks like it holds a secret/);
   assert.match(model.seen[1], /package\.json looks like it holds a secret on line 3 \(an npm token\)/);

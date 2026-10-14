@@ -217,10 +217,11 @@ Keep existing endpoints and commands working; add, do not break.
   `.env.*` except `.env.example` and `.env.sample`, `.envrc`, keys and keystores, SSH
   keys, package-manager and git credentials, Terraform variables and state,
   service-account JSON); list_files still shows their names, and the upload carries
-  them as empty files. A file with a value that looks like a secret (`core/scan.js`,
-  scanned before upload and again in the API with gitleaks) is sent and kept empty too,
-  and read_file refuses it, naming the line and the kind; package.json with one is not
-  parsed for the folder's digest. LangSmith tracing stays off in the API (it would send file
+  them as empty files. A line with a value that looks like a secret (`core/scan.js`,
+  scanned before upload and again in the API with gitleaks) is sent and kept as a line
+  saying why (`redactedLine`), so the rest of the file is read; a private key, or any
+  value over several lines, sends its file empty, and read_file refuses it, naming the
+  line and the kind. package.json with one is not parsed for the folder's digest. LangSmith tracing stays off in the API (it would send file
   contents). submit_plan(plan, summary,
   assumptions) ends it.
 - Tracing (LangFuse, `core/tracing.js`) is on only when the API has LangFuse keys, and

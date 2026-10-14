@@ -136,7 +136,8 @@ export function listFiles(appPath, requested = ".") {
 export function withheldReason(appPath, file, withheld = []) {
   if (!withheld.length) return null;
   const rel = path.relative(fs.realpathSync(appPath), realpathOfNearest(file)).split(path.sep).join("/");
-  const mine = withheld.filter(f => f.file === rel);
+  // A file with only some lines held back is read: those lines say why they are missing.
+  const mine = withheld.filter(f => f.file === rel && f.whole);
   if (!mine.length) return null;
   const where = mine.map(f => `line ${f.line} (${f.kind || kindOf(f.rule)})`).join(", ");
   return `${rel} looks like it holds a secret on ${where}, so it was not sent and its contents are never read. ` +

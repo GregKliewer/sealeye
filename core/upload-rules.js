@@ -16,11 +16,13 @@
 // leave the developer's machine.
 //
 // Every file that travels is also scanned for values that look like secrets
-// (core/scan.js, PHASE3-PLAN Step 2). For an interview, a file with a finding travels
-// as an empty name, as a .env does, and the finding (file, line, rule; never the value)
-// goes with the upload so the API can say why it cannot be read. For a deploy, a finding
+// (core/scan.js, PHASE3-PLAN Step 2). For an interview, each flagged line travels as a
+// line that says why, so the rest of the file can still be read; a private key, which
+// runs over many lines, sends its file as an empty name, as a .env is. The findings
+// (file, line, rule; never the value) go with the upload so the API can say what it
+// left out. For a deploy, a finding
 // refuses the upload (D4) unless .sealeye-allow names its line.
-import { ALLOW_FILE, applyAllow, deployRefusalMessage, onePerLine, parseAllowFile, scanText, uniqueFindings } from "./scan.js";
+import { ALLOW_FILE, applyAllow, deployRefusalMessage, linesByFile, looksBinary, markWhole, onePerLine, parseAllowFile, redactLines, scanText, uniqueFindings } from "./scan.js";
 import { secretFileReason } from "./secrets.js";
 
 export const EXCLUDED_FOLDERS = new Set(["node_modules", ".git", ".github", ".do", ".sealeye", ".deployme"]);
@@ -214,10 +216,15 @@ export async function collectUpload(root, { purpose = "interview", ignore } = {}
   const allowed = onePerLine(split.allowed);
 
   if (found.length && purpose === "deploy") throw new SecretsFound(found, { allowed });
-  // An interview: each file with a finding travels as its name only.
-  for (const file of new Set(found.map(f => f.file))) entries[file] = new Uint8Array(0);
 
-  return { entries, files, bytes, withheld, ignored, findings: found, allowed };
+  // An interview: each flagged line is replaced by one that says why, or, for a value
+  // over many lines or a file that is not text, the file travels as its name only.
+  const binaryFiles = [...new Set(found.map(f => f.file))].filter(file => looksBinary(entries[file]));
+  const marked = markWhole(found, { binaryFiles });
+  for (const file of new Set(marked.filter(f => f.whole).map(f => f.file))) entries[file] = new Uint8Array(0);
+  for (const [file, kinds] of linesByFile(marked)) entries[file] = redactLines(entries[file], kinds);
+
+  return { entries, files, bytes, withheld, ignored, findings: marked, allowed };
 }
 
 /**

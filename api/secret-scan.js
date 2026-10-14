@@ -187,7 +187,8 @@ export async function gitleaksFindings(dir, { binary = gitleaksPath() } = {}) {
       const finding = cleanFinding({ file: rel, line: row?.StartLine, rule: row?.RuleID });
       // A finding seaLeye cannot place is not dropped: the scan did not do its job.
       if (!finding) throw new ScanFailed("gitleaks named a file seaLeye cannot place");
-      return finding;
+      // A value over several lines cannot be hidden by blanking its first one.
+      return Number(row?.EndLine) > Number(row?.StartLine) ? { ...finding, whole: true } : finding;
     });
   } catch (err) {
     if (err instanceof ScanFailed) throw err;
@@ -204,8 +205,9 @@ export async function gitleaksFindings(dir, { binary = gitleaksPath() } = {}) {
  * gitleaks over the copy, then .sealeye-allow. Nothing is skipped for size and nothing
  * for .gitignore: the API does not trust what the client chose to send.
  *
- * @returns {Promise<{ found: object[], allowed: object[], gitleaks: "ran"|"not installed" }>}
- *          one finding per file and line (core/scan.js onePerLine)
+ * @returns {Promise<{ found: object[], allowed: object[], wholeFiles: string[], gitleaks: "ran"|"not installed" }>}
+ *          one finding per file and line (core/scan.js onePerLine); wholeFiles are files
+ *          where gitleaks found a value over several lines
  * @throws ScanFailed when gitleaks is installed and could not finish
  * @throws UploadRefused when the folder is more than the platform can package
  */
@@ -226,7 +228,9 @@ export async function scanApp(dir, { binary } = {}) {
 
     const all = uniqueFindings([...shared, ...(deeper || [])].map(cleanFinding).filter(Boolean));
     const { found, allowed } = applyAllow(all, allowEntries);
-    return { found: onePerLine(found), allowed: onePerLine(allowed), gitleaks: deeper ? "ran" : "not installed" };
+    const foundFiles = new Set(found.map(f => f.file));
+    const wholeFiles = [...new Set((deeper || []).filter(f => f.whole && foundFiles.has(f.file)).map(f => f.file))];
+    return { found: onePerLine(found), allowed: onePerLine(allowed), wholeFiles, gitleaks: deeper ? "ran" : "not installed" };
   } finally {
     fs.rmSync(work, { recursive: true, force: true });
   }
