@@ -1858,3 +1858,31 @@ on whichever run comes first in a five-minute window, which in a pilot is most r
   raised before it can stop anyone.
 - **Caching the conversation, not only the system prompt, would cut long runs'
   cost several-fold.** Not part of Phase 3; noted so the cap is revisited if it is done.
+
+## sealeye online opens the portal
+
+Decided Wed Oct 14, 2026.
+
+`sealeye online` opens seaLeye.online in the browser: Environments, or with an app's
+name or a deployment id, that environment's page. `sealeye portal` and `sealeye open`
+are the same command, for whoever reaches for those words first; `online` is the one
+the help names first because it is the portal's own name.
+
+- **It is a way to the portal, not an operation, so it has no endpoint of its own.**
+  Parity is about what a person can do to an environment; this only says where to look.
+  Its one read is `GET /deployments`, to say which page.
+- **One rule for an environment's key.** The portal's pages are
+  `/environments/<key>`, and `core/environments.js` is now the one place that says what
+  the key is, imported by `sealeye list` and the portal's Environments alike, so the
+  page the command opens is the page the portal shows.
+- **The token never travels to the browser.** Opening the portal already signed in
+  would put the token in an address, and so in history and server logs. The portal
+  signs in as it always has, and now comes back to the page that was asked for rather
+  than to Environments, so the deep link survives a sign-in. A one-time sign-in code
+  from the API would remove the paste; it overlaps with Q3 and waits for it.
+- **The portal's address follows the API's.** `api.<domain>` is served beside the
+  portal at `<domain>`; `SEALEYE_PORTAL` names it outright, for a laptop API, which has
+  no portal anyone can know and says so.
+- **Where nothing can open a browser (no display, an SSH session), it prints the
+  address instead of failing.** `--print` prints only the address, for a script;
+  `BROWSER` chooses the browser, as it does for other tools.

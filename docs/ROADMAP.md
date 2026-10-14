@@ -289,6 +289,7 @@ and does nothing real. A blank is not started.
 | Costs | `sealeye costs` | `GET /costs` (by tag, a day behind) | built | built (Costs) | 2 |
 | Team and access | `sealeye team` | `GET /team` (issuing stays with the administrator) | built | built (Team) | 2 |
 | Integrations | `sealeye integrations` | | | mock-up (report) | 5 |
+| Open the portal | `sealeye online` (also `portal`, `open`), with an app for its page | `GET /deployments` (which page) | built | n/a: it is the portal | 2 |
 | Sign in | `sealeye login` | tokens; `POST /sessions`, `DELETE /sessions` for the portal; `GET /whoami` | built | built (token paste, then a session) | 1 |
 | Settings in the secret store | `sealeye settings`, `settings set`, `settings unset` | `GET /apps/{app}/settings`, `PUT` and `DELETE /apps/{app}/settings/{name}` | built | built (Settings, in Control) | 1 (item 10) |
 | Onboard and ingest | `sealeye admin ingest` | | | | 4 |

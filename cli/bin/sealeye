@@ -34,7 +34,8 @@ import {
 import { looksLikeToken, seesInWords } from "../../core/token.js";
 import { banner, step, ask, answer, typing, typed, c, product, spinner, stopSpinner, animations } from "../brand.js";
 import { safeName, CONFIG_FILE, LEGACY_CONFIG_FILE } from "../../core/names.js";
-import { USER_CONFIG_HINT, setting, loadUserConfig, DEFAULT_API, saveUserSetting, sealeyeHome } from "../../core/config.js";
+import { USER_CONFIG_HINT, setting, loadUserConfig, DEFAULT_API, saveUserSetting, sealeyeHome, portalFor } from "../../core/config.js";
+import { environmentKey, environmentPath } from "../../core/environments.js";
 import { settingsFromTheStore } from "../store-offer.js";
 import { startTracing, flushTracing, tracingActive, tracingConfigured, tracingSwitchedOff, scoreTrace, scoreDeploymentOutcome, flushScores } from "../../core/tracing.js";
 import { unsupportedNeeds, refusalClosing, orgName } from "../../core/catalog.js";
@@ -48,6 +49,10 @@ import { RETENTION_CHOICES, retentionOf, withRetention } from "../../core/retent
 // Statuses that are history rather than something you can still open: one was torn
 // down, the other was never built because the platform said so.
 const PAST = new Set(["destroyed", "drafted"]);
+
+// `sealeye online` opens the portal; `portal` and `open` are the same command, for
+// whoever reaches for those words first.
+const ONLINE = new Set(["online", "portal", "open"]);
 
 // --json is machine output: no banner, no colour, nothing but the object.
 const jsonOut = process.argv.includes("--json");
@@ -92,8 +97,10 @@ function say(line) {
 // A module request is text somebody pastes into a ticket. Piped or redirected, it is
 // the whole of the output and the banner would be the first thing pasted, so it is
 // left off. On a terminal the banner stays, because every command prints it there.
+// So is the address `sealeye online --print` prints for a script to use.
 const pastingARequest =
-  process.argv[2] === "needs" && process.argv.includes("--request") && !process.stdout.isTTY;
+  (process.argv[2] === "needs" && process.argv.includes("--request") && !process.stdout.isTTY) ||
+  (ONLINE.has(process.argv[2]) && process.argv.includes("--print") && !process.stdout.isTTY);
 
 function printBanner() {
   if (jsonOut || pastingARequest) return;
@@ -127,6 +134,7 @@ Usage:
   ${product.command} pause [app | deploymentId] [--json] [--api <url>]
   ${product.command} resume [app | deploymentId] [--json] [--api <url>]
   ${product.command} needs [--json] [--request <kind>] [--api <url>]
+  ${product.command} online [app | deploymentId] [--print] [--json] [--api <url>]
   ${product.command} doctor [--json] [--api <url>]
   ${product.command} catalog [--json] [--api <url>]
   ${product.command} login [--api <url>]
@@ -161,6 +169,7 @@ Options:
                   with list: every deploy, instead of one row per environment
       --out       with evidence: where to write DEPLOYMENT_EVIDENCE.md (default: the
                   current folder)
+      --print     with online: print the portal's address instead of opening it
       --request   with needs: print a module request for one need, ready to paste
                   into a ticket. Takes the kind, or part of the need's own line
       --api       platform API base URL (default: SEALEYE_API in ~/.sealeye/config,
@@ -180,6 +189,8 @@ Examples:
   ${product.command} destroy my-app
   ${product.command} validate -f plan.yaml
   ${product.command} deploy -f plan.yaml
+  ${product.command} online
+  ${product.command} online my-app
   ${product.command} needs --request relational_database
   ${product.command} doctor
   ${product.command} login
@@ -1015,6 +1026,40 @@ async function main() {
     return;
   }
 
+  // The portal in the browser: its Environments page, or with an app's name or a
+  // deployment id, that environment's page. Nothing is sent but the read of the records
+  // that says which page; signing in to the portal stays the portal's.
+  if (ONLINE.has(command)) {
+    const portal = portalFor(apiBaseUrl);
+    if (!portal) {
+      console.error(c.fail(`There is no portal address for the API at ${apiBaseUrl}.`));
+      say(`Set SEALEYE_PORTAL to the portal's address, in the environment or ${USER_CONFIG_HINT}.`);
+      process.exitCode = 1;
+      return;
+    }
+    const target = firstName();
+    let url = `${portal}/`;
+    if (target) {
+      const page = await portalPageFor({ apiBaseUrl, target });
+      if (!page) return;
+      url = `${portal}${page}`;
+    }
+    if (jsonOut) {
+      console.log(JSON.stringify({ url }, null, 2));
+      return;
+    }
+    if (process.argv.includes("--print")) {
+      console.log(url);
+      return;
+    }
+    say(`Opening ${url}`);
+    if (!(await openInBrowser(url))) {
+      say("No browser could be opened from here. Open this address yourself:");
+      console.log(`  ${url}`);
+    }
+    return;
+  }
+
   if (command === "doctor") {
     const result = await runDoctor({ apiBaseUrl });
 
@@ -1676,6 +1721,62 @@ async function environmentTarget({ apiBaseUrl, target, watching = false }) {
   return null;
 }
 
+/**
+ * The portal's page for an environment, from an exact deployment id or an app's name in
+ * your own team (as the day-two commands read a name). One standing wins over one torn
+ * down; with only history, the newest. The page is the portal's Control page for it.
+ */
+async function portalPageFor({ apiBaseUrl, target }) {
+  const [everything, me] = await Promise.all([listDeployments({ apiBaseUrl }), whoAmI({ apiBaseUrl })]);
+  const byId = everything.find(d => d.deploymentId === target);
+  if (byId) return environmentPath(byId);
+  const mine = d => me.auth === "off" || (d.teamId || "default") === me.team;
+  const named = d => mine(d) && (d.stackName === target || safeName(d.app?.name) === safeName(target));
+  const environments = groupEnvironments(everything.filter(named));
+  const env = environments.find(e => !PAST.has(e.rawStatus)) || environments[0];
+  if (env) return environmentPath(env.latest);
+  console.error(c.fail(`There is no environment called ${target} that your team has. ${product.command} list --all shows what there is.`));
+  process.exitCode = 1;
+  return null;
+}
+
+/**
+ * How to open an address in a browser here: BROWSER when it is set, then the
+ * platform's own opener. A Linux machine with no display (an SSH session, a container)
+ * has nowhere to show a page, so null.
+ */
+function browserCommand(url) {
+  const chosen = process.env.BROWSER;
+  if (chosen) return chosen.includes("%s") ? [chosen.replace("%s", url), [], true] : [chosen, [url], false];
+  if (process.platform === "darwin") return ["open", [url], false];
+  if (process.platform === "win32") return ["cmd", ["/c", "start", "", url], false];
+  if (!process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) return null;
+  return ["xdg-open", [url], false];
+}
+
+/**
+ * Open the address and hand the terminal straight back. True once the opener has
+ * finished without complaint, or is still going after a moment (a browser started in
+ * its place); false when there was nothing to open it with or the opener refused.
+ */
+function openInBrowser(url) {
+  const how = browserCommand(url);
+  if (!how) return Promise.resolve(false);
+  const [cmd, args, shell] = how;
+  return new Promise(resolve => {
+    let child;
+    try {
+      child = spawn(cmd, args, { detached: true, stdio: "ignore", shell });
+    } catch {
+      resolve(false);
+      return;
+    }
+    const waited = setTimeout(() => { child.unref(); resolve(true); }, 3000);
+    child.once("error", () => { clearTimeout(waited); resolve(false); });
+    child.once("exit", code => { clearTimeout(waited); resolve(code === 0); });
+  });
+}
+
 /** Run a call; a refusal from the platform is said as the platform's sentence. */
 async function refusedInWords(call) {
   try {
@@ -2219,7 +2320,8 @@ function groupEnvironments(deployments) {
     // listDeployments() is newest first, so the first record for a key is the latest.
     // A stack is one environment. A draft has no stack, so it is its team's app: two
     // teams' drafts of the same name are two (an organization-wide token sees both).
-    const key = dep.stackName || dep.environment || (dep.app?.name ? `${dep.teamId || "default"}:${dep.app.name}` : dep.deploymentId);
+    // The portal keys its pages the same way (core/environments.js).
+    const key = environmentKey(dep);
     const group = groups.get(key);
 
     if (group) group.deploys.push(dep);
