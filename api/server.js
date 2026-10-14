@@ -26,7 +26,7 @@ import { changePaused, pausedState } from "./pause.js";
 import { peopleOf } from "./team.js";
 import { readPerformance } from "./performance.js";
 import { readCosts } from "./costs.js";
-import { createInterviewService, NotWaiting, UploadRefused } from "./interview/service.js";
+import { createInterviewService, ModelNotPriced, NotWaiting, UploadRefused } from "./interview/service.js";
 import { scanApp, ScanFailed } from "./secret-scan.js";
 import { deployRefusalMessage } from "../core/scan.js";
 
@@ -896,6 +896,11 @@ app.post("/interviews", async (req, res) => {
     }
     if (err instanceof ScanFailed) {
       return res.status(503).json({ error: { code: "SCAN_FAILED", message: SCAN_FAILED_WORDS } });
+    }
+    // The platform's own setting, not the developer's doing: the model it runs has no
+    // price, so a run on it could not be kept to its cap.
+    if (err instanceof ModelNotPriced) {
+      return res.status(503).json({ error: { code: "MODEL_NOT_PRICED", message: err.message } });
     }
     return res.status(500).json({ error: { code: "INTERVIEW_FAILED", message: err.message } });
   }

@@ -132,7 +132,8 @@ through one governed door before Phase 4 adds a swarm of agents.
   notion of a run; its budget per key and its rate limit are the outer limit behind
   seaLeye's cap (DESIGN.md, "Phase 3, settled after review"). The cap is close, not
   exact: a run can spend past it by one reply, or by more if a price changes before
-  seaLeye's table does (DESIGN.md, "A run's cap is close, not exact").
+  seaLeye's table does (DESIGN.md, "A run's cap is close, not exact"). **The cap per run
+  is built (Oct 14, 2026, 2.26.0)**, a dollar by default (`SEALEYE_RUN_CAP`).
 - Routing by task and by data class: the frontier model for plans and rules, a small
   model for bulk reading, and an organization's code only to an endpoint in its own
   account (Claude on Bedrock). Bedrock serves Claude in Canada only through profiles

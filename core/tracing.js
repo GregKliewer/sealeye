@@ -521,6 +521,8 @@ const SCORES = {
   questions_asked: "NUMERIC",
   developer_said_yes: "BOOLEAN",
   needs_refused: "BOOLEAN",
+  // The run stopped at its spending cap (PHASE3-PLAN Step 3) rather than ending itself.
+  spending_limit_reached: "BOOLEAN",
   deployment_succeeded: "BOOLEAN",
   // Only the interview regression set (scripts/eval-interview.js) posts these: they
   // compare a run's plan with what the sample app is known to need.

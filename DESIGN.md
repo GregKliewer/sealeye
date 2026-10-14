@@ -2014,3 +2014,27 @@ asked whether a fixed list is needed at all.
 - Changing the catalog and the prompt changes what the interview writes, so
   `npm run eval:interview` runs before and after; the sample apps have no need this
   changes.
+## The cap on every run
+
+Wed Oct 14, 2026, PHASE3-PLAN Step 3, as D2 and D5 decided. First measured on a real
+app, hagopj13/node-express-boilerplate: 6 turns and $0.152, twice the largest sample run
+for the same turns, and well under a third of the dollar, so the cap stays a dollar.
+
+- **Prices live in `core/model-prices.js`**, read from Anthropic's pricing page on
+  Oct 14 and dated: Sonnet 5, Sonnet 5.5, Opus 5.5, and Haiku 5.5, which is priced by
+  each request's prompt length. It priced the measured sample run at $0.0795, as
+  LangFuse did. Bedrock's names for the same models join it with Step 8.
+- **Checked before each call, not after.** The reply that crosses the cap is already
+  paid for, so it is used: if it was the plan, the developer has a plan. A run that
+  reads forever stops at the call after it crosses, so it goes past the cap by one
+  reply at most, as "A run's cap is close, not exact" says.
+- **The words carry no amount** (principle 8): the run reached its spending limit,
+  nothing was written or built, run it again, and tell the platform team if it stops
+  there again. The trace is scored `spending_limit_reached`.
+- **Keyed by worker.** The run's spend is `{ interview: {...} }`, so Phase 4's workers
+  each get their own without a new design.
+- **A model with no price never starts** (503 MODEL_NOT_PRICED), checked before the
+  upload is unpacked. An unpriced model would otherwise run with no cap at all.
+- **The table is checked two ways**: the eval flags a run whose own count differs from
+  LangFuse's by more than five percent, and `release.sh` warns when `checkedOn` is more
+  than 90 days old. deploy/README.md, "Model prices", is the operating step.
