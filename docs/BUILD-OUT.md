@@ -17,7 +17,7 @@ When ROADMAP.md changes what a phase holds, fix its picture here in the same com
 | 0 | Foundation | Done Oct 8, 2026 | The demo becomes a product repo: cli, api and core, tests, CLAUDE.md, the roadmap |
 | 1 | Team release | Mostly done Oct 11, 2026 | Hosted API, tokens, Postgres, the live portal, CI. Open: the second-person test, which runs alongside Phase 3 |
 | 2 | Day-two parity | Built Oct 12, 2026 | Logs, performance, costs, pause, configure, the settings store and evidence, on both surfaces |
-| 3 | Governed backbone | Built Oct 14, 2026, all but routing ([PHASE3-PLAN.md](PHASE3-PLAN.md)) | agentgateway in front of every model call, identity per caller, spend caps, the secret scanner. Open: routing and the Bedrock route (Step 8), the gateway's span in the trace (Step 6b) |
+| 3 | Governed backbone | Built Oct 14, 2026, all but routing ([PHASE3-PLAN.md](PHASE3-PLAN.md)) | agentgateway in front of every model call, identity per caller, spend caps, the secret scanner. Open: routing and the Bedrock route (Step 8). The gateway's span in the trace moved to Phase 4 |
 | 4 | Learn the platform | Planned | A discovery swarm reads the organization's library into its catalog, with must-refuse tests and Terraform; a gap report; LangFuse self-hosted in Canada |
 | 5 | The path to production | Planned | Promote, approvals in ServiceNow, Jira gap tickets with options and a recommendation, team accounts, Cognito sign-in |
 | 6 | seaLeye for agents | **New**, planned | seaLeye's tools as MCP behind the gateway, for coding agents |
@@ -81,7 +81,7 @@ flowchart LR
 
 Phase 3 puts one governed door in front of every model call, and a secret scanner in front of the model. Built before discovery, so the swarm runs on both from day one. The second-person test (Phase 1) can run alongside it.
 
-**Built Oct 14, 2026** (green below): the secret scanner, each run's cap, and agentgateway on the server. The gateway holds the model key, checks a token the API signs for each call, writes its person, team and run into its log and its record of calls, and holds the $20 budget and a per-run limit. **Still to come** (blue): routing by task and data class, the Bedrock route (waiting on the account's model access), and the gateway's own span in the run's trace.
+**Built Oct 14, 2026** (green below): the secret scanner, each run's cap, and agentgateway on the server. The gateway holds the model key, checks a token the API signs for each call, writes its person, team and run into its log and its record of calls, and holds the $20 budget and a per-run limit. **Still to come** (blue): routing by task and data class, and the Bedrock route (waiting on the account's model access). The gateway's own span in the run's trace moved to Phase 4, with self-hosted LangFuse; until then each gateway line carries the run's trace id.
 
 ```mermaid
 flowchart TB
