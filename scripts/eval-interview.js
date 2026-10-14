@@ -151,7 +151,7 @@ export async function evaluate({ cases, runName, model, clientFor, log = () => {
             ask: async () => (queue.length ? queue.shift() : FALLBACK_ANSWER),
             ...(clientFor ? { client: clientFor(app) } : {})
           });
-          return { app, traceId: result.traceId, ...grade(result, expected) };
+          return { app, traceId: result.traceId, turns: result.turns, ...grade(result, expected) };
         }
       );
       await flushTracing();
@@ -228,13 +228,16 @@ export function sumGenerations(generations) {
 }
 
 /**
- * One run's model calls as LangFuse holds them. LangFuse takes a few seconds to make
- * what it was sent readable, so this asks until the count of calls stops changing.
+ * One run's model calls as LangFuse holds them. LangFuse can take a minute or more to
+ * make everything it was sent readable, and can make part of a run readable before the
+ * rest, so a count that holds still is not enough: this asks until LangFuse has as
+ * many calls as the run made (`turns`, from the interview's result), and otherwise
+ * says how many it had. A partial run is never reported as a whole one.
  *
  * @returns {Promise<object>} sumGenerations' totals, or { error }
  */
-export async function readRunCost(traceId, { request = langfuseRequest, pause = sleep, tries = 20, every = 3000 } = {}) {
-  let last = -1;
+export async function readRunCost(traceId, { turns, request = langfuseRequest, pause = sleep, tries = 40, every = 5000 } = {}) {
+  if (!Number.isFinite(turns) || turns < 1) return { error: "the run did not say how many model calls it made" };
   let generations = [];
   for (let i = 0; i < tries; i++) {
     const page = await request(
@@ -244,12 +247,15 @@ export async function readRunCost(traceId, { request = langfuseRequest, pause = 
       10_000
     );
     generations = page?.data || [];
-    if (generations.length > 0 && generations.length === last) return sumGenerations(generations);
-    last = generations.length;
+    if (generations.length >= turns) return sumGenerations(generations);
     if (i < tries - 1) await pause(every);
   }
-  if (generations.length > 0) return sumGenerations(generations);
-  return { error: `LangFuse had not recorded this run's model calls after ${Math.round((tries * every) / 1000)} seconds` };
+  const waited = Math.round((tries * every) / 1000);
+  return {
+    error:
+      `after ${waited} seconds LangFuse had ${generations.length} of this run's ${turns} model calls. ` +
+      "Look at its trace in LangFuse; if the rest are there, run this again"
+  };
 }
 
 /** Each graded row with what its run spent added, read after every app has run. */
@@ -261,7 +267,7 @@ export async function addCosts(rows, options) {
       continue;
     }
     try {
-      out.push({ ...row, spend: await readRunCost(row.traceId, options) });
+      out.push({ ...row, spend: await readRunCost(row.traceId, { ...options, turns: row.turns }) });
     } catch (err) {
       out.push({ ...row, spend: { error: err.message } });
     }

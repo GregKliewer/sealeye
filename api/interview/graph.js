@@ -141,7 +141,7 @@ export function buildInterviewGraph({ runtimeFor, checkpointer }) {
       // Four questions is the rule. The fifth is answered by the platform, not the
       // developer, and the model is told to submit with what it has.
       if (state.questions >= MAX_QUESTIONS) {
-        if (state.nudged) return finish({ ...state, messages }, { status: "stopped", message: text });
+        if (state.nudged) return finish({ ...state, messages, turn }, { status: "stopped", message: text });
 
         traceEvent("nudged to submit", { questions: state.questions });
         return {
@@ -299,7 +299,9 @@ export function buildInterviewGraph({ runtimeFor, checkpointer }) {
  * stopped before that has only its question count.
  */
 function finish(state, result, route = null) {
-  const full = { ...result, questions: state.questions, validationRetries: state.validationRetries };
+  // `turns` is how many model calls the run made, so a reader of its trace (the
+  // regression set) can tell when it has every one of them.
+  const full = { ...result, questions: state.questions, validationRetries: state.validationRetries, ...(Number.isFinite(state.turn) ? { turns: state.turn } : {}) };
   const traceId = state.trace?.traceId;
 
   if (traceId) {
