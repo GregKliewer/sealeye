@@ -109,7 +109,18 @@ test("no line, however long or strange, makes the scan slow", () => {
     `"password": "${"a".repeat(1_000_000)}`,
     `-----BEGIN ${"A ".repeat(400_000)}`,
     `postgres://${"u:".repeat(300_000)}`,
-    "x".repeat(1_000_000)
+    "x".repeat(1_000_000),
+    // The second review's case, and the same trick on every rule with a prefix.
+    "sk-".repeat(400_000),
+    "sk-".repeat(200_000) + "T3BlbkFJ",
+    "github_pat_".repeat(100_000),
+    "glpat-".repeat(200_000),
+    "xoxb-".repeat(200_000),
+    "sk_live_".repeat(150_000),
+    "sk-ant-api03-".repeat(100_000),
+    "AIza".repeat(300_000),
+    "SG.".repeat(400_000),
+    "https://hooks.slack.com/services/T".repeat(30_000)
   ];
   for (const line of lines) {
     const started = Date.now();

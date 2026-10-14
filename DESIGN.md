@@ -1900,11 +1900,16 @@ upload on both surfaces, then gitleaks in the API; a finding refuses a deploy un
   common local defaults and values with no digit. Run over 20,300 files of installed
   npm and Python packages, they flagged 13 lines, all real-looking sample tokens in
   libraries' own tests and docs. gitleaks, in the API, is the wide net.
-- **Every rule is linear in the line.** The first version of the name-and-value rule
-  let a match start anywhere, and a crafted 40 KB line took half a second, so one upload
-  could have stalled the API's one process (found in review). It now finds the secret
-  word and reads the value after it by hand; a test holds every rule under a second on
-  million-character lines built to make a regex backtrack.
+- **Every rule is linear in the line, and the API's scan is off its event loop.** The
+  first version of the name-and-value rule let a match start anywhere, and a crafted
+  40 KB line took half a second; the second review found the OpenAI rule did the same
+  with a line of repeated `sk-`. Key shapes are now matched token by token (the line cut
+  into runs of the characters a key can hold, each run matched whole by an anchored,
+  bounded pattern), and the name-and-value rule finds the word and reads the value by
+  hand. A test holds every rule under a second and a half on million-character lines
+  built to make a regex backtrack; the worst crafted 25 MB line takes about 13 seconds.
+  In the API the shared rules run in a worker thread with a two-minute limit, so a slow
+  scan holds up only its own request.
 - **Nothing is cut short.** Every byte of every file that travels is scanned, by both
   scanners: a key at the end of an 11 MB bundle got past a 2 MB cap here and gitleaks'
   10 MB one (found in review). A binary file is scanned for the shapes of keys only, not
@@ -1930,7 +1935,10 @@ upload on both surfaces, then gitleaks in the API; a finding refuses a deploy un
 - **The copy is what would be packaged**: no `node_modules`, `.git` or secret files, and
   links followed as zip follows them (each real folder once), so a `config.js` that is
   a link to a key is read, and a laptop deploy from a folder with a real `.env` is not
-  refused for it. Every file in the copy is scanned, whatever `.gitignore` says.
+  refused for it. Folders are skipped only where packaging's rsync skips them, matched
+  as exactly. A link out of the app folder is refused: packaging would store whatever
+  it points at on the API's machine. Every file is scanned, whatever `.gitignore` says,
+  and `.gitleaksignore`, kept from gitleaks, is still read by the shared rules.
 - **Fail closed only where the deeper check was expected.** Without gitleaks (a laptop
   API, CI), the shared rules are the scan and the record says so. With gitleaks
   installed and failing, neither the interview nor the deploy goes ahead (503
@@ -1951,6 +1959,3 @@ upload on both surfaces, then gitleaks in the API; a finding refuses a deploy un
 - **What is not scanned:** a drafted plan sends no code; `runInterview`, which reads a
   folder in place for the eval, cannot empty files without changing the developer's
   app (principle 5), and runs only on the sample apps.
-- **Owed:** the scan runs on the API's one event loop. Linear rules keep a 100 MB deploy
-  to seconds, not minutes; moving it to a worker thread is owed before many teams share
-  one API.

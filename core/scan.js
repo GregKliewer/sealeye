@@ -19,70 +19,93 @@ export const ALLOW_FILE = ".sealeye-allow";
 // and an upload is capped (core/upload-rules.js). A key at the end of a large bundle is
 // still a key (found in review: a cap here and in gitleaks let an 11 MB file through).
 
+// The shapes of keys are matched token by token: the line is cut into runs of the
+// characters a key can hold, and each run is matched whole against an anchored pattern
+// with bounded parts. No pattern can then backtrack across the line: a review found a
+// line of repeated "sk-" made an unanchored rule take minutes.
+const TOKEN_CLASSES = {
+  word: /[A-Za-z0-9_]+/g,       // gh..._, github_pat_, sk_live_, npm_
+  dash: /[A-Za-z0-9_-]+/g,      // glpat-, xoxb-, sk-ant-, sk-...T3BlbkFJ, AIza
+  dot: /[A-Za-z0-9_.-]+/g       // SG.x.y
+};
+const MAX_TOKEN = 512;
+
+/** Does any token of this class match `pattern` (anchored at both ends)? Linear in the line. */
+function anyToken(line, cls, pattern) {
+  const re = TOKEN_CLASSES[cls];
+  re.lastIndex = 0;
+  let m;
+  while ((m = re.exec(line)) !== null) {
+    if (m[0].length <= MAX_TOKEN && pattern.test(m[0])) return true;
+  }
+  return false;
+}
+
 /**
  * Each rule: an id (stable; it is what .sealeye-allow and evidence name), the kind of
  * value in words a developer reads (no cloud provider's terms, principle 8), and a test
- * of one line.
+ * of one line. Every test is linear in the line.
  */
 export const RULES = [
   {
     id: "private-key",
     kind: "a private key",
-    test: line => /-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY(?: BLOCK)?-----/.test(line)
+    test: line => line.includes("PRIVATE KEY") && /-----BEGIN (?:[A-Z0-9]{1,20} ){0,4}PRIVATE KEY(?: BLOCK)?-----/.test(line)
   },
   {
     // Access key ids for long-lived users and temporary sessions. The secret half has
     // no shape of its own; the assignment rule below finds it by its name.
     id: "cloud-access-key",
     kind: "a cloud access key",
-    test: line => /(?:^|[^A-Z0-9])(?:AKIA|ASIA|ABIA|ACCA)[A-Z2-7]{16}(?![A-Z0-9])/.test(line)
+    test: line => anyToken(line, "word", /^(?:AKIA|ASIA|ABIA|ACCA)[A-Z2-7]{16}$/)
   },
   {
     id: "github-token",
     kind: "a GitHub token",
-    test: line => /\bgh[pousr]_[A-Za-z0-9]{36,255}\b/.test(line) || /\bgithub_pat_[A-Za-z0-9_]{80,}\b/.test(line)
+    test: line => anyToken(line, "word", /^(?:gh[pousr]_[A-Za-z0-9]{36,255}|github_pat_[A-Za-z0-9_]{80,255})$/)
   },
   {
     id: "gitlab-token",
     kind: "a GitLab token",
-    test: line => /\bglpat-[A-Za-z0-9_-]{20,}\b/.test(line)
+    test: line => anyToken(line, "dash", /^glpat-[A-Za-z0-9_-]{20,255}$/)
   },
   {
     id: "slack-token",
     kind: "a Slack token",
-    test: line => /\bxox[abposr]-[A-Za-z0-9-]{10,}\b/.test(line) || /https:\/\/hooks\.slack\.com\/services\/T[A-Z0-9]+\/B[A-Z0-9]+\/[A-Za-z0-9]{20,}/.test(line)
+    test: line => anyToken(line, "dash", /^xox[abposr]-[A-Za-z0-9-]{10,255}$/) ||
+      (line.includes("hooks.slack.com") && /https:\/\/hooks\.slack\.com\/services\/T[A-Z0-9]{1,32}\/B[A-Z0-9]{1,32}\/[A-Za-z0-9]{20,64}/.test(line))
   },
   {
     // Secret and restricted keys; publishable keys (pk_) are meant to be public.
     id: "stripe-key",
     kind: "a Stripe key",
-    test: line => /\b[sr]k_(?:live|test)_[A-Za-z0-9]{20,}\b/.test(line)
+    test: line => anyToken(line, "word", /^[sr]k_(?:live|test)_[A-Za-z0-9]{20,255}$/)
   },
   {
     id: "anthropic-key",
     kind: "an Anthropic key",
-    test: line => /\bsk-ant-(?:api|admin)\d{2}-[A-Za-z0-9_-]{40,}/.test(line)
+    test: line => anyToken(line, "dash", /^sk-ant-(?:api|admin)\d{2}-[A-Za-z0-9_-]{40,255}$/)
   },
   {
     // OpenAI's keys carry this marker in the middle, which is what makes the rule sure.
     id: "openai-key",
     kind: "an OpenAI key",
-    test: line => /\bsk-[A-Za-z0-9_-]{8,}T3BlbkFJ[A-Za-z0-9_-]{8,}/.test(line)
+    test: line => line.includes("T3BlbkFJ") && anyToken(line, "dash", /^sk-[A-Za-z0-9_-]{8,200}T3BlbkFJ[A-Za-z0-9_-]{8,200}$/)
   },
   {
     id: "google-api-key",
     kind: "a Google API key",
-    test: line => /\bAIza[0-9A-Za-z_-]{35}(?![0-9A-Za-z_-])/.test(line)
+    test: line => anyToken(line, "dash", /^AIza[0-9A-Za-z_-]{35}$/)
   },
   {
     id: "npm-token",
     kind: "an npm token",
-    test: line => /\bnpm_[A-Za-z0-9]{36}\b/.test(line)
+    test: line => anyToken(line, "word", /^npm_[A-Za-z0-9]{36}$/)
   },
   {
     id: "sendgrid-key",
     kind: "a SendGrid key",
-    test: line => /\bSG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}\b/.test(line)
+    test: line => anyToken(line, "dot", /^SG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}$/)
   },
   {
     id: "url-password",

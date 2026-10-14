@@ -14,15 +14,16 @@
 // the result says so. Where it is installed and fails, the scan fails: an interview or
 // a deploy that was meant to have the deeper check does not go ahead without it.
 import { execFile } from "node:child_process";
+import { Worker } from "node:worker_threads";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { ALLOW_FILE, applyAllow, cleanFinding, onePerLine, parseAllowFile, scanText, uniqueFindings } from "../core/scan.js";
+import { ALLOW_FILE, applyAllow, cleanFinding, onePerLine, parseAllowFile, uniqueFindings } from "../core/scan.js";
 import { isLeftOutOfDeploy, UploadRefused } from "../core/upload-rules.js";
 
 const CONFIG = path.join(import.meta.dirname, "gitleaks.toml");
-const TIMEOUT_MS = 120_000;
+const TIMEOUT_MS = 120_000;      // gitleaks, and the shared rules in their worker
 
 /** The scan could not be done, so what depended on it must not go ahead. */
 export class ScanFailed extends Error {}
@@ -61,9 +62,11 @@ function run(binary, args, cwd) {
   });
 }
 
-// What the scan copy leaves out: what is never packaged or sent (the deploy upload's
-// rules, core/upload-rules.js), and gitleaks' own ignore file, which it would read from
-// the folder it scans whatever it is told (found in review).
+// What the scan copy leaves out: what packaging leaves out (api/executor/package.js,
+// matched as exactly as rsync matches it, so nothing packaged goes unscanned) and secret
+// files, which are never packaged. gitleaks' own ignore file is kept out of the copy,
+// since gitleaks reads it from the folder it scans whatever it is told (found in
+// review), and is scanned by the shared rules from where it is instead.
 const SKIP_FOLDERS = new Set(["node_modules", ".git", ".github", ".do"]);
 const MAX_COPY_BYTES = 100 * 1024 * 1024;
 const MAX_COPY_FILES = 20000;
@@ -75,27 +78,40 @@ const MAX_COPY_FILES = 20000;
  */
 function scanCopy(dir, dest) {
   const seen = new Set();
+  const root = fs.realpathSync(path.resolve(dir));
+  const extra = [];
   let bytes = 0;
   let files = 0;
-  const walk = (src, out) => {
+  const walk = (src, out, rel) => {
     const real = fs.realpathSync(src);
     if (seen.has(real)) return;
     seen.add(real);
     fs.mkdirSync(out, { recursive: true });
     for (const name of fs.readdirSync(real)) {
       const from = path.join(real, name);
+      const childRel = rel ? `${rel}/${name}` : name;
       let stat;
       try {
         stat = fs.statSync(from);   // follows links
       } catch {
         continue;                   // a dangling link: nothing to package either
       }
+      // A link out of the app folder would package whatever it points at on this
+      // machine, a file of the API's own say: refused rather than read.
+      const target = fs.realpathSync(from);
+      if (target !== root && !target.startsWith(root + path.sep)) {
+        throw new UploadRefused(`${childRel} is a link to something outside your app folder, which the platform does not package`);
+      }
       if (stat.isDirectory()) {
-        if (SKIP_FOLDERS.has(name.toLowerCase())) continue;
-        walk(from, path.join(out, name));
+        if (SKIP_FOLDERS.has(name)) continue;
+        walk(from, path.join(out, name), childRel);
         continue;
       }
-      if (!stat.isFile() || isLeftOutOfDeploy(name) || name.toLowerCase() === ".gitleaksignore") continue;
+      if (!stat.isFile() || isLeftOutOfDeploy(name)) continue;
+      if (name === ".gitleaksignore") {
+        extra.push({ abs: from, rel: childRel });
+        continue;
+      }
       files++;
       bytes += stat.size;
       if (files > MAX_COPY_FILES || bytes > MAX_COPY_BYTES) {
@@ -104,25 +120,31 @@ function scanCopy(dir, dest) {
       fs.copyFileSync(from, path.join(out, name));
     }
   };
-  walk(path.resolve(dir), dest);
+  walk(root, dest, "");
+  return extra;
 }
 
-/** The shared rules over every file in a folder, with no .gitignore and no limit cut short. */
-function sharedFindings(root) {
-  const found = [];
-  const walk = (abs, rel) => {
-    for (const entry of fs.readdirSync(abs, { withFileTypes: true })) {
-      const childAbs = path.join(abs, entry.name);
-      const childRel = rel ? `${rel}/${entry.name}` : entry.name;
-      if (entry.isDirectory()) walk(childAbs, childRel);
-      else if (entry.isFile()) {
-        const data = fs.readFileSync(childAbs);
-        found.push(...scanText(childRel, new Uint8Array(data.buffer, data.byteOffset, data.length)));
-      }
-    }
-  };
-  walk(root, "");
-  return found;
+/**
+ * The shared rules over every file in a folder, with no .gitignore and nothing cut
+ * short, in a worker thread with a time limit (api/scan-worker.js).
+ */
+function sharedFindings(root, extra) {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(new URL("./scan-worker.js", import.meta.url), { workerData: { root, extra } });
+    const timer = setTimeout(() => {
+      worker.terminate();
+      reject(new ScanFailed("the shared rules took too long"));
+    }, TIMEOUT_MS);
+    worker.once("message", found => {
+      clearTimeout(timer);
+      resolve(found);
+      worker.terminate();
+    });
+    worker.once("error", () => {
+      clearTimeout(timer);
+      reject(new ScanFailed("the shared rules could not finish"));
+    });
+  });
 }
 
 /**
@@ -190,9 +212,11 @@ export async function scanApp(dir, { binary } = {}) {
   const work = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-scan-"));
   const copy = path.join(work, "app");
   try {
-    scanCopy(dir, copy);
-    const shared = sharedFindings(copy);
-    const deeper = await gitleaksFindings(copy, binary === undefined ? {} : { binary });
+    const extra = scanCopy(dir, copy);
+    const [shared, deeper] = await Promise.all([
+      sharedFindings(copy, extra),
+      gitleaksFindings(copy, binary === undefined ? {} : { binary })
+    ]);
 
     let allowEntries = [];
     try {

@@ -148,17 +148,28 @@ test("nothing is cut short for size, and a link is read as packaging reads it", 
     ".env": `STRIPE=${FAKE.stripeKey}`
   });
   assert.ok(fs.statSync(path.join(dir, "dist/bundle.js")).size > 11 * 1024 * 1024);
-  const elsewhere = folder("elsewhere", { "real-config.js": `module.exports = "${FAKE.stripeKey}";\n` });
-  fs.symlinkSync(path.join(elsewhere, "real-config.js"), path.join(dir, "config.js"));
+  // A link to a file packaging leaves out, so only the link can carry it in.
+  fs.mkdirSync(path.join(dir, "node_modules", "cfg"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "node_modules", "cfg", "real.js"), `module.exports = "${FAKE.stripeKey}";\n`);
+  fs.symlinkSync(path.join(dir, "node_modules", "cfg", "real.js"), path.join(dir, "config.js"));
   fs.symlinkSync(dir, path.join(dir, "loop"));   // a loop of links ends
+  // rsync's --exclude node_modules matches exactly, so this is packaged, and scanned.
+  fs.mkdirSync(path.join(dir, "Node_Modules"));
+  fs.writeFileSync(path.join(dir, "Node_Modules", "x.js"), `t = "${FAKE.gitlabToken}"\n`);
+  // Kept from gitleaks, still read by the shared rules.
+  fs.writeFileSync(path.join(dir, ".gitleaksignore"), `# ${FAKE.npmToken}\n`);
 
   const out = await scanApp(dir);
-  assert.deepEqual(out.found.map(f => `${f.file}:${f.rule}`), ["config.js:stripe-key", "dist/bundle.js:github-token"],
+  assert.deepEqual(out.found.map(f => `${f.file}:${f.rule}`), [".gitleaksignore:npm-token", "Node_Modules/x.js:gitlab-token", "config.js:stripe-key", "dist/bundle.js:github-token"],
     "the bundle past any limit, the link's target, and not .env, which is never packaged");
+
+  const outside = folder("outside-link", { "index.js": "x" });
+  fs.symlinkSync("/etc/hostname", path.join(outside, "host.txt"));
+  await assert.rejects(scanApp(outside), /host\.txt is a link to something outside your app folder/);
 
   const linked = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-link-"));
   fs.symlinkSync(dir, path.join(linked, "app"));
-  assert.equal((await scanApp(path.join(linked, "app"))).found.length, 2, "an app folder that is itself a link is scanned through it");
+  assert.equal((await scanApp(path.join(linked, "app"))).found.length, 4, "an app folder that is itself a link is scanned through it");
 });
 
 test("a binary file is never handed to the model", async () => {
