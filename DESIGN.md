@@ -2393,7 +2393,7 @@ for each model call, and nobody but the API holds the means to make one.
   in the run's LangFuse trace. The gateway can export spans (OTLP), but that puts
   LangFuse's keys in the gateway and needs the API to send a trace header on each
   call, and neither has run in the spike. Today the `trace` field in the gateway's log
-  joins a line to its LangFuse trace by id. Exporting spans is owed as Step 6b, after
+  joins a line to its LangFuse trace by id. Exporting spans was owed as Step 6b, after
   a spike run (PHASE3-PLAN).
 - **Tested two ways.** `test/gateway-token.test.js` starts the real API with tokens,
   runs one interview from the command and one from the portal, and checks each call's
@@ -2467,6 +2467,7 @@ this adds the rest.
   again once the budget was put back. That completes the second half of Phase 3's
   "done when".
 
+
 ## LangFuse in Canada waits for an organization's real code
 
 Wed Oct 14, 2026, Greg, writing the Phase 4 plan (PHASE4-PLAN D1): "no one will be
@@ -2484,3 +2485,26 @@ picking this up at a real bank any time soon."
 - **What it keeps owed.** The first customer run cannot start until traces are in
   Canada, or tracing is off for it. The gateway's own span in the trace (once Phase 3
   Step 6b) comes with the self-hosted LangFuse, as decided earlier today.
+
+## The gateway's span waits for LangFuse in Canada
+
+Wed Oct 14, 2026, Greg's call. PHASE3-PLAN Step 6b, the gateway's own span in each run's
+LangFuse trace, moves to Phase 4, to be built with self-hosted LangFuse in ca-central-1.
+
+- **What it would cost now:**
+  - LangFuse Cloud's secret key would be held by the gateway as well as the API.
+  - The API would send a trace header on every call.
+  - The gateway's sampling would need a spike run, so that a run with `--no-trace`
+    never appears in LangFuse through the gateway.
+  - Spans would carry the token's claims, the person's email among them, to LangFuse
+    Cloud in the US.
+- **What it would add now is small.** Every gateway log line and every row of
+  `gateway-calls` already carries the run's trace id, so a call joins its trace by
+  hand. Tracing is meant to stay off for any pilot on real code until LangFuse is in
+  Canada.
+- **In Phase 4**, the gateway's spans go to the organization's own LangFuse in Canada,
+  with a key the platform team holds, so the same work brings no new holder of an
+  outside key and nothing more to the US.
+- **Phase 3's "done when"** asked that every model call in a trace name its caller and
+  its route. The caller is named, by trace id, in the gateway's log and record; the
+  route comes with Step 8. The span itself is Phase 4's.
