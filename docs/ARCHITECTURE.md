@@ -165,9 +165,10 @@ flowchart LR
     cfn["<b>executor/cfn.js</b><br/>Every AWS call but the<br/>artifact upload"]
     dayTwo["<b>logs, performance, costs,<br/>pause, team, setting-changes</b>"]
     store["<b>store.js, db.js</b><br/>Records in memory,<br/>written through to Postgres"]
+    scan["<b>secret-scan.js</b><br/>The shared rules again,<br/>then gitleaks"]
   end
 
-  core["<b>core/</b><br/>schema, catalog, names, upload rules,<br/>secrets, tracing, plan words"]
+  core["<b>core/</b><br/>schema, catalog, names, upload rules,<br/>secrets, secret scan rules, tracing, plan words"]
   prompts["<b>prompts/, templates/</b><br/>System prompt, contract,<br/>module catalog, CloudFormation"]
 
   server --> tokens
@@ -175,6 +176,8 @@ flowchart LR
   server --> validate
   server --> executor
   server --> dayTwo
+  server --> scan
+  interview --> scan
   interview --> validate
   executor --> cfn
   dayTwo --> cfn
@@ -287,10 +290,12 @@ sequenceDiagram
 
   Dev->>CLI: sealeye run (in the app folder)
   CLI->>API: GET /deployments (is this app already live?)
-  CLI->>CLI: zip the folder for the interview: no .gitignore'd files,<br/>secret files as empty names
-  CLI->>API: POST /interviews { app, zip }
+  CLI->>CLI: zip the folder for the interview: no .gitignore'd files,<br/>secret files and files that hold a secret as empty names
+  CLI->>API: POST /interviews { app, zip, findings (file, line, rule) }
+  API->>API: scan what arrived again (shared rules, gitleaks),<br/>empty any file with a finding
   API->>DB: interview record, checkpoint
-  API-->>CLI: interviewId
+  API-->>CLI: interviewId, findings
+  CLI->>Dev: which files look like they hold a secret, and that a deploy will be refused
   CLI->>API: GET /interviews/{id}/events (server-sent events)
   loop until a plan is submitted
     API->>M: model turn
@@ -308,12 +313,15 @@ sequenceDiagram
   Dev->>CLI: y
   CLI->>API: POST /interviews/{id}/answers { y }
   CLI->>API: GET /apps/{app}/settings (which settings the store already has)
-  CLI->>CLI: zip again for the deploy: no node_modules, .git,<br/>.github, .do, and no secret files at all
+  CLI->>CLI: zip again for the deploy: no node_modules, .git,<br/>.github, .do, and no secret files at all.<br/>A value that looks like a secret refuses it here
   CLI->>API: POST /deployments { plan, zip, settings not in the store }
   alt plan has needs (drafted)
     API->>DB: save the record as drafted
     API-->>CLI: refused: UNSUPPORTED_NEEDS, with evidence
     CLI->>Dev: the needs and the code that shows each, and nothing is built
+  else the code looks like it holds a secret (shared rules or gitleaks)
+    API-->>CLI: refused: SECRETS_FOUND, file, line and rule, nothing kept
+    CLI->>Dev: each line, and how to move the value into a setting or allow it
   else plan is ready
     API->>DB: record: queued
     API-->>CLI: 201, deploymentId
@@ -508,7 +516,7 @@ flowchart LR
   end
   subgraph core["seaLeye API (trusted)"]
     auth["Token or session check,<br/>team and org scoping"]
-    sandbox["Interview tools: read-only,<br/>inside the copy, secret files refused"]
+    sandbox["Interview tools: read-only,<br/>inside the copy, secret files and<br/>files with a finding refused"]
     pkg["Packaging: --ignore-scripts,<br/>scrubbed environment"]
   end
   subgraph cloud["AWS"]
@@ -521,8 +529,9 @@ flowchart LR
 
 | Boundary | Control |
 |---|---|
-| The developer's folder to the API | Two uploads, one walk (`core/upload-rules.js`). For the interview: what `.gitignore` leaves out stays behind, and secret files (`core/secrets.js`) travel as empty names. For the deploy: no `node_modules`, `.git`, `.github` or `.do`, and no secret file at all. |
-| The model reading the app | `list_files` and `read_file` are read-only, inside the copy and capped in size. `read_file` refuses secret files; `list_files` shows only their names. LangSmith tracing stays off. |
+| The developer's folder to the API | Two uploads, one walk (`core/upload-rules.js`). For the interview: what `.gitignore` leaves out stays behind, and secret files (`core/secrets.js`) travel as empty names. For the deploy: no `node_modules`, `.git`, `.github` or `.do`, and no secret file at all. Every file that travels is scanned for values that look like secrets (`core/scan.js`): an interview's file with one travels as an empty name, and a deploy with one is refused, unless `.sealeye-allow` names the line. |
+| What arrives at the API | Scanned again, because the client cannot be trusted: the shared rules and gitleaks (`api/secret-scan.js`), always with seaLeye's own configuration, so nothing in the folder can switch it off. An interview's file with a finding is emptied before the graph starts; a deploy with one is refused (`SECRETS_FOUND`) and nothing is kept. If gitleaks is installed and cannot finish, neither goes ahead (`SCAN_FAILED`). |
+| The model reading the app | `list_files` and `read_file` are read-only, inside the copy and capped in size. `read_file` refuses secret files and files with a finding, and says which line and what kind; `list_files` shows only their names. LangSmith tracing stays off. |
 | Callers to the API | One token per person, stored only as a hash, issued on the administrator's machine. The portal trades it for an HttpOnly, `SameSite=Strict`, `__Host-` cookie; changes also need `x-sealeye-portal: 1`. An API with a database cannot run with auth off. |
 | Team to team | A record is its team's; an organization-wide token sees every team's; nobody sees another organization's. Each team's environments have names of their own. |
 | The app's own code at build time | Dependencies install with `--ignore-scripts` and an environment holding only what npm needs. |
@@ -588,4 +597,3 @@ The decisions that shaped the architecture, by DESIGN.md heading.
 | No promotion past dev | Developers deploy to dev | Phase 5 |
 | No gateway in front of the model | One agent, one box | Phase 3: a cap per run in seaLeye's graph; agentgateway for identity, routing and the outer budget |
 | The interview sends an app's code to the Anthropic API, in the US | Sample apps and a friendly team | Phase 3: a route to Claude on Bedrock in the organization's account; whether it stays in Canada is Q18 |
-| A key written into code (not a secret file) can reach the model | Sample apps and a friendly team | Phase 3: a secret scanner before any model (Q6) |

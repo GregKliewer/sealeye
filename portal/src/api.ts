@@ -174,8 +174,13 @@ export const api = {
   deployAgain: (fromDeployment: string, plan?: unknown) =>
     request<DeploymentRecord>("/deployments", { method: "POST", body: { backend: "cloudformation", fromDeployment, ...(plan !== undefined ? { plan } : {}) } }),
   openInterviews: () => request<{ interviews: OpenInterview[] }>("/interviews").then(r => r.interviews),
-  startInterview: (app: string, zip: string, deployed?: unknown) =>
-    request<{ interviewId: string; status: string; withheld?: string[] }>("/interviews", { method: "POST", body: { app, zip, ...(deployed ? { deployed } : {}) } }),
+  // The findings go as file, line and rule, so the platform can say why those files
+  // arrived empty; it scans again and answers with its own and these together.
+  startInterview: (app: string, zip: string, deployed?: unknown, findings: { file: string; line: number; rule: string }[] = []) =>
+    request<{ interviewId: string; status: string; withheld?: string[]; findings?: { file: string; line: number; rule: string; kind: string }[] }>("/interviews", {
+      method: "POST",
+      body: { app, zip, ...(deployed ? { deployed } : {}), ...(findings.length ? { findings: findings.map(({ file, line, rule }) => ({ file, line, rule })) } : {}) }
+    }),
   answerInterview: (id: string, answer: string) =>
     request<{ status: string }>(`/interviews/${encodeURIComponent(id)}/answers`, { method: "POST", body: { answer } }),
   abandonInterview: (id: string) => request<{ removed: boolean }>(`/interviews/${encodeURIComponent(id)}`, { method: "DELETE" }),

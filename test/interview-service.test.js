@@ -30,7 +30,7 @@ const scratchDirs = base => fs.readdirSync(base).filter(n => n.startsWith("int-"
 
 test("an interview waiting on a question is gone after a day, code and all", async () => {
   const { service, scratchBase, zip, clock, checkpointer } = setup(client(asks));
-  const { interviewId } = service.startFromUpload({ zip, app: "site" });
+  const { interviewId } = await service.startFromUpload({ zip, app: "site" });
   await service.settled(interviewId);
   assert.ok(await checkpointer.getTuple({ configurable: { thread_id: interviewId } }), "saved while it waits");
 
@@ -48,7 +48,7 @@ test("an interview waiting on a question is gone after a day, code and all", asy
 
 test("an interview that stops ends at once and keeps nothing of the app", async () => {
   const { service, scratchBase, zip, checkpointer } = setup(client(stops));
-  const { interviewId } = service.startFromUpload({ zip, app: "site" });
+  const { interviewId } = await service.startFromUpload({ zip, app: "site" });
   await service.settled(interviewId);
   assert.equal(await checkpointer.getTuple({ configurable: { thread_id: interviewId } }), undefined, "the saved conversation is gone");
 
@@ -70,7 +70,7 @@ test("tracing turned off for one interview records nothing, in a process that tr
   const model = client(asks, stops);
   const { service, zip } = setup(model);
 
-  const quiet = service.startFromUpload({ zip, app: "quiet", trace: false });
+  const quiet = await service.startFromUpload({ zip, app: "quiet", trace: false });
   await service.settled(quiet.interviewId);
   service.answer(quiet.interviewId, "Everyone");
   await service.settled(quiet.interviewId);
@@ -78,7 +78,7 @@ test("tracing turned off for one interview records nothing, in a process that tr
   assert.equal(exporter.getFinishedSpans().length, 0, "no spans at all");
   assert.equal(service.get(quiet.interviewId).traceId, undefined);
 
-  const loud = service.startFromUpload({ zip, app: "loud" });
+  const loud = await service.startFromUpload({ zip, app: "loud" });
   await service.settled(loud.interviewId);
   assert.ok(exporter.getFinishedSpans().length > 0, "the next interview is traced as usual");
   service.close();
@@ -88,7 +88,7 @@ test("a long read is the interview's limit to stop, not LangGraph's", async () =
   const read = { content: [{ type: "tool_use", id: "r", name: "list_files", input: { path: "." } }], stop_reason: "tool_use", usage: {} };
   const model = client(...Array(20).fill(read), stops);
   const { service, zip } = setup(model);
-  const { interviewId } = service.startFromUpload({ zip, app: "site" });
+  const { interviewId } = await service.startFromUpload({ zip, app: "site" });
   await service.settled(interviewId);
 
   const done = service.get(interviewId);
@@ -109,7 +109,7 @@ test("LangChain's own tracer is switched off, whatever the environment says", ()
 
 test("a developer who leaves takes their app with them", async () => {
   const { service, scratchBase, zip, checkpointer } = setup(client(asks));
-  const { interviewId } = service.startFromUpload({ zip, app: "app (1) café" });
+  const { interviewId } = await service.startFromUpload({ zip, app: "app (1) café" });
   await service.settled(interviewId);
   assert.equal(scratchDirs(scratchBase).length, 1);
 

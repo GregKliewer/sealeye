@@ -1886,3 +1886,82 @@ the help names first because it is the portal's own name.
 - **Where nothing can open a browser (no display, an SSH session), it prints the
   address instead of failing.** `--print` prints only the address, for a script;
   `BROWSER` chooses the browser, as it does for other tools.
+## The secret scanner
+
+Wed Oct 14, 2026, PHASE3-PLAN Step 2, as D3 and D4 decided: the shared rules before
+upload on both surfaces, then gitleaks in the API; a finding refuses a deploy unless
+`.sealeye-allow` names its line. What building it settled:
+
+- **The shared rules are few and sure** (`core/scan.js`): private key blocks, cloud
+  access key ids, and the GitHub, GitLab, Slack, Stripe, Anthropic, OpenAI, Google, npm
+  and SendGrid token shapes; a password in a connection address to a real host; and a
+  long, random-looking value given to a name that ends in password, pwd, secret, token
+  or key. The last two skip placeholders, references to other code, paths, UUIDs,
+  common local defaults and values with no digit. Run over 20,300 files of installed
+  npm and Python packages, they flagged 13 lines, all real-looking sample tokens in
+  libraries' own tests and docs. gitleaks, in the API, is the wide net.
+- **Every rule is linear in the line, and the API's scan is off its event loop.** The
+  first version of the name-and-value rule let a match start anywhere, and a crafted
+  40 KB line took half a second; the second review found the OpenAI rule did the same
+  with a line of repeated `sk-`. Key shapes are now matched token by token (the line cut
+  into runs of the characters a key can hold, each run matched whole by an anchored,
+  bounded pattern), and the name-and-value rule finds the word and reads the value by
+  hand. A test holds every rule under a second and a half on million-character lines
+  built to make a regex backtrack; the worst crafted 25 MB line takes about 13 seconds.
+  In the API the shared rules run in a worker thread with a two-minute limit, so a slow
+  scan holds up only its own request.
+- **Nothing is cut short.** Every byte of every file that travels is scanned, by both
+  scanners: a key at the end of an 11 MB bundle got past a 2 MB cap here and gitleaks'
+  10 MB one (found in review). A binary file is scanned for the shapes of keys only, not
+  for name and value, which compiled files fake; the interview never reads one.
+- **Words a developer reads name no cloud provider** (principle 8): "a cloud access
+  key", not an AWS one. A finding is always a file, a line, a rule and a kind; no
+  function keeps, logs or returns the value, and the tests check each fake key is
+  nowhere it should not be.
+- **One finding per line, and a line is what is allowed.** The shared rules and gitleaks
+  name the same value differently (`cloud-access-key`, `aws-access-token`), so the allow
+  file matches file and line, keeps the rule for the record, and the words show the
+  shared rule's name where both found it. A malformed allow line allows nothing.
+- **gitleaks always runs on seaLeye's terms.** By default it obeys a `.gitleaks.toml`,
+  a `.gitleaksignore` and `gitleaks:allow` comments in the folder it scans, so a
+  developer's repository could switch it off; tried, it did, and the review found the
+  `.gitleaksignore` is read from the scanned folder whatever gitleaks is told. So the API
+  never runs it on an app's folder: it scans a copy of its own, in a folder of a random
+  name, with no `.gitleaksignore`, passes its own configuration (`api/gitleaks.toml`),
+  runs from an empty folder with no `GITLEAKS_*` variables, ignores `gitleaks:allow`,
+  redacts, and reads three fields of its report before deleting it. A finding it cannot
+  place fails the scan rather than being dropped. Pinned at 8.30.1 by version and
+  checksum in the image.
+- **The copy is what would be packaged**: no `node_modules`, `.git` or secret files, and
+  links followed as zip follows them (each real folder once), so a `config.js` that is
+  a link to a key is read, and a laptop deploy from a folder with a real `.env` is not
+  refused for it. Folders are skipped only where packaging's rsync skips them, matched
+  as exactly. A link out of the app folder is refused, unless it is something packaging
+  leaves out anyway (a shared `.env`, a monorepo's `node_modules`): packaging would
+  store whatever it points at on the API's machine. For a folder on the API's machine
+  the scan reads a copy and rsync then packages the folder, so a link changed in
+  between goes unscanned; uploads hold no links, so this is a laptop API's gap only.
+- **Known misses, left to gitleaks:** a key glued to the characters before it
+  (`prefix-AIza...`, `GITHUB_TOKEN_ghp_...`) is one longer token to the shared rules,
+  which match whole tokens to stay linear. Every file is scanned, whatever `.gitignore` says,
+  and `.gitleaksignore`, kept from gitleaks, is still read by the shared rules.
+- **Fail closed only where the deeper check was expected.** Without gitleaks (a laptop
+  API, CI), the shared rules are the scan and the record says so. With gitleaks
+  installed and failing, neither the interview nor the deploy goes ahead (503
+  SCAN_FAILED): the point of the second scan is what the first one misses.
+- **The API never takes the client's word for what is safe.** It scans what arrived;
+  a file with a finding is emptied before the graph starts. The client's own findings
+  only explain a file that arrived empty, and can never hide one that has contents.
+- **A refused deploy keeps nothing**: no record, the upload removed. Unlike a drafted
+  plan, it is not part of the app's history, just code that has to change first. The
+  busy check moved after the scan, which waits, so two deploys cannot both pass it.
+- **Evidence says how the code was checked** (shared rules, or with gitleaks) and lists
+  each allowed line. A deploy again inherits the scan of the deployment that packaged
+  the code; a deployment from before this says it was not checked.
+- **The allow file is the developer's word, for both uses.** A line it names is let
+  through to a deploy, and the interview may read that file too, since it is not a
+  secret. It names a line number, so it excuses whatever is later written on that line;
+  evidence lists every allowed line so a reviewer sees them.
+- **What is not scanned:** a drafted plan sends no code; `runInterview`, which reads a
+  folder in place for the eval, cannot empty files without changing the developer's
+  app (principle 5), and runs only on the sample apps.

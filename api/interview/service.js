@@ -13,7 +13,9 @@ import path from "node:path";
 import { Command, MemorySaver } from "@langchain/langgraph";
 
 import { sealeyeHome, setting } from "../../core/config.js";
+import { cleanFinding, onePerLine } from "../../core/scan.js";
 import { unzipInto, UploadRefused } from "../../core/upload.js";
+import { scanApp } from "../secret-scan.js";
 import { promptVersion, traceRun, withoutTracing, flushScores } from "../../core/tracing.js";
 import { buildInterviewGraph, MAX_TURNS } from "./graph.js";
 import { planFiles } from "../../core/plan-files.js";
@@ -115,8 +117,10 @@ export function createInterviewService({
    *                                     they may answer, follow or end it
    * @param {string}  [options.model]
    * @param {boolean} [options.trace]   false turns tracing off for this interview only
+   * @param {object[]} [options.withheld] files sent empty because they look like they hold
+   *                                     a secret (core/scan.js): read_file refuses them
    */
-  function start({ appDir, ownsDir = false, scratchRoot, deployed = null, user, owner = null, model, trace = true }) {
+  function start({ appDir, ownsDir = false, scratchRoot, deployed = null, user, owner = null, model, trace = true, withheld = [] }) {
     const id = `int_${crypto.randomBytes(8).toString("hex")}`;
     const record = {
       id,
@@ -145,17 +149,24 @@ export function createInterviewService({
     stretch(record, null, {
       appDir,
       deployed,
-      model: record.model
+      model: record.model,
+      withheld
     });
-    return summary(record);
+    return { ...summary(record), findings: withheld };
   }
 
   /**
    * Start an interview over an uploaded zip of the app folder. The zip is unpacked into
    * a scratch folder of this interview's own, named after the app, which goes when the
    * interview does. Throws UploadRefused with a sentence when the upload breaks a rule.
+   *
+   * Before the graph starts, what arrived is scanned again (api/secret-scan.js): the
+   * shared rules and gitleaks. A file with a finding is emptied in the scratch copy, so
+   * no model call can carry it, and joins the files the client sent empty for the same
+   * reason (`findings`, file, line and rule, as the client's scan found them). Throws
+   * ScanFailed, and keeps nothing, when gitleaks is installed and could not finish.
    */
-  function startFromUpload({ zip, app, ...rest }) {
+  async function startFromUpload({ zip, app, findings = [], ...rest }) {
     // Any folder name a developer might have, as one path segment and nothing more.
     if (typeof app !== "string" || !app || app.length > 200 || /[\/\\\0-\x1f]/.test(app) || /^\.+$/.test(app)) {
       throw new UploadRefused("app must be the app folder's name");
@@ -163,13 +174,30 @@ export function createInterviewService({
     fs.mkdirSync(scratchBase, { recursive: true, mode: 0o700 });
     const scratchRoot = fs.mkdtempSync(path.join(scratchBase, "int-"));
     const appDir = path.join(scratchRoot, app);
+    let withheld;
     try {
       unzipInto(zip, appDir);
+      const scanned = await scanApp(appDir);
+      for (const file of new Set(scanned.found.map(f => f.file))) {
+        const target = path.join(appDir, ...file.split("/"));
+        if (target.startsWith(appDir + path.sep)) fs.writeFileSync(target, "");
+      }
+      // What the client says it held back counts only for a file that arrived, empty:
+      // it explains an empty file, and can never hide one that has contents.
+      const claimed = (Array.isArray(findings) ? findings : []).slice(0, 1000).map(cleanFinding).filter(f => {
+        if (!f) return false;
+        try {
+          return fs.statSync(path.join(appDir, ...f.file.split("/"))).size === 0;
+        } catch {
+          return false;
+        }
+      });
+      withheld = onePerLine([...claimed, ...scanned.found]);
     } catch (err) {
       fs.rmSync(scratchRoot, { recursive: true, force: true });
       throw err;
     }
-    return start({ appDir, ownsDir: true, scratchRoot, ...rest });
+    return start({ appDir, ownsDir: true, scratchRoot, withheld, ...rest });
   }
 
   /**

@@ -99,7 +99,10 @@ shows them), take a screenshot, and send both to Greg.
 ## What seaLeye keeps
 
 seaLeye sends a copy of your app's folder to the platform to read and build it. It
-never sends `.env` files or other files that hold secrets, only their names. For these
+never sends `.env` files or other files that hold secrets, only their names. It also
+checks your code for values that look like secrets, a key written into a file say: a
+file with one is sent as a name only, and a deploy is refused until the value moves
+into a setting. The sample apps have none. For these
 sample apps, each interview is recorded so it can be improved: the questions, your
 answers and the plan, never the contents of your files. `sealeye run --no-trace` turns
 that off for a run.

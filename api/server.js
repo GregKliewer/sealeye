@@ -27,6 +27,11 @@ import { peopleOf } from "./team.js";
 import { readPerformance } from "./performance.js";
 import { readCosts } from "./costs.js";
 import { createInterviewService, NotWaiting, UploadRefused } from "./interview/service.js";
+import { scanApp, ScanFailed } from "./secret-scan.js";
+import { deployRefusalMessage } from "../core/scan.js";
+
+// When the deeper check could not run, nothing that depended on it goes ahead.
+const SCAN_FAILED_WORDS = "seaLeye could not finish checking your code for secrets, so nothing went any further. Try again in a minute; if it keeps happening, tell your platform team.";
 import { postgresCheckpointer, postgresInterviewStore } from "./interview/pgstore.js";
 import { databaseUrl, closeDb } from "./db.js";
 import { startTracing } from "../core/tracing.js";
@@ -338,6 +343,8 @@ async function deployAgain(req, res) {
     status: "queued",
     source: "again",
     packagedBy,
+    // The same code, so the same scan: what the deployment that packaged it found.
+    ...(source.secretScan ? { secretScan: { ...source.secretScan, scannedBy: source.secretScan.scannedBy || packagedBy } } : {}),
     kind: "api",
     // The environment it is for, named from the start so a page following it sees it
     // at once. Not stackName: that is set only once the deployment has composed its
@@ -381,6 +388,10 @@ async function deployAgain(req, res) {
 // POST /deployments
 app.post("/deployments", (req, res, next) => {
   if (req.body?.fromDeployment !== undefined) return deployAgain(req, res).catch(next);
+  return deployNew(req, res).catch(next);
+});
+
+async function deployNew(req, res) {
   const { backend, appPath, zip } = req.body || {};
   const plan = upgradePlan(req.body?.plan);
 
@@ -511,14 +522,6 @@ app.post("/deployments", (req, res, next) => {
     });
   }
 
-  // One change at a time: the environment this goes to must not be changing now. (A
-  // drafted plan changes nothing, so it was saved above whatever was under way.)
-  {
-    const target = namingFor({ app: plan.app?.name, org: req.caller?.org || "default", team: req.caller?.team || "default", records: listDeployments() }).stackName;
-    const busy = changeUnderWay(target);
-    if (busy) return res.status(409).json(busyRefusal(busy));
-  }
-
   // An uploaded copy is unpacked now, so a bad upload is a 400 and never a queued
   // deployment that fails later.
   let packageFrom = resolvedAppPath;
@@ -530,6 +533,39 @@ app.post("/deployments", (req, res, next) => {
         return res.status(400).json({ error: { code: "UPLOAD_REFUSED", message: err.message } });
       }
       throw err;
+    }
+  }
+
+  // The code is scanned for secrets before anything is queued (PHASE3-PLAN Step 2, D4):
+  // the shared rules again and gitleaks. A finding refuses the deploy, with the file,
+  // the line and what to do; nothing is kept. The command and seaLeye.online ran the
+  // same rules before sending, so this mostly catches what only gitleaks knows.
+  let scan;
+  try {
+    scan = await scanApp(packageFrom);
+  } catch (err) {
+    if (uploaded) removeUpload(deploymentId);
+    if (err instanceof ScanFailed) return res.status(503).json({ error: { code: "SCAN_FAILED", message: SCAN_FAILED_WORDS } });
+    if (err instanceof UploadRefused) return res.status(400).json({ error: { code: "UPLOAD_REFUSED", message: err.message } });
+    throw err;
+  }
+  if (scan.found.length) {
+    if (uploaded) removeUpload(deploymentId);
+    return res.status(422).json({
+      error: { code: "SECRETS_FOUND", message: deployRefusalMessage(scan.found), details: { findings: scan.found } }
+    });
+  }
+
+  // One change at a time: the environment this goes to must not be changing now. (A
+  // drafted plan changes nothing, so it was saved above whatever was under way.)
+  // Checked after the scan, which waits, and right before the record is written, which
+  // does not, so two deploys cannot both pass it.
+  {
+    const target = namingFor({ app: plan.app?.name, org: req.caller?.org || "default", team: req.caller?.team || "default", records: listDeployments() }).stackName;
+    const busy = changeUnderWay(target);
+    if (busy) {
+      if (uploaded) removeUpload(deploymentId);
+      return res.status(409).json(busyRefusal(busy));
     }
   }
 
@@ -550,6 +586,9 @@ app.post("/deployments", (req, res, next) => {
     // The whole plan, so a later run can say what it is about to change. Additive:
     // records written before this exist without it and are read as before.
     plan,
+    // What the secret scan let through on the developer's word (.sealeye-allow), and
+    // whether gitleaks ran: file, line and rule, never a value. The evidence lists it.
+    secretScan: { allowed: scan.allowed.map(({ file, line, rule }) => ({ file, line, rule })), gitleaks: scan.gitleaks },
     ...provenance,
     outputs: {},
     failureReason: null,
@@ -580,7 +619,7 @@ app.post("/deployments", (req, res, next) => {
     .finally(() => { if (uploaded) removeUpload(deploymentId); });
 
   return res.status(201).json({ ...record });
-});
+}
 
 // GET /deployments — summary of every known deployment, newest first. Additive; the
 // three existing endpoints are unchanged. The full record stays at /deployments/{id},
@@ -827,8 +866,8 @@ app.get("/interviews", (req, res) => {
 // POST /interviews: start an interview over an uploaded app folder.
 // Body: { app, zip (base64), deployed?, user?, trace? }. The zip is made by the CLI's
 // zipFolder (core/upload.js): no dependencies, no git, secret files as names only.
-app.post("/interviews", (req, res) => {
-  const { app: appName, zip, deployed, user, trace } = req.body || {};
+app.post("/interviews", async (req, res) => {
+  const { app: appName, zip, deployed, user, trace, findings } = req.body || {};
 
   if (!interviews.ready()) {
     return res.status(503).json({
@@ -840,9 +879,10 @@ app.post("/interviews", (req, res) => {
   }
 
   try {
-    const started = interviews.startFromUpload({
+    const started = await interviews.startFromUpload({
       zip: Buffer.from(zip, "base64"),
       app: appName,
+      findings,
       deployed: deployed && typeof deployed === "object" ? upgradePlan(deployed) : null,
       // With a token, the person is the token's, not what the command line says.
       user: req.caller ? req.caller.email : (typeof user === "string" ? user : undefined),
@@ -853,6 +893,9 @@ app.post("/interviews", (req, res) => {
   } catch (err) {
     if (err instanceof UploadRefused) {
       return res.status(400).json({ error: { code: "UPLOAD_REFUSED", message: err.message } });
+    }
+    if (err instanceof ScanFailed) {
+      return res.status(503).json({ error: { code: "SCAN_FAILED", message: SCAN_FAILED_WORDS } });
     }
     return res.status(500).json({ error: { code: "INTERVIEW_FAILED", message: err.message } });
   }

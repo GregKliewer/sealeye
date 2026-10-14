@@ -105,6 +105,9 @@ where a Bedrock call from Canada may run.
 
 ### Step 2. The secret scanner (D3, D4)
 
+Built Wed Oct 14, at 2.23.0 (DESIGN.md, "The secret scanner"). gitleaks is 8.30.1, pinned
+by checksum in the image.
+
 - **Rules in `core/scan.js`**, no dependencies, so the command and the browser run the
   same ones: private key blocks, cloud access keys, the common service tokens (GitHub,
   GitLab, Slack, Stripe and the like), and a long, random-looking value assigned to a

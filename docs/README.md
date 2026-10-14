@@ -26,14 +26,15 @@ There are two surfaces and one product:
 - **seaLeye.online**, the web portal, for anyone who prefers a browser.
 - Both are clients of one **seaLeye API**, so they can always do the same things.
 
-## Where it stands (Oct 13, 2026, version 2.21.1)
+## Where it stands (Oct 14, 2026, version 2.23.0)
 
 - **Live** for a pilot: the API at https://api.sealeye.online, the portal at
   https://sealeye.online, and the command installed from https://sealeye.run.
 - **Built:** the interview, planning, refusal and deploy; every day-two operation in
   both surfaces; app settings in the organization's own secret store; one token per
-  person and a team's environments kept to that team.
-- **Next:** the governed backbone (Phase 3: a secret scanner before the model, and a
+  person and a team's environments kept to that team; a secret scanner, so a key
+  written into an app's code never reaches the model or a deploy (Phase 3, Step 2).
+- **Next:** the rest of the governed backbone (Phase 3: a cap on every run, then a
   gateway, identity, routing and spend caps in front of every model call), with the
   second-person test (someone other than Greg, on their own machine) alongside it. Then
   learning an organization's own platform (Phase 4), the path to production (Phase 5)

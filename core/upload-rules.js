@@ -14,6 +14,13 @@
 // names only, even when a .gitignore names them: each is an empty file in the zip, so
 // the interview's list_files still shows that a .env exists, while its contents never
 // leave the developer's machine.
+//
+// Every file that travels is also scanned for values that look like secrets
+// (core/scan.js, PHASE3-PLAN Step 2). For an interview, a file with a finding travels
+// as an empty name, as a .env does, and the finding (file, line, rule; never the value)
+// goes with the upload so the API can say why it cannot be read. For a deploy, a finding
+// refuses the upload (D4) unless .sealeye-allow names its line.
+import { ALLOW_FILE, applyAllow, deployRefusalMessage, onePerLine, parseAllowFile, scanText, uniqueFindings } from "./scan.js";
 import { secretFileReason } from "./secrets.js";
 
 export const EXCLUDED_FOLDERS = new Set(["node_modules", ".git", ".github", ".do", ".sealeye", ".deployme"]);
@@ -70,6 +77,20 @@ export const isLeftOutOfDeploy = name => Boolean(secretFileReason(String(name)))
 export class UploadRefused extends Error {}
 
 /**
+ * A deploy upload refused because the code looks like it holds a secret (D4). The
+ * message is the whole refusal, in core/scan.js's words; `findings` are file, line,
+ * rule and kind, never a value.
+ */
+export class SecretsFound extends UploadRefused {
+  constructor(findings, { allowed = [], ...options } = {}) {
+    super(deployRefusalMessage(findings, options));
+    this.name = "SecretsFound";
+    this.findings = findings;
+    this.allowed = allowed;
+  }
+}
+
+/**
  * Walk a folder and decide what travels. The folder is any tree of nodes:
  *
  *   { name, kind: "dir", children(): node[] | Promise<node[]> }
@@ -83,15 +104,19 @@ export class UploadRefused extends Error {}
  * @param {"interview"|"deploy"} [options.purpose]
  * @param {() => {add(text: string): object, test(path: string): {ignored: boolean, unignored: boolean}}} options.ignore
  *        a .gitignore matcher factory (the `ignore` package's default export)
- * @returns {Promise<{ entries: Record<string, Uint8Array>, files: number, bytes: number, withheld: string[], ignored: number }>}
+ * @returns {Promise<{ entries: Record<string, Uint8Array>, files: number, bytes: number, withheld: string[], ignored: number, findings: object[], allowed: object[] }>}
  *          withheld lists the secret files sent as empty names; ignored counts what a
- *          .gitignore left out.
+ *          .gitignore left out; findings are the values that look like secrets in what
+ *          travels (an interview's files with one are sent empty; a deploy with one is
+ *          refused with SecretsFound before this returns); allowed are the findings
+ *          .sealeye-allow excuses.
  */
 export async function collectUpload(root, { purpose = "interview", ignore } = {}) {
   const rules_ = rulesOf(purpose);
   if (rules_.gitignore && typeof ignore !== "function") throw new Error("collectUpload needs a .gitignore matcher for an interview upload");
   const entries = {};
   const withheld = [];
+  const scanned = [];
   let files = 0;
   let bytes = 0;
   let ignored = 0;
@@ -164,6 +189,7 @@ export async function collectUpload(root, { purpose = "interview", ignore } = {}
       bytes += data.length;
       if (bytes > rules_.maxBytes) throw tooBig();
       entries[childRel] = data;
+      scanned.push(...scanText(childRel, data));
     }
   };
 
@@ -172,7 +198,26 @@ export async function collectUpload(root, { purpose = "interview", ignore } = {}
   }
 
   await walk(root, "", []);
-  return { entries, files, bytes, withheld, ignored };
+
+  // The allow file is the developer's word, read from the folder's top level only.
+  let allowEntries = [];
+  const allowNode = (await root.children()).find(c => c.kind === "file" && c.name === ALLOW_FILE);
+  if (allowNode) {
+    try {
+      allowEntries = parseAllowFile(String(await allowNode.text())).entries;
+    } catch {
+      allowEntries = [];
+    }
+  }
+  const split = applyAllow(uniqueFindings(scanned), allowEntries);
+  const found = onePerLine(split.found);
+  const allowed = onePerLine(split.allowed);
+
+  if (found.length && purpose === "deploy") throw new SecretsFound(found, { allowed });
+  // An interview: each file with a finding travels as its name only.
+  for (const file of new Set(found.map(f => f.file))) entries[file] = new Uint8Array(0);
+
+  return { entries, files, bytes, withheld, ignored, findings: found, allowed };
 }
 
 /**

@@ -29,12 +29,14 @@ cli/        the sealeye command: bin/sealeye, client.js (talks to the API), inte
             (follow.js streams the interview; render.js), doctor.js,
             store-offer.js (moving .env values into the store),
             brand.js (the only place terminal colours live)
-api/        the API: server.js, store.js, db.js, migrations/, needs.js, mappings.js, validate.js, interview/
+api/        the API: server.js, store.js, db.js, migrations/, needs.js, mappings.js, validate.js,
+            secret-scan.js and gitleaks.toml (the API's scan of what arrives), interview/
             (the LangGraph graph, the model, the tools, the service), executor/
             (compose, package, deploy, poll, report, evidence)
 core/       what cli/ and api/ must agree on: schema.js (the plan contract), catalog.js,
             config.js (settings and paths), names.js, secrets.js (which files hold
-            secrets), upload.js and upload-rules.js (what travels to the API, the
+            secrets), scan.js (which values look like secrets, .sealeye-allow, and
+            the words for a finding), upload.js and upload-rules.js (what travels to the API, the
             walk both surfaces use), tracing.js, token.js
             (what a token looks like; api/tokens.js issues and checks them),
             plan-files.js (DEPLOYMENT_PLAN.md and sealeye.yaml, written by the
@@ -43,7 +45,7 @@ core/       what cli/ and api/ must agree on: schema.js (the plan contract), cat
             both say), retention.js (how long logs are kept), setting-names.js,
             environments.js (what an environment's key is: one row in `sealeye
             list`, one page in the portal, the page `sealeye online <app>` opens).
-            secrets.js, upload-rules.js, plan-words.js, evidence-summary.js,
+            secrets.js, scan.js, upload-rules.js, plan-words.js, evidence-summary.js,
             retention.js, setting-names.js and environments.js run in a browser, so
             the portal imports them too
 prompts/    system prompt, plan contract, plan, report and evidence templates, catalog
@@ -89,7 +91,9 @@ in `core/` or behind an endpoint.
 6. **No secrets, anywhere.** Setting values, ConfigValue parameters and .env contents
    never appear in evidence, markdown, the terminal, the ledger, logs or the portal.
    Names only, with "value redacted" where a value would be. Credentials come from the
-   environment, the repo `.env` or `~/.sealeye/config`, never from the repo.
+   environment, the repo `.env` or `~/.sealeye/config`, never from the repo. A value
+   that looks like a secret in an app's code (`core/scan.js`) never reaches the model or
+   a deploy: a finding is a file, a line, a rule and a kind, and never the value.
 7. **Nothing is typed in.** Every value in a report, evidence file or ledger is read from
    a record, from a file seaLeye wrote, or from AWS at the moment of generation. A value
    that could not be read says so in words and is never guessed or left as a dash.
@@ -144,7 +148,8 @@ POST /plans/validate, POST /deployments ({ plan, appPath, zip?, settings? }, or
 { fromDeployment, plan? } to deploy code the platform already has again), GET /deployments,
 GET /deployments/{id}, GET /deployments/{id}/evidence, GET /deployments/{id}/logs (masked), GET /deployments/{id}/performance (readings), GET /deployments/{id}/paused and POST
 /deployments/{id}/pause and /resume (APIs only), DELETE /deployments/{id},
-GET /needs, GET /health, GET /interviews (your own still open), POST /interviews ({ app, zip }), POST
+GET /needs, GET /health, GET /interviews (your own still open), POST /interviews ({ app, zip, findings? },
+answered with the interview and its findings), POST
 /interviews/{id}/answers ({ answer }), GET /interviews/{id}/events (server-sent events),
 DELETE /interviews/{id}, GET /whoami, GET /team (people with tokens, never a token), GET /costs (by tag), GET /catalog, GET /apps/{app}/settings, PUT
 /apps/{app}/settings/{name} ({ value }) and DELETE /apps/{app}/settings/{name} (an app's
@@ -162,8 +167,10 @@ time per environment: a deploy, deploy again, tear-down, pause or resume while a
 change to it is queued, packaging, running or tearing down is refused with 409
 ENVIRONMENT_BUSY (`api/busy.js`), naming what is under way; drafted plans are still
 saved. GET /deployments marks a success a later success replaced (`replaced`,
-`replacedBy`) and carries the live `step`. Keep existing endpoints and commands working; add, do not
-break.
+`replacedBy`) and carries the live `step`. A deploy whose code looks like it holds a
+secret is refused with 422 SECRETS_FOUND (file, line and rule, nothing kept); when the
+scan itself cannot finish, an interview or a deploy is refused with 503 SCAN_FAILED.
+Keep existing endpoints and commands working; add, do not break.
 
 ## Executor
 
@@ -179,7 +186,11 @@ break.
   `~/.sealeye/deploy-uploads/<deploymentId>/` and removed when the deployment ends.
   Copy it to `dist/stage/<deploymentId>/`, `npm install --omit=dev` there, add
   `templates/run.sh`, zip, upload. `appPath` with no zip is still a folder on the API's
-  machine. A deployment made again (`fromDeployment`, `sealeye deploy --again`, the
+  machine. Before anything is queued the code is scanned (`api/secret-scan.js`: the
+  shared rules, then gitleaks with seaLeye's own configuration, never one found in the
+  folder, and `gitleaks:allow` ignored); a finding refuses the deploy unless the
+  developer's `.sealeye-allow` names its line, and the record keeps what was allowed
+  (file, line, rule) for the evidence. A deployment made again (`fromDeployment`, `sealeye deploy --again`, the
   portal's Deploy again) stages nothing: it reuses the earlier artifact in S3, checked
   first with head-object, and takes every setting from the store. APIs only.
 - Status map: CREATE/UPDATE_IN_PROGRESS -> running; CREATE/UPDATE_COMPLETE ->
@@ -206,7 +217,10 @@ break.
   `.env.*` except `.env.example` and `.env.sample`, `.envrc`, keys and keystores, SSH
   keys, package-manager and git credentials, Terraform variables and state,
   service-account JSON); list_files still shows their names, and the upload carries
-  them as empty files. LangSmith tracing stays off in the API (it would send file
+  them as empty files. A file with a value that looks like a secret (`core/scan.js`,
+  scanned before upload and again in the API with gitleaks) is sent and kept empty too,
+  and read_file refuses it, naming the line and the kind; package.json with one is not
+  parsed for the folder's digest. LangSmith tracing stays off in the API (it would send file
   contents). submit_plan(plan, summary,
   assumptions) ends it.
 - Tracing (LangFuse, `core/tracing.js`) is on only when the API has LangFuse keys, and
