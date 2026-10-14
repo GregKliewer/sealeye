@@ -2225,3 +2225,25 @@ What the source said, and what it means for Steps 5 to 7:
   The one exception is the `# yaml-language-server: $schema` line. So no comment, and
   no expression, in a gateway configuration holds a dollar sign. Step 5 checks that in
   a test.
+
+## The gateway's budget: $20 a period
+
+Wed Oct 14, 2026, PHASE3-PLAN D5, Greg's figure. The gateway's money budget on the API's
+key is $20, the outer limit behind each run's own dollar (Step 7).
+
+- **What it buys.** A typical run measured so far costs $0.08 to $0.15, so $20 is about
+  130 to 250 runs. If every run stopped at its own cap, it would still be 20. That is
+  room for the pilot, not for a team using it every day; raise it when one is.
+- **"Monthly" is the gateway's 30 days**, not the calendar month. Its periods are counted
+  from 1970 (DESIGN.md, "agentgateway, read and run (Step 4)"), so the budget resets on
+  a date that moves by a day or two each month. The words an administrator reads say "a
+  30-day period", never "a month".
+- **Close, not exact, as the run cap is.** The gateway prices from its own table and
+  charges after each reply, so the call that crosses $20 is let through, and spending can
+  pass it by that one reply. A price change the gateway's table has not caught up with
+  moves it further.
+- **It survives a restart**, since the gateway keeps it in SQLite; the per-run token
+  limits do not, and need not.
+- **It is a setting, not a constant.** Step 5 reads it from the server's environment
+  (`SEALEYE_GATEWAY_BUDGET`, in US dollars), with $20 as the default, so raising it is a
+  restart, not a release.
