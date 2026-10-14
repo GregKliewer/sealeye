@@ -1,0 +1,113 @@
+/* seaLeye.org site styles.
+   The project's home: what seaLeye is, where the code is, and how to pick it up.
+   Colours come from brand/BRAND.md and nowhere else, as on seaLeye.run. */
+
+:root {
+  --ground: #13181D;
+  --panel: #0E1216;
+  --edge: #2A333C;
+  --fg: #D9E0E6;
+  --phosphor: #7FD8C2;
+  --amber: #E8B04B;
+  --dim: #8A96A3;
+  --mono: "JetBrains Mono", "IBM Plex Mono", Menlo, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html { background: var(--ground); }
+
+body {
+  margin: 0;
+  padding: 28px 16px 64px;
+  background: var(--ground);
+  color: var(--fg);
+  font-family: var(--mono);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+main, footer { max-width: 68ch; margin: 0 auto; }
+
+a { color: var(--phosphor); text-underline-offset: 3px; }
+a:hover, a:focus-visible { color: var(--fg); }
+
+header img { width: 100%; max-width: 420px; height: auto; display: block; }
+
+.tagline { color: var(--dim); margin: 12px 0 40px; }
+
+p { margin: 0 0 16px; }
+p.lede { margin: 0 0 16px; }
+.dim { color: var(--dim); }
+
+h2 {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--phosphor);
+  margin: 44px 0 14px;
+}
+
+/* The primary way in. One button on the page. */
+.go {
+  display: inline-block;
+  margin: 24px 0 0;
+  color: var(--phosphor);
+  border: 1px solid var(--phosphor);
+  border-radius: 6px;
+  padding: 8px 16px;
+  text-decoration: none;
+}
+.go:hover, .go:focus-visible { background: var(--phosphor); color: var(--ground); }
+
+.block {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--panel);
+  border: 1px solid var(--edge);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin: 0 0 16px;
+}
+.block code { flex: 1 1 24ch; min-width: 0; overflow-wrap: anywhere; }
+.block .line { display: block; }
+.prompt { color: var(--amber); }
+
+button {
+  font: inherit;
+  color: var(--dim);
+  background: transparent;
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+button:hover, button:focus-visible { color: var(--phosphor); border-color: var(--phosphor); }
+button[data-copied="yes"] { color: var(--phosphor); border-color: var(--phosphor); }
+
+ul { list-style: none; padding: 0; margin: 0 0 16px; }
+li { padding: 6px 0 6px 20px; position: relative; }
+li::before { content: "\2713"; position: absolute; left: 0; color: var(--phosphor); }
+li span { color: var(--dim); }
+
+/* A list of places to read is not a list of promises: no check marks. */
+ul.docs li::before { content: ">"; color: var(--dim); }
+
+.note {
+  border-left: 2px solid var(--amber);
+  padding: 4px 0 4px 16px;
+  margin: 0 0 16px;
+}
+
+footer {
+  margin-top: 56px;
+  padding-top: 18px;
+  border-top: 1px solid var(--edge);
+  color: var(--dim);
+  font-size: 13px;
+  max-width: calc(68ch * 15 / 13); /* the same measure as main, at the smaller size */
+}
+footer a { color: var(--dim); }
+footer a:hover, footer a:focus-visible { color: var(--phosphor); }

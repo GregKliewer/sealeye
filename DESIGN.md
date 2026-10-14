@@ -1886,3 +1886,22 @@ the help names first because it is the portal's own name.
 - **Where nothing can open a browser (no display, an SSH session), it prints the
   address instead of failing.** `--print` prints only the address, for a script;
   `BROWSER` chooses the browser, as it does for other tools.
+
+## seaLeye.org is the project's home
+
+Decided Wed Oct 14, 2026. Replaces "`sealeye.org` redirects to sealeye.run for now"
+in "Each domain has one job".
+
+- **sealeye.org says what seaLeye is and where the code is.** One page
+  (`sites/org/`): what it does, where it stands, how to pick it up from GitHub, the
+  pilot, and a note from its author on stepping back. It is the address to give anyone
+  who has never heard of seaLeye; seaLeye.run stays the command's home and installer,
+  seaLeye.online the portal.
+- **It is served by GitHub Pages, not the pilot server.** The project's home has to
+  outlive the pilot: if the server is paused or turned off, the page that says where
+  the code is must still answer. `.github/workflows/pages.yml` publishes `sites/org/` on
+  a push to main that changes it. DNS stays a Route 53 zone in CloudFormation
+  (`deploy/dns.yaml`, `GitHubPages=true`: GitHub's four addresses for the domain, a
+  CNAME for www). Caddy no longer answers for sealeye.org.
+- **It is indexable.** Unlike seaLeye.run (noindex while it is a pilot), the project's
+  home is meant to be found.

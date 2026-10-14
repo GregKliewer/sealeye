@@ -129,15 +129,15 @@ longer connect. (To change it on purpose, change it inside Postgres first, with
 
 ## Once: the addresses
 
-Each of seaLeye's domains has one job, all served by the one server's Caddy, which gets
-each certificate itself (PHASE1-PLAN Step 12, DESIGN.md "Each domain has one job"):
+Each of seaLeye's domains has one job. All but sealeye.org are served by the one server's
+Caddy, which gets each certificate itself (PHASE1-PLAN Step 12, DESIGN.md "Each domain has one job"):
 
 | Address | Serves |
 |---|---|
 | `api.sealeye.online` | the API |
 | `sealeye.online` | the portal (`portal/`, built by every release), with the API under `/api` |
 | `sealeye.run` | the command's home page, `sealeye.run/install` and the package it installs |
-| `sealeye.org` | a redirect to `sealeye.run` |
+| `sealeye.org` | the project's home (`sites/org/`), served by GitHub Pages, not this server |
 
 The pages are in `sites/` and the portal in `portal/`; `release.sh` builds the portal
 and sends both, with the package, every release. A release now needs Node on your Mac
@@ -161,11 +161,14 @@ records live in CloudFormation with everything else.
      --template-file deploy/dns.yaml --stack-name platform-sealeye-dns-sealeye-online \
      --parameter-overrides DomainName=sealeye.online ApiAddress=$IP SiteAddress=$IP
 
-   for d in sealeye.run sealeye.org; do
-     aws cloudformation deploy --region ca-central-1 \
-       --template-file deploy/dns.yaml --stack-name "platform-sealeye-dns-${d//./-}" \
-       --parameter-overrides DomainName=$d SiteAddress=$IP
-   done
+   aws cloudformation deploy --region ca-central-1 \
+     --template-file deploy/dns.yaml --stack-name platform-sealeye-dns-sealeye-run \
+     --parameter-overrides DomainName=sealeye.run SiteAddress=$IP
+
+   # sealeye.org points at GitHub Pages, so it outlives the server (.github/workflows/pages.yml)
+   aws cloudformation deploy --region ca-central-1 \
+     --template-file deploy/dns.yaml --stack-name platform-sealeye-dns-sealeye-org \
+     --parameter-overrides DomainName=sealeye.org GitHubPages=true
    ```
 
 3. Read the four nameservers each new zone was given:
@@ -184,7 +187,7 @@ records live in CloudFormation with everything else.
 5. Wait until each name resolves to the server. Usually minutes, sometimes a few hours:
 
    ```bash
-   for n in sealeye.online sealeye.run sealeye.org api.sealeye.online; do echo "$n: $(dig +short $n)"; done
+   for n in sealeye.online sealeye.run sealeye.org api.sealeye.online; do echo "$n: $(dig +short $n)"; done   # sealeye.org: four 185.199.x.153 addresses
    ```
 
 Caddy asks for a certificate the first time a name reaches the server, so the first
