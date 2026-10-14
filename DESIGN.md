@@ -2044,7 +2044,8 @@ for the same turns, and well under a third of the dollar, so the cap stays a dol
 Wed Oct 14, 2026, PHASE3-PLAN Step 4. The gateway could not run where its configuration
 was written, so that configuration came from agentgateway v1.6.0's source and published
 schema. The spike in `deploy/spikes/agentgateway/` then ran it on Greg's Mac (arm64),
-against a stand-in model that answers as Anthropic's API does. **All 26 checks passed**,
+against a stand-in model that answers as Anthropic's API does, and then against
+Anthropic itself. **All 26 and all 8 checks passed**,
 and the run contradicted nothing the source said. It found one thing the source reading
 missed: the dollar signs in comments, below.
 
@@ -2077,6 +2078,12 @@ What the run showed:
   in memory).
 - **It is small.** 14 MiB idle and 21 MiB with twenty streams at once, on arm64. D7
   stands: a container on the pilot server, with no larger server.
+- **The real route to Anthropic works the same** (8 of 8). With the gateway holding the
+  key, tool use came back, a 5,858-token system prompt was written to the cache on the
+  first call and read from it on the second, a stream arrived whole, and a call with
+  no token was refused before it reached Anthropic. The log held the same fields, and
+  no content. Anthropic refuses an `anthropic-beta` value it does not know, which shows
+  the gateway passes that header on unchanged.
 
 What the source said, and what it means for Steps 5 to 7:
 
