@@ -59,7 +59,7 @@ recommended" (D2 in "Phase 3, settled after review").
 | D2 | Where the cap on a run lives | In the graph; the gateway's budget is the outer limit | Step 3 | As recommended (Tue Oct 13) |
 | D3 | Where the scanner runs | Twice. Shared rules in `core/`, before upload, on both surfaces, so a finding never leaves the machine; then gitleaks in the API over what arrived, as the deeper check and the swarm's first node later | Step 2 | As recommended (Tue Oct 13) |
 | D4 | What a finding does to a deploy | The deploy is refused until the value moves to a setting, or the line is allowed in `.sealeye-allow` (which records the file, line and rule, never the value, and shows in evidence) | Step 2 | As recommended (Tue Oct 13) |
-| D5 | How big the caps are | A run's cap: three times the largest run Step 1 measures. The gateway's budget: a monthly amount Greg names | Steps 3 and 7 | As recommended (Tue Oct 13); the monthly budget is not named yet |
+| D5 | How big the caps are | A run's cap: three times the largest run Step 1 measures. The gateway's budget: a monthly amount Greg names | Steps 3 and 7 | Changed (Wed Oct 14): a run's cap is $1.00, not three times the largest sample run, which came to about $0.24; the monthly budget is not named yet |
 | D6 | Which route the pilot uses | Build the Bedrock route and prove it in Greg's account; keep the Anthropic API as the pilot's route until Q18 is answered for a bank | Step 8 | As recommended (Tue Oct 13) |
 | D7 | Where the gateway runs (informed by Step 4) | A container on the same server, reachable only from the API, holding the model key in place of the API. Move to a t4g.medium only if Step 4 shows the small one cannot carry it | Step 5 | As recommended (Tue Oct 13); the image pulled by digest from its public registry |
 
@@ -95,6 +95,10 @@ as one table, and says so when LangFuse has no price for the model rather than s
 a cost of nothing.
 Record the largest run and the typical one in DESIGN.md. They size D5, and they are the
 "before" for every later step.
+
+Done Wed Oct 14 (DESIGN.md, "What a run costs, and a cap of a dollar"): the largest
+sample run was 6 turns and $0.0795, the typical one 2 turns and $0.0414. Still owed:
+one interview on a real app larger than the samples, before Step 3 makes the cap bind.
 
 Greg can also run the two commands in OPEN-QUESTIONS Q18 from his Mac, so Step 8 knows
 where a Bedrock call from Canada may run.
@@ -144,7 +148,7 @@ High stakes: an independent review before the pull request.
 - At the cap the run stops with status `stopped`, the same as `MAX_TURNS` today, and a
   sentence for both surfaces: the run reached its spending limit, nothing was built, and
   what to do next. The trace is scored with the reason.
-- The cap is a setting (`SEALEYE_RUN_CAP`), sized by D5. The counter is keyed by worker
+- The cap is a setting (`SEALEYE_RUN_CAP`), $1.00 by default (D5). The counter is keyed by worker
   as well as run, so Phase 4's workers each get one without a new design.
 - Test: a fake client that asks for tools forever is stopped by the cap before
   `MAX_TURNS`, on both surfaces. This is the first half of the "done when". Also: a
