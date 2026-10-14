@@ -98,8 +98,13 @@ test("Catalog shows the modules and what apps are waiting on", async ({ page }) 
   await signIn(page);
   await page.getByRole("link", { name: "Catalog" }).click();
   await expect(page.getByTestId("module-card")).toHaveCount(4);
-  await expect(page.getByTestId("need-row")).toHaveCount(1);
-  await expect(page.getByTestId("need-row")).toContainText("ledger-sync");
+  const rows = page.getByTestId("need-row");
+  await expect(rows).toHaveCount(2);
+  await expect(rows.first()).toContainText("ledger-sync");
+  // A need in the interview's own words is shown apart, as sealeye needs shows it.
+  const unlisted = rows.filter({ hasText: "a search index over its records" });
+  await expect(unlisted.getByTestId("unlisted")).toHaveText("Not in the list yet");
+  await expect(rows.filter({ hasText: "a relational database" }).getByTestId("unlisted")).toHaveCount(0);
 });
 
 test("an environment can be torn down from the portal, and the record says so", async ({ page }) => {
@@ -132,7 +137,7 @@ test("Evidence reads the change record on request, in the command's words, with 
   await expect(card).toContainText("Change record for ledger-sync (no stack, profile dev)");
   const rows = card.getByTestId("evidence-row");
   await expect(rows).toHaveCount(5);
-  await expect(rows.filter({ hasText: "Approved plan" })).toContainText("one need");
+  await expect(rows.filter({ hasText: "Approved plan" })).toContainText("two needs");
   await expect(rows.filter({ hasText: "Built" })).toContainText("nothing.");
   await expect(rows.filter({ hasText: "Checked now" })).toContainText("nothing to check");
 

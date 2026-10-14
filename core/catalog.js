@@ -116,8 +116,8 @@ export function catalogForPrompt(catalog = loadCatalog()) {
     lines.push("");
   }
 
-  // The need kinds are a fixed list so the same need reads the same way every run.
-  // The key is yours; the line is the developer's.
+  // The known kinds, so the same need reads the same way every run. The key is yours;
+  // the line is the developer's. A need none of them fits is `unlisted`.
   lines.push("### Need kinds, for what no module above supports", "");
   for (const n of catalog.need_kinds || []) {
     lines.push(`- **${n.key}**  "${String(n.line).trim()}"`);
@@ -127,6 +127,12 @@ export function catalogForPrompt(catalog = loadCatalog()) {
     }
     lines.push("");
   }
+  lines.push(
+    "- **unlisted**  your own line, when the folder shows a need none of the kinds above fits",
+    "  In the same form as the lines above: \"a ...\" or \"an ...\", the kind of thing the app needs, in a few words.",
+    "  Never a product or a vendor (the technology goes in the evidence), never a module, never a promise.",
+    ""
+  );
 
   lines.push("### Profiles", "");
   for (const p of catalog.profiles || []) {

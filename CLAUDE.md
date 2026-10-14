@@ -75,9 +75,11 @@ in `core/` or behind an endpoint.
    command and a seaLeye.online page with the same name, the same inputs and the same
    outputs. A capability ships when both surfaces have it, not before. See VISION.md.
 2. **seaLeye never names a module it cannot build.** What an app needs beyond the
-   buildable modules is a NEED: a sentence from the fixed list in
-   `prompts/module-catalog.yaml`, with evidence naming the file and what in it shows the
-   need. Evidence is required.
+   buildable modules is a NEED: a sentence from the known kinds in
+   `prompts/module-catalog.yaml`, or, when none fits, an `unlisted` need with a line of
+   its own in the same form ("a ..."), naming the kind of thing and never a product or
+   a module (`unlistedNeedProblems` in `core/schema.js`). Evidence, naming the file and
+   what in it shows the need, is required either way.
 3. **Refuse, never shrink.** A plan with needs has status `drafted`. It is never called
    valid-and-ready, never said to "deploy as written", and the API refuses it with
    UNSUPPORTED_NEEDS and saves the record. A plan with no needs is `ready`. A profile
@@ -244,7 +246,8 @@ Keep existing endpoints and commands working; add, do not break.
 `sealeye evidence` creates nothing in AWS and changes no deploy; its one outbound
 request is a single GET of the app's own URL, recorded with status and timing. The
 ledger (`sealeye needs`) counts an app once however many times it drafted, reads each
-need's line from `prompts/module-catalog.yaml`, and never names a vendor or a date. The
+known need's line from `prompts/module-catalog.yaml`, counts an unlisted need by its own
+words in a row marked "not in the list yet", and never names a vendor or a date. The
 refusal says the plan is drafted and saved, lists the needs with evidence, and says that
 when the organization's Platform Library supports them, `sealeye run` again finishes
 the plan. No mechanism, no vendor, no date, never "coming soon".

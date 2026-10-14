@@ -49,7 +49,11 @@ fs.writeFileSync(path.join(home, "deployments.json"), JSON.stringify([
     plan: { profile: "poc" }, outputs: { WebsiteUrl: "http://sealeye-marketing-site.s3-website.ca-central-1.amazonaws.com" }, requestedBy: by("Greg Kliewer", "greg@example.com"),
     startedAt: ago(26 * 3600_000), finishedAt: ago(26 * 3600_000 - 60_000) },
   { ...base, deploymentId: "dep_ccccccccccc1", app: { name: "ledger-sync" }, status: "drafted", plan: { profile: "dev" }, outputs: {},
-    needs: [{ kind: "relational_database", evidence: [{ file: "db.js", shows: "connects to Postgres" }] }], requestedBy: by("Ana Pereira", "ana@example.com"),
+    needs: [
+      { kind: "relational_database", evidence: [{ file: "db.js", shows: "connects to Postgres" }] },
+      // A need none of the known kinds fits, in the interview's own words.
+      { kind: "unlisted", line: "a search index over its records", evidence: [{ file: "package.json", shows: "an elasticsearch client" }] }
+    ], requestedBy: by("Ana Pereira", "ana@example.com"),
     startedAt: ago(5 * 3600_000) },
   { ...base, deploymentId: "dep_ddddddddddd1", app: { name: "report-builder" }, kind: "api", status: "failed", stackName: "sealeye-report-builder",
     plan: { profile: "dev" }, outputs: {}, failureReason: "The function could not start: index.js was not in the folder.", requestedBy: by("Greg Kliewer", "greg@example.com"),
