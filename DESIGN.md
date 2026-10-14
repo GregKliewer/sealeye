@@ -2466,3 +2466,21 @@ this adds the rest.
   period had spent, and ran an interview. It was refused in plain words, and worked
   again once the budget was put back. That completes the second half of Phase 3's
   "done when".
+
+## LangFuse in Canada waits for an organization's real code
+
+Wed Oct 14, 2026, Greg, writing the Phase 4 plan (PHASE4-PLAN D1): "no one will be
+picking this up at a real bank any time soon."
+
+- **What changes.** Self-hosting LangFuse in ca-central-1 was to come before Phase 4's
+  first discovery run ("Phase 3, settled after review"). It now comes before the first
+  run on an organization's real code instead.
+- **Why that is safe.** Every Phase 4 run before that reads code that is no one's
+  secret: seaLeye's own templates, a made-up organization written for the purpose, and
+  public module libraries. Traces still hold no file contents, and the scanner still
+  stops a file with a finding before any model or trace.
+- **What it saves.** A second server's worth of LangFuse (ClickHouse, Redis, blob
+  storage) to run and back up, months before anyone needs it.
+- **What it keeps owed.** The first customer run cannot start until traces are in
+  Canada, or tracing is off for it. The gateway's own span in the trace (once Phase 3
+  Step 6b) comes with the self-hosted LangFuse, as decided earlier today.

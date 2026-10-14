@@ -185,7 +185,9 @@ record, with the run's trace id (Step 6); the gateway's own span in that trace i
 - Where it runs: a new account opened for the prospect or customer, and the run is paid
   (decided Oct 13, 2026).
 - LangFuse self-hosted in ca-central-1 (answers Q13; moved here from Phase 3 on Oct 13,
-  2026), before the first discovery run reads an organization's code. It needs
+  2026), before the first run on an organization's real code (Greg, Oct 14, 2026:
+  Phase 4's own runs read seaLeye's templates, a made-up organization and public
+  modules, so they stay on LangFuse Cloud; PHASE4-PLAN D1). It needs
   ClickHouse, Redis and blob storage beside Postgres, so it does not share the pilot's
   small server.
 - What it learns is the organization's catalog: each module, what it is for, its usage
