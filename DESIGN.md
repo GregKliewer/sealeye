@@ -2039,16 +2039,46 @@ for the same turns, and well under a third of the dollar, so the cap stays a dol
   LangFuse's by more than five percent, and `release.sh` warns when `checkedOn` is more
   than 90 days old. deploy/README.md, "Model prices", is the operating step.
 
-## agentgateway, read from its source (Step 4)
+## agentgateway, read and run (Step 4)
 
-Wed Oct 14, 2026, PHASE3-PLAN Step 4, first half. The gateway could not run where this
-was written: there was no Docker daemon there, and its releases were out of reach. So
-this is what agentgateway v1.6.0's source and published schema say. The spike in
-`deploy/spikes/agentgateway/` runs it on Greg's Mac against a stand-in model and checks
-each point. Its results replace "the source says" with "the run showed" here. Anything
-the run contradicts is brought to Greg before Step 5.
+Wed Oct 14, 2026, PHASE3-PLAN Step 4. The gateway could not run where its configuration
+was written, so that configuration came from agentgateway v1.6.0's source and published
+schema. The spike in `deploy/spikes/agentgateway/` then ran it on Greg's Mac (arm64),
+against a stand-in model that answers as Anthropic's API does. **All 26 checks passed**,
+and the run contradicted nothing the source said. It found one thing the source reading
+missed: the dollar signs in comments, below.
 
-What the source says, and what it means for Steps 5 to 7:
+What the run showed:
+
+- **The calls are unchanged.** The SDK, pointed at the gateway, got tool use, cache
+  reads and writes, and a whole stream back. Upstream, the model saw the gateway's key.
+  It saw neither the caller's token nor the API's key. Tools, cache marks and the beta
+  header arrived as sent.
+- **Every bad token is a 401.** Missing, expired, signed with another key, naming
+  another algorithm, another audience, another issuer, no person, no expiry: all
+  refused. A valid token with no API key, or the wrong one, was refused too. So the
+  API's own key and the per-call token work together.
+- **The per-run limit counts what Anthropic bills, after the reply.** Each stand-in reply
+  was 11,000 tokens (input, cache writes, cache reads and output). Against 25,000, the
+  third call was let through with 3,000 left and the fourth refused: 429, "rate limit
+  exceeded", retry in a day. Another run kept its own limit.
+- **The money budget works the same way.** At $0.05, with $0.0287 a call at Sonnet 5's
+  prices, the second call crossed it and the third was refused with `budget_exceeded`.
+  Its retry time was 19 days: the end of the gateway's 30-day period, not of the
+  month.
+- **No timeout cut a slow call.** A reply that took 95 seconds and a stream silent for
+  70 both came through.
+- **Nothing leaked.** No prompt, reply, token or key in the access log or in the
+  SQLite file. The log line for a model call holds the model, the token counts, cache
+  reads and writes, a cost (`agw.ai.usage.cost.total`), timings, `jwt.sub`, and the
+  `run` and `worker` claims.
+- **A restart keeps the budget and forgets the run limits.** A spent budget still
+  refused after a restart (it lives in SQLite). A spent run's limit was back (it lives
+  in memory).
+- **It is small.** 14 MiB idle and 21 MiB with twenty streams at once, on arm64. D7
+  stands: a container on the pilot server, with no larger server.
+
+What the source said, and what it means for Steps 5 to 7:
 
 - **The Anthropic route keeps what the interview sends.** `/v1/messages` is served as
   is. Tools, `cache_control`, `anthropic-beta` and streaming pass through. Usage keeps

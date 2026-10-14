@@ -168,9 +168,10 @@ dollar, so the cap stands.
 
 In `deploy/spikes/agentgateway/`, before anything is built:
 
-*Status (Oct 14): written and waiting on a run on Greg's Mac. The configuration was
-written from agentgateway v1.6.0's source; DESIGN.md, "agentgateway, read from its source
-(Step 4)", says what that found. The Bedrock part waits on the account's access.*
+*Status (Oct 14): run on Greg's Mac against a stand-in model, all 26 checks passed,
+and memory measured (14 to 21 MiB). DESIGN.md, "agentgateway, read and run (Step 4)",
+has what it showed. Still to run: the real route to Anthropic, and Bedrock, which waits
+on the account's access.*
 
 
 - The Anthropic SDK, with `SEALEYE_MODEL_URL` set, reaches the Anthropic API through

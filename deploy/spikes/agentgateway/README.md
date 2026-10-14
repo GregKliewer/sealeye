@@ -8,7 +8,7 @@ use real models: Anthropic's API (a few cents, with your key), and Claude on Bed
 
 The gateway configuration was written from agentgateway v1.6.0's source and checked
 against its published schema. This spike is the first time it runs. What reading the
-source found is in DESIGN.md, "agentgateway, read from its source (Step 4)". This run
+source found is in DESIGN.md, "agentgateway, read and run (Step 4)". This run
 confirms it or corrects it.
 
 It answers these questions:
