@@ -1905,3 +1905,8 @@ in "Each domain has one job".
   CNAME for www). Caddy no longer answers for sealeye.org.
 - **It is indexable.** Unlike seaLeye.run (noindex while it is a pilot), the project's
   home is meant to be found.
+- **It looks like a README, not a product site.** One column of serif text, one link
+  colour, mono for code, light and dark by the reader's setting, no brand chrome. A
+  facts block, a "works / not yet" pair and a signed note say the project is given away
+  with care rather than sold; the terminal brand stays with seaLeye.run and the portal.
+  Chosen from three directions on Oct 14, 2026.

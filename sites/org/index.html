@@ -4,93 +4,88 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>seaLeye</title>
-<meta name="description" content="seaLeye is the self-service front door to an organization's own certified cloud platform. Open source under AGPL-3.0.">
+<meta name="description" content="seaLeye is a self-service front door to an organization's own certified cloud platform. Open source under AGPL-3.0.">
 <link rel="canonical" href="https://sealeye.org/">
 <meta property="og:title" content="seaLeye">
-<meta property="og:description" content="The self-service front door to your organization's own certified platform. Open source, and free to pick up.">
+<meta property="og:description" content="A self-service front door to your organization's own certified cloud platform. Open source, and free to pick up.">
 <meta property="og:url" content="https://sealeye.org/">
 <meta property="og:type" content="website">
+<meta name="color-scheme" content="light dark">
 <link rel="icon" href="sealeye-mark.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <main>
 
 <header>
-<img src="sealeye-wordmark.svg" alt="seaLeye.org" width="420" height="105">
-<p class="tagline">the self-service front door to your organization's own platform</p>
+<h1>seaLeye</h1>
+<p class="subtitle">A self-service front door to your organization's own certified cloud platform.</p>
+<nav aria-label="Project">
+<a href="https://github.com/GregKliewer/sealeye">source</a>
+<a href="https://github.com/GregKliewer/sealeye/blob/main/docs/README.md">docs</a>
+<a href="https://github.com/GregKliewer/sealeye/blob/main/docs/ROADMAP.md">roadmap</a>
+<a href="https://github.com/GregKliewer/sealeye/issues">issues</a>
+<a href="https://github.com/GregKliewer/sealeye/blob/main/LICENSE">license</a>
+</nav>
 </header>
 
-<p class="lede">
-Large organizations have built good platforms: libraries of infrastructure their security and audit teams have already approved. Developers still wait weeks for an environment, because someone from the platform team has to build each one by hand.
-</p>
-<p>
-seaLeye is the front door to that platform. A developer runs one command in their app's folder, or opens the web portal. seaLeye reads the app, asks at most four questions in plain language, and writes a plan a person can read. On yes, it builds the environment from parts the platform team already trusts and hands back an address.
-</p>
-<p class="dim">
-If the app needs something the platform can't build, seaLeye says so, shows the code that shows the need, saves the draft, and builds nothing. Each of those refusals tells the platform team what to build next.
-</p>
+<dl class="facts">
+<dt>Version</dt><dd>2.22.0, October 2026</dd>
+<dt>License</dt><dd>AGPL-3.0, free to use, change and run yourself</dd>
+<dt>Runs on</dt><dd>Node.js 20, AWS (CloudFormation, ca-central-1 by default)</dd>
+<dt>Status</dt><dd>Working pilot. The author is stepping back; a maintainer is welcome.</dd>
+</dl>
 
-<a class="go" href="https://github.com/GregKliewer/sealeye">The code, on GitHub</a>
+<h2>What it is</h2>
+<p>Large organizations have built good platforms: libraries of infrastructure their security and audit teams have already approved. Developers still wait weeks for an environment, because someone from the platform team has to build each one by hand.</p>
+<p>seaLeye is the front door to that platform. A developer runs one command in their app's folder, or opens the web portal. seaLeye reads the app, asks at most four questions in plain language, and writes a plan a person can read. On yes, it builds the environment from parts the platform team already trusts and hands back an address.</p>
+<p>If the app needs something the platform can't build, seaLeye says so, shows the code that shows the need, and builds nothing. Each refusal tells the platform team what to build next.</p>
 
-<h2>Where it stands</h2>
+<h2>Try it in five minutes</h2>
+<p>The tests need no AWS account and no API key.</p>
+<pre>git clone https://github.com/GregKliewer/sealeye
+cd sealeye
+npm install
+npm test</pre>
+<p>Running it for real takes an AWS account you're signed in to and an Anthropic API key. The <a href="https://github.com/GregKliewer/sealeye#readme">README</a> walks through it. A hosted pilot is also running for now at <a href="https://sealeye.online">seaLeye.online</a>; <a href="https://github.com/GregKliewer/sealeye/issues">open an issue</a> to ask for a token.</p>
+
+<h2>What works, and what doesn't yet</h2>
+<div class="status">
+<div class="works">
+<h3>Works</h3>
 <ul>
-<li>The <code>sealeye</code> command <span>(seaLeye.run) reads an app, interviews the developer, plans, deploys, and manages the environment afterwards.</span></li>
-<li>The web portal <span>(seaLeye.online) does the same things from a browser: environments, settings, logs, performance, costs, evidence, tear down.</span></li>
-<li>One API behind both <span>so the two surfaces can always do the same things.</span></li>
-<li>Four buildable modules on AWS <span>today, with CloudFormation underneath. The roadmap says where it goes from here.</span></li>
+<li>The interview, the plan and the refusal</li>
+<li>Deploy, deploy again, pause, tear down</li>
+<li>Settings in the organization's own store</li>
+<li>Logs, performance, costs and evidence</li>
+<li>A command and a web portal that do the same things</li>
+<li>Four buildable modules on AWS, with CloudFormation underneath</li>
 </ul>
-
-<h2>Pick it up</h2>
-<p>The code is open source under the GNU Affero General Public License v3.0. You need Node.js 20 or later. The tests need no AWS account and no API key:</p>
-<div class="block">
-<code><span class="line"><span class="prompt">$</span> git clone https://github.com/GregKliewer/sealeye</span><span class="line"><span class="prompt">$</span> cd sealeye &amp;&amp; npm install &amp;&amp; npm test</span></code>
-<button type="button" data-copy="git clone https://github.com/GregKliewer/sealeye && cd sealeye && npm install && npm test">copy</button>
 </div>
-<p>Running it for real takes an AWS account you're signed in to and an Anthropic API key. The README has the rest. Then read, roughly in this order:</p>
-<ul class="docs">
-<li><a href="https://github.com/GregKliewer/sealeye/blob/main/docs/README.md">docs/README</a> <span>seaLeye in two minutes, and a map of everything else</span></li>
-<li><a href="https://github.com/GregKliewer/sealeye/blob/main/docs/VISION.md">VISION</a> <span>who it's for and the principles that don't move</span></li>
-<li><a href="https://github.com/GregKliewer/sealeye/blob/main/docs/ROADMAP.md">ROADMAP</a> <span>the phases, and what's next</span></li>
-<li><a href="https://github.com/GregKliewer/sealeye/blob/main/docs/ARCHITECTURE.md">ARCHITECTURE</a> <span>how it's built, with diagrams</span></li>
-<li><a href="https://github.com/GregKliewer/sealeye/blob/main/docs/OPEN-QUESTIONS.md">OPEN-QUESTIONS</a> <span>decisions nobody has made yet</span></li>
-<li><a href="https://github.com/GregKliewer/sealeye/blob/main/CONTRIBUTING.md">CONTRIBUTING</a> <span>how a change gets in</span></li>
+<div class="not-yet">
+<h3>Not yet</h3>
+<ul>
+<li>A complete platform library of infrastructure-as-code and pipeline automation</li>
+<li>No sign-in: one token per person</li>
+<li>One API process on one small server</li>
+<li>No path to production yet (Phase 5)</li>
+<li>Learning an organization's own platform (Phase 4)</li>
 </ul>
-
-<h2>Try the pilot</h2>
-<p>A pilot of the hosted service is running for now. It needs a token; <a href="https://github.com/GregKliewer/sealeye/issues">open an issue</a> to ask for one.</p>
-<div class="block">
-<code><span class="prompt">$</span> curl -fsSL https://sealeye.run/install | sh</code>
-<button type="button" data-copy="curl -fsSL https://sealeye.run/install | sh">copy</button>
 </div>
+</div>
+
+<h2>Read next</h2>
+<p><a href="https://github.com/GregKliewer/sealeye/blob/main/docs/VISION.md">Vision</a> for who it's for. <a href="https://github.com/GregKliewer/sealeye/blob/main/docs/ARCHITECTURE.md">Architecture</a> for how it's built. <a href="https://github.com/GregKliewer/sealeye/blob/main/DESIGN.md">DESIGN.md</a> for every decision and why it was made. <a href="https://github.com/GregKliewer/sealeye/blob/main/CONTRIBUTING.md">Contributing</a> for how a change gets in.</p>
 
 <h2>A note from me</h2>
-<p>I built seaLeye in 2026 inside OpMo Advisory, my consulting practice. It started as a demo and grew into something I think is genuinely useful, especially for banks and other big shops that already have a certified platform and can't get their developers onto it fast enough.</p>
-<p>I'm closing the practice and turning my full attention to a new full-time role, so seaLeye won't be getting much of my time for a while. Rather than let it sit in a drawer, I'm putting it out here for anyone who wants to use it, fork it, learn from it, or contribute to it.</p>
-<p class="note" id="name">The code is yours under AGPL-3.0. The seaLeye name and domains stay with the original, so a fork needs a name of its own (<a href="https://github.com/GregKliewer/sealeye/blob/main/NOTICE">NOTICE</a> has the details). If you'd like to carry seaLeye itself forward as its maintainer, open an issue and tell me. I'm open to handing it over.</p>
-<p>Greg Kliewer</p>
+<p>I built seaLeye in 2026 inside OpMo Advisory, my consulting practice. I'm closing the practice and turning my full attention to a new full-time role, so seaLeye won't be getting much of my time for a while. Rather than let it sit in a drawer, I'm putting it out here for anyone who wants to use it, fork it, learn from it, or contribute to it.</p>
+<p>The code is yours under AGPL-3.0. The name stays with the original, so a fork needs a name of its own (<a href="https://github.com/GregKliewer/sealeye/blob/main/NOTICE">NOTICE</a> has the details). If you'd like to carry seaLeye itself forward as its maintainer, <a href="https://github.com/GregKliewer/sealeye/issues">open an issue</a> and tell me. I'm open to handing it over.</p>
+<p class="signature">Greg Kliewer</p>
 
+<footer>This page is plain HTML, with no tracking and no cookies. &copy; 2026 OpMo Advisory Inc. seaLeye&trade; is a trademark of OpMo Advisory Inc.</footer>
 </main>
-
-<footer>
-seaLeye.org · <a href="https://github.com/GregKliewer/sealeye">GitHub</a> · <a href="https://sealeye.run">seaLeye.run</a> · <a href="https://sealeye.online">seaLeye.online</a> · AGPL-3.0 · &copy; 2026 OpMo Advisory Inc. · seaLeye&trade; is a trademark of OpMo Advisory Inc.
-</footer>
-
-<script>
-document.querySelectorAll("button[data-copy]").forEach(button => {
-  button.addEventListener("click", () => {
-    if (!(navigator.clipboard && window.isSecureContext)) return;
-    navigator.clipboard.writeText(button.dataset.copy).then(() => {
-      const was = button.textContent;
-      button.textContent = "copied";
-      button.dataset.copied = "yes";
-      setTimeout(() => { button.textContent = was; delete button.dataset.copied; }, 1600);
-    }, () => {});
-  });
-});
-</script>
 </body>
 </html>
