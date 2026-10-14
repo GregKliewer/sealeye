@@ -75,6 +75,17 @@ llm:
         file: /config/jwks.json
       jwtValidationOptions:
         requiredClaims: [exp, iss, aud, sub]
+    # One run cannot use up what every other run shares (PHASE3-PLAN Step 7): two million
+    # tokens a day for each run, counted from the token's run claim, after each reply.
+    # Each run's own dollar (core/model-prices.js) stops a run long before this, so it
+    # only ever acts on a run that the API's own count did not stop. The count is in the
+    # gateway's memory: a restart forgets it.
+    localRateLimit:
+    - type: tokens
+      maxTokens: 2000000
+      tokensPerFill: 2000000
+      fillInterval: 24h
+      key: jwt.run
     # The API's own timeout (120 seconds a turn) is the one that acts; these are only
     # the gateway's outer bound.
     timeout:

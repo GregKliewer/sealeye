@@ -189,3 +189,54 @@ test("a signing key on an API that calls the model with its own key signs nothin
     delete process.env.SEALEYE_GATEWAY_SIGNING_KEY;
   }
 });
+
+test("a run the gateway's per-run limit stops is told it reached its limit, never that the model is busy", async () => {
+  // The gateway's refusal, as the Step 4 spike recorded it: plain text, x-ratelimit headers.
+  let calls = 0;
+  const limiting = http.createServer((req, res) => {
+    calls++;
+    req.resume();
+    res.writeHead(429, { "content-type": "text/plain", "x-ratelimit-limit": "2000000", "x-ratelimit-remaining": "0", "retry-after": "86399" });
+    res.end("rate limit exceeded");
+  });
+  await new Promise(r => limiting.listen(0, "127.0.0.1", r));
+  process.env.SEALEYE_MODEL_URL = `http://127.0.0.1:${limiting.address().port}`;
+  process.env.SEALEYE_GATEWAY_KEY = "spike-gateway-key-not-real";
+  try {
+    const { createWithOneRetry, modelClient, modelCredential } = await import("../api/interview/model.js");
+    const { spendingLimitWords } = await import("../core/model-prices.js");
+    await assert.rejects(
+      createWithOneRetry(modelClient(modelCredential()), { model: "claude-sonnet-5", max_tokens: 10, messages: [{ role: "user", content: "hi" }] }, () => {}),
+      err => {
+        assert.equal(err.message, spendingLimitWords("sealeye"));
+        return true;
+      }
+    );
+    assert.equal(calls, 1, "never retried");
+  } finally {
+    limiting.close();
+    delete process.env.SEALEYE_GATEWAY_KEY;
+  }
+});
+
+test("Anthropic's own rate limit is still a busy model, retried once", async () => {
+  let calls = 0;
+  const busy = http.createServer((req, res) => {
+    calls++;
+    req.resume();
+    res.writeHead(429, { "content-type": "application/json", "anthropic-ratelimit-requests-remaining": "0", "retry-after": "1" });
+    res.end(JSON.stringify({ type: "error", error: { type: "rate_limit_error", message: "Number of requests has exceeded your rate limit" } }));
+  });
+  await new Promise(r => busy.listen(0, "127.0.0.1", r));
+  process.env.SEALEYE_MODEL_URL = `http://127.0.0.1:${busy.address().port}`;
+  try {
+    const { createWithOneRetry, modelClient, modelCredential } = await import("../api/interview/model.js");
+    await assert.rejects(
+      createWithOneRetry(modelClient(modelCredential()), { model: "claude-sonnet-5", max_tokens: 10, messages: [{ role: "user", content: "hi" }] }, () => {}),
+      /busy/
+    );
+    assert.equal(calls, 2);
+  } finally {
+    busy.close();
+  }
+});

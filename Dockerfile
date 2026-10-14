@@ -4,8 +4,9 @@
 FROM node:20-bookworm-slim AS base
 
 # The executor stages with rsync, zips with zip, and drives AWS through the AWS CLI.
+# sqlite3 reads the model gateway's record of calls (deploy/gateway.sh calls).
 RUN apt-get update \
- && apt-get install -y --no-install-recommends rsync zip unzip curl ca-certificates \
+ && apt-get install -y --no-install-recommends rsync zip unzip curl ca-certificates sqlite3 \
  && rm -rf /var/lib/apt/lists/* \
  && curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m).zip" -o /tmp/awscli.zip \
  && unzip -q /tmp/awscli.zip -d /tmp \

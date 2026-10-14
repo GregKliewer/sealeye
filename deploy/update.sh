@@ -63,8 +63,28 @@ Persistent=true
 [Install]
 WantedBy=timers.target
 UNIT
+# The model gateway's record of calls keeps 90 days (deploy/gateway.sh prune), nightly
+# after the backup.
+cat > /etc/systemd/system/sealeye-gateway-prune.service <<UNIT
+[Unit]
+Description=seaLeye: remove model calls older than 90 days from the gateway's record
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/sealeye
+ExecStart=/bin/bash /opt/sealeye/gateway.sh prune
+UNIT
+cat > /etc/systemd/system/sealeye-gateway-prune.timer <<UNIT
+[Unit]
+Description=seaLeye nightly gateway record prune
+[Timer]
+OnCalendar=*-*-* 03:45:00 America/Toronto
+Persistent=true
+[Install]
+WantedBy=timers.target
+UNIT
 systemctl daemon-reload
 systemctl enable --now sealeye-backup.timer >/dev/null
+systemctl enable --now sealeye-gateway-prune.timer >/dev/null
 
 # Compose reads .env, so a reboot or a later `docker compose` keeps the same image.
 echo "SEALEYE_IMAGE=${REPOSITORY}:${TAG}" > .env

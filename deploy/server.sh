@@ -12,6 +12,7 @@
 #   deploy/server.sh logs                the API's last 100 lines
 #   deploy/server.sh gateway-restart     reread the model gateway's keys and budget, restart it and the API
 #   deploy/server.sh gateway-logs        the model gateway's last 40 lines, never a key
+#   deploy/server.sh gateway-calls [run|email] [n]   the record of model calls, 90 days of it
 #   deploy/server.sh settings-sources    live environments still taking settings from a developer's .env
 set -euo pipefail
 
@@ -121,6 +122,11 @@ case "${1:-}" in
       "set -euo pipefail; cd /opt/sealeye; bash gateway.sh settings; bash gateway.sh restart; docker compose restart api >/dev/null; for i in \$(seq 1 30); do sleep 2; [ \"\$(docker compose ps --format '{{.Health}}' api)\" = healthy ] && break; done; bash gateway.sh ready" ;;
   gateway-logs)
     run_on_server "seaLeye gateway logs" "cd /opt/sealeye && bash gateway.sh logs 40" ;;
+  gateway-calls)
+    WHO="${2:-}"; LIMIT="${3:-50}"
+    [[ -z "$WHO" || "$WHO" =~ ^[A-Za-z0-9@._+-]+$ ]] || { echo "Name a run (int_...) or a person's email, or nothing."; exit 1; }
+    [[ "$LIMIT" =~ ^[0-9]{1,5}$ ]] || { echo "The number of calls must be a whole number."; exit 1; }
+    run_on_server "seaLeye gateway calls" "cd /opt/sealeye && bash gateway.sh calls '${WHO}' ${LIMIT}" ;;
   *)
-    sed -n '2,15p' "$0"; exit 1 ;;
+    sed -n '2,16p' "$0"; exit 1 ;;
 esac
