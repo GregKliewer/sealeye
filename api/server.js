@@ -31,7 +31,7 @@ import { scanApp, ScanFailed } from "./secret-scan.js";
 import { deployRefusalMessage } from "../core/scan.js";
 
 // When the deeper check could not run, nothing that depended on it goes ahead.
-const SCAN_FAILED_WORDS = "seaLeye.run could not finish checking your code for secrets, so nothing was sent on. Try again in a minute; if it keeps happening, tell your platform team.";
+const SCAN_FAILED_WORDS = "seaLeye could not finish checking your code for secrets, so nothing went any further. Try again in a minute; if it keeps happening, tell your platform team.";
 import { postgresCheckpointer, postgresInterviewStore } from "./interview/pgstore.js";
 import { databaseUrl, closeDb } from "./db.js";
 import { startTracing } from "../core/tracing.js";
@@ -542,10 +542,11 @@ async function deployNew(req, res) {
   // same rules before sending, so this mostly catches what only gitleaks knows.
   let scan;
   try {
-    scan = await scanApp(packageFrom, { purpose: "deploy" });
+    scan = await scanApp(packageFrom);
   } catch (err) {
     if (uploaded) removeUpload(deploymentId);
     if (err instanceof ScanFailed) return res.status(503).json({ error: { code: "SCAN_FAILED", message: SCAN_FAILED_WORDS } });
+    if (err instanceof UploadRefused) return res.status(400).json({ error: { code: "UPLOAD_REFUSED", message: err.message } });
     throw err;
   }
   if (scan.found.length) {

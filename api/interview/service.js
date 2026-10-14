@@ -177,7 +177,7 @@ export function createInterviewService({
     let withheld;
     try {
       unzipInto(zip, appDir);
-      const scanned = await scanApp(appDir, { purpose: "interview" });
+      const scanned = await scanApp(appDir);
       for (const file of new Set(scanned.found.map(f => f.file))) {
         const target = path.join(appDir, ...file.split("/"));
         if (target.startsWith(appDir + path.sep)) fs.writeFileSync(target, "");

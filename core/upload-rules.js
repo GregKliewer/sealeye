@@ -189,7 +189,7 @@ export async function collectUpload(root, { purpose = "interview", ignore } = {}
       bytes += data.length;
       if (bytes > rules_.maxBytes) throw tooBig();
       entries[childRel] = data;
-      if (childRel !== ALLOW_FILE) scanned.push(...scanText(childRel, data));
+      scanned.push(...scanText(childRel, data));
     }
   };
 

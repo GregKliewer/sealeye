@@ -81,16 +81,63 @@ test("a finding is a file, a line, a rule and a kind, and never the value", () =
   assert.ok(!JSON.stringify(findings).includes(FAKE.cloudAccessKey));
 });
 
-test("bytes are read as text, and a binary file is not read", () => {
+test("bytes are read as text, and a NUL byte near the start does not hide a key", () => {
   const bytes = new TextEncoder().encode(`x\nSTRIPE=${FAKE.stripeKey}\n`);
   assert.deepEqual(scanText("a.env.js", bytes).map(f => [f.line, f.rule]), [[2, "stripe-key"]]);
-  const binary = new Uint8Array([0x89, 0x50, 0x00, ...new TextEncoder().encode(FAKE.stripeKey)]);
-  assert.deepEqual(scanText("logo.png", binary), []);
+  const binaryish = new Uint8Array([0x89, 0x50, 0x00, 0x0a, ...new TextEncoder().encode(FAKE.stripeKey)]);
+  assert.deepEqual(scanText("data.bin", binaryish).map(f => [f.line, f.rule]), [[2, "stripe-key"]]);
 });
 
-test("Windows and old Mac line endings count lines the same way", () => {
+test("lines end at a newline, as gitleaks counts them, so both name the same line", () => {
   assert.equal(scanText("a", `a\r\nb\r\nkey=${FAKE.githubToken}`)[0].line, 3);
-  assert.equal(scanText("a", `a\rb\rkey=${FAKE.githubToken}`)[0].line, 3);
+  assert.equal(scanText("a", `a\nb\nkey=${FAKE.githubToken}`)[0].line, 3);
+});
+
+test("a key at the end of a large file is found: nothing is cut short", () => {
+  const big = `${"// filler line for a bundle\n".repeat(150_000)}const t = "${FAKE.githubToken}";\n`;
+  assert.ok(big.length > 4 * 1024 * 1024);
+  assert.deepEqual(scanText("dist/bundle.js", big).map(f => f.rule), ["github-token"]);
+});
+
+test("no line, however long or strange, makes the scan slow", () => {
+  // Lines built to make a backtracking regex try every start: the review's case, and others.
+  const lines = [
+    ".a".repeat(500_000),
+    "-a".repeat(500_000),
+    "token=".repeat(150_000),
+    "token: ".repeat(150_000) + "x",
+    `"password": "${"a".repeat(1_000_000)}`,
+    `-----BEGIN ${"A ".repeat(400_000)}`,
+    `postgres://${"u:".repeat(300_000)}`,
+    "x".repeat(1_000_000)
+  ];
+  for (const line of lines) {
+    const started = Date.now();
+    scanText("crafted.js", line);
+    const took = Date.now() - started;
+    assert.ok(took < 1500, `${line.slice(0, 12)}... took ${took} ms`);
+  }
+});
+
+test("passwords with symbols, short names and connection addresses are found", () => {
+  const symbols = ["Zq8v", "!R2#", "mK9@", "pL4x", "$Wt7"].join("");
+  for (const line of [
+    `password: "${symbols}"`,
+    `DB_PASSWORD=${symbols}`,
+    `pwd = "${symbols}"`,
+    `DATABASE_URL=postgres://app_user:${FAKE.password}@orders.c9xyz.ca-central-1.rds.amazonaws.com:5432/orders`
+  ]) {
+    assert.equal(rulesIn(line).length, 1, line.slice(0, 24));
+  }
+  for (const line of [
+    "DATABASE_URL=postgres://postgres:postgres@localhost:5432/dev",
+    "REDIS_URL=redis://default:password123@redis:6379",
+    `DATABASE_URL=postgres://app:\${DB_PASSWORD}@db.example.org/app`,
+    "DB_PASSWORD=$DB_PASSWORD_FROM_VAULT",
+    'echo "$(pwd)/scripts/run.sh"'
+  ]) {
+    assert.deepEqual(rulesIn(line), [], line);
+  }
 });
 
 test("the allow file excuses a line for every rule on it, and a typo excuses nothing", () => {

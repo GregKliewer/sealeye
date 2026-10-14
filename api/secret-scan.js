@@ -18,8 +18,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { ALLOW_FILE, applyAllow, cleanFinding, onePerLine, parseAllowFile, uniqueFindings } from "../core/scan.js";
-import { collectFolder, SecretsFound } from "../core/upload.js";
+import { ALLOW_FILE, applyAllow, cleanFinding, onePerLine, parseAllowFile, scanText, uniqueFindings } from "../core/scan.js";
+import { isLeftOutOfDeploy, UploadRefused } from "../core/upload-rules.js";
 
 const CONFIG = path.join(import.meta.dirname, "gitleaks.toml");
 const TIMEOUT_MS = 120_000;
@@ -61,8 +61,73 @@ function run(binary, args, cwd) {
   });
 }
 
+// What the scan copy leaves out: what is never packaged or sent (the deploy upload's
+// rules, core/upload-rules.js), and gitleaks' own ignore file, which it would read from
+// the folder it scans whatever it is told (found in review).
+const SKIP_FOLDERS = new Set(["node_modules", ".git", ".github", ".do"]);
+const MAX_COPY_BYTES = 100 * 1024 * 1024;
+const MAX_COPY_FILES = 20000;
+
 /**
- * gitleaks over a folder: its findings as file, line, rule and kind.
+ * Copy an app folder to scan it: links followed, as packaging follows them (zip stores
+ * what a link points at), each real folder once, so a loop of links ends. The copy is
+ * the API's own, in a folder of a random name, so nothing in the app can name it.
+ */
+function scanCopy(dir, dest) {
+  const seen = new Set();
+  let bytes = 0;
+  let files = 0;
+  const walk = (src, out) => {
+    const real = fs.realpathSync(src);
+    if (seen.has(real)) return;
+    seen.add(real);
+    fs.mkdirSync(out, { recursive: true });
+    for (const name of fs.readdirSync(real)) {
+      const from = path.join(real, name);
+      let stat;
+      try {
+        stat = fs.statSync(from);   // follows links
+      } catch {
+        continue;                   // a dangling link: nothing to package either
+      }
+      if (stat.isDirectory()) {
+        if (SKIP_FOLDERS.has(name.toLowerCase())) continue;
+        walk(from, path.join(out, name));
+        continue;
+      }
+      if (!stat.isFile() || isLeftOutOfDeploy(name) || name.toLowerCase() === ".gitleaksignore") continue;
+      files++;
+      bytes += stat.size;
+      if (files > MAX_COPY_FILES || bytes > MAX_COPY_BYTES) {
+        throw new UploadRefused(`your folder is more than ${MAX_COPY_FILES} files or ${MAX_COPY_BYTES / 1024 / 1024} MB, leaving out node_modules, .git and secret files, which is more than the platform can package`);
+      }
+      fs.copyFileSync(from, path.join(out, name));
+    }
+  };
+  walk(path.resolve(dir), dest);
+}
+
+/** The shared rules over every file in a folder, with no .gitignore and no limit cut short. */
+function sharedFindings(root) {
+  const found = [];
+  const walk = (abs, rel) => {
+    for (const entry of fs.readdirSync(abs, { withFileTypes: true })) {
+      const childAbs = path.join(abs, entry.name);
+      const childRel = rel ? `${rel}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) walk(childAbs, childRel);
+      else if (entry.isFile()) {
+        const data = fs.readFileSync(childAbs);
+        found.push(...scanText(childRel, new Uint8Array(data.buffer, data.byteOffset, data.length)));
+      }
+    }
+  };
+  walk(root, "");
+  return found;
+}
+
+/**
+ * gitleaks over a folder: its findings as file, line, rule and kind. Pass it a folder
+ * the API made (scanApp's copy), never an app's folder as it is.
  * @returns {Promise<object[]|null>} null when gitleaks is not installed
  */
 export async function gitleaksFindings(dir, { binary = gitleaksPath() } = {}) {
@@ -83,7 +148,6 @@ export async function gitleaksFindings(dir, { binary = gitleaksPath() } = {}) {
       "--exit-code", "0",
       "--ignore-gitleaks-allow",
       "--gitleaks-ignore-path", empty,
-      "--max-target-megabytes", "10",
       "--log-level", "error"
     ], empty);
     let rows;
@@ -94,13 +158,14 @@ export async function gitleaksFindings(dir, { binary = gitleaksPath() } = {}) {
     }
     if (!Array.isArray(rows)) throw new ScanFailed("gitleaks wrote a report seaLeye does not understand");
     const root = path.resolve(dir);
-    return rows
-      .map(row => {
-        const abs = path.resolve(empty, String(row?.File || ""));
-        const rel = path.relative(root, abs).split(path.sep).join("/");
-        return cleanFinding({ file: rel, line: row?.StartLine, rule: row?.RuleID });
-      })
-      .filter(Boolean);
+    return rows.map(row => {
+      const abs = path.resolve(empty, String(row?.File || ""));
+      const rel = path.relative(root, abs).split(path.sep).join("/");
+      const finding = cleanFinding({ file: rel, line: row?.StartLine, rule: row?.RuleID });
+      // A finding seaLeye cannot place is not dropped: the scan did not do its job.
+      if (!finding) throw new ScanFailed("gitleaks named a file seaLeye cannot place");
+      return finding;
+    });
   } catch (err) {
     if (err instanceof ScanFailed) throw err;
     // The error's own text may quote what gitleaks printed; it is not kept.
@@ -111,31 +176,33 @@ export async function gitleaksFindings(dir, { binary = gitleaksPath() } = {}) {
 }
 
 /**
- * Scan an app folder the API holds: the shared rules over what would travel for
- * `purpose`, then gitleaks over the folder, then .sealeye-allow.
+ * Scan an app folder the API holds, an upload's copy or, for a laptop API, a folder on
+ * its own machine: copied first (scanCopy), then the shared rules over every file and
+ * gitleaks over the copy, then .sealeye-allow. Nothing is skipped for size and nothing
+ * for .gitignore: the API does not trust what the client chose to send.
  *
  * @returns {Promise<{ found: object[], allowed: object[], gitleaks: "ran"|"not installed" }>}
  *          one finding per file and line (core/scan.js onePerLine)
  * @throws ScanFailed when gitleaks is installed and could not finish
+ * @throws UploadRefused when the folder is more than the platform can package
  */
-export async function scanApp(dir, { purpose = "interview", binary } = {}) {
-  let shared = [];
+export async function scanApp(dir, { binary } = {}) {
+  const work = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-scan-"));
+  const copy = path.join(work, "app");
   try {
-    const collected = await collectFolder(dir, { purpose });
-    shared = [...collected.findings, ...collected.allowed];
-  } catch (err) {
-    if (!(err instanceof SecretsFound)) throw err;
-    shared = [...err.findings, ...(err.allowed || [])];
+    scanCopy(dir, copy);
+    const shared = sharedFindings(copy);
+    const deeper = await gitleaksFindings(copy, binary === undefined ? {} : { binary });
+
+    let allowEntries = [];
+    try {
+      allowEntries = parseAllowFile(fs.readFileSync(path.join(copy, ALLOW_FILE), "utf8")).entries;
+    } catch {}
+
+    const all = uniqueFindings([...shared, ...(deeper || [])].map(cleanFinding).filter(Boolean));
+    const { found, allowed } = applyAllow(all, allowEntries);
+    return { found: onePerLine(found), allowed: onePerLine(allowed), gitleaks: deeper ? "ran" : "not installed" };
+  } finally {
+    fs.rmSync(work, { recursive: true, force: true });
   }
-
-  const deeper = await gitleaksFindings(dir, binary === undefined ? {} : { binary });
-
-  let allowEntries = [];
-  try {
-    allowEntries = parseAllowFile(fs.readFileSync(path.join(dir, ALLOW_FILE), "utf8")).entries;
-  } catch {}
-
-  const all = uniqueFindings([...shared, ...(deeper || [])].map(cleanFinding).filter(Boolean));
-  const { found, allowed } = applyAllow(all, allowEntries);
-  return { found: onePerLine(found), allowed: onePerLine(allowed), gitleaks: deeper ? "ran" : "not installed" };
 }

@@ -97,7 +97,7 @@ test("sealeye deploy refuses on the developer's machine, and never calls the pla
 test("without gitleaks the API's scan is the shared rules, and says so", async () => {
   useGitleaks(null);
   try {
-    const out = await scanApp(keyApp(), { purpose: "deploy" });
+    const out = await scanApp(keyApp());
     assert.equal(out.gitleaks, "not installed");
     assert.deepEqual(out.found.map(f => f.rule), ["stripe-key"]);
   } finally {
@@ -115,13 +115,58 @@ test("gitleaks finds what it knows, and nothing in the app can switch it off", {
   const dir = folder("app", {
     "src/keys.js": `const a = "${FAKE.cloudAccessKey}";\nconst b = "${FAKE.githubToken}"; // gitleaks:allow\n`,
     ".gitleaks.toml": "[allowlist]\npaths = ['''.*''']\n",
-    ".gitleaksignore": "src/keys.js:github-pat:2\n",
     "node_modules/pkg/index.js": `k = "${FAKE.githubToken}"`
   });
-  const found = await gitleaksFindings(dir);
-  assert.deepEqual(found.map(f => `${f.file}:${f.line}`).sort(), ["src/keys.js:1", "src/keys.js:2"]);
-  assert.ok(found.every(f => Object.keys(f).join() === "file,line,rule,kind"), "file, line, rule and kind, nothing else");
-  assert.ok(!JSON.stringify(found).includes(FAKE.githubToken));
+  // gitleaks reads a .gitleaksignore in the folder it scans whatever it is told, and
+  // matches it by absolute path (found in review): name this folder's lines exactly.
+  const real = fs.realpathSync(dir);
+  fs.writeFileSync(path.join(dir, ".gitleaksignore"), [`${real}/src/keys.js:aws-access-token:1`, `${real}/src/keys.js:github-pat:2`].join("\n"));
+
+  const direct = await gitleaksFindings(dir);
+  assert.equal(direct.length, 0, "run on the folder itself, its own ignore file silences gitleaks: so it never is");
+
+  useGitleaks(null);
+  const sharedOnly = await scanApp(dir);
+  useGitleaks(undefined);
+  assert.equal(sharedOnly.gitleaks, "not installed");
+
+  // A JWT is a shape only gitleaks knows, so only gitleaks can have found this line.
+  const jwt = ["eyJhbGciOiJIUzI1NiJ9", "eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkFsZXgifQ", "c2lnbmF0dXJlLWZvci10ZXN0cy1vbmx5LTEyMzQ1Ng"].join(".");
+  fs.writeFileSync(path.join(dir, "src/session.js"), `const session = "${jwt}";\n`);
+  fs.appendFileSync(path.join(dir, ".gitleaksignore"), `\n${real}/src/session.js:jwt:1\n`);
+  const out = await scanApp(dir);
+  assert.equal(out.gitleaks, "ran");
+  assert.deepEqual(out.found.map(f => `${f.file}:${f.line}`), ["src/keys.js:1", "src/keys.js:2", "src/session.js:1"]);
+  assert.ok(out.found.every(f => Object.keys(f).join() === "file,line,rule,kind"), "file, line, rule and kind, nothing else");
+  assert.ok(!JSON.stringify(out).includes(FAKE.githubToken) && !JSON.stringify(out).includes(jwt));
+});
+
+test("nothing is cut short for size, and a link is read as packaging reads it", async () => {
+  const dir = folder("big-app", {
+    "index.js": "x",
+    "dist/bundle.js": `${"/* filler */\n".repeat(900_000)}const t = "${FAKE.githubToken}";\n`,
+    ".env": `STRIPE=${FAKE.stripeKey}`
+  });
+  assert.ok(fs.statSync(path.join(dir, "dist/bundle.js")).size > 11 * 1024 * 1024);
+  const elsewhere = folder("elsewhere", { "real-config.js": `module.exports = "${FAKE.stripeKey}";\n` });
+  fs.symlinkSync(path.join(elsewhere, "real-config.js"), path.join(dir, "config.js"));
+  fs.symlinkSync(dir, path.join(dir, "loop"));   // a loop of links ends
+
+  const out = await scanApp(dir);
+  assert.deepEqual(out.found.map(f => `${f.file}:${f.rule}`), ["config.js:stripe-key", "dist/bundle.js:github-token"],
+    "the bundle past any limit, the link's target, and not .env, which is never packaged");
+
+  const linked = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-link-"));
+  fs.symlinkSync(dir, path.join(linked, "app"));
+  assert.equal((await scanApp(path.join(linked, "app"))).found.length, 2, "an app folder that is itself a link is scanned through it");
+});
+
+test("a binary file is never handed to the model", async () => {
+  const { runTool } = await import("../api/interview/tools.js");
+  const dir = folder("bin-app", { "data.bin": Buffer.concat([Buffer.from([0x89, 0, 0x0a]), Buffer.from(`password = "${FAKE.password}"\n`)]) });
+  const out = runTool(dir, "read_file", { path: "data.bin" });
+  assert.equal(out.isError, true);
+  assert.match(out.content, /data\.bin is a binary file, not text/);
 });
 
 // ---------------------------------------------------------------------------------

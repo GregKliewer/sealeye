@@ -1894,11 +1894,21 @@ upload on both surfaces, then gitleaks in the API; a finding refuses a deploy un
 
 - **The shared rules are few and sure** (`core/scan.js`): private key blocks, cloud
   access key ids, and the GitHub, GitLab, Slack, Stripe, Anthropic, OpenAI, Google, npm
-  and SendGrid token shapes, plus one rule for a long, random-looking value given to a
-  name that ends in password, secret, token or key. That last rule skips placeholders,
-  references to other code, paths, UUIDs and values with no digit. Run over 17,600 files
-  of installed npm and Python packages, it flagged six lines, all real-looking samples
-  in libraries' own tests and docs. gitleaks, in the API, is the wide net.
+  and SendGrid token shapes; a password in a connection address to a real host; and a
+  long, random-looking value given to a name that ends in password, pwd, secret, token
+  or key. The last two skip placeholders, references to other code, paths, UUIDs,
+  common local defaults and values with no digit. Run over 20,300 files of installed
+  npm and Python packages, they flagged 13 lines, all real-looking sample tokens in
+  libraries' own tests and docs. gitleaks, in the API, is the wide net.
+- **Every rule is linear in the line.** The first version of the name-and-value rule
+  let a match start anywhere, and a crafted 40 KB line took half a second, so one upload
+  could have stalled the API's one process (found in review). It now finds the secret
+  word and reads the value after it by hand; a test holds every rule under a second on
+  million-character lines built to make a regex backtrack.
+- **Nothing is cut short.** Every byte of every file that travels is scanned, by both
+  scanners: a key at the end of an 11 MB bundle got past a 2 MB cap here and gitleaks'
+  10 MB one (found in review). A binary file is scanned for the shapes of keys only, not
+  for name and value, which compiled files fake; the interview never reads one.
 - **Words a developer reads name no cloud provider** (principle 8): "a cloud access
   key", not an AWS one. A finding is always a file, a line, a rule and a kind; no
   function keeps, logs or returns the value, and the tests check each fake key is
@@ -1909,10 +1919,18 @@ upload on both surfaces, then gitleaks in the API; a finding refuses a deploy un
   shared rule's name where both found it. A malformed allow line allows nothing.
 - **gitleaks always runs on seaLeye's terms.** By default it obeys a `.gitleaks.toml`,
   a `.gitleaksignore` and `gitleaks:allow` comments in the folder it scans, so a
-  developer's repository could switch it off; tried, it did. The API passes its own
-  configuration (`api/gitleaks.toml`), runs from an empty folder with no `GITLEAKS_*`
-  variables, ignores `gitleaks:allow`, redacts, and reads three fields of its report
-  before deleting it. Pinned at 8.30.1 by version and checksum in the image.
+  developer's repository could switch it off; tried, it did, and the review found the
+  `.gitleaksignore` is read from the scanned folder whatever gitleaks is told. So the API
+  never runs it on an app's folder: it scans a copy of its own, in a folder of a random
+  name, with no `.gitleaksignore`, passes its own configuration (`api/gitleaks.toml`),
+  runs from an empty folder with no `GITLEAKS_*` variables, ignores `gitleaks:allow`,
+  redacts, and reads three fields of its report before deleting it. A finding it cannot
+  place fails the scan rather than being dropped. Pinned at 8.30.1 by version and
+  checksum in the image.
+- **The copy is what would be packaged**: no `node_modules`, `.git` or secret files, and
+  links followed as zip follows them (each real folder once), so a `config.js` that is
+  a link to a key is read, and a laptop deploy from a folder with a real `.env` is not
+  refused for it. Every file in the copy is scanned, whatever `.gitignore` says.
 - **Fail closed only where the deeper check was expected.** Without gitleaks (a laptop
   API, CI), the shared rules are the scan and the record says so. With gitleaks
   installed and failing, neither the interview nor the deploy goes ahead (503
@@ -1926,6 +1944,13 @@ upload on both surfaces, then gitleaks in the API; a finding refuses a deploy un
 - **Evidence says how the code was checked** (shared rules, or with gitleaks) and lists
   each allowed line. A deploy again inherits the scan of the deployment that packaged
   the code; a deployment from before this says it was not checked.
+- **The allow file is the developer's word, for both uses.** A line it names is let
+  through to a deploy, and the interview may read that file too, since it is not a
+  secret. It names a line number, so it excuses whatever is later written on that line;
+  evidence lists every allowed line so a reviewer sees them.
 - **What is not scanned:** a drafted plan sends no code; `runInterview`, which reads a
   folder in place for the eval, cannot empty files without changing the developer's
   app (principle 5), and runs only on the sample apps.
+- **Owed:** the scan runs on the API's one event loop. Linear rules keep a 100 MB deploy
+  to seconds, not minutes; moving it to a worker thread is owed before many teams share
+  one API.

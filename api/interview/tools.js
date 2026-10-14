@@ -7,7 +7,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { kindOf } from "../../core/scan.js";
+import { kindOf, looksBinary } from "../../core/scan.js";
 import { secretFileReason } from "../../core/secrets.js";
 
 export { secretFileReason };
@@ -164,6 +164,9 @@ export function readFile(appPath, requested, { withheld = [] } = {}) {
   try {
     const buffer = Buffer.alloc(MAX_BYTES);
     const read = fs.readSync(handle, buffer, 0, MAX_BYTES, 0);
+    // A binary file says nothing a plan needs, and the secret scan reads only the
+    // shapes of keys in one (core/scan.js), so it is never handed to the model.
+    if (looksBinary(buffer.subarray(0, read))) throw new ToolRefusal(`${requested} is a binary file, not text`);
     const text = buffer.subarray(0, read).toString("utf8");
     return stat.size > MAX_BYTES ? `${text}\n(truncated at ${MAX_BYTES / 1024} KB)` : text;
   } finally {

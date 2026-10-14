@@ -15,9 +15,9 @@
 
 export const ALLOW_FILE = ".sealeye-allow";
 
-// A file bigger than this is read only this far: an app's source is far smaller, and a
-// bundle or a data file this big is gitleaks' job in the API.
-const MAX_SCAN_BYTES = 2 * 1024 * 1024;
+// Every byte of every file that travels is scanned, however big: the rules are linear,
+// and an upload is capped (core/upload-rules.js). A key at the end of a large bundle is
+// still a key (found in review: a cap here and in gitleaks let an 11 MB file through).
 
 /**
  * Each rule: an id (stable; it is what .sealeye-allow and evidence name), the kind of
@@ -85,10 +85,17 @@ export const RULES = [
     test: line => /\bSG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}\b/.test(line)
   },
   {
+    id: "url-password",
+    kind: "a password in a connection address",
+    inText: true,
+    test: line => urlPassword(line)
+  },
+  {
     // A long, random-looking value given to a name that says it is a secret:
     //   password = "...", API_KEY: ..., "clientSecret": "...", DB_PASSWORD=...
     id: "assigned-secret",
     kind: "a password or token",
+    inText: true,
     test: line => assignedSecret(line)
   }
 ];
@@ -96,19 +103,42 @@ export const RULES = [
 const RULE_IDS = new Set(RULES.map(r => r.id));
 
 // The name has to END in what says secret, so tokenUrl, passwordField and
-// secretsManagerRegion are not taken for one.
-const ASSIGNED = new RegExp(
-  "(?:^|[^A-Za-z0-9_])" +
-    "[\"']?([A-Za-z0-9_.-]*?(?:password|passwd|secret|token|api[_-]?key|apikey|access[_-]?key|private[_-]?key|client[_-]?secret|auth[_-]?key))[\"']?\\]?" +
-    "\\s*(?::=|=>|=|:)\\s*" +
-    "(?:\"([^\"\\s]{16,200})\"|'([^'\\s]{16,200})'|`([^`\\s]{16,200})`|([^\\s\"'`,;)}\\]]{16,200}))",
-  "gi"
-);
+// secretsManagerRegion are not taken for one: right after the word comes a quote, a
+// bracket, a space or the assignment itself. Found in two steps, each linear in the
+// line, so no line, however long or strange, can make the scan slow: a regex that let
+// the name start anywhere took seconds on a crafted 40 KB line (found in review).
+const ASSIGNED = /(?:password|passwd|passphrase|pwd|secret|token|api[_-]?key|apikey|access[_-]?key|private[_-]?key|auth[_-]?key)["'\]]{0,2}[ \t]{0,8}(?::=|=>|=|:)[ \t]{0,8}/gi;
+const MAX_VALUE = 200;
 
 // Values that are obviously not a real secret: a placeholder, a reference to one kept
 // elsewhere, or a word a template leaves for the developer to fill in.
-const PLACEHOLDER = /example|placeholder|changeme|change_me|change-me|your[_-]|xxxx|redacted|dummy|sample|<[^>]*>|\$\{|\{\{|process\.env|os\.environ|getenv|env\(|import\.meta|secretsmanager|ssm:|arn:/i;
-const VALUE_CHARS = /^[A-Za-z0-9+/=_.~:-]+$/;
+const PLACEHOLDER = /example|placeholder|changeme|change_me|change-me|your[_-]|xxxx|redacted|dummy|sample|<[^>]*>|\$\{|\{\{|%\(|process\.env|os\.environ|getenv|env\(|import\.meta|secretsmanager|ssm:|arn:/i;
+// What a value may hold: any visible character but a quote. Passwords have symbols.
+const VALUE_CHARS = /^[\x21-\x7e]+$/;
+const UNQUOTED_END = new Set([" ", "\t", '"', "'", "`", ",", ";", ")", "}", "]", "&"]);
+// A bare value is an .env's or a YAML file's: no brackets or other code around it.
+const BARE_CHARS = /^[A-Za-z0-9+/=_.~:!@#$%^*-]+$/;
+
+/** The value that starts at `at`: quoted, up to its closing quote, or bare, up to a space or punctuation. */
+function valueAt(line, at) {
+  const q = line[at];
+  if (q === '"' || q === "'" || q === "`") {
+    const close = line.indexOf(q, at + 1);
+    if (close === -1 || close - at - 1 > MAX_VALUE) return null;
+    return { value: line.slice(at + 1, close), quoted: true, next: line[close + 1] };
+  }
+  let end = at;
+  while (end < line.length && end - at <= MAX_VALUE && !UNQUOTED_END.has(line[end])) end++;
+  if (end - at > MAX_VALUE) return null;
+  return { value: line.slice(at, end), quoted: false, next: line[end] };
+}
+
+/** The name the assignment is to, read back from where the secret word ends. */
+function nameBefore(line, end) {
+  let start = end;
+  while (start > 0 && end - start < 100 && /[A-Za-z0-9_.-]/.test(line[start - 1])) start--;
+  return line.slice(start, end);
+}
 
 /** Bits of entropy per character: random keys sit near 4 and above, words and names lower. */
 function entropy(value) {
@@ -130,22 +160,30 @@ function assignedSecret(line) {
   ASSIGNED.lastIndex = 0;
   let m;
   while ((m = ASSIGNED.exec(line)) !== null) {
-    const value = m[2] || m[3] || m[4] || m[5] || "";
-    if (!VALUE_CHARS.test(value)) continue;
+    const nameEnd = m.index + m[0].search(/["'\]\s:=]/);
+    const name = nameBefore(line, nameEnd);
+    const read = valueAt(line, m.index + m[0].length);
+    if (!read) continue;
+    const { value, quoted, next } = read;
+    if (value.length < 16 || !VALUE_CHARS.test(value)) continue;
     if (PLACEHOLDER.test(value)) continue;
+    // Percent-encoded is a fragment of an address or a query, not a value of its own.
+    if (/%[0-9A-Fa-f]{2}/.test(value)) continue;
     // Unquoted and followed by `;`, `,` or a bracket is code naming another thing
     // (`x = otherThing;`, `secretKey: SomeType;`, `f(password=PASSWORD_VAR,`);
-    // unquoted values are an .env's or a YAML file's, which end the line instead.
-    if (m[5] && /[;,)}\]]/.test(line[m.index + m[0].length] || "")) continue;
-    if (value.toLowerCase() === m[1].toLowerCase()) continue;
-    // An id, not a secret: a UUID is how most systems name a thing.
-    if (UUID.test(value)) continue;
-    // Random keys of this length almost always have a digit; names and words do not.
-    if (!/[0-9]/.test(value)) continue;
+    // unquoted values are an .env's or a YAML file's, which end the line instead. A
+    // bare value starting with $ is a shell variable.
+    if (!quoted && (/[;,)}\]]/.test(next || "") || value.startsWith("$") || !BARE_CHARS.test(value))) continue;
+    if (value.toLowerCase() === name.toLowerCase()) continue;
     // Something.like.this or a path is a reference in code, not a value.
     if (/^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+$/.test(value)) continue;
     if (/^(?:\.{0,2}\/|[a-z][a-z0-9+.-]*:\/\/)/i.test(value) || /\/[^/]*\.[a-z]{1,5}$/i.test(value)) continue;
-    const kinds = [/[a-z]/, /[A-Z]/, /[0-9]/].filter(r => r.test(value)).length;
+    // An id, not a secret: a UUID is how most systems name a thing.
+    if (UUID.test(value)) continue;
+    // Random keys and real passwords of this length almost always have a digit; names
+    // and words do not.
+    if (!/[0-9]/.test(value)) continue;
+    const kinds = [/[a-z]/, /[A-Z]/, /[0-9]/, /[^A-Za-z0-9]/].filter(r => r.test(value)).length;
     if (kinds < 2) continue;
     if (entropy(value) < 3.5) continue;
     return true;
@@ -153,8 +191,29 @@ function assignedSecret(line) {
   return false;
 }
 
-/** Looks like a binary file: a NUL byte near the start. Binary files are gitleaks' job. */
-function isBinary(bytes) {
+// A password in a connection address: postgres://user:password@db.example.com. Bounded
+// at every step, so linear in the line. Local development addresses, a password that
+// is the user's name or a common default, and a host with no dot (a compose service
+// such as db) are not taken for one.
+const URL_PASSWORD = /\b[a-z][a-z0-9+.-]{1,20}:\/\/([^\s:@\/"'`]{1,64}):([^\s@\/"'`]{8,128})@([A-Za-z0-9.-]{1,253})/gi;
+const DEFAULT_PASSWORDS = /^(?:password|passw0rd|postgres|root|admin|secret|changeme|pass|test|guest|example|mysql|redis)\d*$/i;
+
+function urlPassword(line) {
+  URL_PASSWORD.lastIndex = 0;
+  let m;
+  while ((m = URL_PASSWORD.exec(line)) !== null) {
+    const [, user, password, host] = m;
+    if (!host.includes(".") || /^(?:127\.|0\.0\.0\.0|localhost)/i.test(host) || host === "host.docker.internal") continue;
+    if (password === user || DEFAULT_PASSWORDS.test(password) || PLACEHOLDER.test(password) || password.startsWith("$")) continue;
+    if ([/[a-z]/, /[A-Z]/, /[0-9]/, /[^A-Za-z0-9]/].filter(r => r.test(password)).length < 2) continue;
+    if (entropy(password) < 3) continue;
+    return true;
+  }
+  return false;
+}
+
+/** A NUL byte near the start: a compiled or binary file, not text. */
+export function looksBinary(bytes) {
   const end = Math.min(bytes.length, 8000);
   for (let i = 0; i < end; i++) if (bytes[i] === 0) return true;
   return false;
@@ -170,21 +229,22 @@ const decoder = new TextDecoder("utf-8", { fatal: false });
  * @param {Uint8Array|string} contents
  */
 export function scanText(file, contents) {
-  let text;
-  if (typeof contents === "string") {
-    text = contents.length > MAX_SCAN_BYTES ? contents.slice(0, MAX_SCAN_BYTES) : contents;
-  } else {
-    const bytes = contents instanceof Uint8Array ? contents : new Uint8Array(contents || []);
-    if (isBinary(bytes)) return [];
-    text = decoder.decode(bytes.length > MAX_SCAN_BYTES ? bytes.subarray(0, MAX_SCAN_BYTES) : bytes);
-  }
+  // A binary file is scanned too: a NUL byte near the start must not hide a key further
+  // on (found in review). Only for the shapes of keys, though: the rules that read a
+  // name and a value (inText) are for text, and in compiled files they mistake
+  // fragments for values. The interview never reads a binary file (api/interview/tools.js).
+  const bytes = typeof contents === "string" ? null : contents instanceof Uint8Array ? contents : new Uint8Array(contents || []);
+  const binary = bytes ? looksBinary(bytes) : false;
+  const text = bytes ? decoder.decode(bytes) : contents;
+  const rules = binary ? RULES.filter(r => !r.inText) : RULES;
 
   const findings = [];
-  const lines = text.split(/\r\n|\n|\r/);
+  // Lines end at \n, as gitleaks counts them, so both scanners name the same line.
+  const lines = text.split(/\r?\n/);
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (line.length < 16) continue;
-    for (const rule of RULES) {
+    for (const rule of rules) {
       if (rule.test(line)) findings.push({ file, line: i + 1, rule: rule.id, kind: rule.kind });
     }
   }
