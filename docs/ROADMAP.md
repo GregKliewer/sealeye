@@ -131,7 +131,7 @@ through one governed door before Phase 4 adds a swarm of agents.
 - Identity per caller: every model call names its person, team, run and worker, so
   spend and traces say who did it. How it is carried is PHASE3-PLAN D1. **Built Oct 14,
   2026**: a token the API signs per call, required and logged by the gateway (DESIGN.md,
-  "A token on every model call"); the gateway's span in the LangFuse trace is owed.
+  "A token on every model call"). The gateway's own span in the trace moved to Phase 4.
 - Spend caps per run and per worker, held by seaLeye itself: the graph counts what each
   run has used and stops it at its cap, and a person is told why. agentgateway has no
   notion of a run; its budget per key and its rate limit are the outer limit behind
@@ -167,8 +167,8 @@ holds file contents.
 *Where it stands (Oct 14, 2026): each run's own cap (Step 3) and the gateway's budget,
 shown refusing on the server (Step 7), are done. Gateway logs and the record of calls
 hold no content (Steps 5 to 7). Every call names its caller in the gateway's log and
-record, with the run's trace id (Step 6); the gateway's own span in that trace is owed
-(Step 6b), and routes come with Step 8.*
+record, with the run's trace id (Step 6), which joins a call to its trace; the
+gateway's own span in that trace moved to Phase 4. Routes come with Step 8.*
 
 ### Phase 4: Learn the platform
 
@@ -187,7 +187,9 @@ record, with the run's trace id (Step 6); the gateway's own span in that trace i
 - LangFuse self-hosted in ca-central-1 (answers Q13; moved here from Phase 3 on Oct 13,
   2026), before the first discovery run reads an organization's code. It needs
   ClickHouse, Redis and blob storage beside Postgres, so it does not share the pilot's
-  small server.
+  small server. With it, the model gateway's own span joins each run's trace (moved
+  from Phase 3 Step 6b on Oct 14, 2026): the gateway sends spans only for a run that is
+  traced, and holds keys to the organization's own LangFuse, not to LangFuse Cloud.
 - What it learns is the organization's catalog: each module, what it is for, its usage
   rules and what must be refused. The front door agent plans from that catalog. No model
   is fine-tuned.
