@@ -96,6 +96,9 @@ function scanCopy(dir, dest) {
       } catch {
         continue;                   // a dangling link: nothing to package either
       }
+      // What packaging leaves out is left out first, so a .env or a node_modules that is
+      // a link elsewhere (a monorepo's, say) is no reason to refuse.
+      if (stat.isDirectory() ? SKIP_FOLDERS.has(name) : (!stat.isFile() || isLeftOutOfDeploy(name))) continue;
       // A link out of the app folder would package whatever it points at on this
       // machine, a file of the API's own say: refused rather than read.
       const target = fs.realpathSync(from);
@@ -103,11 +106,9 @@ function scanCopy(dir, dest) {
         throw new UploadRefused(`${childRel} is a link to something outside your app folder, which the platform does not package`);
       }
       if (stat.isDirectory()) {
-        if (SKIP_FOLDERS.has(name)) continue;
         walk(from, path.join(out, name), childRel);
         continue;
       }
-      if (!stat.isFile() || isLeftOutOfDeploy(name)) continue;
       if (name === ".gitleaksignore") {
         extra.push({ abs: from, rel: childRel });
         continue;

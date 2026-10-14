@@ -167,6 +167,12 @@ test("nothing is cut short for size, and a link is read as packaging reads it", 
   fs.symlinkSync("/etc/hostname", path.join(outside, "host.txt"));
   await assert.rejects(scanApp(outside), /host\.txt is a link to something outside your app folder/);
 
+  // What packaging never takes may point anywhere: a shared .env, a monorepo's modules.
+  const mono = folder("mono", { "shared.env": `KEY=${FAKE.stripeKey}`, "node_modules/x/i.js": "x", "app/index.js": "x" });
+  fs.symlinkSync(path.join(mono, "shared.env"), path.join(mono, "app", ".env"));
+  fs.symlinkSync(path.join(mono, "node_modules"), path.join(mono, "app", "node_modules"));
+  assert.deepEqual((await scanApp(path.join(mono, "app"))).found, []);
+
   const linked = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-link-"));
   fs.symlinkSync(dir, path.join(linked, "app"));
   assert.equal((await scanApp(path.join(linked, "app"))).found.length, 4, "an app folder that is itself a link is scanned through it");

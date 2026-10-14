@@ -1936,8 +1936,14 @@ upload on both surfaces, then gitleaks in the API; a finding refuses a deploy un
   links followed as zip follows them (each real folder once), so a `config.js` that is
   a link to a key is read, and a laptop deploy from a folder with a real `.env` is not
   refused for it. Folders are skipped only where packaging's rsync skips them, matched
-  as exactly. A link out of the app folder is refused: packaging would store whatever
-  it points at on the API's machine. Every file is scanned, whatever `.gitignore` says,
+  as exactly. A link out of the app folder is refused, unless it is something packaging
+  leaves out anyway (a shared `.env`, a monorepo's `node_modules`): packaging would
+  store whatever it points at on the API's machine. For a folder on the API's machine
+  the scan reads a copy and rsync then packages the folder, so a link changed in
+  between goes unscanned; uploads hold no links, so this is a laptop API's gap only.
+- **Known misses, left to gitleaks:** a key glued to the characters before it
+  (`prefix-AIza...`, `GITHUB_TOKEN_ghp_...`) is one longer token to the shared rules,
+  which match whole tokens to stay linear. Every file is scanned, whatever `.gitignore` says,
   and `.gitleaksignore`, kept from gitleaks, is still read by the shared rules.
 - **Fail closed only where the deeper check was expected.** Without gitleaks (a laptop
   API, CI), the shared rules are the scan and the record says so. With gitleaks
