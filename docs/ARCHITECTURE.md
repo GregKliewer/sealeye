@@ -132,7 +132,7 @@ flowchart TB
   api -- "read" --> cw
   cfn -- "creates" --> envs
   envs -- "read own settings at start" --> ssm
-  api -- "model calls, the API's key" --> gw
+  api -- "model calls, the API's key<br/>and a token it signs per call" --> gw
   gw -- "model calls, the model key" --> anthropic
   api -. "traces" .-> langfuse
 
@@ -152,7 +152,7 @@ flowchart TB
 | Portal | `portal/` | the API only, at `/api` on its own origin | Imports a few browser-safe `core/` files so both surfaces say the same words. Every value on a page comes from an API call. |
 | Caddy | `deploy/Caddyfile` | the API, static files | Certificates for sealeye.online, api.sealeye.online, sealeye.run, sealeye.org. Passes the interview's event stream through unbuffered. |
 | API | `api/`, `core/`, `prompts/`, `templates/` | Postgres, AWS (CLI), the model gateway, LangFuse | The only part that reaches AWS. One process. On the server it holds a key for the gateway, not a model key; on a laptop, with no `SEALEYE_GATEWAY_KEY`, it calls Anthropic with its own key. |
-| Model gateway | `deploy/gateway.yaml`, `deploy/gateway.sh` | Anthropic | agentgateway, pinned by digest. The only part on the server that holds the model key. Lets through only the API's key, keeps a money budget for each 30-day period in its own SQLite file, and logs no prompts or replies. On a network of its own that only the API joins; no published port. |
+| Model gateway | `deploy/gateway.yaml`, `deploy/gateway.sh` | Anthropic | agentgateway, pinned by digest. The only part on the server that holds the model key. Lets through only the API's key with a token the API signed for that call (person, team, run, worker, surface), and logs those names; keeps a money budget for each 30-day period in its own SQLite file, and logs no prompts or replies. On a network of its own that only the API joins; no published port. |
 | Postgres | `api/migrations/` | | Reachable only from the API, on the server's own network. |
 
 ## 5. Inside the API (C4 level 3)

@@ -53,9 +53,25 @@ case "${1:-}" in
     GATEWAY_KEY="$(param_value /sealeye/SEALEYE_GATEWAY_KEY)" || exit 1
     GATEWAY_BUDGET="$(param_value /sealeye/SEALEYE_GATEWAY_BUDGET)" || exit 1
     GATEWAY_BUDGET="${GATEWAY_BUDGET:-20}"
+    # The public half of the key the API signs each call's token with; the gateway refuses
+    # any call whose token it does not sign. Only whether the private half is stored is
+    # checked here: its value is the API's alone.
+    JWKS="$(param_value /sealeye/gateway/JWKS)" || exit 1
+    SIGNING_KEY_STORED="$(param_value /sealeye/SEALEYE_GATEWAY_SIGNING_KEY)" || exit 1
+    SIGNING_KEY_STORED="${SIGNING_KEY_STORED:+yes}"
     if [ -z "$MODEL_KEY" ] || [ -z "$GATEWAY_KEY" ]; then
       unset MODEL_KEY GATEWAY_KEY
       echo "The model gateway needs /sealeye/gateway/ANTHROPIC_API_KEY and /sealeye/SEALEYE_GATEWAY_KEY. deploy/README.md, \"The model gateway\", says how to create them. Nothing was changed."
+      exit 1
+    fi
+    if [ -z "$JWKS" ] || [ -z "$SIGNING_KEY_STORED" ]; then
+      unset MODEL_KEY GATEWAY_KEY
+      echo "The model gateway needs the API's signing key: run node deploy/gateway-signing-key.mjs on your Mac (deploy/README.md, \"Who is calling\"). Nothing was changed."
+      exit 1
+    fi
+    if [[ "$JWKS" != \{* ]]; then
+      unset MODEL_KEY GATEWAY_KEY
+      echo "/sealeye/gateway/JWKS is not a key set. Make it again with node deploy/gateway-signing-key.mjs --replace. Nothing was changed."
       exit 1
     fi
     # The gateway reads every dollar sign in its settings as a name to fill in, so a key
@@ -75,6 +91,8 @@ case "${1:-}" in
       printf 'ANTHROPIC_API_KEY=%s\nSEALEYE_GATEWAY_KEY=%s\nSEALEYE_GATEWAY_BUDGET=%s\n' "$MODEL_KEY" "$GATEWAY_KEY" "$GATEWAY_BUDGET" > "$ENV_FILE.new" )
     mv "$ENV_FILE.new" "$ENV_FILE"
     unset MODEL_KEY GATEWAY_KEY
+    # Public, so readable by the gateway's own user.
+    printf '%s\n' "$JWKS" > gateway-jwks.json.new && chmod 644 gateway-jwks.json.new && mv gateway-jwks.json.new gateway-jwks.json
     # Its spending is kept in SQLite here, so a restart does not reset the budget. It runs
     # as a user of its own (65532), which must be able to write the folder.
     mkdir -p gateway-data && chown 65532:65532 gateway-data && chmod 700 gateway-data
@@ -82,7 +100,7 @@ case "${1:-}" in
 
   restart-if-changed)
     # .gateway-started records the settings and keys the running gateway started with.
-    NOW="$(cat gateway.yaml "$ENV_FILE" | sha256sum | cut -d' ' -f1)"
+    NOW="$(cat gateway.yaml "$ENV_FILE" gateway-jwks.json | sha256sum | cut -d' ' -f1)"
     if [ "$NOW" != "$(cat .gateway-started 2>/dev/null || true)" ]; then
       # The gateway checks its own settings first, with the keys filled in, so a
       # mistake leaves the running gateway as it was rather than stopping it.
@@ -100,7 +118,7 @@ case "${1:-}" in
 
   restart)
     docker compose up -d --no-deps --force-recreate gateway
-    cat gateway.yaml "$ENV_FILE" | sha256sum | cut -d' ' -f1 > .gateway-started
+    cat gateway.yaml "$ENV_FILE" gateway-jwks.json | sha256sum | cut -d' ' -f1 > .gateway-started
     echo "The model gateway restarted" ;;
 
   ready)

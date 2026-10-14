@@ -29,6 +29,10 @@ frontendPolicies:
     add:
       run: jwt.run                    # jwt.sub is a default field already
       worker: jwt.worker
+      org: jwt.org
+      team: jwt.team
+      surface: jwt.surface
+      trace: jwt.trace
     database:
       llm: metadata                   # never `full`: that stores prompts and replies
 
@@ -61,7 +65,7 @@ llm:
     # Which run and which person: a short-lived token the API signs for each call (D1).
     jwtAuth:
       mode: strict                    # the default is `optional`, which lets no token through
-      issuer: https://api.sealeye.test
+      issuer: sealeye-api
       audiences: [sealeye-gateway]
       jwks:
         file: /config/.work/jwks.json

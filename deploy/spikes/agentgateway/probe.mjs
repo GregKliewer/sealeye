@@ -22,14 +22,18 @@ import { fileURLToPath } from "node:url";
 
 import Anthropic from "@anthropic-ai/sdk";
 
+// The API's own signer and claims (PHASE3-PLAN Step 6), so the spike checks the tokens
+// the API really makes, not tokens of its own.
+import { AUDIENCE, ISSUER, claimsFor, jwksFor, keyId, signerFromSettings, withCallerToken } from "../../../api/gateway-token.js";
+import { modelClient } from "../../../api/interview/model.js";
+
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const WORK = path.join(HERE, ".work");
 const GATEWAY = process.env.SPIKE_GATEWAY || "http://localhost:4000";
 const READY = process.env.SPIKE_READY || "http://localhost:15021/healthz/ready";
 const MOCK = process.env.SPIKE_MOCK || "http://localhost:8090";
-const ISSUER = "https://api.sealeye.test";
-const AUDIENCE = "sealeye-gateway";
-const KID = "sealeye-spike-1";
+// The id the API gives its key: the gateway finds the key by it.
+const signingKid = () => keyId(crypto.createPublicKey(fs.readFileSync(path.join(WORK, "signing.pem"))));
 const MODEL = "claude-sonnet-5";
 
 const results = { mode: process.argv[2], startedAt: new Date().toISOString(), checks: [] };
@@ -57,8 +61,7 @@ function setup() {
   const wrong = crypto.generateKeyPairSync("ed25519");
   fs.writeFileSync(path.join(WORK, "signing.pem"), pair.privateKey.export({ type: "pkcs8", format: "pem" }), { mode: 0o600 });
   fs.writeFileSync(path.join(WORK, "wrong.pem"), wrong.privateKey.export({ type: "pkcs8", format: "pem" }), { mode: 0o600 });
-  const jwk = pair.publicKey.export({ format: "jwk" });
-  fs.writeFileSync(path.join(WORK, "jwks.json"), JSON.stringify({ keys: [{ ...jwk, kid: KID, alg: "EdDSA", use: "sig" }] }, null, 2));
+  fs.writeFileSync(path.join(WORK, "jwks.json"), JSON.stringify(jwksFor(pair.publicKey), null, 2));
   const env = {
     GATEWAY_KEY_MAIN: randomKey("spike-main"),
     GATEWAY_KEY_TINY: randomKey("spike-tiny"),
@@ -77,7 +80,7 @@ function env() {
 // ---------------------------------------------------------------- tokens
 
 /** A token like the one the API would sign for each call (D1). */
-function token(claims = {}, { key = "signing.pem", kid = KID, alg = "EdDSA" } = {}) {
+function token(claims = {}, { key = "signing.pem", kid = signingKid(), alg = "EdDSA" } = {}) {
   const now = Math.floor(Date.now() / 1000);
   // Each token names a run of its own unless a check says otherwise, so the per-run
   // limit only meets the checks that are about it.
@@ -233,6 +236,22 @@ async function jwtChecks() {
   }
 }
 
+/** A call made the way the API makes it: its own client and signer, for a portal run. */
+async function apiSignedCall() {
+  process.env.SEALEYE_MODEL_URL = GATEWAY;
+  const signer = signerFromSettings(fs.readFileSync(path.join(WORK, "signing.pem"), "utf8"));
+  const record = {
+    id: `int_spike${crypto.randomBytes(4).toString("hex")}`,
+    caller: { email: "greg@example.org", org: "default", team: "payments" },
+    surface: "portal",
+    traceId: crypto.randomBytes(16).toString("hex")
+  };
+  const client = withCallerToken(modelClient({ gatewayKey: env().GATEWAY_KEY_MAIN }), signer, () => claimsFor(record));
+  const reply = await client.messages.create({ model: MODEL, max_tokens: 32, messages: [{ role: "user", content: "Hello." }] });
+  check("api: a call signed by the API's own signer is let through", reply.content.length > 0, { kid: signer.kid });
+  return record;
+}
+
 async function tokenLimit() {
   const run = `run-limit-${Date.now()}`;
   const statuses = [];
@@ -271,7 +290,7 @@ async function slow() {
   check("timeout: a stream that is silent for 70 seconds is not cut short", final.content.length > 0, { seconds: Math.round((Date.now() - s2) / 1000) });
 }
 
-function logs({ sentinel, run }) {
+function logs({ sentinel, run, apiRecord }) {
   const out = compose("logs", "gateway", "--no-log-prefix", "--no-color");
   const lines = out.split("\n").filter(Boolean);
   const json = lines.map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
@@ -284,6 +303,12 @@ function logs({ sentinel, run }) {
   check("logs: the token's person and worker are in the access log", out.includes("jwt.sub") && out.includes("greg") && out.includes("interview"), {
     hasRun: run ? out.includes(run) : undefined
   });
+  if (apiRecord) {
+    const line = json.find(j => j.run === apiRecord.id) || {};
+    check("logs: the API's call is logged with its person, team, run, worker, surface and trace", line["jwt.sub"] === "greg@example.org" && line.team === "payments" && line.worker === "interview" && line.surface === "portal" && line.trace === apiRecord.traceId, {
+      fields: Object.keys(line).filter(k => ["jwt.sub", "org", "team", "run", "worker", "surface", "trace"].includes(k)).sort()
+    });
+  }
   note("logs: the fields of one model call's line (names only)", { fields: Object.keys(sample).sort() });
 }
 
@@ -340,11 +365,12 @@ async function mock({ quick }) {
   await sdkToolUseAndCache({ expectUpstream: true });
   await sdkStream(sentinel);
   await jwtChecks();
+  const apiRecord = await apiSignedCall();
   const run = await tokenLimit();
   await budget();
   if (!quick) await slow();
   await sleep(1500); // the access log and the database are written a moment after
-  logs({ sentinel, run });
+  logs({ sentinel, run, apiRecord });
   database({ sentinel });
   await restart({ run });
 }

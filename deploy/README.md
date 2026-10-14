@@ -246,6 +246,51 @@ another program on your Mac could see it, as `put_secret` does; they keep it out
 your shell history. On the server, `docker inspect` and `docker compose config` show the
 gateway's keys to anyone with root, so never paste their output anywhere.
 
+## Once: who is calling (the token on every model call)
+
+From the first release with `api/gateway-token.js` (Phase 3 Step 6), the API signs a
+short-lived token for every model call. It names the person who started the
+interview, their team, the run, the worker and whether it started from the command or
+the portal. The gateway refuses any call without one, and writes those names into each
+line of its log (DESIGN.md, "A token on every model call").
+
+**1. Before that release,** make the signing key, on your Mac from the repo root:
+
+```bash
+node deploy/gateway-signing-key.mjs
+```
+
+Success: `Stored a new signing key, id ...`. It stores the private half at
+`/sealeye/SEALEYE_GATEWAY_SIGNING_KEY`, which only the API reads, and the public half at
+`/sealeye/gateway/JWKS`, which the gateway gets. It prints neither. Without them the
+release stops, changing nothing, and says to run this.
+
+**2. The release,** `deploy/release.sh`. Success: the same lines as before, ending with
+`The model gateway is up`. Calls that are in flight during the release itself may fail
+once, between the API's restart and the gateway's.
+
+**3. Check,** with one interview (`sealeye run` in `apps/static-website`, answering N),
+then:
+
+```bash
+deploy/server.sh gateway-logs
+```
+
+Success: each model call's line has `jwt.sub` (your email), `team`, `run` (the
+interview's id, `int_...`), `worker` (`interview`) and `surface` (`cli`). If the
+interview fails with "The model key the seaLeye API is using was refused", the gateway
+did not accept the API's token. Its log shows the reason, and switching back
+("Once: the model gateway") works as before.
+
+**A new signing key** (for example, if the old one may have been seen):
+
+```bash
+node deploy/gateway-signing-key.mjs --replace
+deploy/server.sh gateway-restart
+```
+
+Model calls are refused for the few seconds `gateway-restart` takes, between the gateway's restart and the API's.
+
 ## Once: the addresses
 
 Each of seaLeye's domains has one job, all served by the one server's Caddy, which gets

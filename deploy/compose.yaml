@@ -37,6 +37,8 @@ services:
     env_file: ./secrets/gateway.env
     volumes:
       - ./gateway.yaml:/config/gateway.yaml:ro
+      # The public half of the API's signing key, written by deploy/gateway.sh.
+      - ./gateway-jwks.json:/config/jwks.json:ro
       - ./gateway-data:/data
     # Only the API can reach it, and it publishes no port. It still reaches the model's
     # address on the internet, since the network is not an internal one.
