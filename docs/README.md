@@ -26,7 +26,7 @@ There are two surfaces and one product:
 - **seaLeye.online**, the web portal, for anyone who prefers a browser.
 - Both are clients of one **seaLeye API**, so they can always do the same things.
 
-## Where it stands (Oct 14, 2026, version 2.22.0)
+## Where it stands (Oct 14, 2026, version 2.23.0)
 
 - **Live** for a pilot: the API at https://api.sealeye.online, the portal at
   https://sealeye.online, and the command installed from https://sealeye.run.
