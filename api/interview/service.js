@@ -13,7 +13,7 @@ import path from "node:path";
 import { Command, MemorySaver } from "@langchain/langgraph";
 
 import { sealeyeHome, setting } from "../../core/config.js";
-import { cleanFinding, onePerLine } from "../../core/scan.js";
+import { cleanFinding, isRedactedLine, linesByFile, looksBinary, markWhole, onePerLine, redactLines } from "../../core/scan.js";
 import { unzipInto, UploadRefused } from "../../core/upload.js";
 import { scanApp } from "../secret-scan.js";
 import { promptVersion, traceRun, withoutTracing, flushScores } from "../../core/tracing.js";
@@ -178,21 +178,41 @@ export function createInterviewService({
     try {
       unzipInto(zip, appDir);
       const scanned = await scanApp(appDir);
-      for (const file of new Set(scanned.found.map(f => f.file))) {
+      const inside = file => {
         const target = path.join(appDir, ...file.split("/"));
-        if (target.startsWith(appDir + path.sep)) fs.writeFileSync(target, "");
-      }
-      // What the client says it held back counts only for a file that arrived, empty:
-      // it explains an empty file, and can never hide one that has contents.
-      const claimed = (Array.isArray(findings) ? findings : []).slice(0, 1000).map(cleanFinding).filter(f => {
-        if (!f) return false;
+        return target.startsWith(appDir + path.sep) ? target : null;
+      };
+      const binaryFiles = [...new Set(scanned.found.map(f => f.file))].filter(file => {
         try {
-          return fs.statSync(path.join(appDir, ...f.file.split("/"))).size === 0;
+          return looksBinary(fs.readFileSync(inside(file)));
         } catch {
           return false;
         }
       });
-      withheld = onePerLine([...claimed, ...scanned.found]);
+      const found = markWhole(scanned.found, { wholeFiles: scanned.wholeFiles, binaryFiles });
+      // Each flagged line becomes one that says why; a file with a value over many
+      // lines, or that is not text, is emptied. Either way before the graph starts.
+      for (const file of new Set(found.filter(f => f.whole).map(f => f.file))) {
+        const target = inside(file);
+        if (target) fs.writeFileSync(target, "");
+      }
+      for (const [file, kinds] of linesByFile(found)) {
+        const target = inside(file);
+        if (target) fs.writeFileSync(target, redactLines(new Uint8Array(fs.readFileSync(target)), kinds));
+      }
+      // What the client says it held back counts only where the file arrived with that
+      // line already replaced, or empty: it explains what is missing, and can never
+      // hide anything that arrived with contents.
+      const claimed = (Array.isArray(findings) ? findings : []).slice(0, 1000).map(cleanFinding).filter(Boolean).flatMap(f => {
+        try {
+          const text = fs.readFileSync(inside(f.file), "utf8");
+          if (text.length === 0) return [{ ...f, whole: true }];
+          return isRedactedLine(text.split("\n")[f.line - 1] || "") ? [f] : [];
+        } catch {
+          return [];
+        }
+      });
+      withheld = onePerLine([...claimed, ...found]).map(f => ({ ...f, whole: [...claimed, ...found].some(g => g.file === f.file && g.whole) }));
     } catch (err) {
       fs.rmSync(scratchRoot, { recursive: true, force: true });
       throw err;

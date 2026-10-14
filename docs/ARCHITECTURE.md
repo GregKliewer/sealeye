@@ -290,7 +290,7 @@ sequenceDiagram
 
   Dev->>CLI: sealeye run (in the app folder)
   CLI->>API: GET /deployments (is this app already live?)
-  CLI->>CLI: zip the folder for the interview: no .gitignore'd files,<br/>secret files and files that hold a secret as empty names
+  CLI->>CLI: zip the folder for the interview: no .gitignore'd files,<br/>secret files as empty names,<br/>each line that holds a secret replaced by one that says why
   CLI->>API: POST /interviews { app, zip, findings (file, line, rule) }
   API->>API: scan what arrived again (shared rules, gitleaks),<br/>empty any file with a finding
   API->>DB: interview record, checkpoint
@@ -529,8 +529,8 @@ flowchart LR
 
 | Boundary | Control |
 |---|---|
-| The developer's folder to the API | Two uploads, one walk (`core/upload-rules.js`). For the interview: what `.gitignore` leaves out stays behind, and secret files (`core/secrets.js`) travel as empty names. For the deploy: no `node_modules`, `.git`, `.github` or `.do`, and no secret file at all. Every file that travels is scanned for values that look like secrets (`core/scan.js`): an interview's file with one travels as an empty name, and a deploy with one is refused, unless `.sealeye-allow` names the line. |
-| What arrives at the API | Scanned again, because the client cannot be trusted: the shared rules and gitleaks (`api/secret-scan.js`), always with seaLeye's own configuration, so nothing in the folder can switch it off. An interview's file with a finding is emptied before the graph starts; a deploy with one is refused (`SECRETS_FOUND`) and nothing is kept. If gitleaks is installed and cannot finish, neither goes ahead (`SCAN_FAILED`). |
+| The developer's folder to the API | Two uploads, one walk (`core/upload-rules.js`). For the interview: what `.gitignore` leaves out stays behind, and secret files (`core/secrets.js`) travel as empty names. For the deploy: no `node_modules`, `.git`, `.github` or `.do`, and no secret file at all. Every file that travels is scanned for values that look like secrets (`core/scan.js`): for an interview, each such line travels as a line that says why (a private key, over many lines, sends its file as an empty name), and a deploy with one is refused, unless `.sealeye-allow` names the line. |
+| What arrives at the API | Scanned again, because the client cannot be trusted: the shared rules and gitleaks (`api/secret-scan.js`), always with seaLeye's own configuration, so nothing in the folder can switch it off. An interview's flagged lines are replaced, or a file with a private key emptied, before the graph starts; a deploy with one is refused (`SECRETS_FOUND`) and nothing is kept. If gitleaks is installed and cannot finish, neither goes ahead (`SCAN_FAILED`). |
 | The model reading the app | `list_files` and `read_file` are read-only, inside the copy and capped in size. `read_file` refuses secret files and files with a finding, and says which line and what kind; `list_files` shows only their names. LangSmith tracing stays off. |
 | Callers to the API | One token per person, stored only as a hash, issued on the administrator's machine. The portal trades it for an HttpOnly, `SameSite=Strict`, `__Host-` cookie; changes also need `x-sealeye-portal: 1`. An API with a database cannot run with auth off. |
 | Team to team | A record is its team's; an organization-wide token sees every team's; nobody sees another organization's. Each team's environments have names of their own. |

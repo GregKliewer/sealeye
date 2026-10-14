@@ -215,7 +215,8 @@ test("the words name the file, the line and the kind, with no cloud provider's t
   assert.match(refusal, /^Nothing was deployed/);
   assert.match(refusal, /sealeye settings set NAME/);
   assert.match(refusal, /\n  config\.js:12:cloud-access-key$/);
-  assert.match(interviewFindingWords([f]).join(" "), /sent as names only/);
+  assert.match(interviewFindingWords([f]).join(" "), /That line was not sent: the interview reads the rest of the file without it\./);
+  assert.match(interviewFindingWords([{ ...f, rule: "private-key", whole: true }]).join(" "), /config\.js was sent as a name only, since a private key runs over many lines\./);
 
   for (const rule of RULES) assert.doesNotMatch(rule.kind, /AWS|IAM|Amazon/, rule.id);
   assert.doesNotMatch(refusal, /—/);

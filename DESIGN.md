@@ -1965,3 +1965,22 @@ upload on both surfaces, then gitleaks in the API; a finding refuses a deploy un
 - **What is not scanned:** a drafted plan sends no code; `runInterview`, which reads a
   folder in place for the eval, cannot empty files without changing the developer's
   app (principle 5), and runs only on the sample apps.
+
+## The interview reads around a secret, not past the file
+
+Wed Oct 14, 2026, by Greg, after the first interview on an app larger than the samples
+(hagopj13/node-express-boilerplate). Sample JWTs in its Swagger comments sent
+`src/routes/v1/auth.route.js` empty, and the model could not read the login and token
+routes it most needed. This revises "The secret scanner" for the interview only; a
+deploy with a finding is still refused.
+
+- **A flagged line is replaced, not its file.** For an interview, each line with a
+  finding travels as `[seaLeye: this line was not sent: it looks like it holds a GitHub
+  token]`, so the model reads the rest of the file and the line numbers stay true. The
+  value never travels either way.
+- **Unless the value runs over many lines.** A private key is flagged on its first line
+  and its body would follow it, so a file with one is still sent empty; so is a file
+  where gitleaks found a value over several lines, and a binary file.
+- **The client's word still counts only where it holds.** A finding the client sends
+  explains a line only if that line arrived replaced, or a file only if it arrived
+  empty; the API replaces whatever its own scan finds.
