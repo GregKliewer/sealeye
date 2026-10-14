@@ -205,12 +205,20 @@ export function isBudgetSpent(err) {
 
 /**
  * The platform's gateway refused the call because this run has used its tokens for the
- * day (deploy/gateway.yaml, the per-run limit). Anthropic's own rate limits answer with
- * anthropic-ratelimit-* headers; the gateway's with x-ratelimit-*. Waiting does not help
- * this run, so it is never retried.
+ * day (deploy/gateway.yaml, the per-run limit). Waiting does not help this run, so it is
+ * never retried. The gateway adds x-ratelimit-* headers to every reply it lets through,
+ * Anthropic's own 429 included, so those alone do not tell them apart. Only the
+ * gateway's own refusal is plain text (the SDK finds no error object in it) and carries
+ * no Anthropic request id.
  */
 export function isRunLimitReached(err) {
-  return err?.status === 429 && !isBudgetSpent(err) && Boolean(err?.headers?.get?.("x-ratelimit-limit"));
+  return (
+    err?.status === 429 &&
+    !isBudgetSpent(err) &&
+    !err?.error &&
+    !err?.headers?.get?.("request-id") &&
+    Boolean(err?.headers?.get?.("x-ratelimit-limit"))
+  );
 }
 
 /** A timeout, a dropped connection, a rate limit or a server fault is worth one retry. */
@@ -246,8 +254,13 @@ function asUserFacing(err) {
     );
   }
 
-  // The same words as the run's own cap: to the developer it is one limit.
-  if (isRunLimitReached(err)) return userFacing(spendingLimitWords(COMMAND), err);
+  // The same words as the run's own cap: to the developer it is one limit. The reason
+  // lets the graph end the run as the cap does, stopped rather than failed.
+  if (isRunLimitReached(err)) {
+    const stopped = userFacing(spendingLimitWords(COMMAND), err);
+    stopped.reason = "spending_limit";
+    return stopped;
+  }
 
   if (err?.status === 429) {
     return userFacing(`The model is busy right now. Wait a moment, then run ${COMMAND} run again.`, err);

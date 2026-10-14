@@ -198,6 +198,8 @@ case "${1:-}" in
     # and this never asks for one.
     WHO="${2:-}"
     LIMIT="${3:-50}"
+    # A lone number is how many calls, not a name: gateway.sh calls 5.
+    if [[ "$WHO" =~ ^[0-9]+$ && -z "${3:-}" ]]; then LIMIT="$WHO"; WHO=""; fi
     if [[ -n "$WHO" && ! "$WHO" =~ ^[A-Za-z0-9@._+-]+$ ]]; then
       echo "Name a run (int_...) or a person's email, or nothing for every call."; exit 1
     fi
@@ -210,7 +212,7 @@ case "${1:-}" in
     fi
     source ./.env
     docker run --rm --user 65532:65532 -v "$PWD/gateway-data:/data" --entrypoint sqlite3 "$SEALEYE_IMAGE" \
-      -readonly -box /data/gateway.db \
+      -readonly -box -cmd ".timeout 5000" /data/gateway.db \
       "SELECT substr(completed_at, 1, 19) AS time,
               json_extract(attributes_json, '\$.\"jwt.sub\"') AS person,
               json_extract(attributes_json, '\$.team') AS team,
@@ -227,9 +229,8 @@ case "${1:-}" in
     # Calls older than 90 days leave the record (DESIGN.md, "The record of model calls").
     # Only the call log: the budget's own tables are the gateway's and are not touched.
     source ./.env
-    docker run --rm --user 65532:65532 -v "$PWD/gateway-data:/data" --entrypoint sqlite3 "$SEALEYE_IMAGE" /data/gateway.db \
-      "PRAGMA busy_timeout = 10000;
-       DELETE FROM request_log_payloads WHERE log_id IN (SELECT id FROM request_logs WHERE unixepoch(completed_at) < unixepoch('now', '-90 days'));
+    docker run --rm --user 65532:65532 -v "$PWD/gateway-data:/data" --entrypoint sqlite3 "$SEALEYE_IMAGE" -cmd ".timeout 10000" /data/gateway.db \
+      "DELETE FROM request_log_payloads WHERE log_id IN (SELECT id FROM request_logs WHERE unixepoch(completed_at) < unixepoch('now', '-90 days'));
        DELETE FROM request_logs WHERE unixepoch(completed_at) < unixepoch('now', '-90 days');
        SELECT 'Removed ' || changes() || ' calls older than 90 days from the record';" ;;
 

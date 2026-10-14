@@ -137,19 +137,30 @@ export function buildInterviewGraph({ runtimeFor, checkpointer }) {
     const system = [{ type: "text", text: loadSystemPrompt(), cache_control: { type: "ephemeral" } }];
     const startedAt = Date.now();
 
-    const response = await createWithOneRetry(
-      client,
-      {
-        model: state.model,
-        max_tokens: MAX_TOKENS,
-        system,
-        tools: [listFilesTool, readFileTool, submitPlanTool],
-        messages: state.messages,
-        ...(supportsTemperature(state.model) ? { temperature: 0.2 } : {})
-      },
-      line => emit({ type: "step", line }),
-      state.turn
-    );
+    let response;
+    try {
+      response = await createWithOneRetry(
+        client,
+        {
+          model: state.model,
+          max_tokens: MAX_TOKENS,
+          system,
+          tools: [listFilesTool, readFileTool, submitPlanTool],
+          messages: state.messages,
+          ...(supportsTemperature(state.model) ? { temperature: 0.2 } : {})
+        },
+        line => emit({ type: "step", line }),
+        state.turn
+      );
+    } catch (err) {
+      // The platform's gateway stopped this run at its per-run limit (model.js,
+      // isRunLimitReached): it ends as the run's own cap ends it, stopped, not failed.
+      if (err?.reason === "spending_limit") {
+        traceEvent("spending limit reached", { worker: WORKER });
+        return finish(state, { status: "stopped", reason: "spending_limit", message: err.message });
+      }
+      throw err;
+    }
 
     debugTurn({
       turn: state.turn,

@@ -209,22 +209,40 @@ test("a run the gateway's per-run limit stops is told it reached its limit, neve
       createWithOneRetry(modelClient(modelCredential()), { model: "claude-sonnet-5", max_tokens: 10, messages: [{ role: "user", content: "hi" }] }, () => {}),
       err => {
         assert.equal(err.message, spendingLimitWords("sealeye"));
+        assert.equal(err.reason, "spending_limit");
         return true;
       }
     );
     assert.equal(calls, 1, "never retried");
+
+    // A whole interview stopped this way ends as the run's own cap ends it.
+    const before = calls;
+    const { runInterview } = await import("../api/interview/service.js");
+    const result = await runInterview({ appPath: path.join(root, "apps", "static-website"), ask: () => { throw new Error("no question expected"); } });
+    assert.equal(result.status, "stopped");
+    assert.equal(result.reason, "spending_limit");
+    assert.equal(calls, before + 1);
   } finally {
     limiting.close();
     delete process.env.SEALEYE_GATEWAY_KEY;
   }
 });
 
-test("Anthropic's own rate limit is still a busy model, retried once", async () => {
+test("Anthropic's own rate limit is still a busy model, retried once, even with the gateway's headers on it", async () => {
+  // Through the gateway, Anthropic's 429 arrives with the gateway's x-ratelimit-* headers
+  // added, as every reply it lets through does. Only its body and request id tell it apart.
   let calls = 0;
   const busy = http.createServer((req, res) => {
     calls++;
     req.resume();
-    res.writeHead(429, { "content-type": "application/json", "anthropic-ratelimit-requests-remaining": "0", "retry-after": "1" });
+    res.writeHead(429, {
+      "content-type": "application/json",
+      "anthropic-ratelimit-requests-remaining": "0",
+      "request-id": "req_standin",
+      "x-ratelimit-limit": "2000000",
+      "x-ratelimit-remaining": "1990000",
+      "retry-after": "1"
+    });
     res.end(JSON.stringify({ type: "error", error: { type: "rate_limit_error", message: "Number of requests has exceeded your rate limit" } }));
   });
   await new Promise(r => busy.listen(0, "127.0.0.1", r));

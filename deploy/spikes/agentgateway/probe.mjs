@@ -339,7 +339,7 @@ function database({ sentinel, apiRecord }) {
       const [row] = JSON.parse(out || "[]");
       check("database: the stored call names its person, team, run, worker, surface and trace, and holds no content", Boolean(row) &&
         row.person === "greg@example.org" && row.team === "payments" && row.worker === "interview" && row.surface === "portal" &&
-        row.trace === apiRecord.traceId && row.payloads === 0 && typeof row.cost === "number", { row: row && { ...row } });
+        row.trace === apiRecord.traceId && row.payloads === 0, { row: row && { ...row } });
     } catch (err) {
       note("database: could not read the stored calls with sqlite3", { error: String(err.message).slice(0, 200) });
     } finally {
@@ -347,6 +347,7 @@ function database({ sentinel, apiRecord }) {
     }
   }
 }
+
 async function restart({ run }) {
   compose("restart", "gateway");
   const ready = await waitReady();

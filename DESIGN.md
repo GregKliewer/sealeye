@@ -2427,11 +2427,13 @@ this adds the rest.
   memory, so a restart resets it, which is acceptable for a backstop. It is a fixed
   number in `deploy/gateway.yaml`, not a setting, because nobody should need to tune it.
 - **Told as the run's limit.** The gateway refuses with a 429 in plain text and
-  `x-ratelimit-*` headers. Anthropic's own rate limits use `anthropic-ratelimit-*`, so
-  the two are told apart (`isRunLimitReached` in `api/interview/model.js`). A run the
-  gateway stops is not retried, and the developer reads the same words as for the
-  run's own cap: one limit, as far as they are concerned. Anthropic's 429 is still a
-  busy model, retried once.
+  `x-ratelimit-*` headers, but it adds those headers to every reply it lets through,
+  Anthropic's 429 included, so the headers alone do not tell them apart. Only the gateway's own refusal
+  is plain text with no Anthropic request id (`isRunLimitReached` in
+  `api/interview/model.js`). A run the gateway stops is not retried, and ends as the
+  run's own cap ends it: stopped, reason `spending_limit`, with the same words and the
+  same trace score. To the developer it is one limit. Anthropic's 429 is still a busy
+  model, retried once.
 - **The record of calls is the gateway's own SQLite file**, read, never written, by
   `deploy/server.sh gateway-calls`. It runs `sqlite3` from the API's image, as the
   gateway's own user (65532), so no file it shares with the gateway changes owner. It
@@ -2450,3 +2452,13 @@ this adds the rest.
   one interview refused in plain words with the refusal in the record, then the budget
   put back (deploy/README.md, "The record of model calls, and the outer limit shown
   once"). That is the second half of Phase 3's "done when".
+- **Reviewed before the pull request** by a separate agent. Its main finding was the
+  one above: the first version took Anthropic's own 429, seen through the gateway, for
+  the run's limit. It also found that a stopped run ended as failed, and that
+  `gateway-calls 5` was read as a name. Each is fixed; a lone number is now how many
+  calls. The reviewer checked the SQLite handling against the gateway's source:
+  - deleting while the gateway writes is safe;
+  - the budget cannot lose spend;
+  - `unixepoch(completed_at)` reads the gateway's timestamps;
+  - reading as the gateway's own user keeps the files it shares with the gateway
+    owned by it.

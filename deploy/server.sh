@@ -124,6 +124,7 @@ case "${1:-}" in
     run_on_server "seaLeye gateway logs" "cd /opt/sealeye && bash gateway.sh logs 40" ;;
   gateway-calls)
     WHO="${2:-}"; LIMIT="${3:-50}"
+    if [[ "$WHO" =~ ^[0-9]+$ && -z "${3:-}" ]]; then LIMIT="$WHO"; WHO=""; fi
     [[ -z "$WHO" || "$WHO" =~ ^[A-Za-z0-9@._+-]+$ ]] || { echo "Name a run (int_...) or a person's email, or nothing."; exit 1; }
     [[ "$LIMIT" =~ ^[0-9]{1,5}$ ]] || { echo "The number of calls must be a whole number."; exit 1; }
     run_on_server "seaLeye gateway calls" "cd /opt/sealeye && bash gateway.sh calls '${WHO}' ${LIMIT}" ;;
