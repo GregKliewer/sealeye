@@ -459,6 +459,15 @@ test("signing out ends the session: the pages ask for sign-in again", async ({ p
   await expect(page).toHaveURL(/\/sign-in$/);
 });
 
+test("signing in comes back to the page asked for, as sealeye online <app> opens it", async ({ page }) => {
+  await page.goto("/environments/sealeye-payments-api");
+  await expect(page).toHaveURL(/\/sign-in$/);
+  await page.fill("#token", TOKEN);
+  await page.click("button[type=submit]");
+  await expect(page).toHaveURL(/\/environments\/sealeye-payments-api$/);
+  await expect(page.getByRole("heading", { name: "payments-api" })).toBeVisible();
+});
+
 test("an environment being built says so everywhere, and locks what would change it", async ({ page }) => {
   await signIn(page);
   const row = page.getByTestId("environment-row").filter({ hasText: "inventory-api" });

@@ -75,7 +75,8 @@ with what in the code shows it. That is the expected result, not an error.
 
 ## 5. The website
 
-Open https://sealeye.online and sign in with the same token. You should see the
+Open https://sealeye.online (or run `sealeye online`, or `sealeye online <app>` to go
+straight to that app's page) and sign in with the same token. You should see the
 environments you just made, with their state and addresses. Click one to see its
 history.
 

@@ -40,10 +40,12 @@ core/       what cli/ and api/ must agree on: schema.js (the plan contract), cat
             plan-files.js (DEPLOYMENT_PLAN.md and sealeye.yaml, written by the
             command and sent with the interview's plan for the portal),
             plan-words.js and evidence-summary.js (words the command and the portal
-            both say), retention.js (how long logs are kept), setting-names.js.
+            both say), retention.js (how long logs are kept), setting-names.js,
+            environments.js (what an environment's key is: one row in `sealeye
+            list`, one page in the portal, the page `sealeye online <app>` opens).
             secrets.js, upload-rules.js, plan-words.js, evidence-summary.js,
-            retention.js and setting-names.js run in a browser, so the portal
-            imports them too
+            retention.js, setting-names.js and environments.js run in a browser, so
+            the portal imports them too
 prompts/    system prompt, plan contract, plan, report and evidence templates, catalog
 templates/  one CloudFormation template per buildable module, plus run.sh and
             sealeye-settings.mjs (the settings reader run.sh loads first)
@@ -117,7 +119,7 @@ in `core/` or behind an endpoint.
   `platform-sealeye-*`, which the deploy role cannot touch. Artifacts are
   `<name>/<deploymentId>.zip`.
 - Settings are `SEALEYE_<NAME>` (ACCOUNT, BUCKET, LWA_VERSION, FUNCTION_BOUNDARY_ARN, REGION, MODEL, DEBUG,
-  HOME, TRACING, MODEL_URL, API, TOKEN, AUTH), read through `setting()` in
+  HOME, TRACING, MODEL_URL, API, PORTAL, TOKEN, AUTH), read through `setting()` in
   `core/config.js`. SEALEYE_TOKEN is a secret: it lives in `~/.sealeye/config` (0600),
   is never printed, logged or put on a record.
 - `deployme` was the original name. Until 2.17.0 the plan file was `deployme.yaml`, the
@@ -272,6 +274,10 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
 - `npm start` runs the API from the repo root; `npm link` from the repo root installs
   `sealeye`. The command talks to https://api.sealeye.online unless `SEALEYE_API` or
   `--api` says otherwise, so point it at `http://localhost:3000` for a local API.
+- `sealeye online` (also `portal`, `open`) opens the portal, or with an app's name or a
+  deployment id, that environment's page. The portal's address follows the API's
+  (`portalFor` in `core/config.js`); `SEALEYE_PORTAL` names it outright. Signing in
+  comes back to the page asked for.
 - The portal: `cd portal && npm ci && npm run build`, then `npm run test:e2e`
   (Playwright starts `tests/test-api.mjs`, the real API with sample records, and the
   built portal). `npm run dev` with `SEALEYE_PORTAL_API` set runs it against any API.

@@ -2,6 +2,7 @@
 // does (cli/bin/sealeye groupEnvironments), so the portal and the terminal say the same
 // thing about the same environment.
 import type { DeploymentSummary } from "./api";
+import { environmentKey } from "../../core/environments.js";
 
 export interface Environment {
   key: string;
@@ -15,9 +16,9 @@ export const PAST = new Set(["destroyed", "drafted"]);
 export function groupEnvironments(deployments: DeploymentSummary[]): Environment[] {
   const groups = new Map<string, Environment>();
   for (const dep of deployments) {            // newest first, as the API lists them
-    // A stack is one environment. A draft has no stack, so it is its team's app: two
-    // teams' drafts of the same name are two (an organization-wide token sees both).
-    const key = dep.stackName || dep.environment || (dep.app?.name ? `${dep.teamId || "default"}:${dep.app.name}` : dep.deploymentId);
+    // The command keys an environment the same way, so `sealeye online <app>` opens
+    // this page for it (core/environments.js).
+    const key = environmentKey(dep);
     const group = groups.get(key);
     if (group) group.deploys.push(dep);
     else groups.set(key, { key, app: dep.app?.name || dep.deploymentId, latest: dep, deploys: [dep] });

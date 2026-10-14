@@ -167,6 +167,28 @@ export function requireSetting(name) {
  */
 export const DEFAULT_API = "https://api.sealeye.online";
 
+/**
+ * The portal that goes with an API, for `sealeye online`. SEALEYE_PORTAL says it
+ * outright. Otherwise it is worked out from the API's address: api.<domain> is served
+ * beside the portal at <domain> (api.sealeye.online and sealeye.online), and the
+ * portal's own /api is the portal itself. Anything else (a laptop API, say) has no
+ * portal anyone can know, and null says so.
+ *
+ * @param {string} apiBaseUrl
+ * @returns {string|null} the portal's origin, with no trailing slash
+ */
+export function portalFor(apiBaseUrl) {
+  const named = setting("PORTAL");
+  if (named) return named.replace(/\/+$/, "");
+  let url;
+  try { url = new URL(apiBaseUrl); } catch { return null; }
+  if (url.pathname.replace(/\/+$/, "") === "/api") return url.origin;
+  if (url.hostname.startsWith("api.") && url.hostname.split(".").length > 2) {
+    return `${url.protocol}//${url.hostname.slice(4)}${url.port ? `:${url.port}` : ""}`;
+  }
+  return null;
+}
+
 export function region() {
   return setting("REGION") || "ca-central-1";
 }
