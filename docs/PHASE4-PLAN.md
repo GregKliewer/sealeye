@@ -54,18 +54,26 @@ The plan has four parts, in the order the dependencies force.
 | # | Decision | Recommendation | Needed by | Decided |
 |---|---|---|---|---|
 | D1 | Where traces live during Phase 4 | LangFuse Cloud, as today. Self-hosting in ca-central-1 waits until the first run on an organization's real code: a precondition for that run, not for Phase 4. Every run before it reads seaLeye's own templates, the made-up organization or public modules | Step 4 | Greg, Wed Oct 14: LangFuse Cloud; "no one will be picking this up at a real bank any time soon" |
-| D2 | Where discovery runs before a customer | In the seaLeye account, like the pilot. A new account per customer, and a paid run, start with the first customer, as decided Oct 13 | Step 4 | |
-| D3 | How the swarm reads the library (Q17) | Plain code in the graph: a read-only clone of named repositories, at a named commit. The model never chooses what is read. A provider's MCP server later, through the gateway, where one adds something a clone cannot | Step 5 | |
-| D4 | What a catalog is | A versioned document per organization in Postgres, in the same shape as `module-catalog.yaml`. The four built-ins become a starter catalog. Plans name the catalog version they were made from (planVersion 0.5). A catalog goes live only when a platform engineer approves it and it passes its self-test | Step 1 | |
-| D5 | Which models the swarm uses | Workers read with the small model (`claude-haiku-5-5`); the supervisor and the rule writer use the frontier model (`claude-sonnet-5`). Both through the gateway on the Anthropic route, as named routes: the non-Bedrock half of Phase 3 Step 8, brought forward | Step 5 | |
-| D6 | A discovery run's caps | A cap per worker and per run, set from a measured run on the made-up organization, as Phase 3 sized the interview's dollar. Placeholder until measured: a dollar a worker, twenty a run | Step 6 | |
-| D7 | Where a platform engineer answers the swarm's questions | Both surfaces, one operation: `sealeye discover` and a Discovery page, on an endpoint first (parity). The run pauses with `interrupt()` and waits in Postgres, as the interview does | Step 6 | |
-| D8 | The Terraform executor's scope | One root module per environment that calls the organization's module by source and version; state in an S3 bucket with a lock file, in the account the environment is built in; `terraform` run by the API like the AWS CLI. Only modules discovery marked buildable, with their inputs from the catalog | Step 9 | |
-| D9 | What the made-up organization is | A private repository, `sealeye-sample-platform`, of 10 to 15 Terraform modules and a few pipeline files, with an answer key in a file discovery never reads. Built at the start of Part B | Step 4 | |
+| D2 | Where discovery runs before a customer | In the seaLeye account, like the pilot. A new account per customer, and a paid run, start with the first customer, as decided Oct 13 | Step 4 | Greg, Wed Oct 14: as recommended |
+| D3 | How the swarm reads the library (Q17) | Plain code in the graph: a read-only clone of named repositories, at a named commit. The model never chooses what is read. A provider's MCP server later, through the gateway, where one adds something a clone cannot | Step 5 | Greg, Wed Oct 14: as recommended. Answers Q17 |
+| D4 | What a catalog is | A versioned document per organization in Postgres, in the same shape as `module-catalog.yaml`. The four built-ins become a starter catalog. Plans name the catalog version they were made from (planVersion 0.5). A catalog goes live only when a platform engineer approves it and it passes its self-test | Step 1 | Greg, Wed Oct 14: as recommended |
+| D5 | Which models the swarm uses | Workers read with the small model (`claude-haiku-5-5`); the supervisor and the rule writer use the frontier model (`claude-sonnet-5`). Both through the gateway on the Anthropic route, as named routes: the non-Bedrock half of Phase 3 Step 8, brought forward | Step 5 | Greg, Wed Oct 14: as recommended |
+| D6 | A discovery run's caps | A cap per worker and per run, set from a measured run on the made-up organization, as Phase 3 sized the interview's dollar. Placeholder until measured: a dollar a worker, twenty a run | Step 6 | Greg, Wed Oct 14: as recommended |
+| D7 | Where a platform engineer answers the swarm's questions | Both surfaces, one operation: `sealeye discover` and a Discovery page, on an endpoint first (parity). The run pauses with `interrupt()` and waits in Postgres, as the interview does | Step 6 | Reopened, Greg, Wed Oct 14: a run that waits on a person stalls until someone notices. Look first at ways a whole run finishes quickly without pausing. Now Q19 in OPEN-QUESTIONS.md; blocks Step 6, not Part A |
+| D8 | The Terraform executor's scope | One root module per environment that calls the organization's module by source and version; state in an S3 bucket with a lock file, in the account the environment is built in; `terraform` run by the API like the AWS CLI. Only modules discovery marked buildable, with their inputs from the catalog | Step 9 | Greg, Wed Oct 14: as recommended |
+| D9 | What the made-up organization is | A private repository, `sealeye-sample-platform`, of 10 to 15 Terraform modules and a few pipeline files, with an answer key in a file discovery never reads. Built at the start of Part B | Step 4 | Greg, Wed Oct 14: as recommended, with modules that are commonly assembled into the same kind of application (a backend API, a website, or another), so a sample app can be planned from several of them together |
 
 ## Part A: one catalog becomes many
 
 ### Step 1. The catalog as data (D4)
+
+Built Wed Oct 14, 2026: `api/catalogs.js`, `api/migrations/006_catalogs.sql`, and
+`core/catalog.js`'s `starterCatalog` and `catalogProblems`. The API reads the
+organization's live catalog for `GET /catalog`, the need lines in `POST /plans/validate`
+and the ledger, the plan files it writes and the evidence's patterns. Nothing makes a
+catalog live from a request: that waits for Step 7's self-test. The interview's prompt
+is still the starter's (Step 3), and so is the command's card, which reads its own copy
+of the file (Step 2 moves it to `GET /catalog`).
 
 - A `catalogs` table: organization, version, status (draft, approved, live, retired),
   the document, who approved it, when. One live catalog per organization.
@@ -85,7 +93,11 @@ The plan has four parts, in the order the dependencies force.
   and the platform has an executor for its kind. Anything else is a need, as today:
   refuse, never shrink.
 - `GET /catalog` already exists on both surfaces; it shows the organization's live
-  catalog and its version.
+  catalog and its version (the API sends `catalog: { version, source }` since Step 1;
+  the command and the Catalog page show it in this step).
+- The command draws its card and writes DEPLOYMENT_PLAN.md from its own copy of the
+  starter catalog today. It reads the organization's catalog from the API instead, so
+  an organization's own module reads the same on both surfaces.
 
 ### Step 3. The interview reads the organization's catalog
 
@@ -99,7 +111,9 @@ The plan has four parts, in the order the dependencies force.
 
 ### Step 4. The made-up organization (D1, D2, D9)
 
-- `sealeye-sample-platform`: modules that overlap (discovery must ask), a deprecated
+- `sealeye-sample-platform`: 10 to 15 modules that are commonly assembled into the same
+  kinds of application, a backend API or a website, so a sample app's right plan uses
+  several of them together (D9). Among them: modules that overlap (discovery must ask), a deprecated
   one (must be refused), a usage rule only in a README, a planted fake key (the scanner
   stops it before any model), and two or three known gaps for the gap report. Later
   commits test "only what changed is read again".
@@ -120,8 +134,9 @@ The plan has four parts, in the order the dependencies force.
 ### Step 6. The swarm (D5, D6, D7)
 
 - A LangGraph supervisor fans out one worker per module, in parallel, gathers their
-  findings, and writes the catalog entries. Ambiguity (two modules that overlap, a rule
-  that contradicts a README) pauses the run for a platform engineer.
+  findings, and writes the catalog entries. How it handles ambiguity (two modules that
+  overlap, a rule that contradicts a README) is Q19: pausing for a platform engineer, as
+  first planned, or finishing the run and leaving the questions on the draft.
 - Each worker has its own cap, and the run has one, in the graph's existing `spend` map
   keyed by worker. The gateway's per-run limit and budget stay the outer limit.
 - `POST /discoveries`, `GET /discoveries/{id}/events`, `POST /discoveries/{id}/answers`:

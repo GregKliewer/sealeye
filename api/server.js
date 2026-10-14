@@ -37,7 +37,8 @@ import { postgresCheckpointer, postgresInterviewStore } from "./interview/pgstor
 import { databaseUrl, closeDb } from "./db.js";
 import { startTracing } from "../core/tracing.js";
 import { authMode, callerFor, callerForSession, endSession, SESSION_COOKIE, SESSION_HOURS, startSession } from "./tokens.js";
-import { loadCatalog, needKinds, orgName } from "../core/catalog.js";
+import { needKinds, orgName } from "../core/catalog.js";
+import { liveCatalog, openCatalogs } from "./catalogs.js";
 
 const app = express();
 
@@ -188,11 +189,19 @@ app.delete("/sessions", async (req, res) => {
   return res.status(200).json({ signedOut: true });
 });
 
+// The organization a request is made for: the token's, or "default" on a laptop API.
+const callerOrg = req => req.caller?.org || "default";
+// The catalog the organization plans and refuses against (api/catalogs.js).
+const catalogOf = req => liveCatalog(callerOrg(req)).document;
+
 // GET /catalog: what the platform can build, and the fixed list of needs it cannot yet,
-// in the catalog's own words (prompts/module-catalog.yaml).
-app.get("/catalog", (_req, res) => {
-  const catalog = loadCatalog();
+// in the words of the organization's live catalog, or the starter catalog
+// (prompts/module-catalog.yaml) when it has none. `catalog` says which; added Oct 14, 2026.
+app.get("/catalog", (req, res) => {
+  const live = liveCatalog(callerOrg(req));
+  const catalog = live.document;
   return res.status(200).json({
+    catalog: { version: live.version, source: live.source, approvedBy: live.approvedBy, approvedAt: live.approvedAt },
     catalogVersion: catalog.catalogVersion,
     modules: (catalog.modules || []).map(m => ({
       id: m.id,
@@ -222,7 +231,7 @@ app.post("/plans/validate", (req, res) => {
   const result = checkPlan(req.body);
   if (!result.valid) return res.status(200).json(result);
   const plan = upgradePlan(req.body);
-  const lines = new Map(needKinds(loadCatalog()).map(n => [n.key, String(n.line || "").trim()]));
+  const lines = new Map(needKinds(catalogOf(req)).map(n => [n.key, String(n.line || "").trim()]));
   const needs = (plan.needs || []).map(n => ({
     kind: n.kind,
     line: lines.get(n.kind) || n.line,
@@ -363,7 +372,7 @@ async function deployAgain(req, res) {
     // what was approved; a plan changed with Configure is written down from the plan.
     ...(source.planFiles && source.plan && planDigest(source.plan) === planDigest(plan)
       ? { planFiles: source.planFiles }
-      : planFilesFor(plan, null)),
+      : planFilesFor(plan, null, new Date(), catalogOf(req))),
     ...(req.caller ? { orgId: req.caller.org, teamId: req.caller.team, tokenId: req.caller.tokenId } : {}),
     surface: req.surface || "cli",
     ...(requestedBy ? { requestedBy } : {}),
@@ -513,7 +522,7 @@ async function deployNew(req, res) {
       plan,
       needs,
       // The plan as the developer saw it, so either surface can show it later.
-      ...planFilesFor(plan, interviewNotesFor(req.caller, plan)),
+      ...planFilesFor(plan, interviewNotesFor(req.caller, plan), new Date(), catalogOf(req)),
       ...provenance,
       outputs: {},
       failureReason: null,
@@ -596,7 +605,7 @@ async function deployNew(req, res) {
     plan,
     // And written down as the developer approved it (api/plan-record.js), for
     // GET /deployments/{id}/plan.
-    ...planFilesFor(plan, interviewNotesFor(req.caller, plan)),
+    ...planFilesFor(plan, interviewNotesFor(req.caller, plan), new Date(), catalogOf(req)),
     // What the secret scan let through on the developer's word (.sealeye-allow), and
     // whether gitleaks ran: file, line and rule, never a value. The evidence lists it.
     secretScan: { allowed: scan.allowed.map(({ file, line, rule }) => ({ file, line, rule })), gitleaks: scan.gitleaks },
@@ -814,7 +823,7 @@ app.get("/team", async (req, res) => {
 // Store only; no AWS call.
 app.get("/needs", (req, res) => {
   try {
-    return res.status(200).json(rollupNeeds(orgDeployments(req), { viewer: req.caller }));
+    return res.status(200).json(rollupNeeds(orgDeployments(req), { viewer: req.caller, catalog: catalogOf(req) }));
   } catch (err) {
     return res.status(500).json({ error: { code: "NEEDS_FAILED", message: err.message } });
   }
@@ -1021,6 +1030,8 @@ startTracing();
 sweepUploads();
 // Records first: nothing is served until the store has everything it knew.
 const opened = await openStore();
+// Each organization's catalogs, after the migrations openStore ran.
+await openCatalogs();
 // Then whatever was in flight when the API last stopped is picked up again: deployments,
 // and, with a database, interviews.
 const resumed = resumeInFlight();

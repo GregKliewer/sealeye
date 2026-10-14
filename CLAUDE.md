@@ -29,7 +29,8 @@ cli/        the sealeye command: bin/sealeye, client.js (talks to the API), inte
             (follow.js streams the interview; render.js), doctor.js,
             store-offer.js (moving .env values into the store),
             brand.js (the only place terminal colours live)
-api/        the API: server.js, store.js, db.js, migrations/, needs.js, mappings.js, validate.js,
+api/        the API: server.js, store.js, db.js, migrations/, catalogs.js (each organization's
+            catalog, or the starter), needs.js, mappings.js, validate.js,
             secret-scan.js and gitleaks.toml (the API's scan of what arrives),
             gateway-token.js (the token on every model call), interview/
             (the LangGraph graph, the model, the tools, the service), executor/
@@ -162,6 +163,12 @@ plans still load: a planned module in an old plan is read as the need it describ
 the plan becomes a draft. `core/schema.js` is the only file allowed to name the old
 module ids, and only for that. Changing the contract is a DESIGN.md decision.
 
+Each organization may have catalogs of its own (`api/catalogs.js`, the `catalogs` table:
+draft, approved, live, retired; one live). One with no live catalog has the starter,
+`prompts/module-catalog.yaml`, word for word. The API hands the functions in
+`core/catalog.js` the caller's or the record's organization's live catalog; nothing
+makes a catalog live from a request until the self-test (PHASE4-PLAN Step 7).
+
 ## API
 
 POST /plans/validate, POST /deployments ({ plan, appPath, zip?, settings? }, or
@@ -171,7 +178,7 @@ GET /deployments/{id}, GET /deployments/{id}/plan (the plan as approved and the 
 GET /needs, GET /health, GET /interviews (your own still open), POST /interviews ({ app, zip, findings? },
 answered with the interview and its findings), POST
 /interviews/{id}/answers ({ answer }), GET /interviews/{id}/events (server-sent events),
-DELETE /interviews/{id}, GET /whoami, GET /team (people with tokens, never a token), GET /costs (by tag), GET /catalog, GET /apps/{app}/settings, PUT
+DELETE /interviews/{id}, GET /whoami, GET /team (people with tokens, never a token), GET /costs (by tag), GET /catalog (the organization's live catalog, or the starter, and which), GET /apps/{app}/settings, PUT
 /apps/{app}/settings/{name} ({ value }) and DELETE /apps/{app}/settings/{name} (an app's
 settings in the store: names out, values in, never back), POST /sessions ({ token }) and
 DELETE /sessions (the portal's sign-in and sign-out). Every endpoint but GET /health

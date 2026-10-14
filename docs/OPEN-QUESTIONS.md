@@ -6,21 +6,33 @@ date and reason, and delete it from here.
 
 ## Blocking Phase 4
 
-### Q17. How does the discovery swarm read the platform library?
+### Q19. How does a discovery run settle what it cannot decide alone?
 
-The swarm (ROADMAP Phase 4) reads an organization's repositories, module registry and
-pipeline definitions. seaLeye is a client of those services here, not their owner.
+Discovery (PHASE4-PLAN Step 6) meets things a platform engineer must settle: two
+modules that overlap, a usage rule that contradicts a README, a module that may be
+deprecated. The plan's first answer (D7) paused the run with `interrupt()` until an
+engineer answered, as the interview does. Greg, Oct 14, 2026: a run that waits on a
+person stalls until someone notices, so discovery would need watching. Look first at
+ways a whole run finishes quickly without pausing.
 
 **Options:**
-- **The provider's own MCP server** where one exists (GitHub's, HashiCorp's for the
-  Terraform registry), routed through agentgateway so every read is named and logged.
-- **Plain code in the graph** that fetches the files (a clone, the registry's API) and
-  hands each worker its module. The model chooses nothing about what is read.
-- **seaLeye builds MCP servers** for the services that have none.
+- **Pause and wait** (D7 as first written). Simple, and the interview already does it;
+  but a run is only as fast as the slowest answer, and a worker's context is held open.
+- **Finish, and leave the questions on the draft.** The run never pauses. Each question
+  becomes an open item on the draft catalog with the evidence and a provisional best
+  guess, marked as a guess; the entry it touches cannot go live until it is answered.
+  An answer re-runs only the entries it touches. Engineers answer when they like, on
+  either surface.
+- **Finish, and refuse what is uncertain.** No guesses: an entry with an open question
+  is written as not buildable until answered. Safest, and the catalog is smaller at
+  first.
+- **Rules decided up front.** The platform team states its tie-breaks before a run
+  (prefer the newest module, a README outranks a comment); the run applies them and
+  lists what it applied. Fewer questions, but only for kinds foreseen.
 
-**Leaning:** the first where it exists, the second otherwise, never the third. Wrapping
-another team's service is that team's job, and fetching in code keeps the model from
-choosing what it reads. Blocks Phase 4.
+**Leaning:** the second, with the third's rule for anything that would let a developer
+build something no one approved: a provisional guess never goes live. Up-front rules
+can be added later to shrink the list. Blocks Step 6, not Part A.
 
 ## Blocking Phase 5
 

@@ -13,7 +13,8 @@ import { repoRoot } from "../../core/config.js";
 import { region, describe, stackEvents, stackTemplate, stackParameters } from "./cfn.js";
 import { sha256Text } from "./package.js";
 import { normalizeProfile } from "../../core/schema.js";
-import { patternsFor, loadCatalog } from "../../core/catalog.js";
+import { patternsFor } from "../../core/catalog.js";
+import { catalogFor } from "../catalogs.js";
 import { listDeployments } from "../store.js";
 import { sourceInWords } from "./settings.js";
 
@@ -127,7 +128,7 @@ function approvedOf(record) {
 
   let patterns;
   try {
-    patterns = patternsFor(plan, loadCatalog());
+    patterns = patternsFor(plan, catalogFor(record.orgId || "default"));
   } catch (err) {
     patterns = `not read: ${err.message}`;
   }

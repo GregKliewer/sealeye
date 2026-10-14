@@ -14,6 +14,7 @@ import crypto from "node:crypto";
 
 import { upgradePlan } from "../core/schema.js";
 import { planFiles } from "../core/plan-files.js";
+import { catalogFor } from "./catalogs.js";
 
 const KEEP_MS = 60 * 60 * 1000;   // an hour: an answer and its deploy are seconds apart
 const MAX_KEPT = 500;
@@ -64,7 +65,7 @@ export function interviewNotesFor(caller, plan, now = Date.now()) {
  * cannot be written for gets the reason instead, and the deployment goes ahead: a file
  * that will not render is a reporting problem, not a reason to refuse a deploy.
  */
-export function planFilesFor(plan, notes, date = new Date()) {
+export function planFilesFor(plan, notes, date = new Date(), catalog = undefined) {
   try {
     // An old plan (0.2, 0.3) is read as the contract reads it: a module it names that
     // seaLeye cannot build becomes the need it described (core/schema.js).
@@ -72,7 +73,7 @@ export function planFilesFor(plan, notes, date = new Date()) {
     const submission = notes
       ? { plan: current, summary: notes.summary, assumptions: notes.assumptions }
       : { plan: current, notesKept: false };
-    return { planFiles: { files: planFiles(submission, { date }), notesKept: Boolean(notes), writtenAt: date.toISOString() } };
+    return { planFiles: { files: planFiles(submission, { date, catalog }), notesKept: Boolean(notes), writtenAt: date.toISOString() } };
   } catch (err) {
     // The reason goes to the server's log; the developer gets a sentence.
     console.error(`[plan-record] the plan's files could not be written: ${err.message}`);
@@ -105,7 +106,7 @@ export function planView(record) {
   if (!record.plan) return { ...view, files: null, filesError: "this deployment's record holds no plan", rebuilt: false };
 
   const started = record.startedAt ? new Date(record.startedAt) : new Date();
-  const written = planFilesFor(record.plan, null, Number.isNaN(started.getTime()) ? new Date() : started);
+  const written = planFilesFor(record.plan, null, Number.isNaN(started.getTime()) ? new Date() : started, catalogFor(record.orgId || "default"));
   if (written.planFilesError) return { ...view, files: null, filesError: written.planFilesError, rebuilt: true };
   return { ...view, files: written.planFiles.files, notesKept: false, rebuilt: true };
 }

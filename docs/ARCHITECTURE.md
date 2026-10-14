@@ -164,6 +164,7 @@ flowchart LR
     tokens["<b>tokens.js</b><br/>Tokens and portal sessions,<br/>stored as hashes"]
     interview["<b>interview/</b><br/>graph.js, model.js, tools.js,<br/>service.js, pgstore.js"]
     validate["<b>validate.js, needs.js</b><br/>The plan contract,<br/>the needs ledger"]
+    catalogs["<b>catalogs.js</b><br/>Each organization's catalog,<br/>or the starter"]
     executor["<b>executor/</b><br/>compose, package, uploads,<br/>settings, report, evidence, resume"]
     cfn["<b>executor/cfn.js</b><br/>Every AWS call but the<br/>artifact upload"]
     dayTwo["<b>logs, performance, costs,<br/>pause, team, setting-changes</b>"]
@@ -177,6 +178,11 @@ flowchart LR
   server --> tokens
   server --> interview
   server --> validate
+  server --> catalogs
+  validate --> catalogs
+  executor --> catalogs
+  catalogs --> store
+  catalogs --> prompts
   server --> executor
   server --> dayTwo
   server --> scan
@@ -504,6 +510,16 @@ erDiagram
     text surface
     timestamptz at
   }
+  CATALOGS {
+    text org_id PK
+    integer version PK
+    text status "draft, approved, live or retired"
+    jsonb document "modules, need kinds, profiles, patterns"
+    text created_by
+    timestamptz created_at
+    text approved_by
+    timestamptz approved_at
+  }
   INTERVIEWS {
     text interview_id PK "schema interview_state"
     jsonb record
@@ -520,6 +536,9 @@ erDiagram
 
 `DEPLOYMENTS` and `SETTING_CHANGES` are joined to people through `org_id`, `team_id`
 and the person's email, not by a foreign key, so a record outlives a revoked token.
+`CATALOGS` holds each organization's catalogs (PHASE4-PLAN Step 1), one live at most;
+an organization with none plans against the starter catalog,
+`prompts/module-catalog.yaml`, which is not a row.
 LangGraph's own checkpoint tables also live in `interview_state`.
 
 ### 8.2 Outside Postgres
@@ -540,7 +559,9 @@ planVersion 0.4, in `core/schema.js` and `prompts/plan-contract.yaml`. Four buil
 modules: `static_site_edge`, `http_api_serverless`, `observability_basic`,
 `config_basic`. Anything else an app needs is a NEED from the fixed list in
 `prompts/module-catalog.yaml`, with evidence naming the file. A plan with needs is
-`drafted`; a plan without is `ready`.
+`drafted`; a plan without is `ready`. The API reads need lines and patterns from the
+organization's live catalog (`api/catalogs.js`); the module ids and need kinds the
+contract accepts are still the starter's until planVersion 0.5 (PHASE4-PLAN Step 2).
 
 ## 9. Security model
 
@@ -627,7 +648,7 @@ The decisions that shaped the architecture, by DESIGN.md heading.
 | Hosting | One small server in ca-central-1; Each domain has one job |
 | The interview | The interview runs as a LangGraph graph; The interview runs in the API; The model's address is a setting |
 | Uploads and packaging | Deployments package an uploaded copy; One walk decides what travels, from the command and from the browser; The interview never reads secret files; Installing an app's dependencies runs none of its code; Secret files never go into the package |
-| Data | Deployment records live in Postgres |
+| Data | Deployment records live in Postgres; The catalog is data, and every organization starts with the starter |
 | Identity | Every caller has a token, until sign-in; The portal signs in with a session cookie; Each team sees its own environments; Each team's environments have names of their own |
 | Settings | Setting values travel with the deploy, for now; Settings live in the organization's store |
 | Portal | The portal is a client of the API; The portal shares words with the command through core/ |
@@ -636,6 +657,7 @@ The decisions that shaped the architecture, by DESIGN.md heading.
 | Tracing | Tracing the interview with LangFuse; Tracing stays in the product |
 | Secrets in code | The secret scanner; The interview reads around a secret, not past the file |
 | Spending | A run's cap is close, not exact; What a run costs, and a cap of a dollar; The cap on every run; The gateway's budget: $20 a period; The outer limit, and a record of calls kept 90 days |
+| Learning the platform | Phase 4's decisions, and one reopened; The catalog is data, and every organization starts with the starter |
 | The model gateway | Phase 3's decisions, as recommended; agentgateway, read and run (Step 4); The model gateway on the server; A token on every model call; Inference from Canada: disclosed, on the US profile |
 
 ## 12. Known limits and where they go next

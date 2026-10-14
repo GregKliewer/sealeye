@@ -1,9 +1,14 @@
-// src/catalog.js
-// prompts/module-catalog.yaml, read fresh each time. It is the one place that says what
-// this version of the platform can build and what it can only write down, so the API
-// refuses against it, the card marks against it, and the interview's language comes
-// from it. Not cached: the file is small, the calls are rare, and an edit during a
-// working day should take effect without restarting anything.
+// core/catalog.js
+// What a catalog says, and the starter catalog every organization begins with.
+//
+// A catalog is one document: the modules the platform builds, the fixed list of need
+// kinds, the profiles and their patterns. Every function here takes the catalog it reads
+// from, so the API can hand each one the organization's live catalog (api/catalogs.js,
+// PHASE4-PLAN Step 1). An organization with none has the starter catalog,
+// prompts/module-catalog.yaml, word for word: seaLeye's own four modules.
+//
+// The starter is read fresh each time. Not cached: the file is small, the calls are
+// rare, and an edit during a working day should take effect without restarting anything.
 import fs from "node:fs";
 import path from "node:path";
 
@@ -33,8 +38,61 @@ export function refusalClosing(org = orgName()) {
   return fs.readFileSync(file, "utf8").trim().split("{{org}}").join(org);
 }
 
-export function loadCatalog() {
+/** The version a plan names for the starter catalog (planVersion 0.5, Step 2). */
+export const STARTER_VERSION = "starter";
+
+/** The starter catalog: seaLeye's own modules, from prompts/module-catalog.yaml. */
+export function starterCatalog() {
   return YAML.parse(fs.readFileSync(path.join(repoRoot, "prompts", "module-catalog.yaml"), "utf8"));
+}
+
+/**
+ * The starter catalog, under the name every caller used before there could be more than
+ * one. The command reads it for the card it draws; the API reads the organization's
+ * live catalog instead (api/catalogs.js) and passes it to the functions below.
+ */
+export function loadCatalog() {
+  return starterCatalog();
+}
+
+/**
+ * What is wrong with a catalog document, in words; empty when nothing is. Only its shape:
+ * the parts every function here reads. Whether its entries are right is the self-test's
+ * to say (PHASE4-PLAN Step 7), and whether it may go live a platform engineer's.
+ */
+export function catalogProblems(doc) {
+  if (!doc || typeof doc !== "object" || Array.isArray(doc)) return ["a catalog is a document of named parts"];
+  const problems = [];
+  const text = v => typeof v === "string" && v.trim() !== "";
+
+  if (!Array.isArray(doc.modules)) problems.push("modules is a list");
+  else {
+    const seen = new Set();
+    doc.modules.forEach((m, i) => {
+      if (!m || !text(m.id)) return problems.push(`module ${i + 1} has no id`);
+      if (!/^[a-z][a-z0-9_]*$/.test(m.id)) problems.push(`module ${m.id}: an id is lowercase letters, digits and underscores`);
+      if (seen.has(m.id)) problems.push(`module ${m.id} is listed twice`);
+      seen.add(m.id);
+      if (!text(m.line)) problems.push(`module ${m.id} has no line`);
+    });
+  }
+
+  if (!Array.isArray(doc.need_kinds)) problems.push("need_kinds is a list");
+  else {
+    const seen = new Set();
+    doc.need_kinds.forEach((n, i) => {
+      if (!n || !text(n.key)) return problems.push(`need kind ${i + 1} has no key`);
+      if (seen.has(n.key)) problems.push(`need kind ${n.key} is listed twice`);
+      seen.add(n.key);
+      if (!text(n.line)) problems.push(`need kind ${n.key} has no line`);
+    });
+  }
+
+  if (doc.profiles !== undefined && !Array.isArray(doc.profiles)) problems.push("profiles is a list");
+  if (doc.patterns !== undefined && (typeof doc.patterns !== "object" || doc.patterns === null || Array.isArray(doc.patterns))) {
+    problems.push("patterns is a set of named profiles");
+  }
+  return problems;
 }
 
 export function moduleEntry(id, catalog = loadCatalog()) {
