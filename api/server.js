@@ -697,8 +697,11 @@ app.get("/deployments/:deploymentId", (req, res) => {
   }
   // Whether a newer success has replaced it, as the list says (DESIGN.md).
   const replacedBy = replacements(listDeployments()).get(dep.deploymentId);
-  if (!replacedBy) return res.status(200).json(dep);
-  return res.status(200).json({ ...dep, replaced: true, replacedBy: canSee(req, getDeployment(replacedBy)) ? replacedBy : null });
+  // The plan's files are served at /plan, not here: this route is polled every few
+  // seconds while a change is watched.
+  const { planFiles: _files, ...shown } = dep;
+  if (!replacedBy) return res.status(200).json(shown);
+  return res.status(200).json({ ...shown, replaced: true, replacedBy: canSee(req, getDeployment(replacedBy)) ? replacedBy : null });
 });
 
 // GET /deployments/{deploymentId}/plan — the plan this deployment was approved with, as

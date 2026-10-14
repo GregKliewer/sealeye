@@ -25,6 +25,7 @@ const shown = "mt-3 max-h-[32rem] overflow-auto whitespace-pre-wrap rounded-md b
 
 export function PlanCard({ dep, latest }: { dep: DeploymentSummary; latest: boolean }) {
   const loaded = useLoad(() => api.plan(dep.deploymentId), [dep.deploymentId, dep.status]);
+  const error = loaded.data?.deploymentId === dep.deploymentId || !loaded.data ? loaded.error : null;
   const [which, setWhich] = useState<"plan" | "report">("plan");
   // Another deployment picked from the history starts on its plan, and what was read for
   // the one before is never shown under this one's id.
@@ -39,8 +40,8 @@ export function PlanCard({ dep, latest }: { dep: DeploymentSummary; latest: bool
         <span className="ml-auto font-mono text-xs text-dim">{dep.deploymentId}{latest ? " (the latest)" : ""}</span>
       </CardHeader>
       <CardContent className="space-y-4 text-sm">
-        {loaded.error ? <Problem message={loaded.error} /> : null}
-        {!view && !loaded.error ? <p className="text-dim">Reading the record</p> : null}
+        {error ? <Problem message={error} /> : null}
+        {!view && !error ? <p className="text-dim" aria-live="polite">Reading the record</p> : null}
         {view ? (
           <>
             <div className="flex flex-wrap gap-1" role="group" aria-label="Which file">
@@ -59,7 +60,7 @@ export function PlanCard({ dep, latest }: { dep: DeploymentSummary; latest: bool
                         <Button key={name} variant="ghost" onClick={() => download(name, view.files![name])}>Download {name}</Button>
                       ))}
                     </div>
-                    {planMd ? <pre className={shown} data-testid="plan-file">{planMd}</pre> : null}
+                    {planMd ? <pre className={shown} data-testid="plan-file" tabIndex={0} aria-label="DEPLOYMENT_PLAN.md">{planMd}</pre> : null}
                   </>
                 ) : null}
               </div>
@@ -69,7 +70,7 @@ export function PlanCard({ dep, latest }: { dep: DeploymentSummary; latest: bool
                   <>
                     <p className="text-dim">What this deployment built, the same DEPLOYMENT_REPORT.md the command writes when it succeeds.</p>
                     <div className="mt-3"><Button variant="ghost" onClick={() => download(REPORT_FILE, view.report!)}>Download {REPORT_FILE}</Button></div>
-                    <pre className={shown} data-testid="report-file">{view.report}</pre>
+                    <pre className={shown} data-testid="report-file" tabIndex={0} aria-label="DEPLOYMENT_REPORT.md">{view.report}</pre>
                   </>
                 ) : (
                   <p className={view.reportError || view.status === "failed" ? "text-amber" : "text-dim"} data-testid="no-report">{noReportWords({ status: view.status, failureReason: view.failureReason ?? dep.failureReason, reportError: view.reportError })}</p>

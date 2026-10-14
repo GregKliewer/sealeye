@@ -2056,8 +2056,17 @@ deployment, from `GET /deployments/{id}/plan`.
   this?" is answered, the API notes them, keyed by the person and the plan's exact text,
   for an hour; a deploy of that same plan by that person picks them up. A client could
   have sent the markdown, but then a record would hold text the platform did not write
-  (principle 7). Kept in memory: an API restarted between the answer and the deploy, a
-  plan from a file, or one changed with Configure is written from the plan alone.
+  (principle 7). They are noted whichever way the question is answered, and a deploy of
+  that same unchanged plan within the hour (the drafted plan saved after a "no", or
+  `sealeye deploy -f` of the files the interview wrote) picks them up, which is right:
+  they are the same notes the developer's DEPLOYMENT_PLAN.md has. Kept in memory: an API
+  restarted between the answer and the deploy, a deploy more than an hour later, a plan
+  edited before it was deployed, or one changed with Configure is written from the plan
+  alone, and the words say so without guessing why (the record's `origin.planSource`
+  decides between "from a plan file", "deployed again" and "not kept").
+- **Once deployed, the interview's notes are the team's.** Before, an interview's words
+  were its starter's alone; the summary and assumptions are now part of the deployment's
+  record, which the team and an organization-wide token read, as they read its plan.
 - **A file without its notes says so.** Its Notes section says the summary and
   assumptions are not part of the record, and never "No assumptions were needed", which
   would be a claim the platform cannot make (`notesKept: false` in
@@ -2074,4 +2083,10 @@ deployment, from `GET /deployments/{id}/plan`.
   report, with `--report`); `--out <folder>` writes the three files there and refuses if
   any is already there, because an app's own sealeye.yaml is the plan it deploys next and
   an older one must never quietly replace it.
-- **The list stays small.** `GET /deployments` carries neither the files nor the report.
+- **The list stays small, and so does the polled record.** `GET /deployments` carries
+  neither the files nor the report, and `GET /deployments/{id}`, which the command polls
+  while it watches a change, leaves the files to `/plan`.
+- **An old plan is read as the contract reads it.** A 0.2 or 0.3 plan is upgraded before
+  it is written down, so a module seaLeye cannot build appears as the need it described,
+  never by its id (principle 2). A plan that cannot be written down at all gets a
+  sentence on both surfaces and the reason in the server's log.

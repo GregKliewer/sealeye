@@ -690,6 +690,12 @@ async function main() {
   if (command === "plan") {
     const target = nameOrHere(`${product.command} plan <app | deploymentId>`);
     if (!target) return;
+    const outArg = process.argv.includes("--out") ? getArg("--out") : undefined;
+    if (process.argv.includes("--out") && (!outArg || outArg.startsWith("-"))) {
+      console.error(c.fail(`Name the folder to write into: ${product.command} plan ${target} --out <folder>.`));
+      process.exitCode = 1;
+      return;
+    }
     const resolved = await resolveEvidenceTarget({ apiBaseUrl, target });
     if (!resolved) return;
 
@@ -700,10 +706,19 @@ async function main() {
     }
 
     const toTerminal = process.stdout.isTTY;
-    const outDir = getArg("--out");
-    if (outDir) {
-      const folder = path.resolve(outDir);
+    if (outArg) {
+      const folder = path.resolve(outArg);
       const files = { ...(view.files || {}), ...(view.report ? { "DEPLOYMENT_REPORT.md": view.report } : {}) };
+      if (!Object.keys(files).length) {
+        console.error(c.fail(`Nothing to write: the plan's files could not be written (${view.filesError || "the platform sent none"}), and ${noReportWords(view)}`));
+        process.exitCode = 1;
+        return;
+      }
+      if (fs.existsSync(folder) && !fs.statSync(folder).isDirectory()) {
+        console.error(c.fail(`${folder} is a file, not a folder. Name a folder with --out.`));
+        process.exitCode = 1;
+        return;
+      }
       const there = Object.keys(files).filter(name => fs.existsSync(path.join(folder, name)));
       if (there.length) {
         console.error(c.fail(`${folder} already has ${there.join(" and ")}, and seaLeye never writes over a file. Name an empty folder with --out.`));
@@ -715,7 +730,15 @@ async function main() {
       if (view.files) say(planOrigin(view));
       else say(`The plan's files could not be written: ${view.filesError}`);
       for (const [name, text] of Object.entries(files)) {
-        fs.writeFileSync(path.join(folder, name), text);
+        // "wx": a file that appeared since the check above is still never written over.
+        try {
+          fs.writeFileSync(path.join(folder, name), text, { flag: "wx" });
+        } catch (err) {
+          if (err.code !== "EEXIST") throw err;
+          console.error(c.fail(`${folder} already has ${name}, and seaLeye never writes over a file. Name an empty folder with --out.`));
+          process.exitCode = 1;
+          return;
+        }
         say(`Wrote ${path.join(folder, name)}`);
       }
       if (!view.report) say(noReportWords(view));
@@ -724,7 +747,9 @@ async function main() {
 
     if (process.argv.includes("--report")) {
       if (!view.report) {
+        // Nothing on stdout, and a non-zero exit, so a script writing it to a file can tell.
         console.error(toTerminal ? step(noReportWords(view)) : noReportWords(view));
+        process.exitCode = 1;
         return;
       }
       if (toTerminal) say(`The report for ${resolved.label} (${resolved.deploymentId})`);

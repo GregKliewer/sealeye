@@ -6,10 +6,12 @@
 /** Where the plan's files came from, in a sentence. */
 export function planOrigin(view) {
   if (view?.rebuilt) {
-    return "Written now from the plan this deployment used, because it was made before seaLeye kept the approved files. The interview's summary and assumptions are not in it.";
+    return "Written from the plan this deployment used, and dated when it started, because it was made before seaLeye kept the approved files. The interview's summary and assumptions are not in it.";
   }
   if (view?.notesKept) return "The plan as it was approved, the same files sealeye run writes into the app's folder.";
-  return "The plan this deployment used. It did not come straight from an interview, so its summary and assumptions are not in it.";
+  if (view?.planSource === "file") return "The plan this deployment used, deployed from a plan file, so the interview's summary and assumptions are not in it.";
+  if (view?.planSource === "again") return "The plan this deployment used when it deployed earlier code again. The interview's summary and assumptions were not kept with it.";
+  return "The plan this deployment used. The interview's summary and assumptions were not kept with this deployment, so they are not in it.";
 }
 
 /** Why a deployment has no report, from its own status. */

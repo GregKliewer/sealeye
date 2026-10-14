@@ -121,6 +121,7 @@ export interface DeploymentPlan {
   app: string | null;
   status: string;
   failureReason: string | null;
+  planSource: string | null;
   files: Record<string, string> | null;
   filesError?: string;
   notesKept?: boolean;

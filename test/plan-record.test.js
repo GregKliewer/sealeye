@@ -69,6 +69,14 @@ test("a plan the files cannot be written for gets the reason, not an exception",
   assert.equal(view.filesError, "the template is missing");
 });
 
+test("an old plan naming a module seaLeye cannot build is written down as a draft, not refused", () => {
+  const old = { planVersion: "0.3", app: { name: "orders-api", type: "api" }, profile: "dev",
+    modules: [...plan.modules, { id: "secrets_basic", enabled: true, inputs: {} }], outputs: ["public_url"] };
+  const view = planView({ deploymentId: "dep_old03", status: "succeeded", plan: old, startedAt: "2026-08-01T12:00:00Z" });
+  assert.equal(view.filesError, undefined, view.filesError);
+  assert.doesNotMatch(view.files["DEPLOYMENT_PLAN.md"], /secrets_basic/);
+});
+
 test("an older record is written down from its plan, dated when it started, and marked rebuilt", () => {
   const view = planView({ deploymentId: "dep_old", app: { name: "orders-api" }, status: "succeeded", plan, startedAt: "2026-09-02T15:00:00Z", report: "# Report\n" });
   assert.equal(view.rebuilt, true);
@@ -135,6 +143,13 @@ test("another team's deployment, or none, is not found", async () => {
   assert.equal((await api.call("/deployments/dep_orders00002/plan")).status, 401);
 });
 
+test("the record itself, polled while a change is watched, leaves the files to /plan", async () => {
+  const res = await api.call("/deployments/dep_orders00002", { token: ANA });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.planFiles, undefined);
+  assert.ok(res.body.plan, "the plan is still there");
+});
+
 test("the list stays small: no plan files or report in it", async () => {
   const res = await api.call("/deployments", { token: ANA });
   const row = (res.body.deployments || res.body).find(d => d.deploymentId === "dep_orders00002");
@@ -195,15 +210,19 @@ test("sealeye plan prints the plan, and only the plan when its output goes to a 
 test("sealeye plan --report prints the report, or says why there is none", async () => {
   const { stdout } = await sealeye("plan", "dep_orders00002", "--report");
   assert.equal(stdout, "# Deployment Report\n\nIt worked.\n");
-  const none = await sealeye("plan", "dep_orders00001", "--report");
-  assert.equal(none.stdout, "");
-  assert.match(none.stderr, /This deployment failed, so there is no report\. The platform said: it did not start/);
+  await assert.rejects(sealeye("plan", "dep_orders00001", "--report"), err => {
+    assert.equal(err.code, 1, "a script can tell there was none");
+    assert.equal(err.stdout, "");
+    assert.match(err.stderr, /This deployment failed, so there is no report\. The platform said: it did not start/);
+    return true;
+  });
 });
 
 test("sealeye plan --out writes the files into a folder, and never over one that is there", async () => {
   const folder = path.join(api.home, "kept-plan");
   await sealeye("plan", "dep_orders00002", "--out", folder);
   assert.deepEqual(fs.readdirSync(folder).sort(), ["DEPLOYMENT_PLAN.md", "DEPLOYMENT_REPORT.md", "sealeye.yaml"]);
+  await assert.rejects(sealeye("plan", "dep_orders00002", "--out"), err => /Name the folder to write into/.test(err.stderr));
   fs.writeFileSync(path.join(folder, "sealeye.yaml"), "mine\n");
   await assert.rejects(sealeye("plan", "dep_orders00002", "--out", folder), err => /never writes over a file/.test(err.stderr));
   assert.equal(fs.readFileSync(path.join(folder, "sealeye.yaml"), "utf8"), "mine\n", "left as it was");

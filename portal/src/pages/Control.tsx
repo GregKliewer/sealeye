@@ -41,6 +41,8 @@ export function Control() {
   const latest = env?.latest;
   const [evidenceFor, setEvidenceFor] = useState<string | null>(null);
   const [planFor, setPlanFor] = useState<string | null>(null);
+  // Another environment's page starts on its own latest deployment.
+  useEffect(() => { setPlanFor(null); setEvidenceFor(null); }, [key]);
   // A change under way locks everything that would change the environment, as the API
   // refuses a second change (ENVIRONMENT_BUSY), and says so on each card.
   // Usually the newest record, but a tear-down asked through an older one is under way

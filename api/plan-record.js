@@ -66,12 +66,17 @@ export function interviewNotesFor(caller, plan, now = Date.now()) {
  */
 export function planFilesFor(plan, notes, date = new Date()) {
   try {
+    // An old plan (0.2, 0.3) is read as the contract reads it: a module it names that
+    // seaLeye cannot build becomes the need it described (core/schema.js).
+    const current = upgradePlan(plan);
     const submission = notes
-      ? { plan, summary: notes.summary, assumptions: notes.assumptions }
-      : { plan, notesKept: false };
+      ? { plan: current, summary: notes.summary, assumptions: notes.assumptions }
+      : { plan: current, notesKept: false };
     return { planFiles: { files: planFiles(submission, { date }), notesKept: Boolean(notes), writtenAt: date.toISOString() } };
   } catch (err) {
-    return { planFilesError: err.message };
+    // The reason goes to the server's log; the developer gets a sentence.
+    console.error(`[plan-record] the plan's files could not be written: ${err.message}`);
+    return { planFilesError: "the platform could not write this plan down as files" };
   }
 }
 
@@ -86,6 +91,9 @@ export function planView(record) {
     app: record.app?.name || null,
     status: record.status,
     failureReason: record.failureReason || null,
+    // How the plan came to be, as the record says (an interview, a file, a plan reused),
+    // so the words about a file without its notes claim nothing the record does not.
+    planSource: record.origin?.planSource || (record.fromDeployment ? "again" : null),
     report: typeof record.report === "string" ? record.report : null,
     ...(record.reportError ? { reportError: record.reportError } : {})
   };
