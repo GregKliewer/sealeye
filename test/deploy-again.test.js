@@ -10,6 +10,7 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { spawn, execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { freePort } from "./helpers/free-port.js";
 
 const root = path.resolve(import.meta.dirname, "..");
 const TEAM = `sl_${"a".repeat(43)}`;
@@ -37,7 +38,7 @@ const at = m => new Date(Date.now() - m * 60_000).toISOString();
 before(async () => {
   home = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-again-"));
   log = path.join(home, "aws.log");
-  const port = 4400 + Math.floor(Math.random() * 90);
+  const port = await freePort();
   api = `http://localhost:${port}`;
 
   const tok = (t, id, team, scope) => ({ tokenId: id, tokenHash: hash(t), email: `${id}@example.com`, name: id, org: "default", team, ...(scope ? { scope } : {}), createdAt: at(0), revokedAt: null, lastUsedAt: null });

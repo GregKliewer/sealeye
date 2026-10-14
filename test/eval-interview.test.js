@@ -24,6 +24,7 @@ import {
   DATASET
 } from "../scripts/eval-interview.js";
 import { startTracing, useLangfuseTransport } from "../core/tracing.js";
+import { freePort } from "./helpers/free-port.js";
 
 const root = path.resolve(import.meta.dirname, "..");
 
@@ -166,7 +167,7 @@ test("with no price, the table says how to add one in LangFuse", () => {
 // ---------------------------------------------------------------------------------
 // A whole pass, offline.
 
-const port = 3895 + Math.floor(Math.random() * 4);
+const port = await freePort();
 // Tracing starts once per process, so both passes below share one exporter.
 const exporter = new InMemorySpanExporter();
 const api = `http://localhost:${port}`;

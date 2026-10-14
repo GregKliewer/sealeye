@@ -12,6 +12,7 @@ import YAML from "yaml";
 
 import { unzipInto, zipFolder } from "../core/upload.js";
 import { createDeployment } from "../cli/client.js";
+import { freePort } from "./helpers/free-port.js";
 
 const root = path.resolve(import.meta.dirname, "..");
 const SECRET = "sk-live-never-in-an-upload";
@@ -60,7 +61,7 @@ let home;
 
 before(async () => {
   home = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-deploy-api-"));
-  const port = 4300 + Math.floor(Math.random() * 90);
+  const port = await freePort();
   api = `http://localhost:${port}`;
   // A stand-in aws whose store has no settings for the app, so the deploy gets as far
   // as composing; it calls nothing else.
