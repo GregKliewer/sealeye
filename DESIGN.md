@@ -2038,3 +2038,64 @@ for the same turns, and well under a third of the dollar, so the cap stays a dol
 - **The table is checked two ways**: the eval flags a run whose own count differs from
   LangFuse's by more than five percent, and `release.sh` warns when `checkedOn` is more
   than 90 days old. deploy/README.md, "Model prices", is the operating step.
+
+## agentgateway, read from its source (Step 4)
+
+Wed Oct 14, 2026, PHASE3-PLAN Step 4, first half. The gateway could not run where this
+was written: there was no Docker daemon there, and its releases were out of reach. So
+this is what agentgateway v1.6.0's source and published schema say. The spike in
+`deploy/spikes/agentgateway/` runs it on Greg's Mac against a stand-in model and checks
+each point. Its results replace "the source says" with "the run showed" here. Anything
+the run contradicts is brought to Greg before Step 5.
+
+What the source says, and what it means for Steps 5 to 7:
+
+- **The Anthropic route keeps what the interview sends.** `/v1/messages` is served as
+  is. Tools, `cache_control`, `anthropic-beta` and streaming pass through. Usage keeps
+  its cache reads and writes, and fields the gateway does not know are kept. The
+  gateway sends its own key as `x-api-key`, replacing whatever the caller sent, and
+  sets `anthropic-version` itself. `SEALEYE_MODEL_URL` is the gateway's address with no
+  path; the SDK adds `/v1/messages`.
+- **jwtAuth's default lets a call with no token through** (`mode: optional`). The
+  configuration says `strict`. With `issuer`, `audiences` and `requiredClaims: [exp,
+  iss, aud, sub]` set, every failure is a 401. The keys come as JWKS, each with a
+  `kid`. Ed25519 (EdDSA) is accepted, so the API can sign with Node's own crypto and no
+  new package. Claims reach the access log (`jwt.run`, and `jwt.sub` by default).
+- **A money budget only exists on a fixed API key, and it needs a database.** USD
+  budgets attach to keys in the `apiKey` policy, not to token claims. The gateway
+  refuses to start with one and no `config.database`. SQLite in a file is enough; it
+  does not need Postgres. So the API holds one gateway key, sent in a header of its own
+  (`x-sealeye-gateway-key`), which carries the monthly budget (D5's outer limit). The
+  per-call token goes in `Authorization`. That the two work together is the spike's
+  first thing to confirm.
+- **The budget prices from a table compiled into the gateway.** It is the same
+  close-not-exact as seaLeye's cap, from a different table. It drifts when prices
+  change, until the gateway is upgraded or its catalog is overridden. Its window is
+  fixed periods counted from 1970, so `30d` is not a calendar month; a monthly budget
+  resets on a day that moves.
+- **A per-run limit in tokens needs no database.** `localRateLimit` with `type: tokens`,
+  keyed by `jwt.run`, counts input, cache and output tokens after each reply, and
+  refuses the call after the one that crosses it, as seaLeye's cap does. It lives in
+  the gateway's memory, so a restart forgets it. That is acceptable for an outer limit
+  behind seaLeye's own cap.
+- **Both refusals are 429**, and the interview retries a 429 once (`isRetryable` in
+  `api/interview/model.js`). Step 6 must treat a 429 from the gateway as final and tell
+  the developer in words, not retry it. The budget's body says `budget_exceeded`.
+- **No timeout unless one is set**, and a 32 MiB body limit on model calls. The
+  configuration sets `requestTimeout: 15m` and `responseIdleTimeout: 5m`, above the
+  interview's 120 seconds, so the interview's own timeout stays the one that acts.
+- **No bodies in the access log by default.** Prompts and replies are captured only
+  when a log, trace or metric field names `llm.prompt` or `llm.completion`, so no field
+  does. The database stores `metadata`, never `full`. The admin port is off, since its
+  debug view logs claims. With no `tracing:` block, nothing leaves as a trace.
+- **Bedrock is translated by default**: Anthropic's format becomes Bedrock's Converse
+  and back, including tools, streaming and cache points. A cache `ttl` is dropped, and
+  only an allowlist of `anthropic-beta` values crosses. Neither matters to the
+  interview, which uses the five-minute cache and no beta. The gateway can instead send
+  Anthropic's own format to Bedrock (`bedrockEndpointPreference: mantlePreferred`).
+  Which one the pilot uses waits on Bedrock access in the account.
+- **The image is `ghcr.io/agentgateway/agentgateway:v1.6.0`**, built for amd64 and
+  arm64, and signed. Its digest is recorded here from the spike's first step.
+- **The configuration file expands every `$NAME`** and refuses to start when one is
+  unset. That is how the keys stay out of it. A literal `$` anywhere in it, even in an
+  expression, would be expanded too.

@@ -168,6 +168,11 @@ dollar, so the cap stands.
 
 In `deploy/spikes/agentgateway/`, before anything is built:
 
+*Status (Oct 14): written and waiting on a run on Greg's Mac. The configuration was
+written from agentgateway v1.6.0's source; DESIGN.md, "agentgateway, read from its source
+(Step 4)", says what that found. The Bedrock part waits on the account's access.*
+
+
 - The Anthropic SDK, with `SEALEYE_MODEL_URL` set, reaches the Anthropic API through
   agentgateway with tool use, prompt caching and the interview's timeouts unchanged.
 - The same call reaches Claude on Bedrock through the gateway, in Greg's account, if
