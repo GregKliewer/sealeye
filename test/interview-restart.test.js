@@ -13,6 +13,7 @@ import YAML from "yaml";
 
 import { answerInterview, followInterview, startInterview } from "../cli/client.js";
 import { freshDatabase, pgAvailable } from "./helpers/pg.js";
+import { freePort } from "./helpers/free-port.js";
 
 const root = path.resolve(import.meta.dirname, "..");
 const plan = YAML.parse(fs.readFileSync(path.join(root, "plans", "static-plan.yaml"), "utf8"));
@@ -38,7 +39,7 @@ test("an interview paused at a question resumes after the API restarts", { skip:
   await new Promise(r => model.listen(0, "127.0.0.1", r));
 
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-restart-"));
-  const port = 4800 + Math.floor(Math.random() * 90);
+  const port = await freePort();
   const apiBase = `http://localhost:${port}`;
   const env = {
     ...process.env,

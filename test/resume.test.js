@@ -9,6 +9,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import YAML from "yaml";
+import { freePort } from "./helpers/free-port.js";
 
 const root = path.resolve(import.meta.dirname, "..");
 
@@ -61,7 +62,7 @@ esac
       stackName: "sealeye-s", stackStatus: "CREATE_COMPLETE", sawInProgress: true, source: "upload" }
   ]));
 
-  const port = 4700 + Math.floor(Math.random() * 90);
+  const port = await freePort();
   const api = `http://localhost:${port}`;
   const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, PORT: String(port), HOME: home, SEALEYE_HOME: home, SEALEYE_TEST_POLL_MS: "20", SEALEYE_AUTH: "off" };
   delete env.DATABASE_URL;

@@ -12,6 +12,7 @@ import { spawn } from "node:child_process";
 import YAML from "yaml";
 
 import { abandonInterview, answerInterview, followInterview, startInterview } from "../cli/client.js";
+import { freePort } from "./helpers/free-port.js";
 
 const root = path.resolve(import.meta.dirname, "..");
 const ENV_SECRET = "sk-live-from-the-dotenv-file";
@@ -58,7 +59,7 @@ before(async () => {
   await new Promise(r => model.listen(0, "127.0.0.1", r));
 
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-interview-api-"));
-  const port = 4100 + Math.floor(Math.random() * 90);
+  const port = await freePort();
   apiBase = `http://localhost:${port}`;
   api = spawn(process.execPath, ["api/server.js"], {
     cwd: root,

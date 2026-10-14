@@ -17,6 +17,7 @@ import { createDeployment } from "../cli/client.js";
 import { gitleaksFindings, gitleaksPath, scanApp, ScanFailed, useGitleaks } from "../api/secret-scan.js";
 import { createInterviewService } from "../api/interview/service.js";
 import { FAKE } from "./fixtures/fake-secrets.js";
+import { freePort } from "./helpers/free-port.js";
 
 const root = path.resolve(import.meta.dirname, "..");
 const hasGitleaks = Boolean(gitleaksPath());
@@ -267,7 +268,7 @@ let api;
 
 before(async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-scan-api-"));
-  const port = 4400 + Math.floor(Math.random() * 90);
+  const port = await freePort();
   api = `http://localhost:${port}`;
   fs.mkdirSync(path.join(home, "bin"), { recursive: true });
   fs.writeFileSync(path.join(home, "bin", "aws"), "#!/bin/sh\n[ \"$2\" = get-parameters-by-path ] && { echo '[]'; exit 0; }\necho 'not in this stand-in' >&2; exit 254\n", { mode: 0o755 });

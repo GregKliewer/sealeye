@@ -47,14 +47,15 @@ import { plainValidationErrors } from "../../core/plan-words.js";
 import { evidenceSummary } from "../../core/evidence-summary.js";
 import { noReportWords, planOrigin } from "../../core/plan-report-words.js";
 import { RETENTION_CHOICES, retentionOf, withRetention } from "../../core/retention.js";
+import { commandFor, wordsFor } from "../../core/operations.js";
 
 // Statuses that are history rather than something you can still open: one was torn
 // down, the other was never built because the platform said so.
 const PAST = new Set(["destroyed", "drafted"]);
 
 // `sealeye online` opens the portal; `portal` and `open` are the same command, for
-// whoever reaches for those words first.
-const ONLINE = new Set(["online", "portal", "open"]);
+// whoever reaches for those words first (core/operations.js).
+const ONLINE = new Set(wordsFor("online"));
 
 // --json is machine output: no banner, no colour, nothing but the object.
 const jsonOut = process.argv.includes("--json");
@@ -128,7 +129,7 @@ Usage:
   ${product.command} validate --file <plan.yaml> [--api <url>] [--json]
   ${product.command} status [app | deploymentId] [--api <url>] [--json]
   ${product.command} watch [app | deploymentId] [--api <url>]
-  ${product.command} destroy [app | deploymentId] [--api <url>]
+  ${product.command} teardown [app | deploymentId] [--api <url>]
   ${product.command} list [--deployments] [--all] [--api <url>] [--json]
   ${product.command} evidence [app | deploymentId] [--json] [--out <file>] [--api <url>]
   ${product.command} plan [app | deploymentId] [--report] [--out <folder>] [--json] [--api <url>]
@@ -198,7 +199,7 @@ Examples:
   ${product.command} evidence my-app
   ${product.command} plan my-app
   ${product.command} plan dep_0123456789ab --report
-  ${product.command} destroy my-app
+  ${product.command} teardown my-app
   ${product.command} validate -f plan.yaml
   ${product.command} deploy -f plan.yaml
   ${product.command} online
@@ -277,7 +278,9 @@ function getArg(longFlag, shortFlag) {
 }
 
 async function main() {
-  const [, , command] = process.argv;
+  // An alias (`destroy`, `init`, `portal`, `open`) is handled where its command is:
+  // core/operations.js says which word each one means.
+  const command = commandFor(process.argv[2]);
 
   printBanner();
 
@@ -291,10 +294,10 @@ async function main() {
   loadUserConfig();
   const apiBaseUrl = (getArg("--api") || setting("API") || DEFAULT_API).replace(/\/+$/, "");
 
-  // "run" is the documented name; "init" is a hidden alias so rehearsal habits,
+  // "run" is the documented name; "init" is a hidden alias (core/operations.js) so rehearsal habits,
   // --answers fixtures and older muscle memory keep working, with no deprecation
   // notice, since a demo is not the moment to lecture someone about a rename.
-  if (command === "run" || command === "init") {
+  if (command === "run") {
     // This is the only place the developer's own folder is ever touched.
     const appPath = process.cwd();
     const planPath = path.join(appPath, "DEPLOYMENT_PLAN.md");
@@ -1254,16 +1257,16 @@ async function main() {
     return;
   }
 
-  if (command === "destroy") {
+  if (command === "teardown") {
     // A tear-down is never a default: a name not typed is asked about first, as the
     // portal makes you type the app's name, and never taken without a person to ask.
     const typed = firstName() || null;
     if (!typed && (jsonOut || !process.stdin.isTTY)) {
-      console.error(c.fail(`Missing name: ${product.command} destroy <app | deploymentId>. A tear-down needs the app named.`));
+      console.error(c.fail(`Missing name: ${product.command} teardown <app | deploymentId>. A tear-down needs the app named.`));
       process.exitCode = 1;
       return;
     }
-    const target = nameOrHere(`${product.command} destroy <app | deploymentId>`);
+    const target = nameOrHere(`${product.command} teardown <app | deploymentId>`);
     if (!target) return;
     if (!typed) {
       const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -2261,7 +2264,7 @@ function writeReport(dep) {
  * Which record `sealeye evidence` is about. An exact id first; otherwise the newest
  * record answering to the name, drafted, destroyed and failed included, because the
  * record of a refusal or a tear-down is still evidence. Two live environments answering
- * to one name is not something to guess at, so it says so the way destroy does.
+ * to one name is not something to guess at, so it says so the way teardown does.
  */
 async function resolveEvidenceTarget({ apiBaseUrl, target }) {
   const everything = await listDeployments({ apiBaseUrl });

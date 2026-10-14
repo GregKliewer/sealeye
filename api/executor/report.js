@@ -9,6 +9,7 @@ import { repoRoot } from "../../core/config.js";
 import { normalizeProfile } from "../../core/schema.js";
 import { region } from "./cfn.js";
 import { sourceInWords } from "./settings.js";
+import { commandLine } from "../../core/operations.js";
 
 const TEMPLATE_PATH = path.join(repoRoot, "prompts", "report.md");
 
@@ -131,7 +132,7 @@ function tearDown(record) {
     "",
     "When you are finished with this environment:",
     "",
-    fence(`sealeye destroy ${record.deploymentId}`),
+    fence(commandLine("teardown", record.deploymentId)),
     "",
     "That deletes the stack and everything in it."
   ].join("\n");

@@ -7,6 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
+import { freePort } from "./free-port.js";
 
 const root = path.resolve(import.meta.dirname, "..", "..");
 const hash = t => createHash("sha256").update(t).digest("hex");
@@ -43,7 +44,7 @@ out({});
 `);
   fs.writeFileSync(path.join(bin, "aws"), `#!/bin/sh\nexec "${process.execPath}" "${path.join(bin, "aws.cjs")}" "$@"\n`, { mode: 0o755 });
 
-  const port = 4500 + Math.floor(Math.random() * 400);
+  const port = await freePort();
   const api = `http://localhost:${port}`;
   const env = {
     ...process.env, PORT: String(port), HOME: home, SEALEYE_HOME: home, PATH: `${bin}:${process.env.PATH}`,

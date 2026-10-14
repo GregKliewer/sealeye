@@ -11,6 +11,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import YAML from "yaml";
+import { freePort } from "./helpers/free-port.js";
 
 const root = path.resolve(import.meta.dirname, "..");
 // A sample app, not this repository: the repository's own tests hold fake secrets
@@ -43,7 +44,7 @@ before(async () => {
   ana = issue("ana@example.com", "Ana P", "--team", "payments");
   outsider = issue("x@other.example", "Other Org", "--org", "other-org");
   boss = issue("boss@example.com", "Boss Person", "--org-wide");
-  const port = 4900 + Math.floor(Math.random() * 90);
+  const port = await freePort();
   api = `http://localhost:${port}`;
   const e = { ...env(), PORT: String(port), SEALEYE_TRACING: "off", ANTHROPIC_API_KEY: "sk-ant-test", SEALEYE_MODEL_URL: "http://127.0.0.1:9" };
   delete e.SEALEYE_LWA_VERSION;

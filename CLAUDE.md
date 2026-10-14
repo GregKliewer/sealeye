@@ -44,11 +44,11 @@ core/       what cli/ and api/ must agree on: schema.js (the plan contract), cat
             plan-words.js, evidence-summary.js and plan-report-words.js (words the
             command and the portal both say), retention.js (how long logs are kept), setting-names.js,
             environments.js (what an environment's key is: one row in `sealeye
-            list`, one page in the portal, the page `sealeye online <app>` opens).
+            list`, one page in the portal, the page `sealeye online <app>` opens),
+            operations.js (every operation's command, aliases and portal label).
             secrets.js, scan.js, upload-rules.js, plan-words.js, evidence-summary.js,
-            plan-report-words.js,
-            retention.js, setting-names.js and environments.js run in a browser, so
-            the portal imports them too
+            plan-report-words.js, retention.js, setting-names.js, environments.js and
+            operations.js run in a browser, so the portal imports them too
 prompts/    system prompt, plan contract, plan, report and evidence templates, catalog
 templates/  one CloudFormation template per buildable module, plus run.sh and
             sealeye-settings.mjs (the settings reader run.sh loads first)
@@ -75,6 +75,8 @@ in `core/` or behind an endpoint.
 1. **Parity.** Every operation exists as an API endpoint first, then as a `sealeye`
    command and a seaLeye.online page with the same name, the same inputs and the same
    outputs. A capability ships when both surfaces have it, not before. See VISION.md.
+   Both take their words from `core/operations.js`: the command its word and aliases,
+   the portal its labels and every command line it shows (`test/operations.test.js`).
 2. **seaLeye never names a module it cannot build.** What an app needs beyond the
    buildable modules is a NEED: a sentence from the known kinds in
    `prompts/module-catalog.yaml`, or, when none fits, an `unlisted` need with a line of
@@ -117,7 +119,8 @@ in `core/` or behind an endpoint.
   take the app's name (your team's environment of that name) or a deployment id; with
   neither, the app the current folder's sealeye.yaml plans. Its subcommand that interviews and
   deploys is `run`; `init` is a hidden alias that does the same thing and never prints a
-  deprecation notice.
+  deprecation notice. Tearing down is `teardown`, the portal's "Tear down"; `destroy` is
+  a hidden alias, as `init` is.
 - An environment's name is `sealeye-<team>-<app>-<hash>` (`environmentName` in
   `core/names.js`: lowercase, `[a-z0-9-]` only, at most 49 characters, the hash of the
   organization, team and app). Its stack, function, log group, API and static site

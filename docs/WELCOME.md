@@ -84,7 +84,7 @@ Tear one of them down from the website: open it and choose "Tear it down". It as
 to type the app's name to confirm. Tear down the other one from the command line:
 
 ```bash
-sealeye destroy static-website
+sealeye teardown static-website
 ```
 
 When you are done, `sealeye list` and the website should both show nothing live of
