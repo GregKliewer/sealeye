@@ -9,6 +9,8 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Card, CardContent } from "../components/ui/card";
 import { Problem } from "../Layout";
+import { Cmd } from "../Command";
+import { label } from "../../../core/operations.js";
 
 const TOKEN = /^sl_[A-Za-z0-9_-]{43}$/;
 
@@ -57,8 +59,8 @@ export function SignIn() {
         <img src="/sealeye-online-wordmark-light.svg" alt="seaLeye.online" className="h-8 mb-8" />
         <Card>
           <CardContent className="py-6">
-            <h1 className="text-xl font-semibold">Sign in</h1>
-            <p className="mt-2 text-sm text-dim">Paste the token your platform team gave you, the same one <code className="font-mono text-ink">sealeye login</code> takes.</p>
+            <h1 className="text-xl font-semibold">{label("login")}</h1>
+            <p className="mt-2 text-sm text-dim">Paste the token your platform team gave you, the same one <Cmd op="login" /> takes.</p>
             <form onSubmit={submit} className="mt-5 space-y-4">
               <label className="block text-sm font-medium" htmlFor="token">Token</label>
               <Input id="token" type="password" autoComplete="off" spellCheck={false} value={token}

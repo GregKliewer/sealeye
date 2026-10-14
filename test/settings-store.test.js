@@ -9,6 +9,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
+import { freePort } from "./helpers/free-port.js";
 
 const root = path.resolve(import.meta.dirname, "..");
 const SECRET = "s3cr3t-value-that-must-never-show-9f2c";
@@ -77,7 +78,7 @@ before(async () => {
     startedAt: "2026-10-11T12:00:00Z",
     plan: { modules: [{ id: "config_basic", enabled: true, inputs: { variables: { API_KEY: "", REGION_NAME: "ca-central" } } }] }
   }]));
-  const port = 5300 + Math.floor(Math.random() * 90);
+  const port = await freePort();
   api = `http://localhost:${port}`;
   server = spawn(process.execPath, ["api/server.js"], { cwd: root, env: { ...env(), PORT: String(port), SEALEYE_TRACING: "off" }, stdio: ["ignore", "pipe", "pipe"] });
   server.stdout.on("data", d => (log += d));

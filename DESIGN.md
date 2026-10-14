@@ -2247,3 +2247,35 @@ key is $20, the outer limit behind each run's own dollar (Step 7).
 - **It is a setting, not a constant.** Step 5 reads it from the server's environment
   (`SEALEYE_GATEWAY_BUDGET`, in US dollars), with $20 as the default, so raising it is a
   restart, not a release.
+
+## One list of words for both surfaces
+
+Wed Oct 14, 2026, decided by Greg. The portal's "Tear down" button and `sealeye destroy`
+did the same thing under two names, which reads as two different operations, and
+principle 1 says an operation has the same name on both surfaces.
+
+- **The command is `sealeye teardown`.** `destroy` stays as an alias, never shown in
+  help, so scripts and habits keep working, the way `init` stays for `run`. The portal's
+  word won because the portal is where newer people meet seaLeye, and "tear down" was
+  already the command's own word in every line it printed.
+- **`core/operations.js` is the one list.** Each operation has the command's word, its
+  aliases, and the portal's label. The command turns an alias into its command once,
+  before dispatching; the portal reads its labels and every command line it shows from
+  the list. It runs in a browser, so the portal imports it.
+- **`test/operations.test.js` holds both surfaces to it**: the command handles every
+  operation, its help shows every command and no alias, the portal shows every
+  operation it labels through the list, and the portal types no command line of its
+  own. Renaming a command is one edit.
+- **A label and a command may differ only where one names a page and the other an
+  action**: Environments and `list`, Health and `doctor`, New environment and `run`. Two
+  pairs are not like that and are left for Greg to decide: Configure and `config`,
+  Performance and `perf`.
+- **The portal shows each action's command line.** Control's Deploy again, Pause and
+  Tear down are one Actions card of buttons, each with its command line under it and a
+  button that copies it. What each does is said in its dialog, where it is asked, rather
+  than on the page; Pause gains a dialog for that, and Resume, which puts back what was
+  there, does not. A change under way locks the card once, said at the top. Configure
+  and Settings end with their command line; Logs, Performance, Evidence and the change
+  under way name theirs in a sentence, as they did.
+- **Plan and report shows `sealeye plan <deployment>`**, with `--report` on the report's
+  tab, for the deployment it is showing.

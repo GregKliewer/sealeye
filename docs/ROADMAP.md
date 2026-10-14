@@ -280,7 +280,7 @@ and does nothing real. A blank is not started.
 | Validate a plan | `sealeye validate` | `POST /plans/validate` (ready or drafted, with needs) | built | built (Validate) | 2 |
 | List environments | `sealeye list` | `GET /deployments` | built | built (Environments) | 1 |
 | Status and watch | `sealeye status`, `watch` (an app or an id) | `GET /deployments/{id}`; `step` in `GET /deployments` | built | built (Control, with the change under way across the top) | 1 |
-| Tear down | `sealeye destroy` | `DELETE /deployments/{id}` | built | built (Control) | 1 |
+| Tear down | `sealeye teardown` (`destroy` still works) | `DELETE /deployments/{id}` | built | built (Control) | 1 |
 | Evidence | `sealeye evidence` | `GET /deployments/{id}/evidence` | built | built (Evidence, in Control) | 2 |
 | Plan and report for a deployment | `sealeye plan` (`--report`, `--out <folder>`) | `GET /deployments/{id}/plan` | built | built (Plan and report, in Control) | 2 (added Oct 14, 2026, 2.27.0) |
 | Needs ledger | `sealeye needs` | `GET /needs` | built | built (in Catalog) | 1 |
@@ -301,5 +301,5 @@ and does nothing real. A blank is not started.
 | Approve an agent's plan | | | | | 6 (a queue in the portal) |
 | Raise a gap ticket | `sealeye needs --request` | | prints text only | | 5 |
 
-Command names not yet built are proposals; settle each one in DESIGN.md before
+Built names live in `core/operations.js`, which both surfaces read. Command names not yet built are proposals; settle each one in DESIGN.md before
 building it.

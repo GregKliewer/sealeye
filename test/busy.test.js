@@ -87,7 +87,7 @@ test("sealeye says the same sentence and how to follow it", async () => {
   const run = (...args) => promisify(execFile)(process.execPath, [path.join(root, "cli/bin/sealeye"), ...args, "--api", api.api], {
     cwd: api.home, env: { ...process.env, HOME: api.home, SEALEYE_HOME: api.home, SEALEYE_TOKEN: ANA, NO_COLOR: "1" }
   });
-  for (const args of [["destroy", "orders-api", "--yes"], ["pause", "orders-api"], ["deploy", "--again", "dep_orders00001"]]) {
+  for (const args of [["teardown", "orders-api", "--yes"], ["destroy", "orders-api", "--yes"], ["pause", "orders-api"], ["deploy", "--again", "dep_orders00001"]]) {
     await assert.rejects(run(...args), err => {
       const said = err.stdout + err.stderr;
       assert.match(said, /orders-api is being built right now/, args.join(" "));

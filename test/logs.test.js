@@ -118,6 +118,7 @@ test("with no name, the command uses the app this folder's sealeye.yaml plans", 
   }), err => /Missing name: sealeye logs/.test(err.stderr) && /run this in its folder/.test(err.stdout));
 
   // A tear-down is never taken from the folder without a person to ask.
+  await assert.rejects(run("teardown"), err => /Missing name: sealeye teardown/.test(err.stderr) && /A tear-down needs the app named/.test(err.stderr));
   await assert.rejects(run("destroy"), err => /A tear-down needs the app named/.test(err.stderr));
   assert.ok(!api.awsCalls().some(l => /delete-stack/.test(l)));
 

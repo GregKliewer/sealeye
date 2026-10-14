@@ -7,6 +7,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { freePort } from "./helpers/free-port.js";
 
 const root = path.resolve(import.meta.dirname, "..");
 const KEY = "sk-ant-api03-from-parameter-store";
@@ -29,7 +30,7 @@ cat <<'JSON'
 JSON
 `, { mode: 0o755 });
 
-  const port = 4500 + Math.floor(Math.random() * 90);
+  const port = await freePort();
   const child = spawn(process.execPath, ["deploy/start.mjs"], {
     cwd: root,
     env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, PORT: String(port), HOME: dir, SEALEYE_HOME: dir, AWS_PROFILE: "should-not-be-used-for-ssm" },

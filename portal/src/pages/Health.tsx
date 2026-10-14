@@ -5,6 +5,8 @@ import { api } from "../api";
 import { useLoad, useSession } from "../session";
 import { seesInWords } from "../../../core/token.js";
 import { PageTitle } from "../Layout";
+import { Cmd } from "../Command";
+import { label } from "../../../core/operations.js";
 import { Badge } from "../components/ui/badge";
 import { Card, CardContent } from "../components/ui/card";
 
@@ -45,7 +47,7 @@ export function Health() {
 
   return (
     <>
-      <PageTitle title="Health" sub={<>What <code className="font-mono">sealeye doctor</code> checks, for this browser.</>} />
+      <PageTitle title={label("doctor")} sub={<>What <Cmd op="doctor" className="text-inherit" /> checks, for this browser.</>} />
       <Card>
         <CardContent>
           <ul className="divide-y divide-rule">

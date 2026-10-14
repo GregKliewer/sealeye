@@ -18,6 +18,8 @@ import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Input } from "../components/ui/input";
+import { Cmd } from "../Command";
+import { label } from "../../../core/operations.js";
 
 // As core/names.js safeName has it: how an app's name is compared everywhere.
 const safeName = (name: string) => String(name || "").toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
@@ -247,13 +249,13 @@ export function NewEnvironment() {
 
   return (
     <>
-      <PageTitle title="New environment" sub={<>What <code className="font-mono">sealeye run</code> does, from your browser: read your app, ask a few questions, write a plan, and build it when you say yes.</>} />
+      <PageTitle title={label("run")} sub={<>What <Cmd op="run" className="text-inherit" /> does, from your browser: read your app, ask a few questions, write a plan, and build it when you say yes.</>} />
 
       {phase === "choose" && open.length ? (
         <Card className="mb-6" data-testid="open-interviews">
           <CardHeader><CardTitle>Interviews you have open</CardTitle></CardHeader>
           <CardContent className="space-y-3 text-sm">
-            <p className="text-dim">Started here or with <code className="font-mono text-ink">sealeye run</code>, and not finished. Pick one up where it stopped; you choose the app's folder again when it is time to deploy.</p>
+            <p className="text-dim">Started here or with <Cmd op="run" />, and not finished. Pick one up where it stopped; you choose the app's folder again when it is time to deploy.</p>
             <ul className="divide-y divide-rule">
               {open.map(i => (
                 <li key={i.interviewId} className="flex flex-wrap items-center gap-3 py-2" data-testid="open-interview">
@@ -295,10 +297,10 @@ export function NewEnvironment() {
               </div>
             </div>
             <ul className="list-disc space-y-1 pl-5 text-dim">
-              <li>Read here, in your browser, by the same rules as <code className="font-mono text-ink">sealeye run</code>. Nothing in your folder changes.</li>
+              <li>Read here, in your browser, by the same rules as <Cmd op="run" />. Nothing in your folder changes.</li>
               <li>Left out: node_modules, .git, and what your .gitignore leaves out.</li>
               <li>For the interview, secret files, like <span className="font-mono text-ink">.env</span>, go as names only: their contents are never read.</li>
-              <li>If you deploy, your folder is packaged as <code className="font-mono text-ink">sealeye run</code> packages it: everything but node_modules, .git and secret files like <span className="font-mono text-ink">.env</span>, which never leave this computer. Settings come from your organization's store.</li>
+              <li>If you deploy, your folder is packaged as <Cmd op="run" /> packages it: everything but node_modules, .git and secret files like <span className="font-mono text-ink">.env</span>, which never leave this computer. Settings come from your organization's store.</li>
             </ul>
             <Button onClick={start} disabled={!folder || Boolean(busy)}>{busy || "Read my app"}</Button>
           </CardContent>
@@ -374,7 +376,7 @@ export function NewEnvironment() {
               </div>
             ) : null}
             {phase === "declined" ? (
-              <p role="status" className="border-t border-rule pt-4">Nothing was deployed. Keep the two files above with your app; when you are ready, deploy the plan from Validate, or with <code className="font-mono">sealeye deploy -f sealeye.yaml</code>.</p>
+              <p role="status" className="border-t border-rule pt-4">Nothing was deployed. Keep the two files above with your app; when you are ready, deploy the plan from Validate, or with <Cmd op="deploy" className="text-inherit" />.</p>
             ) : null}
           </CardContent>
         </Card>
