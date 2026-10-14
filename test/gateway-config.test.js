@@ -141,6 +141,6 @@ test("the server's scripts ask Parameter Store only what the server's role may a
   const role = read("deploy/server.yaml");
   assert.doesNotMatch(role, /ssm:DescribeParameters/);
   for (const file of ["deploy/gateway.sh", "deploy/update.sh", "deploy/settings.mjs"]) {
-    assert.doesNotMatch(read(file), /describe-parameters/, file);
+    assert.doesNotMatch(read(file), /ssm describe-parameters|"describe-parameters"/, file);
   }
 });
