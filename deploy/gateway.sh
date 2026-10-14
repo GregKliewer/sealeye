@@ -16,8 +16,22 @@ source ./server.env
 
 ENV_FILE=secrets/gateway.env
 
+# A parameter's value, or nothing when there is no such parameter. Any other failure
+# (no permission, throttled, no network) stops here, naming the parameter, so a stored
+# budget is never quietly read as the default.
 param_value() {
-  aws ssm get-parameter --region "$REGION" --name "$1" --with-decryption --query Parameter.Value --output text 2>/dev/null || true
+  local out err
+  err="$(mktemp)"
+  if out="$(aws ssm get-parameter --region "$REGION" --name "$1" --with-decryption --query Parameter.Value --output text 2>"$err")"; then
+    rm -f "$err"
+    printf '%s' "$out"
+  elif grep -q ParameterNotFound "$err"; then
+    rm -f "$err"
+  else
+    rm -f "$err"
+    echo "Could not read $1 from Parameter Store. Nothing was changed." >&2
+    exit 1
+  fi
 }
 
 # The gateway's lines, leaving out any line that holds one of its two keys.
@@ -35,9 +49,9 @@ case "${1:-}" in
     # never holds it (deploy/settings.mjs). The API's key for the gateway is at
     # /sealeye/SEALEYE_GATEWAY_KEY, read by both. The budget is in US dollars for each
     # 30-day period, 20 when nothing says otherwise (DESIGN.md, "The gateway's budget").
-    MODEL_KEY="$(param_value /sealeye/gateway/ANTHROPIC_API_KEY)"
-    GATEWAY_KEY="$(param_value /sealeye/SEALEYE_GATEWAY_KEY)"
-    GATEWAY_BUDGET="$(param_value /sealeye/SEALEYE_GATEWAY_BUDGET)"
+    MODEL_KEY="$(param_value /sealeye/gateway/ANTHROPIC_API_KEY)" || exit 1
+    GATEWAY_KEY="$(param_value /sealeye/SEALEYE_GATEWAY_KEY)" || exit 1
+    GATEWAY_BUDGET="$(param_value /sealeye/SEALEYE_GATEWAY_BUDGET)" || exit 1
     GATEWAY_BUDGET="${GATEWAY_BUDGET:-20}"
     if [ -z "$MODEL_KEY" ] || [ -z "$GATEWAY_KEY" ]; then
       unset MODEL_KEY GATEWAY_KEY
@@ -70,6 +84,15 @@ case "${1:-}" in
     # .gateway-started records the settings and keys the running gateway started with.
     NOW="$(cat gateway.yaml "$ENV_FILE" | sha256sum | cut -d' ' -f1)"
     if [ "$NOW" != "$(cat .gateway-started 2>/dev/null || true)" ]; then
+      # The gateway checks its own settings first, with the keys filled in, so a
+      # mistake leaves the running gateway as it was rather than stopping it.
+      if ! ( umask 077; docker compose run --rm --no-deps gateway --validate-only -f /config/gateway.yaml > secrets/gateway-check 2>&1 ); then
+        echo "The model gateway's new settings are not valid, so it keeps running with the old ones. What it said:"
+        filtered < secrets/gateway-check
+        rm -f secrets/gateway-check
+        exit 1
+      fi
+      rm -f secrets/gateway-check
       docker compose up -d --no-deps --force-recreate gateway
       echo "$NOW" > .gateway-started
       echo "The model gateway restarted with this release's settings"
@@ -82,7 +105,9 @@ case "${1:-}" in
 
   ready)
     # The gateway has no shell to check itself with, and only the API can reach it, so
-    # the API asks it.
+    # the API asks it. Until the API is switched to the gateway (SEALEYE_MODEL_URL set),
+    # a gateway that is not ready is a warning: the API does not use it yet.
+    IN_USE="$(param_value /sealeye/SEALEYE_MODEL_URL)" || exit 1
     for _ in $(seq 1 12); do
       if docker compose exec -T api node -e "fetch('http://gateway:15021/healthz/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" 2>/dev/null; then
         echo "The model gateway is up"
@@ -92,6 +117,11 @@ case "${1:-}" in
     done
     echo "The model gateway did not become ready within a minute. Its last lines:"
     docker compose logs --tail 40 --no-log-prefix gateway 2>&1 | filtered
+    if [ -z "$IN_USE" ]; then
+      echo "The API does not use the gateway yet, so it is unaffected. Fix the gateway before switching the API to it (deploy/README.md, \"The model gateway\")."
+      exit 0
+    fi
+    echo "The API sends its model calls to the gateway, so interviews fail until it is up. To switch the API back, see deploy/README.md, \"The model gateway\"."
     exit 1 ;;
 
   logs)

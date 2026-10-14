@@ -136,3 +136,38 @@ test("a spent gateway budget stops the turn at once, and says so without calling
     delete process.env.SEALEYE_GATEWAY_KEY;
   }
 });
+
+test("in gateway mode, no other credential the SDK knows of is looked for or sent", async () => {
+  // Stand-ins for the variables the SDK's own credential chain reads. With these set, a
+  // plain client would try a token exchange and add an Authorization header.
+  const stray = {
+    ANTHROPIC_FEDERATION_RULE_ID: "fdrl_not_real",
+    ANTHROPIC_ORGANIZATION_ID: "00000000-0000-0000-0000-000000000000",
+    ANTHROPIC_IDENTITY_TOKEN: "not-a-real-token",
+    ANTHROPIC_AUTH_TOKEN: "not-a-real-token",
+    ANTHROPIC_CUSTOM_HEADERS: "authorization: Bearer not-real\nx-api-key: not-real",
+    ANTHROPIC_LOG: "debug"
+  };
+  Object.assign(process.env, stray);
+  process.env.SEALEYE_MODEL_URL = standIn;
+  process.env.SEALEYE_GATEWAY_KEY = "spike-gateway-key-not-real";
+  const logged = [];
+  const original = console.debug;
+  console.debug = (...a) => logged.push(a.join(" "));
+  try {
+    const before = seen.length;
+    const { modelClient, modelCredential } = await import("../api/interview/model.js");
+    const client = modelClient(modelCredential());
+    await client.messages.create({ model: "claude-sonnet-5", max_tokens: 5, messages: [{ role: "user", content: "hi" }] });
+    assert.equal(seen.length, before + 1, "one call, to the stand-in only");
+    const call = seen.at(-1);
+    assert.equal(call.gatewayKey, "spike-gateway-key-not-real");
+    assert.equal(call.key, undefined);
+    assert.equal(call.authorization, undefined);
+    assert.ok(!logged.some(l => l.includes("spike-gateway-key-not-real")), "the debug log never shows the gateway key");
+  } finally {
+    console.debug = original;
+    for (const name of Object.keys(stray)) delete process.env[name];
+    delete process.env.SEALEYE_GATEWAY_KEY;
+  }
+});

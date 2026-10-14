@@ -2320,5 +2320,15 @@ Wed Oct 14, 2026, PHASE3-PLAN Step 5, as D7 decided and the Step 4 spike showed.
   gateway up but does not move the API. Greg moves it by setting `SEALEYE_MODEL_URL`
   and deleting the API's model key, then restarting the API. Switching back is the
   reverse, with no release (deploy/README.md, "The model gateway").
+- **The budget's amount is filled in like the keys.** The gateway fills in names in the
+  file's text before reading it as YAML (`parse_config` in its source), so
+  `amount: $SEALEYE_GATEWAY_BUDGET` becomes a number. The spike used a written amount,
+  so the server checks it: a release asks the gateway to validate its settings, keys
+  filled in, before restarting it, and keeps the old gateway running if they fail.
+- **Reviewed before the pull request** by a separate agent. It found that a release
+  stopped by a missing key had already replaced the server's compose file, so the
+  secrets are now read before anything else changes. It also found that the SDK, given
+  no key, would look for other credentials of its own, so the gateway's client never
+  does. A gateway that is not ready fails the release only once the API uses it.
 - **Nothing a person sees changes.** Every check the gateway makes is in its own log,
   `deploy/server.sh gateway-logs`, which drops any line holding one of its keys.

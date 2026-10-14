@@ -41,6 +41,13 @@ export function resolveApiKey() {
   return process.env.ANTHROPIC_API_KEY || null;
 }
 
+/** An Anthropic client that never resolves a credential of its own: the gateway holds it. */
+class GatewayClient extends Anthropic {
+  _shouldResolveDefaultCredentials() {
+    return false;
+  }
+}
+
 /** The header the platform's own gateway reads the API's key from (deploy/gateway.yaml). */
 export const GATEWAY_KEY_HEADER = "x-sealeye-gateway-key";
 
@@ -77,13 +84,18 @@ export function modelClient(credential) {
   const baseURL = setting("MODEL_URL");
   const options = { timeout: TIMEOUT_MS, maxRetries: 0, ...(baseURL ? { baseURL } : {}) };
   if (credential && typeof credential === "object" && credential.gatewayKey) {
-    // No model key at all: `apiKey: null` keeps the SDK from reading ANTHROPIC_API_KEY
-    // from the environment, and the null x-api-key header tells it no key is meant.
-    return new Anthropic({
+    // No model credential at all. `apiKey: null` and `authToken: null` keep the SDK
+    // from reading ANTHROPIC_API_KEY and ANTHROPIC_AUTH_TOKEN; GatewayClient keeps it from
+    // looking for any other credential (a profile, a config file, a token exchange);
+    // the null headers tell it none is meant, and win over ANTHROPIC_CUSTOM_HEADERS.
+    // The log level is fixed because the SDK's debug log masks the model's own key
+    // headers, not the gateway's.
+    return new GatewayClient({
       ...options,
       apiKey: null,
       authToken: null,
-      defaultHeaders: { [GATEWAY_KEY_HEADER]: credential.gatewayKey, "x-api-key": null }
+      logLevel: "warn",
+      defaultHeaders: { [GATEWAY_KEY_HEADER]: credential.gatewayKey, "x-api-key": null, authorization: null }
     });
   }
   const apiKey = typeof credential === "string" ? credential : credential?.apiKey;

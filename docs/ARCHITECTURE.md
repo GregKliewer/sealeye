@@ -272,8 +272,10 @@ flowchart TB
 - **The server's own role** can read its settings, pull its image, use its config
   bucket and assume a `sealeye-deploy-*` role. It cannot build anything itself.
 - **The API's settings** come from Parameter Store under `/sealeye/` at start
-  (`deploy/settings.mjs`), including the model key, LangFuse keys and the database
-  password. The API then drops the database password from its own environment.
+  (`deploy/settings.mjs`), including LangFuse keys, the key it calls the model gateway
+  with and the database password. The API then drops the database password from its
+  own environment. The model key is under `/sealeye/gateway/`, which the API never
+  reads; `deploy/gateway.sh` hands it to the gateway alone.
 - **Releasing is manual.** GitHub tests every change and builds the image on main;
   `deploy/release.sh` uses that image and rolls it out. `deploy/README.md` has every
   server operation.

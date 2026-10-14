@@ -6,15 +6,15 @@
 # run's own cap.
 #
 # Sent to the server by deploy/release.sh and read by the gateway container that
-# deploy/compose.yaml starts. update.sh restarts the gateway when this file changes.
+# deploy/compose.yaml starts. A release restarts the gateway when this file changes.
 #
 # The gateway expands every dollar-sign name in this file before reading it, comments
 # included, and refuses to start when one is unset; the schema line at the top is its one
 # exception. So no comment here may hold a dollar sign, and test/gateway-config.test.js
-# checks that. The names it expands come from secrets/gateway.env, which update.sh writes
+# checks that. The names it expands come from secrets/gateway.env, which gateway.sh writes
 # from Parameter Store, never from this file.
 config:
-  readinessAddr: 0.0.0.0:15021        # /healthz/ready, read by update.sh through the API
+  readinessAddr: 0.0.0.0:15021        # /healthz/ready, asked by gateway.sh through the API
   statsAddr: 0.0.0.0:15020            # /metrics, on the gateway's own network only
   adminAddr: "off"                    # its debug view logs claims
   logging:

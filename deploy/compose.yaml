@@ -33,7 +33,7 @@ services:
     restart: unless-stopped
     command: ["-f", "/config/gateway.yaml"]
     # ANTHROPIC_API_KEY, SEALEYE_GATEWAY_KEY and SEALEYE_GATEWAY_BUDGET, written by
-    # update.sh from Parameter Store (deploy/README.md, "The model gateway").
+    # deploy/gateway.sh from Parameter Store (deploy/README.md, "The model gateway").
     env_file: ./secrets/gateway.env
     volumes:
       - ./gateway.yaml:/config/gateway.yaml:ro

@@ -93,7 +93,7 @@ already in your repo `.env` and `~/.sealeye/config`. These work in zsh (the macO
 default) and bash. To check what is stored, names only:
 
 ```bash
-aws ssm get-parameters-by-path --region ca-central-1 --path /sealeye/ --query "Parameters[].[Name,Type]" --output table
+aws ssm get-parameters-by-path --region ca-central-1 --path /sealeye/ --recursive --query "Parameters[].[Name,Type]" --output table
 ```
 
 `SEALEYE_DEPLOY_ROLE_ARN` is the deploy-role stack's `DeployRoleArn` output, and can be
@@ -161,8 +161,8 @@ Success: two version numbers. The budget is $20 for each 30-day period unless
 aws ssm put-parameter --region ca-central-1 --name /sealeye/SEALEYE_GATEWAY_BUDGET --type String --value 20 --overwrite --query Version --output text
 ```
 
-**2. The release.** `deploy/release.sh`, as in "Every release" below. Success: its last
-lines are
+**2. The release.** `deploy/release.sh`, as in "Every release" below. Success: among its
+lines, in this order,
 
 ```
 The model gateway's settings are written (budget: 20 US dollars a 30-day period)
@@ -172,7 +172,9 @@ The model gateway is up
 ```
 
 The API still calls the model directly at this point, so nothing a developer sees has
-changed.
+changed. If the gateway does not come up, the release says so, shows its last lines and
+still finishes, since the API does not use it yet: fix the gateway before step 3. If a
+key is missing, the release stops before changing anything on the server.
 
 **3. Switch the API to the gateway.** Point it at the gateway, take the model key away
 from it, and restart it:
@@ -183,6 +185,9 @@ aws ssm delete-parameter --region ca-central-1 --name /sealeye/ANTHROPIC_API_KEY
 deploy/server.sh restart
 deploy/server.sh logs | grep "settings read"
 ```
+
+On a new server that never had `/sealeye/ANTHROPIC_API_KEY`, the delete says
+`ParameterNotFound`, which is fine.
 
 (This needs AWS CLI version 2, which `aws --version` shows: version 1 would try to
 fetch the address instead of storing it.)
@@ -213,6 +218,11 @@ deploy/server.sh restart
 Success: `The API restarted and is answering.`, and `deploy/server.sh logs | grep
 "settings read"` lists `ANTHROPIC_API_KEY` again and no `SEALEYE_MODEL_URL`.
 
+**Rolling back to a release from before the gateway:** switch back first, as above.
+Otherwise the old release removes the gateway while the API still sends its calls to
+it, and every interview fails. (An old release also reads `/sealeye/gateway/` into the
+API again, since only new releases leave it out.)
+
 **Changing the budget or a key later:** change the parameter, then
 
 ```bash
@@ -220,13 +230,21 @@ deploy/server.sh gateway-restart
 ```
 
 It rewrites the gateway's settings, restarts the gateway and the API, and ends with `The
-model gateway is up`. The money already spent in this period stays counted. The gateway's
+model gateway is up`. A new budget amount keeps the money already spent in this period
+counted. A new gateway key may start the count again, since the gateway keeps the count
+for each key. The gateway's
 period is 30 days counted from 1970, not the calendar month, so it resets on a date that
 moves by a day or two each month.
 
-**When the budget is spent**, every interview stops at its first model call until the
+**When the budget is spent**, every interview stops at its first model call, and the
+developer reads that seaLeye has used its model budget for this period, until the
 period ends or you raise the budget. `deploy/server.sh gateway-logs` shows the refusals
 (status 429).
+
+The commands above put a key on the `aws` command line for the moment it runs, where
+another program on your Mac could see it, as `put_secret` does; they keep it out of
+your shell history. On the server, `docker inspect` and `docker compose config` show the
+gateway's keys to anyone with root, so never paste their output anywhere.
 
 ## Once: the addresses
 

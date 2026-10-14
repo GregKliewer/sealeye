@@ -513,7 +513,7 @@ export async function runInterview({ appPath, deployed = null, ask, onStep = () 
   const service = createInterviewService({ client });
   try {
     if (!service.ready()) {
-      const err = new Error("ANTHROPIC_API_KEY is not set, so the interview cannot run.");
+      const err = new Error("ANTHROPIC_API_KEY is not set (nor SEALEYE_GATEWAY_KEY with SEALEYE_MODEL_URL), so the interview cannot run.");
       err.userFacing = true;
       throw err;
     }

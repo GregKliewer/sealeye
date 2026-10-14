@@ -8,18 +8,6 @@ cd /opt/sealeye
 # REGION, CONFIG_BUCKET and REPOSITORY, written when the server was created.
 source ./server.env
 
-aws s3 cp "s3://${CONFIG_BUCKET}/server/compose.yaml" compose.yaml --region "$REGION" --only-show-errors
-aws s3 cp "s3://${CONFIG_BUCKET}/server/Caddyfile" Caddyfile --region "$REGION" --only-show-errors
-aws s3 cp "s3://${CONFIG_BUCKET}/server/gateway.yaml" gateway.yaml --region "$REGION" --only-show-errors
-
-# The pages Caddy serves: seaLeye.online, seaLeye.run and the package it installs.
-# --exact-timestamps, because without it a download skips any file whose size has not
-# changed, however new: the portal's index.html is always the same size (only the hashes
-# in its asset names change), so the server kept the old page while --delete removed the
-# assets it names, and the portal went blank (Oct 11, 2026).
-mkdir -p sites
-aws s3 sync "s3://${CONFIG_BUCKET}/server/sites/" sites/ --region "$REGION" --delete --exact-timestamps --only-show-errors
-
 for f in backup.sh restore-check.sh gateway.sh; do
   aws s3 cp "s3://${CONFIG_BUCKET}/server/$f" "$f" --region "$REGION" --only-show-errors
 done
@@ -40,6 +28,21 @@ chmod 644 secrets/pg_password.new && mv secrets/pg_password.new secrets/pg_passw
 # The model gateway's keys and budget, from Parameter Store, in a file only root reads
 # (deploy/gateway.sh). It stops the release, changing nothing, when a key is missing.
 bash ./gateway.sh settings
+
+# Only once every secret is read does anything the running containers use change: a
+# release that stops above leaves the server's compose.yaml, Caddyfile and pages as
+# they were, so deploy/server.sh still works.
+aws s3 cp "s3://${CONFIG_BUCKET}/server/compose.yaml" compose.yaml --region "$REGION" --only-show-errors
+aws s3 cp "s3://${CONFIG_BUCKET}/server/Caddyfile" Caddyfile --region "$REGION" --only-show-errors
+aws s3 cp "s3://${CONFIG_BUCKET}/server/gateway.yaml" gateway.yaml --region "$REGION" --only-show-errors
+
+# The pages Caddy serves: seaLeye.online, seaLeye.run and the package it installs.
+# --exact-timestamps, because without it a download skips any file whose size has not
+# changed, however new: the portal's index.html is always the same size (only the hashes
+# in its asset names change), so the server kept the old page while --delete removed the
+# assets it names, and the portal went blank (Oct 11, 2026).
+mkdir -p sites
+aws s3 sync "s3://${CONFIG_BUCKET}/server/sites/" sites/ --region "$REGION" --delete --exact-timestamps --only-show-errors
 
 # The nightly backup, at 03:15 Toronto time. Installed or updated every
 # release; Persistent=true runs a missed one after the server was off.
