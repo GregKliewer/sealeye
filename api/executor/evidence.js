@@ -175,10 +175,25 @@ async function builtOf(record, events) {
           : NOT_RECORDED),
     parameterNames: record.parameters ? Object.keys(record.parameters).sort() : NOT_RECORDED,
     settingNames: (record.settings || []).map(s => ({ name: s.name, source: s.source, value: "value redacted" })),
+    secretScan: secretScanOf(record),
     outputs: record.outputs || {},
     events: inWindow === null
       ? `not checked: ${events.error}`
       : inWindow.map(e => ({ time: e.at, resource: e.logicalId, type: e.type, status: e.status, reason: e.reason }))
+  };
+}
+
+/**
+ * How the code was checked for secrets before it was packaged (PHASE3-PLAN Step 2), and
+ * what the developer's .sealeye-allow let through: file, line and rule, never a value.
+ */
+function secretScanOf(record) {
+  const scan = record.secretScan;
+  if (!scan) return "not recorded: this deployment was made before seaLeye checked code for secrets";
+  return {
+    by: scan.gitleaks === "ran" ? "seaLeye's own rules and gitleaks" : "seaLeye's own rules only (gitleaks is not installed where this platform runs)",
+    ...(scan.scannedBy ? { scannedBy: scan.scannedBy } : {}),
+    allowed: (scan.allowed || []).map(a => `${a.file}:${a.line}:${a.rule}`)
   };
 }
 
@@ -439,6 +454,19 @@ function whatWasBuilt(ev) {
   if (b.settingNames.length) {
     lines.push("- Settings passed to the app, names only:");
     for (const s of b.settingNames) lines.push(`  - ${code(s.name)}: ${s.value}, taken from ${sourceInWords(s.source)}`);
+  }
+  if (b.secretScan !== undefined) {
+    if (isStr(b.secretScan)) {
+      lines.push(`- Checked for secrets: ${b.secretScan}`);
+    } else {
+      lines.push(`- Checked for secrets by ${b.secretScan.by}${b.secretScan.scannedBy ? `, when ${code(b.secretScan.scannedBy)} packaged this code` : ""}.`);
+      if (b.secretScan.allowed.length) {
+        lines.push(`- Let through on the developer's word, in ${code(".sealeye-allow")} (file, line, rule; values are never recorded):`);
+        for (const a of b.secretScan.allowed) lines.push(`  - ${code(a)}`);
+      } else {
+        lines.push("- Nothing was let through by .sealeye-allow.");
+      }
+    }
   }
   const outs = Object.entries(b.outputs);
   if (outs.length) {

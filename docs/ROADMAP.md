@@ -147,7 +147,8 @@ through one governed door before Phase 4 adds a swarm of agents.
   model, a trace or the gateway: a file with a finding travels as a name only, and the
   developer is told which file and line. The same scanner becomes the discovery swarm's
   first node in Phase 4. Where it runs and what a finding does to a deploy are
-  PHASE3-PLAN D3 and D4.
+  PHASE3-PLAN D3 and D4. **Built Oct 14, 2026 (2.22.0)**, on both surfaces and in the
+  API (DESIGN.md, "The secret scanner").
 
 **Done when:** a looping run is stopped by seaLeye's own cap rather than by a person,
 and told why; the gateway's budget refuses calls once it is crossed, as the outer limit;

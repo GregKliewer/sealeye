@@ -332,6 +332,16 @@ sealeye login
 
 ## When something is wrong
 
+A developer told "could not finish checking your code for secrets" (`SCAN_FAILED`)
+means gitleaks, which the image carries for the API's secret scan, did not finish:
+nothing was sent to the model or deployed, on purpose. The API's logs say no more than
+that, since gitleaks' own output may quote what it found. To check it runs in the
+image, open a shell on the server (below) and:
+
+```bash
+cd /opt/sealeye && sudo docker compose exec api gitleaks version
+```
+
 The API's last lines, or a restart:
 
 ```bash

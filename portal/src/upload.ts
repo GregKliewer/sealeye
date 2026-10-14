@@ -7,9 +7,12 @@
 // and the folder input every browser has (which lists everything first).
 import ignore from "ignore";
 import { zipSync } from "fflate";
-import { collectUpload, treeFromPaths, UploadRefused } from "../../core/upload-rules.js";
+import { collectUpload, SecretsFound, treeFromPaths, UploadRefused } from "../../core/upload-rules.js";
 
-export { UploadRefused };
+export { SecretsFound, UploadRefused };
+
+/** A value that looks like a secret: file, line, rule and kind (core/scan.js). Never the value. */
+export interface Finding { file: string; line: number; rule: string; kind: string }
 
 type Bytes = Uint8Array;
 interface TreeFile { name: string; kind: "file"; size: number; bytes(): Promise<Bytes>; text(): Promise<string> }
@@ -131,13 +134,17 @@ export async function appNameOf(folder: ChosenFolder): Promise<string> {
   return folder.name;
 }
 
-export interface Packed { zip: string; withheld: string[]; ignored: number }
+export interface Packed { zip: string; withheld: string[]; ignored: number; findings: Finding[] }
 
-/** Walk and zip the folder for an interview or a deploy. Throws UploadRefused in words. */
+/**
+ * Walk and zip the folder for an interview or a deploy. Throws UploadRefused in words,
+ * and SecretsFound (an UploadRefused) for a deploy whose code looks like it holds a
+ * secret. An interview's files with a finding are sent as names only.
+ */
 export async function pack(folder: ChosenFolder, purpose: "interview" | "deploy"): Promise<Packed> {
-  const { entries, withheld, ignored } = await collectUpload(folder.root, { purpose, ignore });
+  const { entries, withheld, ignored, findings } = await collectUpload(folder.root, { purpose, ignore });
   const zip = zipSync(entries as Record<string, Uint8Array>, { level: 6 });
-  return { zip: toBase64(zip), withheld, ignored };
+  return { zip: toBase64(zip), withheld, ignored, findings: findings as Finding[] };
 }
 
 function toBase64(bytes: Uint8Array): string {

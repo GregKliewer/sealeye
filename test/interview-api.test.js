@@ -190,3 +190,29 @@ test("a developer who leaves mid-interview is forgotten at once", async () => {
   assert.equal(res.status, 404);
   assert.deepEqual(fs.readdirSync(path.join(tmp, "interviews")), []);
 });
+
+test("sealeye run says which files look like they hold a secret, in the portal's words, and the model never sees one", async () => {
+  const { interviewThroughApi } = await import("../cli/interview/follow.js");
+  const { interviewFindingWords } = await import("../core/scan.js");
+  const { FAKE } = await import("./fixtures/fake-secrets.js");
+
+  const app = path.join(tmp, "keyed-site");
+  fs.cpSync(path.join(root, "apps", "static-website"), app, { recursive: true });
+  fs.writeFileSync(path.join(app, "config.js"), `// keys\nexport const github = "${FAKE.githubToken}";\n`);
+
+  const before_ = calls.length;
+  const said = [];
+  await interviewThroughApi({
+    apiBaseUrl: apiBase,
+    appPath: app,
+    user: "greg",
+    ask: async () => "Customers",
+    onStep: () => {},
+    onFindings: lines => said.push(...lines)
+  });
+
+  const expected = interviewFindingWords([{ file: "config.js", line: 2, rule: "github-token", kind: "a GitHub token" }]);
+  assert.deepEqual(said, expected);
+  assert.equal(said[0], "config.js, line 2, looks like it holds a GitHub token.");
+  assert.ok(calls.slice(before_).every(c => !c.body.includes(FAKE.githubToken)), "no model call carried the token");
+});

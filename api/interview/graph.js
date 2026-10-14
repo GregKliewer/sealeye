@@ -57,6 +57,9 @@ export const InterviewState = Annotation.Root({
   model: replace(() => null),
   // { traceId, spanId } of the first stretch, so later stretches join its trace.
   trace: replace(() => null),
+  // Files sent empty because they look like they hold a secret (core/scan.js): file,
+  // line, rule and kind, never a value. read_file refuses them and says why.
+  withheld: replace(() => []),
 
   // The conversation, and the counts the rules are written in.
   messages: replace(() => []),
@@ -86,7 +89,7 @@ export function buildInterviewGraph({ runtimeFor, checkpointer }) {
   // do the platform's remembering.
   async function begin(state) {
     if (state.messages.length) return {};
-    const opening = [folderDigest(state.appDir), deployedContext(state.deployed)].filter(Boolean).join("\n\n");
+    const opening = [folderDigest(state.appDir, { withheld: state.withheld }), deployedContext(state.deployed)].filter(Boolean).join("\n\n");
     return { messages: [{ role: "user", content: opening }] };
   }
 
@@ -216,7 +219,7 @@ export function buildInterviewGraph({ runtimeFor, checkpointer }) {
         continue;
       }
 
-      const { content, isError } = runTool(state.appDir, use.name, use.input || {});
+      const { content, isError } = runTool(state.appDir, use.name, use.input || {}, { withheld: state.withheld });
       traceTool(toolRecord(use, content, isError));
 
       // The line comes after the tool ran, so it says what happened rather than what

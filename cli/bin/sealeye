@@ -415,6 +415,12 @@ async function main() {
           apiBaseUrl,
           onStep: say,
           onStarted: id => { interviewId = id; },
+          // Amber, like a refusal: the developer has something to move before a deploy.
+          onFindings: lines => {
+            console.log("");
+            for (const line of lines) console.log(c.prompt(`  ${line}`));
+            console.log("");
+          },
           appPath,
           user: requestedBy().user,
           trace: !traceOff,
@@ -1549,6 +1555,15 @@ async function runDeploy({ apiBaseUrl, backend, plan, appPath, requestedBy: who,
 
     // Another change to this environment is under way. Say what, and how to follow it.
     if (refusal?.code === "ENVIRONMENT_BUSY") {
+      wait.stop();
+      console.error(c.fail(refusal.message));
+      process.exitCode = 1;
+      return null;
+    }
+
+    // The platform's own scan found what looks like a secret (core/scan.js and
+    // gitleaks): nothing was deployed, and its words say what to do.
+    if (refusal?.code === "SECRETS_FOUND") {
       wait.stop();
       console.error(c.fail(refusal.message));
       process.exitCode = 1;

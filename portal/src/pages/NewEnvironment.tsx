@@ -8,7 +8,8 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { api, ApiError, SignedOut, type Catalog, type InterviewEvent, type OpenInterview } from "../api";
 import { useSession } from "../session";
-import { appNameOf, canPickFolder, emptyZip, folderFromDrop, folderFromInput, pack, pickFolder, UploadRefused, type ChosenFolder } from "../upload";
+import { appNameOf, canPickFolder, emptyZip, folderFromDrop, folderFromInput, pack, pickFolder, SecretsFound, UploadRefused, type ChosenFolder, type Finding } from "../upload";
+import { allowLine, deployRefusalWords, findingSentence, interviewFindingWords } from "../../../core/scan.js";
 import { plainValidationErrors } from "../../../core/plan-words.js";
 import { settingNamesFor } from "../../../core/setting-names.js";
 import { PageTitle, Problem } from "../Layout";
@@ -38,6 +39,10 @@ export function NewEnvironment() {
   const [plan, setPlan] = useState<InterviewEvent | null>(null);
   const [ending, setEnding] = useState<InterviewEvent | null>(null);
   const [withheld, setWithheld] = useState<string[]>([]);
+  // Files sent as names only because they look like they hold a secret, and a deploy
+  // refused for one (core/scan.js): file, line and kind, never the value.
+  const [found, setFound] = useState<Finding[]>([]);
+  const [secrets, setSecrets] = useState<Finding[] | null>(null);
   const [redeploy, setRedeploy] = useState<string | null>(null);
   const [missing, setMissing] = useState<string[]>([]);
   const [stored, setStored] = useState<string[]>([]);
@@ -89,7 +94,8 @@ export function NewEnvironment() {
       setRedeploy(live ? app : null);
 
       setBusy("Handing your app to the platform");
-      const started = await api.startInterview(folder.name, packed.zip, deployed);
+      const started = await api.startInterview(folder.name, packed.zip, deployed, packed.findings);
+      setFound(started.findings || packed.findings);
       interviewId.current = started.interviewId;
       startedHere.current = true;
       setPhase("interview");
@@ -192,6 +198,7 @@ export function NewEnvironment() {
     }
     setPhase("deploying");
     setProblem(null);
+    setSecrets(null);
     try {
       const drafted = ((plan.plan.needs as unknown[]) || []).length > 0;
       // A draft is refused before anything is packaged, so none of the folder is sent.
@@ -212,6 +219,14 @@ export function NewEnvironment() {
         const details = err.details as { needs?: Need[]; deploymentId?: string } | undefined;
         setRefusal({ needs: details?.needs || [], deploymentId: details?.deploymentId });
         setPhase("refused");
+      } else if (err instanceof SecretsFound) {
+        // Found here, before anything was sent.
+        setSecrets(err.findings as Finding[]);
+        setPhase("plan");
+      } else if (err instanceof ApiError && err.code === "SECRETS_FOUND") {
+        // Found by the platform's own scan, which also runs gitleaks.
+        setSecrets(((err.details as { findings?: Finding[] } | undefined)?.findings) || []);
+        setPhase("plan");
       } else if (err instanceof UploadRefused) {
         setProblem(err.message);
         setPhase("plan");
@@ -298,6 +313,11 @@ export function NewEnvironment() {
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             {withheld.length ? <p className="text-dim">Sent as names only: <span className="font-mono">{withheld.join(", ")}</span></p> : null}
+            {found.length ? (
+              <div role="note" data-testid="secret-findings" className="rounded-lg border border-amber/40 bg-amber-chip px-4 py-3 text-amber space-y-1">
+                {interviewFindingWords(found).map((line, i) => <p key={i}>{line}</p>)}
+              </div>
+            ) : null}
             <ol className="space-y-2" data-testid="interview-lines">
               {lines.map((line, i) => line.kind === "step" ? (
                 <li key={i} className="text-dim">{line.text}</li>
@@ -406,6 +426,25 @@ export function NewEnvironment() {
             <Problem message={ending.message || "The interview ended without a plan."} />
           )}
         </div>
+      ) : null}
+
+      {secrets ? (
+        <Card className="mt-6" data-testid="secrets-refusal">
+          <CardHeader><CardTitle>Not deployed</CardTitle></CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            {(() => {
+              // The same words the command prints (core/scan.js), with the lines to allow set apart.
+              const words = deployRefusalWords(secrets);
+              const allowFrom = words.length - secrets.length;
+              return (
+                <>
+                  {words.slice(0, allowFrom).map((line, i) => <p key={i} className={secrets.some(f => findingSentence(f) === line) ? "text-amber" : ""}>{line}</p>)}
+                  <pre className="font-mono text-xs rounded border border-rule px-3 py-2 overflow-x-auto">{secrets.map(allowLine).join("\n")}</pre>
+                </>
+              );
+            })()}
+          </CardContent>
+        </Card>
       ) : null}
 
       {problem ? <div className="mt-6"><Problem message={problem} /></div> : null}

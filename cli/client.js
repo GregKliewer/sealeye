@@ -5,7 +5,7 @@ import YAML from "yaml";
 
 import { envValuesFor } from "../core/settings.js";
 import { setting } from "../core/config.js";
-import { zipFolder } from "../core/upload.js";
+import { zipFolder, UploadRefused } from "../core/upload.js";
 
 /**
  * The platform did not answer at all: wrong port, API not started, machine asleep.
@@ -95,7 +95,9 @@ export async function createDeployment({ apiBaseUrl, backend, plan, appPath, req
   try {
     packed = await zipFolder(appPath, { purpose: "deploy" });
   } catch (err) {
-    if (err?.constructor?.name === "UploadRefused") err.userFacing = true;
+    // Too big, or code that looks like it holds a secret (SecretsFound): the sentence
+    // is the developer's to act on, so it is shown as it is.
+    if (err instanceof UploadRefused) err.userFacing = true;
     throw err;
   }
   const body = { backend, plan, appPath, zip: Buffer.from(packed.zip).toString("base64") };
@@ -214,27 +216,32 @@ async function interviewFetch(apiBaseUrl, route, options) {
 
 /**
  * Upload the app folder and start an interview over it. Secret files travel as names
- * only (core/upload.js), so their contents never leave this machine.
+ * only (core/upload.js), and so does any file the scanner finds a secret in
+ * (core/scan.js), so their contents never leave this machine. The findings go with the
+ * upload, file, line and rule only, so the API can say why those files are empty.
  *
- * @returns {Promise<{interviewId, status, withheld: string[]}>}
+ * @returns {Promise<{interviewId, status, withheld: string[], findings: object[]}>}
+ *          findings are this machine's and the API's together.
  */
 export async function startInterview({ apiBaseUrl, appPath, deployed, user, trace = true }) {
   let packed;
   try {
     packed = await zipFolder(appPath);
   } catch (err) {
-    if (err?.name === "UploadRefused" || err?.constructor?.name === "UploadRefused") err.userFacing = true;
+    if (err instanceof UploadRefused) err.userFacing = true;
     throw err;
   }
 
   const started = await interviewFetch(apiBaseUrl, "/interviews", asJson({
     app: path.basename(path.resolve(appPath)),
     zip: Buffer.from(packed.zip).toString("base64"),
+    ...(packed.findings.length ? { findings: packed.findings.map(({ file, line, rule }) => ({ file, line, rule })) } : {}),
     ...(deployed ? { deployed } : {}),
     ...(user ? { user } : {}),
     ...(trace ? {} : { trace: false })
   }));
-  return { ...started, withheld: packed.withheld };
+  // An older API answers without findings of its own: what this machine found stands.
+  return { ...started, withheld: packed.withheld, findings: Array.isArray(started.findings) ? started.findings : packed.findings };
 }
 
 /** Drop an interview the developer has left, so the API keeps nothing of their app. */

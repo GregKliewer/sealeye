@@ -15,7 +15,7 @@ import { secretFileReason } from "./secrets.js";
 import { collectUpload, isLeftOutOfDeploy, rulesOf, UploadRefused } from "./upload-rules.js";
 
 // The rules themselves live in core/upload-rules.js, which the portal uses too.
-export { EXCLUDED_FOLDERS, MAX_UPLOAD_BYTES, MAX_UPLOAD_FILES, UploadRefused } from "./upload-rules.js";
+export { EXCLUDED_FOLDERS, MAX_UPLOAD_BYTES, MAX_UPLOAD_FILES, SecretsFound, UploadRefused } from "./upload-rules.js";
 
 /** A folder on disk as the tree collectUpload walks. */
 function diskNode(abs, name, { root = false } = {}) {
@@ -43,14 +43,20 @@ function diskNode(abs, name, { root = false } = {}) {
  * Zip an app folder for an interview (the default) or a deploy, by the rules in
  * core/upload-rules.js.
  *
- * @returns {Promise<{ zip: Uint8Array, files: number, bytes: number, withheld: string[], ignored: number }>}
+ * @returns {Promise<{ zip: Uint8Array, files: number, bytes: number, withheld: string[], ignored: number, findings: object[], allowed: object[] }>}
  *          withheld lists the secret files sent as empty names; ignored counts what a
- *          .gitignore left out.
+ *          .gitignore left out; findings and allowed are the scanner's (core/scan.js).
+ *          A deploy whose code looks like it holds a secret throws SecretsFound.
  */
 export async function zipFolder(dir, { purpose = "interview" } = {}) {
-  const root = path.resolve(dir);
-  const { entries, ...counts } = await collectUpload(diskNode(root, path.basename(root), { root: true }), { purpose, ignore });
+  const { entries, ...counts } = await collectFolder(dir, { purpose });
   return { zip: zipSync(entries, { level: 6 }), ...counts };
+}
+
+/** The same walk over a folder on disk, without the zip: what would travel, and why. */
+export function collectFolder(dir, { purpose = "interview" } = {}) {
+  const root = path.resolve(dir);
+  return collectUpload(diskNode(root, path.basename(root), { root: true }), { purpose, ignore });
 }
 
 /**

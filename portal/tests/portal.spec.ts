@@ -308,6 +308,53 @@ test("New environment holds the interview in the browser, stores what the plan n
   expect(await page.content()).not.toContain(SECRET);
 });
 
+// A value shaped like a Stripe key, put together here so no file holds one.
+const FAKE_KEY = ["sk", "_live_", "Q7rT2vX9mK4pL8wN3bZ6cF1h"].join("");
+
+test("a key written into the code is sent as a name only, and its deploy is refused, as sealeye run says", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/new");
+  const dir = appFolder("orders-api", {
+    "package.json": JSON.stringify({ name: "orders-api", version: "1.0.0" }),
+    "index.js": `const http = require('http');\nconst stripe = require('stripe')('${FAKE_KEY}');\nhttp.createServer((q, s) => s.end('ok')).listen(process.env.PORT);\n`
+  });
+  await page.getByLabel("Choose your app's folder").setInputFiles(dir);
+  await page.getByRole("button", { name: "Read my app" }).click();
+
+  // Before anything else: which file, which line, what kind, and what happens next.
+  const note = page.getByTestId("secret-findings");
+  await expect(note).toContainText("index.js, line 2, looks like it holds a Stripe key.");
+  await expect(note).toContainText("sent as names only, so the interview cannot read it");
+
+  // The model asks to read it and is refused, so the interview carries on without it.
+  const lines = page.getByTestId("interview-lines");
+  await expect(lines).toContainText("Nothing to read at index.js, moving on", { timeout: 20_000 });
+  await expect(lines).toContainText("Who calls this API?", { timeout: 20_000 });
+  await page.getByLabel("Your answer").fill("Our checkout service");
+  await page.getByRole("button", { name: "Answer" }).click();
+  const plan = page.getByTestId("plan");
+  await expect(plan).toContainText("Ready", { timeout: 20_000 });
+
+  await plan.getByRole("button", { name: "Yes, deploy it" }).click();
+  // GREETING may already be in the store from the test before; if not, store it.
+  const settings = page.getByTestId("store-settings");
+  const refusal = page.getByTestId("secrets-refusal");
+  await expect(settings.or(refusal)).toBeVisible();
+  if (await settings.isVisible()) {
+    await settings.getByLabel("Value for GREETING").fill("hello-from-the-portal");
+    await settings.getByRole("button", { name: "Store it" }).click();
+    await expect(settings.getByRole("status")).toHaveText("Every setting is stored.");
+    await settings.getByRole("button", { name: "Deploy it" }).click();
+  }
+
+  // Refused here, before the folder was sent, in the command's words.
+  await expect(refusal).toContainText("Nothing was deployed: your code looks like it holds a secret.");
+  await expect(refusal).toContainText("index.js, line 2, looks like it holds a Stripe key.");
+  await expect(refusal).toContainText("sealeye settings set NAME, or Settings in seaLeye.online");
+  await expect(refusal.locator("pre")).toHaveText("index.js:2:stripe-key");
+  expect(await page.content()).not.toContain(FAKE_KEY);
+});
+
 test("a drafted plan from New environment is saved, and says what it needs", async ({ page }) => {
   await signIn(page);
   await page.goto("/new");
