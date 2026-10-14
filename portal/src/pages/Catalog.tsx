@@ -43,6 +43,7 @@ export function CatalogPage() {
               <li key={n.kind} className="py-3" data-testid="need-row">
                 <div className="flex items-start gap-3">
                   <p className="text-sm">{n.line}</p>
+                  {n.listed === false ? <Badge tone="neutral" data-testid="unlisted">Not in the list yet</Badge> : null}
                   <Badge tone="amber" className="ml-auto">{n.count === 1 ? "1 app" : `${n.count} apps`}</Badge>
                 </div>
                 <p className="mt-1 text-xs text-dim">

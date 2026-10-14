@@ -2210,7 +2210,8 @@ function evidenceSummaryLines(ev) {
 function printNeedsTable(ledger) {
   const rows = ledger.needs.map(n => ({
     need: n.line,
-    kind: `[${n.kind}]`,
+    // An unlisted need has no key of its own to show: it is in the model's words.
+    kind: n.listed === false ? "[not in the list yet]" : `[${n.kind}]`,
     apps: String(n.count),
     first: relativeTime(n.firstSeen),
     last: relativeTime(n.lastSeen),

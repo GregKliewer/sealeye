@@ -145,8 +145,12 @@ modules:
 # plan file. profile_expects is what the profile will ask of this need once something
 # supports it, in the same words the patterns use and with no number among them.
 #
-# This list is fixed so that the same need is described the same way in every run. A
-# need is a sentence about the app, never an id, and never a module in disguise.
+# These are the words to use, so the same need is described the same way in every run.
+# They are not a fence: when the folder shows a need none of them fits, the interview
+# records it as `unlisted`, with a line of its own in the same form, rather than forcing
+# it into the nearest kind or leaving it out. A recurring unlisted need is a candidate
+# for this list. A need is a sentence about the app, never an id, never a product, and
+# never a module in disguise.
 
 need_kinds:
   - key: continuous_service
@@ -169,6 +173,16 @@ need_kinds:
     profile_expects:
       dev: A single zone, with backups kept and restorable.
       prod: Across more than one zone, with a standby ready to take over and backups kept.
+
+  - key: document_database
+    line: a document database
+    signals:
+      - a document database client among the dependencies (mongoose, mongodb, a DynamoDB or Firestore client)
+      - a connection setting such as MONGODB_URL
+      - schemas or models of documents and collections rather than tables
+    profile_expects:
+      dev: A single zone, with backups kept and restorable.
+      prod: Across more than one zone, with copies ready to take over and backups kept.
 
   - key: event_stream
     line: a stream of events it publishes or reads

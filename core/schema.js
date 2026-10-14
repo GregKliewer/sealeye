@@ -17,10 +17,15 @@ export const MODULE_IDS = [
   "config_basic"
 ];
 
-/** The fixed kinds of need, so the same need is described the same way every run. */
+/**
+ * The known kinds of need, so the same need is described the same way every run. They
+ * are the words to use, not a fence: a need none of them fits is `unlisted`, with a line
+ * of its own (DESIGN.md, "Needs: known kinds, and the rest in the model's own words").
+ */
 export const NEED_KINDS = [
   "continuous_service",
   "relational_database",
+  "document_database",
   "event_stream",
   "runtime_secrets",
   "internal_only",
@@ -31,6 +36,9 @@ export const NEED_KINDS = [
   "file_storage",
   "cache"
 ];
+
+/** A need none of the known kinds fits: its line is the model's own sentence. */
+export const UNLISTED_NEED = "unlisted";
 
 export const PROFILES = ["poc", "dev", "perf", "prod"];
 
@@ -105,6 +113,37 @@ export function upgradePlan(plan) {
   };
 }
 
+// Words an unlisted need's line may not hold: a module of any kind, an address, or a
+// promise about when.
+const UNLISTED_FORBIDDEN = [
+  [/\b(?:static_site_edge|http_api_serverless|observability_basic|config_basic)\b/i, "names a module"],
+  [/https?:\/\/|www\./i, "holds an address"],
+  [/\b(?:coming|soon|planned|roadmap|will be)\b/i, "makes a promise"]
+];
+
+/**
+ * What is wrong with a plan's unlisted needs, as contract errors. The schema checks the
+ * shape; this checks the sentence: in the form of the known kinds' lines ("a ..." or
+ * "an ..."), and none of the words above.
+ *
+ * @returns {{code: string, message: string, path: string}[]}
+ */
+export function unlistedNeedProblems(plan) {
+  const problems = [];
+  (plan?.needs || []).forEach((need, i) => {
+    if (need?.kind !== UNLISTED_NEED) return;
+    const line = String(need.line || "").trim();
+    const where = `/needs/${i}/line`;
+    if (!/^(?:a|an) [a-z]/.test(line)) {
+      problems.push({ code: "UNLISTED_NEED", path: where, message: `${where} must read like the known kinds' lines: "a ..." or "an ...", in lower case` });
+    }
+    for (const [pattern, why] of UNLISTED_FORBIDDEN) {
+      if (pattern.test(line)) problems.push({ code: "UNLISTED_NEED", path: where, message: `${where} ${why}; say what the app needs, in a few words` });
+    }
+  });
+  return problems;
+}
+
 /** A plan is a draft when the app needs something no module supports. */
 export const isDrafted = plan => (plan?.needs || []).length > 0;
 
@@ -150,8 +189,12 @@ export const planSchema = {
         additionalProperties: false,
         required: ["kind", "line", "evidence"],
         properties: {
-          kind: { type: "string", enum: NEED_KINDS },
-          line: { type: "string", minLength: 1 },
+          kind: { type: "string", enum: [...NEED_KINDS, UNLISTED_NEED] },
+          // For a known kind, the catalog's line. For an unlisted need, a short phrase
+          // about the app in the same form ("a search index over its documents"): the
+          // kind of thing, never a product (the technology goes in the evidence), never
+          // a module, never a promise. Checked further in unlistedNeedProblems.
+          line: { type: "string", minLength: 1, maxLength: 90 },
           evidence: {
             type: "array",
             minItems: 1,

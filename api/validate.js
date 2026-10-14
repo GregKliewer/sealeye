@@ -4,7 +4,7 @@
 import Ajv from "ajv";
 import addFormats from "ajv-formats";
 
-import { planSchema, upgradePlan } from "../core/schema.js";
+import { planSchema, unlistedNeedProblems, upgradePlan } from "../core/schema.js";
 
 const ajv = new Ajv({ allErrors: true });
 addFormats(ajv);
@@ -25,12 +25,12 @@ export function formatAjvErrors(errors = []) {
  * @returns {{valid: boolean, errors: object[]}}
  */
 export function checkPlan(plan) {
-  const ok = validate(upgradePlan(plan));
-  return { valid: !!ok, errors: ok ? [] : formatAjvErrors(validate.errors) };
+  return checkUpgraded(upgradePlan(plan));
 }
 
 /** The same check on a plan that is already upgraded, with the raw errors. */
 export function checkUpgraded(plan) {
   const ok = validate(plan);
-  return { valid: !!ok, errors: ok ? [] : formatAjvErrors(validate.errors) };
+  const errors = ok ? unlistedNeedProblems(plan) : formatAjvErrors(validate.errors);
+  return { valid: errors.length === 0, errors };
 }

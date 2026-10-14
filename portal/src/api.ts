@@ -81,7 +81,7 @@ export interface Catalog {
 
 export interface NeedsLedger {
   apps: number;
-  needs: { kind: string; line: string; count: number; apps: { name: string; team?: string; deploymentId: string | null; when: string | null }[]; firstSeen: string | null; lastSeen: string | null }[];
+  needs: { kind: string; listed?: boolean; line: string; count: number; apps: { name: string; team?: string; deploymentId: string | null; when: string | null }[]; firstSeen: string | null; lastSeen: string | null }[];
 }
 
 // An app's settings in the organization's store (PHASE2-PLAN Step 8): names, whether

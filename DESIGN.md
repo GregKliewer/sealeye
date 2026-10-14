@@ -1984,3 +1984,33 @@ deploy with a finding is still refused.
 - **The client's word still counts only where it holds.** A finding the client sends
   explains a line only if that line arrived replaced, or a file only if it arrived
   empty; the API replaces whatever its own scan finds.
+
+## Needs: known kinds, and the rest in the model's own words
+
+Wed Oct 14, 2026, by Greg. The first interview on a real app
+(hagopj13/node-express-boilerplate) called MongoDB "a relational database": the list of
+need kinds had no document database, and the interview had to choose from it. Greg
+asked whether a fixed list is needed at all.
+
+- **The list stays, as the words to use, not a fence.** It is what lets the needs ledger
+  and Phase 4's gap report count "twelve apps need X" as one number, the eval grade
+  needs exactly, and a profile say what it will ask of each need. Those are worth
+  keeping. What is not worth keeping is forcing a need into the nearest kind, which
+  tells the platform team the wrong thing, or leaving it out, which shrinks a plan that
+  should refuse (principle 3).
+- **A need none of the kinds fits is `unlisted`**, with a line of the model's own in the
+  same form as the list's ("a search index over its documents"). It drafts the plan
+  like any need, and needs evidence like any need. The contract refuses a line that is
+  not "a ..." or "an ...", names a module, holds an address or makes a promise
+  (`unlistedNeedProblems`, `core/schema.js`), at most 90 characters.
+- **The kind of thing, never the product.** An unlisted line says "a document database",
+  not "MongoDB"; the technology is in the evidence ("mongoose in package.json"), where
+  the platform team still sees it. The ledger keeps its rule of naming no vendor.
+- **The ledger shows unlisted needs apart**, one row per wording, marked "not in the
+  list yet" in `sealeye needs` and on the portal's Catalog. A wording that keeps coming
+  back is a candidate for the list: added by hand for now, proposed by the gap report in
+  Phase 4.
+- **`document_database` joins the list**, since a real app has already needed it.
+- Changing the catalog and the prompt changes what the interview writes, so
+  `npm run eval:interview` runs before and after; the sample apps have no need this
+  changes.
