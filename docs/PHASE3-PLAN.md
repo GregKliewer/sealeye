@@ -244,9 +244,10 @@ High stakes: an independent review before the pull request.
   of their own, how to read the file while the gateway writes it, and how long rows
   are kept. Then a retention to set, written in DESIGN.md.
 
-*Status (Oct 14): built; DESIGN.md, "The outer limit, and a record of calls kept 90
-days". The budget and its words came with Step 5. Owed: Greg's spike run of the stored
-row's claims, and the showing on the server (deploy/README.md).*
+*Status (Oct 14): done. DESIGN.md, "The outer limit, and a record of calls kept 90
+days". Shown on the server the same evening: with the budget below what the period had
+spent, an interview was refused in plain words, and then worked again once the budget
+was put back.*
 
 ### Step 8. Routing (D6; DESIGN.md, "Inference from Canada")
 
