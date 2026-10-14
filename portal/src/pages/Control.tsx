@@ -1,12 +1,14 @@
 // Control: one environment. Its state as the platform reports it, the way to tear it
 // down (the same DELETE /deployments/{id} `sealeye destroy` uses; the record says it
-// came from the portal), its settings, everything that has been done to it, and the
-// change record for any of those deployments (`sealeye evidence`).
+// came from the portal), its settings, everything that has been done to it, the plan and
+// report for any of those deployments (`sealeye plan`), and its change record
+// (`sealeye evidence`).
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
 import { api, SignedOut, type DeploymentSummary, type Evidence, type Logs } from "../api";
 import { evidenceSummary } from "../../../core/evidence-summary.js";
 import { PerformanceCard } from "./PerformanceCard";
+import { PlanCard } from "./PlanCard";
 import { RETENTION_CHOICES, retentionOf, withRetention } from "../../../core/retention.js";
 import { useLoad, useSession } from "../session";
 import { addressOf, ago, changedAt, doing, elapsed, groupEnvironments, IN_FLIGHT, lockedWhile, statusOf, underWay, when, who } from "../model";
@@ -38,6 +40,7 @@ export function Control() {
   const env = useMemo(() => groupEnvironments(deployments.data || []).find(e => e.key === key) || null, [deployments.data, key]);
   const latest = env?.latest;
   const [evidenceFor, setEvidenceFor] = useState<string | null>(null);
+  const [planFor, setPlanFor] = useState<string | null>(null);
   // A change under way locks everything that would change the environment, as the API
   // refuses a second change (ENVIRONMENT_BUSY), and says so on each card.
   // Usually the newest record, but a tear-down asked through an older one is under way
@@ -191,7 +194,11 @@ export function Control() {
                   <TableCell className="text-xs">{when(d.startedAt)}</TableCell>
                   <TableCell>{who(d.requestedBy)}</TableCell>
                   <TableCell className="text-dim">{d.surface === "portal" ? "Portal" : "Command line"}</TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="space-x-2 whitespace-nowrap text-right">
+                    <Button variant="ghost" size="sm" aria-label={`Plan and report for ${d.deploymentId}`} onClick={() => {
+                      setPlanFor(d.deploymentId);
+                      document.getElementById("plan")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }}>Plan</Button>
                     <Button variant="ghost" size="sm" aria-label={`Evidence for ${d.deploymentId}`} onClick={() => {
                       setEvidenceFor(d.deploymentId);
                       document.getElementById("evidence")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -203,6 +210,8 @@ export function Control() {
           </TableBody>
         </Table>
       </Card>
+
+      <PlanCard dep={env.deploys.find(d => d.deploymentId === planFor) || latest} latest={!planFor || planFor === latest.deploymentId} />
 
       {latest.kind !== "static" && env.deploys.some(d => d.stackName) ? <PerformanceCard deploymentId={(env.deploys.find(d => d.stackName) || latest).deploymentId} /> : null}
 

@@ -112,6 +112,23 @@ export interface Validation {
 // `sealeye evidence` reads. The object's shape is core/evidence-summary.js's business.
 export interface Evidence { evidence: object; markdown: string }
 
+// GET /deployments/{id}/plan: the plan a deployment was approved with, as the two files
+// `sealeye run` writes (DEPLOYMENT_PLAN.md and sealeye.yaml), and its DEPLOYMENT_REPORT.md
+// when it has one. `rebuilt` is a record from before plans were kept: its files are
+// written from its plan, and the interview's notes are not in them.
+export interface DeploymentPlan {
+  deploymentId: string;
+  app: string | null;
+  status: string;
+  failureReason: string | null;
+  files: Record<string, string> | null;
+  filesError?: string;
+  notesKept?: boolean;
+  rebuilt: boolean;
+  report: string | null;
+  reportError?: string;
+}
+
 // The interview (POST /interviews, its answers and its events), as `sealeye run` drives it.
 export interface InterviewEvent {
   seq: number;
@@ -210,6 +227,7 @@ export const api = {
     request<{ app: string | null; paused: boolean }>(`/deployments/${encodeURIComponent(id)}/${paused ? "pause" : "resume"}`, { method: "POST" }),
   logs: (id: string, since: string) => request<Logs>(`/deployments/${encodeURIComponent(id)}/logs?since=${encodeURIComponent(since)}`),
   evidence: (id: string) => request<Evidence>(`/deployments/${encodeURIComponent(id)}/evidence`),
+  plan: (id: string) => request<DeploymentPlan>(`/deployments/${encodeURIComponent(id)}/plan`),
   team: () => request<Team>("/team"),
   costs: (since: string) => request<Costs>(`/costs?since=${encodeURIComponent(since)}`),
   performance: (id: string, since: string) => request<Performance>(`/deployments/${encodeURIComponent(id)}/performance?since=${encodeURIComponent(since)}`),
