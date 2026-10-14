@@ -106,6 +106,7 @@ flowchart TB
     caddy["<b>Caddy</b><br/>[Reverse proxy]<br/>TLS for every domain; serves the portal,<br/>seaLeye.run and the installer"]
     api["<b>seaLeye API</b><br/>[Node 20, Express, api/ + core/]<br/>Interview, plan contract, executor,<br/>day-two operations"]
     pg[("<b>Postgres 16</b><br/>[Database]<br/>Records, tokens, sessions,<br/>setting changes, interviews")]
+    gw["<b>Model gateway</b><br/>[agentgateway, deploy/gateway.yaml]<br/>Holds the model key; the API's key<br/>and the 30-day money budget"]
   end
 
   subgraph aws["The organization's AWS account"]
@@ -131,7 +132,8 @@ flowchart TB
   api -- "read" --> cw
   cfn -- "creates" --> envs
   envs -- "read own settings at start" --> ssm
-  api -- "model calls" --> anthropic
+  api -- "model calls, the API's key" --> gw
+  gw -- "model calls, the model key" --> anthropic
   api -. "traces" .-> langfuse
 
   classDef person fill:#08427b,stroke:#052e56,color:#fff
@@ -139,7 +141,7 @@ flowchart TB
   classDef store fill:#438dd5,stroke:#2e6295,color:#fff
   classDef external fill:#999,stroke:#6b6b6b,color:#fff
   class dev person
-  class cli,portal,caddy,api container
+  class cli,portal,caddy,api,gw container
   class pg store
   class cfn,s3a,ssm,envs,cw,anthropic,langfuse external
 ```
@@ -149,7 +151,8 @@ flowchart TB
 | `sealeye` command | `cli/`, `core/` | the API only | Holds a token (`~/.sealeye/config`, 0600), never a model key or AWS credentials for deploying. Installed from seaLeye.run. |
 | Portal | `portal/` | the API only, at `/api` on its own origin | Imports a few browser-safe `core/` files so both surfaces say the same words. Every value on a page comes from an API call. |
 | Caddy | `deploy/Caddyfile` | the API, static files | Certificates for sealeye.online, api.sealeye.online, sealeye.run, sealeye.org. Passes the interview's event stream through unbuffered. |
-| API | `api/`, `core/`, `prompts/`, `templates/` | Postgres, AWS (CLI), Anthropic, LangFuse | The only part that holds a model key or reaches AWS. One process. |
+| API | `api/`, `core/`, `prompts/`, `templates/` | Postgres, AWS (CLI), the model gateway, LangFuse | The only part that reaches AWS. One process. On the server it holds a key for the gateway, not a model key; on a laptop, with no `SEALEYE_GATEWAY_KEY`, it calls Anthropic with its own key. |
+| Model gateway | `deploy/gateway.yaml`, `deploy/gateway.sh` | Anthropic | agentgateway, pinned by digest. The only part on the server that holds the model key. Lets through only the API's key, keeps a money budget for each 30-day period in its own SQLite file, and logs no prompts or replies. On a network of its own that only the API joins; no published port. |
 | Postgres | `api/migrations/` | | Reachable only from the API, on the server's own network. |
 
 ## 5. Inside the API (C4 level 3)
@@ -227,19 +230,20 @@ flowchart TB
 
   subgraph mac["Administrator's Mac"]
     release["<b>deploy/release.sh</b><br/>Builds the portal and package,<br/>sends the release"]
-    serversh["<b>deploy/server.sh</b><br/>backup, restore-check, import,<br/>restart, logs, token add/revoke/list"]
+    serversh["<b>deploy/server.sh</b><br/>backup, restore-check, import,<br/>restart, logs, token add/revoke/list,<br/>gateway-restart, gateway-logs"]
   end
 
   subgraph acct["AWS account, ca-central-1"]
     dns["<b>Route 53</b><br/>sealeye.online, sealeye.run,<br/>sealeye.org"]
     ecr[("<b>ECR</b><br/>sealeye-api images,<br/>immutable tags")]
     config[("<b>Config bucket</b><br/>server config, sites,<br/>nightly backups (30 days)")]
-    ssmp[("<b>Parameter Store /sealeye/</b><br/>API settings and secrets")]
+    ssmp[("<b>Parameter Store /sealeye/</b><br/>API settings and secrets;<br/>gateway/ holds the model key")]
     subgraph ec2["EC2 t4g.small, elastic IP, no SSH port"]
       subgraph compose["Docker Compose"]
         c1["caddy :80 :443"]
         c2["api :3000"]
         c3[("postgres :5432")]
+        c4["gateway :4000<br/>(network: model)"]
       end
     end
     deployRole["<b>sealeye-deploy-pilot</b><br/>role + function permissions boundary"]
@@ -248,6 +252,7 @@ flowchart TB
 
   c1 -- "HTTP" --> c2
   c2 -- "SQL" --> c3
+  c2 -- "HTTP, the API's key" --> c4
   actions -- "OIDC role, main only" --> ecr
   release -- "image (from CI when present)" --> ecr
   release -- "sites, scripts" --> config
@@ -255,7 +260,8 @@ flowchart TB
   serversh -- "SSM Run Command" --> ec2
   ec2 -- "pull" --> ecr
   ec2 -- "fetch config, write backups" --> config
-  c2 -- "read settings at start" --> ssmp
+  c2 -- "read settings at start,<br/>never gateway/" --> ssmp
+  ec2 -- "gateway.sh: model key,<br/>gateway key, budget" --> ssmp
   c2 -- "assume role" --> deployRole
   deployRole -- "create, update, delete" --> stacks
   dns -- "A records" --> ec2
@@ -266,8 +272,10 @@ flowchart TB
 - **The server's own role** can read its settings, pull its image, use its config
   bucket and assume a `sealeye-deploy-*` role. It cannot build anything itself.
 - **The API's settings** come from Parameter Store under `/sealeye/` at start
-  (`deploy/settings.mjs`), including the model key, LangFuse keys and the database
-  password. The API then drops the database password from its own environment.
+  (`deploy/settings.mjs`), including LangFuse keys, the key it calls the model gateway
+  with and the database password. The API then drops the database password from its
+  own environment. The model key is under `/sealeye/gateway/`, which the API never
+  reads; `deploy/gateway.sh` hands it to the gateway alone.
 - **Releasing is manual.** GitHub tests every change and builds the image on main;
   `deploy/release.sh` uses that image and rolls it out. `deploy/README.md` has every
   server operation.
@@ -284,7 +292,7 @@ sequenceDiagram
   actor Dev as Developer
   participant CLI as sealeye command
   participant API as seaLeye API
-  participant M as Anthropic model
+  participant M as Anthropic model<br/>(through the gateway on the server)
   participant DB as Postgres
   participant AWS as AWS (as deploy role)
 
@@ -596,5 +604,5 @@ The decisions that shaped the architecture, by DESIGN.md heading.
 | ca-central-1, Node 20, no CloudFront | The pilot's scope | Phase 7 |
 | Traces in LangFuse Cloud (US) | Sample apps only; off for any pilot on real code | Phase 4: self-hosted in ca-central-1, before discovery reads an organization's code |
 | No promotion past dev | Developers deploy to dev | Phase 5 |
-| No gateway in front of the model | One agent, one box | Phase 3: a cap per run in seaLeye's graph; agentgateway for identity, routing and the outer budget |
+| The model gateway knows the API, not the person or the run | One agent, one box; each run has its own cap in seaLeye's graph, and the gateway holds the model key and the outer budget (Phase 3 Step 5) | Phase 3 Step 6: a short-lived token for each call, naming the person, team, run and worker; then routing (Step 8) |
 | The interview sends an app's code to the Anthropic API, in the US | Sample apps and a friendly team | Phase 3: a route to Claude on Bedrock in the organization's account, which may run in Canada or the US; disclosed, not kept in Canada (DESIGN.md, "Inference from Canada") |

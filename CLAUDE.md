@@ -131,9 +131,10 @@ in `core/` or behind an endpoint.
   `platform-sealeye-*`, which the deploy role cannot touch. Artifacts are
   `<name>/<deploymentId>.zip`.
 - Settings are `SEALEYE_<NAME>` (ACCOUNT, BUCKET, LWA_VERSION, FUNCTION_BOUNDARY_ARN, REGION, MODEL, DEBUG,
-  HOME, TRACING, MODEL_URL, API, PORTAL, TOKEN, AUTH, RUN_CAP), read through `setting()` in
+  HOME, TRACING, MODEL_URL, API, PORTAL, TOKEN, AUTH, RUN_CAP, GATEWAY_KEY, GATEWAY_BUDGET), read through `setting()` in
   `core/config.js`. SEALEYE_TOKEN is a secret: it lives in `~/.sealeye/config` (0600),
-  is never printed, logged or put on a record.
+  is never printed, logged or put on a record. SEALEYE_GATEWAY_KEY is a secret too: the
+  key the API calls the platform's model gateway with, kept in the server's settings.
 - `deployme` was the original name. Until 2.17.0 the plan file was `deployme.yaml`, the
   config folder `~/.deployme`, and settings `DEPLOYME_*`. They are still read, never
   written. Only `core/config.js`, `core/names.js`, `core/schema.js` and `api/store.js`
@@ -213,8 +214,9 @@ Keep existing endpoints and commands working; add, do not break.
 
 - The interview runs in the API (`api/interview/`) as a LangGraph graph with
   `claude-sonnet-5` (`SEALEYE_MODEL` overrides) via @anthropic-ai/sdk, temperature 0.2,
-  at `SEALEYE_MODEL_URL` when set. The API holds ANTHROPIC_API_KEY; without it,
-  POST /interviews says so. `sealeye run` uploads the folder (`core/upload.js`: without
+  at `SEALEYE_MODEL_URL` when set. The API holds ANTHROPIC_API_KEY, or on the server
+  only SEALEYE_GATEWAY_KEY, the model key being the gateway's (`modelCredential`);
+  without either, POST /interviews says so. `sealeye run` uploads the folder (`core/upload.js`: without
   what `.gitignore` leaves out, secret files as names only), follows the events and sends the answers; it holds no keys.
 - Each `interrupt()` (a question, "Deploy this?") is in a node of its own with no model
   call before it. An interview's scratch folder and saved state are deleted when it
@@ -276,6 +278,9 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   Phase 5, Q16). Every token is org "default" until there is a second
   organization. A token is for one team, or issued `--org-wide` to see every team's.
   The store reads from memory, written through to Postgres: one API process only.
+  Every model call on the server goes through agentgateway, a container beside the API
+  (`deploy/gateway.yaml`, `deploy/gateway.sh`), which holds the model key and a money
+  budget for each 30-day period; only the API can reach it.
 - An app's settings live in the organization's store (Parameter Store,
   `/sealeye-apps/<team>/<app>/`), put in with `sealeye settings set` or the portal's
   Settings card, and read by the app when it starts (`templates/sealeye-settings.mjs`,

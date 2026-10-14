@@ -20,7 +20,7 @@ import { scanApp } from "../secret-scan.js";
 import { promptVersion, traceRun, withoutTracing, flushScores } from "../../core/tracing.js";
 import { buildInterviewGraph, MAX_TURNS } from "./graph.js";
 import { planFiles } from "../../core/plan-files.js";
-import { DEFAULT_MODEL, modelClient, resolveApiKey } from "./model.js";
+import { DEFAULT_MODEL, modelClient, modelCredential } from "./model.js";
 
 // Everything about an interview is gone a day after it starts, finished or not: its
 // scratch folder (the developer's code) and its saved state (the conversation, file
@@ -85,12 +85,12 @@ export function createInterviewService({
     }
   });
 
-  /** The API can run interviews: it has a model key, or a client was given. */
+  /** The API can run interviews: it has a model key or a gateway key, or a client was given. */
   function ready() {
     if (modelClientCache) return true;
-    const apiKey = resolveApiKey();
-    if (!apiKey) return false;
-    modelClientCache = modelClient(apiKey);
+    const credential = modelCredential();
+    if (!credential) return false;
+    modelClientCache = modelClient(credential);
     return true;
   }
 
@@ -513,7 +513,7 @@ export async function runInterview({ appPath, deployed = null, ask, onStep = () 
   const service = createInterviewService({ client });
   try {
     if (!service.ready()) {
-      const err = new Error("ANTHROPIC_API_KEY is not set, so the interview cannot run.");
+      const err = new Error("ANTHROPIC_API_KEY is not set (nor SEALEYE_GATEWAY_KEY with SEALEYE_MODEL_URL), so the interview cannot run.");
       err.userFacing = true;
       throw err;
     }

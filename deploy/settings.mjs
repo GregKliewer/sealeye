@@ -5,8 +5,9 @@
 //
 // 1. Read the API's settings from SSM Parameter Store, under SEALEYE_SSM_PATH
 //    (default /sealeye/), with the server's own instance role. Each parameter's last
-//    path segment is the variable's name: /sealeye/ANTHROPIC_API_KEY becomes
-//    ANTHROPIC_API_KEY. SecureStrings are decrypted here and live only in this
+//    path segment is the variable's name: /sealeye/SEALEYE_GATEWAY_KEY becomes
+//    SEALEYE_GATEWAY_KEY. Parameters under /sealeye/gateway/ are the model gateway's
+//    and are left out (`apiSettings`). SecureStrings are decrypted here and live only in this
 //    process's memory; nothing is written to disk and nothing is printed.
 // 2. Point the API at its database: Postgres in the next container, with the password
 //    from /sealeye/POSTGRES_PASSWORD, unless DATABASE_URL is given outright.
@@ -42,12 +43,26 @@ function readParameters() {
       throw new Error(`could not read settings from ${SSM_PATH}: ${(result.stderr || result.error?.message || "").trim()}`);
     }
     const page = JSON.parse(result.stdout || "{}");
-    for (const p of page.Parameters || []) {
-      const name = p.Name.split("/").pop();
-      if (NAME.test(name)) loaded[name] = p.Value;
-    }
+    Object.assign(loaded, apiSettings(page.Parameters || []));
     token = page.NextToken;
   } while (token);
+  return loaded;
+}
+
+/**
+ * The parameters the API takes into its environment: each one's last path segment is
+ * the name. Anything under the path's `gateway/` folder is the model gateway's, never
+ * the API's: the model key lives there, so the API does not hold it (deploy/README.md,
+ * "The model gateway"). update.sh hands those to the gateway instead.
+ */
+export function apiSettings(parameters, ssmPath = SSM_PATH) {
+  const gatewayFolder = `${ssmPath.replace(/\/?$/, "/")}gateway/`;
+  const loaded = {};
+  for (const p of parameters) {
+    if (String(p.Name).startsWith(gatewayFolder)) continue;
+    const name = String(p.Name).split("/").pop();
+    if (NAME.test(name)) loaded[name] = p.Value;
+  }
   return loaded;
 }
 
