@@ -563,6 +563,13 @@ more than 90 days old:
 An interview on a model the table does not name is refused (`MODEL_NOT_PRICED`), so
 set `SEALEYE_MODEL` only to a model the table prices.
 
+The model gateway prices calls from a table of its own, compiled into its image, for
+its $20 budget and the cost column of `deploy/server.sh gateway-calls`. When you check
+seaLeye's table, compare a few rows of `gateway-calls` with it too: on Oct 14, 2026
+they agreed to a tenth of a cent. If they differ, the gateway's budget is counting from
+old prices, and a newer agentgateway image (pinned by digest, run through the spike
+first) is the fix.
+
 ## When something is wrong
 
 A developer told "could not finish checking your code for secrets" (`SCAN_FAILED`)

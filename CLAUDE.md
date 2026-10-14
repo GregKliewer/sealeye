@@ -113,6 +113,13 @@ in `core/` or behind an endpoint.
    promotion to later stages goes through the organization's pipeline and approvals.
 10. **Never hard-code an organization.** The org name comes from `ORG=` in
     `~/.sealeye/config`, default "your organization".
+11. **Every model call goes through the gateway, named, and carries no content out.** On
+    the server, the API holds no model key and calls the model only through the gateway
+    (`deploy/gateway.yaml`), with a token it signs naming the person, team, run, worker
+    and surface. The gateway's log and its record of calls hold who, which run, tokens
+    and cost, never a prompt, a reply, a token or a key: no setting that captures
+    `llm.prompt` or `llm.completion`, and `database.llm` is `metadata`.
+    `test/gateway-config.test.js` keeps it so.
 
 ## Names
 
