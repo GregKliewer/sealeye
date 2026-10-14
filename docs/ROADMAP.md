@@ -124,7 +124,7 @@ through one governed door before Phase 4 adds a swarm of agents.
 
 - agentgateway (agentgateway.dev, open source, in the Agentic AI Foundation) on the
   API's network, in front of every model call. The interview already has the seam for
-  it: `SEALEYE_MODEL_URL` (DESIGN.md, "The model's address is a setting"). **On the server
+  it: `SEALEYE_MODEL_URL` (DESIGN.md, "The model's address is a setting"). **Live on the server
   (Oct 14, 2026)**, holding the model key and a $20 budget for each 30-day period
   (DESIGN.md, "The model gateway on the server"); the API is moved onto it by a step in
   deploy/README.md, and back the same way.

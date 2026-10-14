@@ -194,8 +194,9 @@ before Step 5.
 
 ### Step 5. agentgateway on the server (D7)
 
-*Status (Oct 14): built; DESIGN.md, "The model gateway on the server". Greg's release
-steps are in deploy/README.md, "Once: the model gateway".*
+*Status (Oct 14): done and live. The API calls the model only through the gateway, which
+holds the model key; DESIGN.md, "The model gateway on the server". The release steps
+are in deploy/README.md, "Once: the model gateway".*
 
 - A service in `deploy/compose.yaml`, image pinned by digest, on the internal network
   only, with no published port. Its configuration is a file in `deploy/`, applied by

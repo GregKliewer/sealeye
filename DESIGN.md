@@ -2330,5 +2330,15 @@ Wed Oct 14, 2026, PHASE3-PLAN Step 5, as D7 decided and the Step 4 spike showed.
   secrets are now read before anything else changes. It also found that the SDK, given
   no key, would look for other credentials of its own, so the gateway's client never
   does. A gateway that is not ready fails the release only once the API uses it.
+- **Live on Oct 14, 2026.** Greg released it, switched the API over, and ran an
+  interview on apps/static-website. The API's settings show `SEALEYE_MODEL_URL` and its
+  gateway key and no model key. The gateway logged each of the three model calls, with
+  no prompt or reply, from the API's address only. The interview cost $0.050, with
+  cache writes and reads as expected.
+- **The gateway's cost matches seaLeye's prices exactly.** It priced each of the three
+  calls to the same tenth of a cent as `core/model-prices.js` does. One difference to
+  remember when reading its log: its `gen_ai.usage.input_tokens` includes the tokens read
+  from and written to the cache. Anthropic's `input_tokens`, which the run cap counts,
+  leaves them out.
 - **Nothing a person sees changes.** Every check the gateway makes is in its own log,
   `deploy/server.sh gateway-logs`, which drops any line holding one of its keys.
