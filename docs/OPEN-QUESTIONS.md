@@ -50,15 +50,29 @@ aws bedrock get-inference-profile --region ca-central-1 \
   --inference-profile-identifier <an id from the first command> --query 'models[].modelArn' --output text
 ```
 
-Each region in the second command's ARNs is somewhere a call may run. The interview
-uses `claude-sonnet-5`; the Bedrock list for Canada names Sonnet 5.5, so the Bedrock
-route would use that, after the interview's eval set passes on it. Today the
+Each region in the second command's ARNs is somewhere a call may run. Today the
 interview sends an app's code to the Anthropic API, in the US, which is acceptable for
 the friendly team and the sample apps.
 
-**Options:** accept a geographic profile, disclosed, with stored data in Canada; wait
-for in-region Claude in Canada; or a model the organization runs (Phase 7).
-**Leaning:** the first for a pilot, stated in the evidence, and the bank decides. Blocks a
+**Read in Greg's account, Oct 14, 2026.** From ca-central-1, every Claude profile is
+`us.` or `global.`; there is no Canadian geographic profile. Claude Sonnet 5, the
+interview's own model, is offered, so the Bedrock route needs no change of model.
+Where a call may run:
+
+| Profile | Regions a call may run in |
+|---|---|
+| `us.anthropic.claude-sonnet-5` | ca-central-1, us-east-1, us-east-2, us-west-2 |
+| `global.anthropic.claude-sonnet-5` | ca-central-1, or any commercial region |
+
+Bedrock chooses the region for each call, so neither keeps inference in Canada: the US
+profile keeps it in Canada or the US, the global profile anywhere. So for a bank the
+choice is between disclosed US-or-Canada inference, waiting for a Canadian profile, and
+a model the organization runs.
+
+**Options:** accept the US profile, disclosed (Canada or the US, never elsewhere), with
+stored data in Canada; wait for a Canadian profile; or a model the organization runs
+(Phase 7). The global profile is not an option for a bank's code.
+**Leaning:** the US profile for a pilot, stated in the evidence, and the bank decides. Blocks a
 bank pilot (Phase 5), not Phase 3: Phase 3 builds the route and its setting either way.
 
 ## Later

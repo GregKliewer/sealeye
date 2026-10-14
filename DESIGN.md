@@ -2038,3 +2038,19 @@ for the same turns, and well under a third of the dollar, so the cap stays a dol
 - **The table is checked two ways**: the eval flags a run whose own count differs from
   LangFuse's by more than five percent, and `release.sh` warns when `checkedOn` is more
   than 90 days old. deploy/README.md, "Model prices", is the operating step.
+
+## Claude on Bedrock from Canada: the US profile, and the same model
+
+Wed Oct 14, 2026, from the two commands in OPEN-QUESTIONS Q18, run in Greg's account.
+
+- **There is no Canadian profile.** From ca-central-1 every Claude profile is `us.` or
+  `global.`. The US profile for Sonnet 5 may run a call in ca-central-1, us-east-1,
+  us-east-2 or us-west-2, and Bedrock picks per call; the global profile may run it in
+  any commercial region. Neither keeps inference in Canada.
+- **The Bedrock route uses `us.anthropic.claude-sonnet-5`.** It is the interview's own
+  model, so Step 8 needs no change of model and no eval on another one; this replaces
+  the plan's assumption that Canada offered only Sonnet 5.5. The global profile is not
+  used: a bank's code going to any region is not something to offer.
+- **What it means for a bank pilot (Q18, still open):** disclosed US-or-Canada
+  inference with stored data in Canada, a wait for a Canadian profile, or a model the
+  organization runs (Phase 7). Phase 3 builds the route either way.

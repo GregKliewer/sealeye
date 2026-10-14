@@ -228,9 +228,11 @@ High stakes: an independent review before the pull request.
   calls.
 - The pilot stays on the Anthropic API route (D6). The Bedrock route is proven in
   Greg's account; the server's role gains Bedrock permission in its own stack change.
-  Bedrock lists Sonnet 5.5, not the interview's Sonnet 5, for Canada, so
-  `npm run eval:interview` must pass on Sonnet 5.5 before that route carries an
-  interview.
+  It uses `us.anthropic.claude-sonnet-5`, the interview's own model, read in Greg's
+  account on Oct 14 (OPEN-QUESTIONS Q18): no change of model, and no global profile.
+  The permission names the profile and the foundation model in each region it may
+  send to (ca-central-1, us-east-1, us-east-2, us-west-2); a policy naming only the
+  profile is refused. The price table gains Bedrock's name for the model.
 - Each span names its route: the last line of the "done when".
 
 ### Step 9. Write it down
