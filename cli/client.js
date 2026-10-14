@@ -163,6 +163,11 @@ export async function getEvidence({ apiBaseUrl, deploymentId }) {
   return platformFetch(apiBaseUrl, `/deployments/${deploymentId}/evidence`, { method: "GET" });
 }
 
+/** The plan a deployment was approved with, as its two files, and its report. */
+export async function getPlan({ apiBaseUrl, deploymentId }) {
+  return platformFetch(apiBaseUrl, `/deployments/${deploymentId}/plan`, { method: "GET" });
+}
+
 /** What the drafted plans are waiting on, rolled up across apps. */
 export async function getNeeds({ apiBaseUrl }) {
   return platformFetch(apiBaseUrl, "/needs", { method: "GET" });

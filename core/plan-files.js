@@ -281,7 +281,15 @@ function modulesNotRequired({ plan, catalog }) {
   );
 }
 
-function notes({ summary, assumptions }) {
+function notes({ summary, assumptions, notesKept }) {
+  // A plan written down after the fact, for a deployment whose interview's summary and
+  // assumptions the platform did not keep (a plan from a file, one changed with
+  // Configure, or a deployment from before they were kept). It never claims that no
+  // assumptions were needed: it says it does not know.
+  if (notesKept === false) {
+    return "This copy was written from the plan this deployment used. The interview's summary and assumptions are not part of this deployment's record, so they are not shown here.";
+  }
+
   const lines = [];
   if (summary) lines.push(summary.trim(), "");
 

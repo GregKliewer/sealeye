@@ -160,6 +160,39 @@ test("Evidence can be read for an earlier deployment from the history", async ({
   await expect(card).not.toContainText("(the latest)");
 });
 
+test("The plan and report for a deployment, and for an earlier one from the history, as sealeye plan writes them", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("link", { name: "payments-api", exact: true }).click();
+  const card = page.getByTestId("plan-card");
+  await expect(card).toContainText("dep_aaaaaaaaaaa1 (the latest)");
+  // Made before the approved files were kept: written from its plan, and it says so.
+  await expect(card.getByTestId("plan-file")).toContainText("Deployment Plan");
+  await expect(card).toContainText("made before seaLeye kept the approved files");
+  await expect(card.getByTestId("plan-file")).not.toContainText("No assumptions were needed");
+  const [yaml] = await Promise.all([page.waitForEvent("download"), card.getByRole("button", { name: "Download sealeye.yaml" }).click()]);
+  expect(yaml.suggestedFilename()).toBe("sealeye.yaml");
+
+  await card.getByRole("button", { name: "The report" }).click();
+  await expect(card.getByTestId("report-file")).toContainText("Your API is live at https://abc123.lambda-url.ca-central-1.on.aws/");
+  const [report] = await Promise.all([page.waitForEvent("download"), card.getByRole("button", { name: "Download DEPLOYMENT_REPORT.md" }).click()]);
+  expect(report.suggestedFilename()).toBe("DEPLOYMENT_REPORT.md");
+
+  await page.getByRole("button", { name: "Plan and report for dep_aaaaaaaaaaa0" }).click();
+  await expect(card).toContainText("dep_aaaaaaaaaaa0");
+  await expect(card).not.toContainText("(the latest)");
+  await card.getByRole("button", { name: "The report" }).click();
+  await expect(card.getByTestId("no-report")).toContainText("This deployment has no report.");
+});
+
+test("A failed deployment's card says why it has no report", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("link", { name: "report-builder", exact: true }).click();
+  const card = page.getByTestId("plan-card");
+  await card.getByRole("button", { name: "The report" }).click();
+  await expect(card.getByTestId("no-report")).toContainText("This deployment failed, so there is no report.");
+  await expect(card.getByTestId("no-report")).toContainText("index.js was not in the folder");
+});
+
 test("Validate says whether a plan is ready, drafted, or cannot be deployed, as sealeye validate does", async ({ page }) => {
   await signIn(page);
   await page.getByRole("link", { name: "Validate" }).click();
