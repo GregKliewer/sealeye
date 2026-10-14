@@ -397,7 +397,37 @@ sequenceDiagram
   Note over R,A: The app's code is unchanged: it reads process.env as it always did
 ```
 
-### 7.4 Release
+### 7.4 One model call
+
+Every turn of an interview is one of these (PHASE3-PLAN Steps 3 to 7). On a laptop, with
+no gateway key, the API calls Anthropic directly with its own key and steps 2 to 4 and
+6 to 7 do not happen.
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant G as Interview graph
+  participant API as API (model.js, gateway-token.js)
+  participant GW as Model gateway
+  participant DB as Gateway's SQLite
+  participant M as Anthropic
+
+  G->>G: is the run under its own cap? (core/model-prices.js)<br/>if not: stopped, spending_limit, nothing sent
+  G->>API: one turn
+  API->>API: sign a token for this call:<br/>person, org, team, run, worker, surface, trace (one minute)
+  API->>GW: POST /v1/messages<br/>x-sealeye-gateway-key and Authorization: Bearer token
+  GW->>GW: API key known? token signed by the API's key,<br/>not expired, right issuer and audience?
+  GW->>DB: budget for this 30-day period spent?<br/>(refused: 429 budget_exceeded)
+  GW->>GW: this run's tokens for the day used?<br/>(refused: 429, plain text)
+  GW->>M: the same request, with the model key<br/>(the caller's key and token removed)
+  M-->>GW: the reply, with usage
+  GW->>DB: the call's record: who, run, tokens, cost (never content),<br/>and its spend added to the budget
+  GW-->>API: the reply, unchanged
+  API->>G: the reply, priced from seaLeye's table and added to the run's spend
+  Note over API,G: A refusal is never retried. The developer reads that the run reached<br/>its limit, or that seaLeye has used its model budget for this period.
+```
+
+### 7.5 Release
 
 ```mermaid
 sequenceDiagram
@@ -531,8 +561,12 @@ flowchart LR
     role["Deploy role: seaLeye's templates<br/>and names only"]
     boundary["Function boundary: logs<br/>and its own settings only"]
   end
+  subgraph modelside["Model gateway (its own network)"]
+    gw["Only the API's key and a token<br/>the API signed; budget and run limit;<br/>holds the model key; logs no content"]
+  end
   files -- "filtered zip" --> caddy --> auth --> sandbox
   auth --> pkg --> role --> boundary
+  sandbox -- "model calls" --> gw
 ```
 
 | Boundary | Control |
@@ -547,6 +581,9 @@ flowchart LR
 | The built app at run time | The boundary allows logs and reading `/sealeye-apps/`; each function's role narrows that to its own folder. |
 | Secrets in output | Setting values never appear in records, evidence, logs, the terminal or the portal; logs pass through the same masking traces do. |
 | Traces | Shapes of turns, file paths and sizes; never file contents. Off without LangFuse keys, or with `--no-trace`. |
+| The API to the model | On the server the API holds no model key: the model key is the gateway's alone (`/sealeye/gateway/`, which the API never reads). The gateway lets through only the API's key with a token the API signed for that call, checked against the public half only. It is on a network only the API joins, with no published port. |
+| Spending | Each run stops at its own cap (a dollar by default); the gateway refuses once its budget for the period is spent, and refuses a run past its daily token limit. Every refusal is told in plain words and never retried. |
+| The gateway's log and record | Who, which run, tokens, cost and status; never a prompt, a reply, a token or a key (principle 11 in CLAUDE.md). The record keeps 90 days. |
 
 Open security decisions are in [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md): Q16
 (identity-provider sign-in replacing tokens). Where an organization's traces live was
@@ -567,8 +604,13 @@ Q13, answered Oct 13, 2026: LangFuse self-hosted in ca-central-1, in ROADMAP Pha
 - **On a laptop.** With no `DATABASE_URL` the API keeps records in a JSON file and
   interviews in memory, and may run with `SEALEYE_AUTH=off`; a hosted API never can.
   `sealeye doctor` checks what the machine needs.
+- **Spending.** A run is capped in seaLeye's graph, priced from `core/model-prices.js`;
+  the gateway's budget and per-run limit are the outer limit. Both are close, not exact
+  (DESIGN.md, "A run's cap is close, not exact").
 - **Observability.** An interview is one LangFuse trace across its pauses, joined to the
-  deployment and scored from fixed names in `core/tracing.js`. `npm run eval:interview`
+  deployment and scored from fixed names in `core/tracing.js`. The gateway's log and
+  `deploy/server.sh gateway-calls` name each model call's person, team and run, with the
+  trace's id. `npm run eval:interview`
   grades the interview on the sample apps before and after any prompt change.
 - **Testing.** `npm test` needs no AWS and no model; Postgres tests run when
   `SEALEYE_TEST_DATABASE_URL` is set. The portal has Playwright tests against the real
@@ -592,6 +634,9 @@ The decisions that shaped the architecture, by DESIGN.md heading.
 | Day two | Deploying again; An interview can be finished on the other surface; Pause and resume; Performance shows readings, not capacity; Configure is a deploy of the same code again; Logs pass through the masking traces do; Costs come from tags, a day behind |
 | Delivery | GitHub tests every change and builds the image; A changed command is a new version |
 | Tracing | Tracing the interview with LangFuse; Tracing stays in the product |
+| Secrets in code | The secret scanner; The interview reads around a secret, not past the file |
+| Spending | A run's cap is close, not exact; What a run costs, and a cap of a dollar; The cap on every run; The gateway's budget: $20 a period; The outer limit, and a record of calls kept 90 days |
+| The model gateway | Phase 3's decisions, as recommended; agentgateway, read and run (Step 4); The model gateway on the server; A token on every model call; Inference from Canada: disclosed, on the US profile |
 
 ## 12. Known limits and where they go next
 

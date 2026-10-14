@@ -272,6 +272,12 @@ was put back.*
 
 ### Step 9. Write it down
 
+*Status (Oct 14): done, apart from what waits on Step 8. ARCHITECTURE.md has the
+gateway in its containers, deployment and security model, and a new flow, "One model
+call". CLAUDE.md has principle 11. deploy/README.md's "Model prices" covers the
+gateway's own price table. BUILD-OUT.md marks what is built. Ticking Phase 3 in
+ROADMAP.md, and every call naming its route, wait on Step 8.*
+
 DESIGN.md entries for each decision; ARCHITECTURE.md's containers, security model and a
 new sequence for one model call; CLAUDE.md's invariants (no gateway logs with bodies;
 every call names its caller); deploy/README.md, with a "Model prices" section: where the
