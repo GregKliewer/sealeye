@@ -2,7 +2,7 @@
 // token goes to the API once and comes back as a session cookie the page cannot read.
 // Nothing here keeps the token.
 import { useState, type FormEvent } from "react";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { api } from "../api";
 import { useSession } from "../session";
 import { Button } from "../components/ui/button";
@@ -12,12 +12,23 @@ import { Problem } from "../Layout";
 
 const TOKEN = /^sl_[A-Za-z0-9_-]{43}$/;
 
+/**
+ * Where to go once signed in: the portal page that sent the browser here, and only ever
+ * a page of this portal (a path, never another site's address), else Environments.
+ */
+function returnTo(state: unknown): string {
+  const from = (state as { from?: unknown } | null)?.from;
+  if (typeof from !== "string" || !from.startsWith("/") || from.startsWith("//") || from.startsWith("/\\") || from.startsWith("/sign-in")) return "/";
+  return from;
+}
+
 export function SignIn() {
   const [token, setToken] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { signedIn, notice: reason } = useSession();
   const navigate = useNavigate();
+  const back = returnTo(useLocation().state);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -32,7 +43,7 @@ export function SignIn() {
       await api.signIn(value);
       setToken("");
       signedIn(await api.whoami());
-      navigate("/", { replace: true });
+      navigate(back, { replace: true });
     } catch (err) {
       setError((err as Error).message);
     } finally {

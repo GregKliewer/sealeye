@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from "react-router";
+import { Navigate, Route, Routes, useLocation } from "react-router";
 import { SessionProvider, useSession } from "./session";
 import { Layout } from "./Layout";
 import { SignIn } from "./pages/SignIn";
@@ -13,8 +13,11 @@ import { CostsPage } from "./pages/Costs";
 
 function SignedIn({ children }: { children: React.ReactNode }) {
   const { person, checked } = useSession();
+  const location = useLocation();
   if (!checked) return null;
-  if (!person) return <Navigate to="/sign-in" replace />;
+  // Signing in comes back to the page asked for, such as the one `sealeye online <app>`
+  // opened, rather than to Environments.
+  if (!person) return <Navigate to="/sign-in" replace state={{ from: location.pathname + location.search }} />;
   return <>{children}</>;
 }
 
