@@ -360,6 +360,18 @@ test("a key written into the code is never sent, the rest of its file is read, a
   expect(await page.content()).not.toContain(FAKE_KEY);
 });
 
+test("a run that reaches its spending limit stops, and says so in the command's words", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/new");
+  const dir = appFolder("looping-api", { "package.json": JSON.stringify({ name: "looping-api" }), "index.js": "x" });
+  await page.getByLabel("Choose your app's folder").setInputFiles(dir);
+  await page.getByRole("button", { name: "Read my app" }).click();
+  const alert = page.getByRole("alert");
+  await expect(alert).toContainText("This run reached its spending limit before it had a plan, so it stopped there.", { timeout: 20_000 });
+  await expect(alert).toContainText("Run sealeye run again");
+  await expect(alert).not.toContainText("$");
+});
+
 test("a drafted plan from New environment is saved, and says what it needs", async ({ page }) => {
   await signIn(page);
   await page.goto("/new");

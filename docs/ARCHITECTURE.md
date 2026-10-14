@@ -205,7 +205,7 @@ stateDiagram-v2
   model_turn --> tools: model used a tool
   model_turn --> ask: model asked a question
   model_turn --> model_turn: nudge (for example, no questions left)
-  model_turn --> [*]: stopped
+  model_turn --> [*]: stopped (no plan, out of turns,<br/>or the run reached its spending cap)
   tools --> model_turn: list_files, read_file results,<br/>or contract errors (two retries)
   tools --> approve: submit_plan passed the contract check
   tools --> [*]: retries used up

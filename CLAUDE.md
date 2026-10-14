@@ -125,7 +125,7 @@ in `core/` or behind an endpoint.
   `platform-sealeye-*`, which the deploy role cannot touch. Artifacts are
   `<name>/<deploymentId>.zip`.
 - Settings are `SEALEYE_<NAME>` (ACCOUNT, BUCKET, LWA_VERSION, FUNCTION_BOUNDARY_ARN, REGION, MODEL, DEBUG,
-  HOME, TRACING, MODEL_URL, API, PORTAL, TOKEN, AUTH), read through `setting()` in
+  HOME, TRACING, MODEL_URL, API, PORTAL, TOKEN, AUTH, RUN_CAP), read through `setting()` in
   `core/config.js`. SEALEYE_TOKEN is a secret: it lives in `~/.sealeye/config` (0600),
   is never printed, logged or put on a record.
 - `deployme` was the original name. Until 2.17.0 the plan file was `deployme.yaml`, the
@@ -233,6 +233,12 @@ Keep existing endpoints and commands working; add, do not break.
   straight to LangFuse.
   Scores are numbers and yes-or-no values from the fixed list in `core/tracing.js`;
   `deployment_succeeded` is scored only from a final status read from the platform.
+- Every reply is priced from `core/model-prices.js` (never LangFuse) and added to the
+  run's spend, keyed by worker; before each model call, a run that has reached its cap
+  (`SEALEYE_RUN_CAP`, a dollar by default) stops with status `stopped`, reason
+  `spending_limit` and `spendingLimitWords`, so it can go past the cap by one reply.
+  A model with no price never starts (503 MODEL_NOT_PRICED). `release.sh` warns when
+  the prices were checked more than 90 days ago.
 - At most four questions, one per turn, in developer language. Look at the folder
   before asking anything the folder can answer.
 - The submitted plan goes to POST /plans/validate; errors go back to the model; two

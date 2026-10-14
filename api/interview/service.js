@@ -13,6 +13,7 @@ import path from "node:path";
 import { Command, MemorySaver } from "@langchain/langgraph";
 
 import { sealeyeHome, setting } from "../../core/config.js";
+import { ModelNotPriced, priceFor, runCap } from "../../core/model-prices.js";
 import { cleanFinding, isRedactedLine, linesByFile, looksBinary, markWhole, onePerLine, redactLines } from "../../core/scan.js";
 import { unzipInto, UploadRefused } from "../../core/upload.js";
 import { scanApp } from "../secret-scan.js";
@@ -30,7 +31,7 @@ const SWEEP_EVERY_MS = 15 * 60 * 1000;
 /** An answer sent at the wrong moment: nothing is waiting for one. */
 export class NotWaiting extends Error {}
 
-export { UploadRefused };
+export { ModelNotPriced, UploadRefused };
 
 /**
  * @param {object}   [options]
@@ -121,6 +122,12 @@ export function createInterviewService({
    *                                     a secret (core/scan.js): read_file refuses them
    */
   function start({ appDir, ownsDir = false, scratchRoot, deployed = null, user, owner = null, model, trace = true, withheld = [] }) {
+    // A run is capped by what it spends, so it never starts on a model seaLeye cannot
+    // price: without a price there would be no cap at all (DESIGN.md, "A run's cap is
+    // close, not exact"). Throws ModelNotPriced, or a sentence about SEALEYE_RUN_CAP.
+    const resolvedModel = model || setting("MODEL") || DEFAULT_MODEL;
+    if (!priceFor(resolvedModel)) throw new ModelNotPriced(resolvedModel);
+    const cap = runCap();
     const id = `int_${crypto.randomBytes(8).toString("hex")}`;
     const record = {
       id,
@@ -132,7 +139,7 @@ export function createInterviewService({
       owner,
       trace,
       mode: deployed ? "re-run" : "first run",
-      model: model || setting("MODEL") || DEFAULT_MODEL,
+      model: resolvedModel,
       status: "running",
       waitingFor: null,
       result: null,
@@ -150,7 +157,8 @@ export function createInterviewService({
       appDir,
       deployed,
       model: record.model,
-      withheld
+      withheld,
+      cap
     });
     return { ...summary(record), findings: withheld };
   }
@@ -167,6 +175,9 @@ export function createInterviewService({
    * ScanFailed, and keeps nothing, when gitleaks is installed and could not finish.
    */
   async function startFromUpload({ zip, app, findings = [], ...rest }) {
+    // Before anything is unpacked: a model with no price cannot start a run.
+    const model = rest.model || setting("MODEL") || DEFAULT_MODEL;
+    if (!priceFor(model)) throw new ModelNotPriced(model);
     // Any folder name a developer might have, as one path segment and nothing more.
     if (typeof app !== "string" || !app || app.length > 200 || /[\/\\\0-\x1f]/.test(app) || /^\.+$/.test(app)) {
       throw new UploadRefused("app must be the app folder's name");

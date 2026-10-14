@@ -151,7 +151,7 @@ export async function evaluate({ cases, runName, model, clientFor, log = () => {
             ask: async () => (queue.length ? queue.shift() : FALLBACK_ANSWER),
             ...(clientFor ? { client: clientFor(app) } : {})
           });
-          return { app, traceId: result.traceId, turns: result.turns, ...grade(result, expected) };
+          return { app, traceId: result.traceId, turns: result.turns, spent: result.spent, ...grade(result, expected) };
         }
       );
       await flushTracing();
@@ -308,6 +308,17 @@ export function costLines(rows, model) {
     lines.push("");
     lines.push(`  Largest run: ${say(sizes.largest)}`);
     lines.push(`  Typical run: ${say(sizes.typical)}`);
+  }
+
+  // The cap prices from core/model-prices.js, never from LangFuse; LangFuse is how that
+  // table is checked. A run whose two counts differ by more than five percent says so.
+  const drift = rows.filter(r => Number.isFinite(r.spent) && r.spend && !r.spend.error && r.spend.cost > 0 && Math.abs(r.spent - r.spend.cost) / r.spend.cost > 0.05);
+  if (drift.length) {
+    lines.push("");
+    for (const r of drift) {
+      lines.push(`  ${r.app}: seaLeye's own count, ${dollars(r.spent)}, differs from LangFuse's, ${dollars(r.spend.cost)}, by more than 5%.`);
+    }
+    lines.push("  The run cap prices from core/model-prices.js: check it against the provider's page (deploy/README.md, Model prices).");
   }
 
   const unpriced = [...new Set(rows.flatMap(r => r.spend?.unpricedModels || []))];

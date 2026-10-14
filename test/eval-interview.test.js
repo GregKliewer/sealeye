@@ -310,3 +310,14 @@ test("with the older dataset-run link refused, a run still records as one experi
   assert.equal(ids.size, 1);
   assert.match([...ids][0], /^[0-9a-f]{16}$/);
 });
+
+test("a run whose own count differs from LangFuse's by more than five percent is flagged", async () => {
+  const { costLines } = await import("../scripts/eval-interview.js");
+  const spend = cost => ({ turns: 2, input: 1, output: 1, cacheRead: 0, cacheWrite: 0, cost, unpricedModels: [] });
+  const text = costLines([
+    { app: "close", spent: 0.0102, spend: spend(0.01) },
+    { app: "far", spent: 0.02, spend: spend(0.01) }
+  ], "claude-sonnet-5").join("\n");
+  assert.match(text, /far: seaLeye's own count, \$0\.0200, differs from LangFuse's, \$0\.0100, by more than 5%\./);
+  assert.doesNotMatch(text, /close: seaLeye's own count/);
+});

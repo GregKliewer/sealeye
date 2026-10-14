@@ -25,6 +25,7 @@
 import { Annotation, END, interrupt, START, StateGraph } from "@langchain/langgraph";
 
 import { unsupportedNeeds } from "../../core/catalog.js";
+import { addSpend, priceUsage, spendingLimitWords } from "../../core/model-prices.js";
 import { scoreTrace, traceEvent, traceStep, traceTool } from "../../core/tracing.js";
 import { checkPlan } from "../validate.js";
 import {
@@ -46,6 +47,7 @@ import { folderDigest, listFilesTool, readFileTool, runTool } from "./tools.js";
 const MAX_QUESTIONS = 4;       // the interview rule
 const MAX_VALIDATION_RETRIES = 2;
 export const MAX_TURNS = 24;   // a stuck conversation stops instead of spending
+export const WORKER = "interview";   // whose spend this graph counts (Phase 4 adds more)
 const COMMAND = "sealeye";
 
 const replace = (fallback) => Annotation({ reducer: (_, next) => next, default: fallback });
@@ -57,6 +59,11 @@ export const InterviewState = Annotation.Root({
   model: replace(() => null),
   // { traceId, spanId } of the first stretch, so later stretches join its trace.
   trace: replace(() => null),
+  // What each worker of this run has spent, priced from core/model-prices.js, and the
+  // cap it stops at (PHASE3-PLAN Step 3). Keyed by worker, so Phase 4's workers each
+  // get their own; the interview is one worker, "interview".
+  spend: replace(() => ({})),
+  cap: replace(() => null),
   // Files sent empty because they look like they hold a secret (core/scan.js): file,
   // line, rule and kind, never a value. read_file refuses them and says why.
   withheld: replace(() => []),
@@ -93,7 +100,18 @@ export function buildInterviewGraph({ runtimeFor, checkpointer }) {
     return { messages: [{ role: "user", content: opening }] };
   }
 
+  // Every return from a model turn carries the run's spend as it stands after the call.
+  const lastSpend = new Map();
   async function model(state, config) {
+    const id = config?.configurable?.thread_id;
+    lastSpend.delete(id);
+    const out = await modelTurn(state, config);
+    const spend = lastSpend.get(id);
+    lastSpend.delete(id);
+    return spend ? { ...out, spend } : out;
+  }
+
+  async function modelTurn(state, config) {
     const { client, emit } = runtime(config);
 
     if (state.turn >= MAX_TURNS) {
@@ -101,6 +119,16 @@ export function buildInterviewGraph({ runtimeFor, checkpointer }) {
         status: "stopped",
         message: `The interview did not reach a plan. Run ${COMMAND} run again, or write the plan yourself.`
       });
+    }
+
+    // The cap on the run, checked before each call rather than after: the reply that
+    // crossed it is already paid for, so it is used, and if it was the plan the
+    // developer has a plan. A run can therefore spend past its cap by one reply
+    // (DESIGN.md, "A run's cap is close, not exact").
+    const spent = state.spend?.[WORKER]?.cost || 0;
+    if (Number.isFinite(state.cap) && spent >= state.cap) {
+      traceEvent("spending limit reached", { worker: WORKER });
+      return finish(state, { status: "stopped", reason: "spending_limit", message: spendingLimitWords(COMMAND) });
     }
 
     // The system prompt and the tool schemas are the same several thousand tokens on
@@ -130,6 +158,11 @@ export function buildInterviewGraph({ runtimeFor, checkpointer }) {
       usage: response.usage,
       textChars: textOf(response.content).length
     });
+
+    // What this reply cost, added to the run's spend before anything else happens, so
+    // every way this node returns carries it (spendOf, below).
+    state = { ...state, spend: { ...state.spend, [WORKER]: addSpend(state.spend?.[WORKER], priceUsage(state.model, response.usage)) } };
+    lastSpend.set(config?.configurable?.thread_id, state.spend);
 
     const messages = [...state.messages, { role: "assistant", content: response.content }];
     const turn = state.turn + 1;
@@ -304,11 +337,21 @@ export function buildInterviewGraph({ runtimeFor, checkpointer }) {
 function finish(state, result, route = null) {
   // `turns` is how many model calls the run made, so a reader of its trace (the
   // regression set) can tell when it has every one of them.
-  const full = { ...result, questions: state.questions, validationRetries: state.validationRetries, ...(Number.isFinite(state.turn) ? { turns: state.turn } : {}) };
+  // `spent` is what the run cost by seaLeye's own count, in US dollars: for the
+  // regression set to compare with LangFuse's, never shown to a developer.
+  const spent = state.spend?.[WORKER]?.cost;
+  const full = {
+    ...result,
+    questions: state.questions,
+    validationRetries: state.validationRetries,
+    ...(Number.isFinite(state.turn) ? { turns: state.turn } : {}),
+    ...(Number.isFinite(spent) ? { spent } : {})
+  };
   const traceId = state.trace?.traceId;
 
   if (traceId) {
     scoreTrace(traceId, "questions_asked", state.questions);
+    scoreTrace(traceId, "spending_limit_reached", result.reason === "spending_limit");
     if (result.status === "submitted" || result.status === "invalid") {
       scoreTrace(traceId, "plan_valid_first_try", result.status === "submitted" && state.validationRetries === 0);
       scoreTrace(traceId, "validation_retries", state.validationRetries);
@@ -318,6 +361,7 @@ function finish(state, result, route = null) {
   return {
     ...(state.messages ? { messages: state.messages } : {}),
     ...(Number.isFinite(state.turn) ? { turn: state.turn } : {}),
+    ...(state.spend ? { spend: state.spend } : {}),
     validationRetries: state.validationRetries,
     result: full,
     route

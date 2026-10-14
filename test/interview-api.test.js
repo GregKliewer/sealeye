@@ -37,6 +37,16 @@ before(async () => {
     req.on("data", d => (body += d));
     req.on("end", () => {
       calls.push({ key: req.headers["x-api-key"], body });
+      // An app that would read forever, each reply costing $0.40: the cap stops it.
+      if (body.includes("looping-site")) {
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({
+          id: `msg_${calls.length}`, type: "message", role: "assistant", model: "claude-sonnet-5",
+          usage: { input_tokens: 200_000, output_tokens: 0 }, stop_reason: "tool_use",
+          content: [toolUse(`l${calls.length}`, "list_files", { path: "." })]
+        }));
+        return;
+      }
       const turn = turns[calls.length - 1] || { content: [{ type: "text", text: "Done." }], stop_reason: "end_turn" };
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify({
@@ -215,4 +225,17 @@ test("sealeye run says which files look like they hold a secret, in the portal's
   assert.deepEqual(said, expected);
   assert.equal(said[0], "config.js, line 2, looks like it holds a GitHub token.");
   assert.ok(calls.slice(before_).every(c => !c.body.includes(FAKE.githubToken)), "no model call carried the token");
+});
+
+test("sealeye run says a run stopped at its spending limit, in the portal's words", async () => {
+  const { interviewThroughApi } = await import("../cli/interview/follow.js");
+  const { spendingLimitWords } = await import("../core/model-prices.js");
+  const app = path.join(tmp, "looping-site");
+  fs.cpSync(path.join(root, "apps", "static-website"), app, { recursive: true });
+  const before_ = calls.length;
+  const result = await interviewThroughApi({ apiBaseUrl: apiBase, appPath: app, user: "greg", ask: async () => "x", onStep: () => {} });
+  assert.equal(result.status, "stopped");
+  assert.equal(result.reason, "spending_limit");
+  assert.equal(result.message, spendingLimitWords("sealeye"));
+  assert.equal(calls.length - before_, 3, "three replies at $0.40 cross the dollar; no fourth call");
 });

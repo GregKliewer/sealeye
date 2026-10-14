@@ -97,8 +97,8 @@ Record the largest run and the typical one in DESIGN.md. They size D5, and they 
 "before" for every later step.
 
 Done Wed Oct 14 (DESIGN.md, "What a run costs, and a cap of a dollar"): the largest
-sample run was 6 turns and $0.0795, the typical one 2 turns and $0.0414. Still owed:
-one interview on a real app larger than the samples, before Step 3 makes the cap bind.
+sample run was 6 turns and $0.0795, the typical one 2 turns and $0.0414. The real app
+measured before Step 3: 6 turns and $0.152.
 
 Greg can also run the two commands in OPEN-QUESTIONS Q18 from his Mac, so Step 8 knows
 where a Bedrock call from Canada may run.
@@ -136,6 +136,10 @@ by checksum in the image.
 High stakes: an independent review before the pull request.
 
 ### Step 3. A cap on every run (D2, D5)
+
+Built Wed Oct 14, at 2.26.0 (DESIGN.md, "The cap on every run"). Measured first on a real
+app, hagopj13/node-express-boilerplate: 6 turns and $0.152, well under a third of the
+dollar, so the cap stands.
 
 - The graph adds each turn's `usage` into the run's state and prices it from a small
   table of model prices in the platform's config. The table is the only source the cap

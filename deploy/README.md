@@ -330,6 +330,27 @@ sealeye login
 
 `sealeye run` no longer needs an Anthropic or LangFuse key on your machine.
 
+## Model prices
+
+Every interview is capped by what it spends: a dollar by default, or `SEALEYE_RUN_CAP`
+(in US dollars) in the server's settings. The cap prices each reply from
+`core/model-prices.js`, a table with the date it was last checked. It is close, not
+exact: a run can go past it by one reply, or by more if a provider changes a price
+before the table does (DESIGN.md, "A run's cap is close, not exact").
+
+Check the table, and update `checkedOn`, before any organization starts using seaLeye,
+before a release that changes the model, and whenever `release.sh` warns that it is
+more than 90 days old:
+
+1. Compare each model's prices with https://platform.claude.com/docs/en/about-claude/pricing.
+2. Run `npm run eval:interview`. It flags any run whose own count differs from
+   LangFuse's by more than five percent.
+3. If anything changed, update the table and `checkedOn` in one commit, through a pull
+   request.
+
+An interview on a model the table does not name is refused (`MODEL_NOT_PRICED`), so
+set `SEALEYE_MODEL` only to a model the table prices.
+
 ## When something is wrong
 
 A developer told "could not finish checking your code for secrets" (`SCAN_FAILED`)

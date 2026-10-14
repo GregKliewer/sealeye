@@ -140,6 +140,6 @@ test("one run sends one trace, and nothing from the folder's files is in it", as
   assert.ok(scores.every(b => b.traceId === result.traceId));
   assert.deepEqual(
     Object.fromEntries(scores.map(b => [b.name, b.value])),
-    { questions_asked: 1, plan_valid_first_try: 1, validation_retries: 0 }
+    { questions_asked: 1, spending_limit_reached: 0, plan_valid_first_try: 1, validation_retries: 0 }
   );
 });

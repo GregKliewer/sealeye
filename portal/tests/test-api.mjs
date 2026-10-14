@@ -155,6 +155,12 @@ const model = http.createServer((req, res) => {
   req.on("data", d => (body += d));
   req.on("end", () => {
     const sent = JSON.parse(body || "{}");
+    // An app that would read forever, each reply costing $0.40: the run's cap stops it.
+    if (body.includes("looping-api")) {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ id: `msg_${Date.now()}`, type: "message", role: "assistant", model: "claude-sonnet-5", usage: { input_tokens: 200000, output_tokens: 0 }, stop_reason: "tool_use", content: [toolUse(`l${Date.now()}`, "list_files", { path: "." })] }));
+      return;
+    }
     const turn = Math.floor(((sent.messages || []).length - 1) / 2);
     const worker = body.includes("worker.js");
     const turns = worker
