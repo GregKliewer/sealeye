@@ -31,6 +31,16 @@ gateways:
 
 frontendPolicies:
   accessLog:
+    # Who made each call, from its token (PHASE3-PLAN Step 6): the person (jwt.sub, a
+    # field of its own already), their organization and team, the run, the worker, the
+    # surface the run started from, and the run's trace, when it has one.
+    add:
+      org: jwt.org
+      team: jwt.team
+      run: jwt.run
+      worker: jwt.worker
+      surface: jwt.surface
+      trace: jwt.trace
     database:
       llm: metadata                   # never full: that would store prompts and replies
 
@@ -53,6 +63,18 @@ llm:
           limit: { unit: USD, amount: $SEALEYE_GATEWAY_BUDGET }
           window: { rolling: 30d }
           onBudgetExceeded: Block
+    # Who is calling: a token the API signs for each call, naming the person, team, run
+    # and worker (api/gateway-token.js). Strict, since the gateway's default lets a call
+    # with no token through. The key set is the public half only, which gateway.sh writes
+    # from Parameter Store; the private half is the API's.
+    jwtAuth:
+      mode: strict
+      issuer: sealeye-api
+      audiences: [sealeye-gateway]
+      jwks:
+        file: /config/jwks.json
+      jwtValidationOptions:
+        requiredClaims: [exp, iss, aud, sub]
     # The API's own timeout (120 seconds a turn) is the one that acts; these are only
     # the gateway's outer bound.
     timeout:

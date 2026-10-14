@@ -30,7 +30,8 @@ cli/        the sealeye command: bin/sealeye, client.js (talks to the API), inte
             store-offer.js (moving .env values into the store),
             brand.js (the only place terminal colours live)
 api/        the API: server.js, store.js, db.js, migrations/, needs.js, mappings.js, validate.js,
-            secret-scan.js and gitleaks.toml (the API's scan of what arrives), interview/
+            secret-scan.js and gitleaks.toml (the API's scan of what arrives),
+            gateway-token.js (the token on every model call), interview/
             (the LangGraph graph, the model, the tools, the service), executor/
             (compose, package, deploy, poll, report, evidence)
 core/       what cli/ and api/ must agree on: schema.js (the plan contract), catalog.js,
@@ -131,10 +132,13 @@ in `core/` or behind an endpoint.
   `platform-sealeye-*`, which the deploy role cannot touch. Artifacts are
   `<name>/<deploymentId>.zip`.
 - Settings are `SEALEYE_<NAME>` (ACCOUNT, BUCKET, LWA_VERSION, FUNCTION_BOUNDARY_ARN, REGION, MODEL, DEBUG,
-  HOME, TRACING, MODEL_URL, API, PORTAL, TOKEN, AUTH, RUN_CAP, GATEWAY_KEY, GATEWAY_BUDGET), read through `setting()` in
+  HOME, TRACING, MODEL_URL, API, PORTAL, TOKEN, AUTH, RUN_CAP, GATEWAY_KEY, GATEWAY_BUDGET,
+  GATEWAY_SIGNING_KEY), read through `setting()` in
   `core/config.js`. SEALEYE_TOKEN is a secret: it lives in `~/.sealeye/config` (0600),
   is never printed, logged or put on a record. SEALEYE_GATEWAY_KEY is a secret too: the
-  key the API calls the platform's model gateway with, kept in the server's settings.
+  key the API calls the platform's model gateway with, kept in the server's settings. So
+  is SEALEYE_GATEWAY_SIGNING_KEY, the Ed25519 key the API signs each model call's token
+  with (`api/gateway-token.js`); the gateway holds only its public half.
 - `deployme` was the original name. Until 2.17.0 the plan file was `deployme.yaml`, the
   config folder `~/.deployme`, and settings `DEPLOYME_*`. They are still read, never
   written. Only `core/config.js`, `core/names.js`, `core/schema.js` and `api/store.js`
@@ -280,7 +284,9 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   The store reads from memory, written through to Postgres: one API process only.
   Every model call on the server goes through agentgateway, a container beside the API
   (`deploy/gateway.yaml`, `deploy/gateway.sh`), which holds the model key and a money
-  budget for each 30-day period; only the API can reach it.
+  budget for each 30-day period; only the API can reach it. Every call carries a token
+  the API signs, naming the person, team, run, worker and surface, which the gateway
+  requires and logs.
 - An app's settings live in the organization's store (Parameter Store,
   `/sealeye-apps/<team>/<app>/`), put in with `sealeye settings set` or the portal's
   Settings card, and read by the app when it starts (`templates/sealeye-settings.mjs`,

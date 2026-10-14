@@ -209,6 +209,11 @@ are in deploy/README.md, "Once: the model gateway".*
 
 ### Step 6. Who is calling (D1)
 
+*Status (Oct 14): built; DESIGN.md, "A token on every model call". The gateway's log
+names each call's person, team, run, worker, surface and trace id. Owed as Step 6b: the
+gateway's own span in the run's LangFuse trace, after a spike run, since it puts
+LangFuse's keys in the gateway.*
+
 - The API signs a token for each model call, from a key in the server's settings; the
   gateway's configuration holds only the public half, written at release.
 - The gateway requires the token, and writes `sub`, `team`, `run`, `worker` and the

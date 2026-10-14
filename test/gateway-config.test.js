@@ -100,3 +100,37 @@ test("the API never takes the gateway's own parameters into its environment", ()
   assert.ok(!Object.values(loaded).includes("model-key"));
   assert.deepEqual(apiSettings([{ Name: "/other/gateway/X", Value: "1" }], "/other"), {});
 });
+
+test("the gateway requires the API's signed token, checked with the public half the release writes", async () => {
+  const { AUDIENCE, ISSUER } = await import("../api/gateway-token.js");
+  const jwt = gateway.llm.policies.jwtAuth;
+  assert.equal(jwt.mode, "strict", "the gateway's default lets a call with no token through");
+  assert.equal(jwt.issuer, ISSUER);
+  assert.deepEqual(jwt.audiences, [AUDIENCE]);
+  assert.deepEqual(jwt.jwtValidationOptions.requiredClaims, ["exp", "iss", "aud", "sub"]);
+  assert.ok(compose.services.gateway.volumes.includes(`./gateway-jwks.json:${jwt.jwks.file}:ro`));
+  assert.match(gatewaySh, /> gateway-jwks\.json\.new/);
+  assert.match(gatewaySh, /\/sealeye\/SEALEYE_GATEWAY_SIGNING_KEY/, "the release stops when the API has no key to sign with");
+  assert.match(gatewaySh, /cat gateway\.yaml "\$ENV_FILE" gateway-jwks\.json/, "a new key set restarts the gateway");
+  assert.match(gatewaySh, /scripts\/gateway-key-id\.js/, "a release checks the API signs with the key the gateway checks");
+  assert.ok(fs.existsSync(path.join(root, "scripts", "gateway-key-id.js")));
+  const at = text => updateSh.indexOf(text);
+  assert.ok(at("bash ./gateway.sh validate") > at("docker compose pull") && at("bash ./gateway.sh validate") < at("docker compose up -d --remove-orphans"), "settings are checked before anything restarts");
+  // The spike checks the same issuer and audience against the API's own signer.
+  for (const f of ["config.mock.yaml", "config.real.yaml", "config.bedrock.yaml"]) {
+    const spike = YAML.parse(read(`deploy/spikes/agentgateway/${f}`)).llm.policies.jwtAuth;
+    assert.equal(spike.issuer, ISSUER, f);
+    assert.deepEqual(spike.audiences, [AUDIENCE], f);
+  }
+});
+
+test("each call's line in the gateway's log names who made it, from the token", () => {
+  assert.deepEqual(gateway.frontendPolicies.accessLog.add, {
+    org: "jwt.org",
+    team: "jwt.team",
+    run: "jwt.run",
+    worker: "jwt.worker",
+    surface: "jwt.surface",
+    trace: "jwt.trace"
+  });
+});

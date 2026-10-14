@@ -915,6 +915,9 @@ app.post("/interviews", async (req, res) => {
       // With a token, the person is the token's, not what the command line says.
       user: req.caller ? req.caller.email : (typeof user === "string" ? user : undefined),
       owner: req.caller ? req.caller.email : null,
+      // Who the model gateway logs each call as (api/gateway-token.js).
+      caller: req.caller ? { email: req.caller.email, org: req.caller.org, team: req.caller.team } : null,
+      surface: req.surface,
       trace: trace !== false
     });
     return res.status(201).json(started);

@@ -225,7 +225,7 @@ function asUserFacing(err) {
 
   // The key is the platform's now, not the developer's, so the fix is theirs too.
   if (err?.status === 401 || err?.status === 403) {
-    return userFacing("The model key the seaLeye API is using was refused. Tell whoever runs the API.", err);
+    return userFacing("The seaLeye API's credentials for the model were refused. Tell whoever runs the API.", err);
   }
 
   if (isBudgetSpent(err)) {

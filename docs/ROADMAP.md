@@ -129,7 +129,9 @@ through one governed door before Phase 4 adds a swarm of agents.
   (DESIGN.md, "The model gateway on the server"); the API is moved onto it by a step in
   deploy/README.md, and back the same way.
 - Identity per caller: every model call names its person, team, run and worker, so
-  spend and traces say who did it. How it is carried is PHASE3-PLAN D1.
+  spend and traces say who did it. How it is carried is PHASE3-PLAN D1. **Built Oct 14,
+  2026**: a token the API signs per call, required and logged by the gateway (DESIGN.md,
+  "A token on every model call"); the gateway's span in the LangFuse trace is owed.
 - Spend caps per run and per worker, held by seaLeye itself: the graph counts what each
   run has used and stops it at its cap, and a person is told why. agentgateway has no
   notion of a run; its budget per key and its rate limit are the outer limit behind

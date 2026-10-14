@@ -171,3 +171,21 @@ test("in gateway mode, no other credential the SDK knows of is looked for or sen
     delete process.env.SEALEYE_GATEWAY_KEY;
   }
 });
+
+test("a signing key on an API that calls the model with its own key signs nothing: one credential per call", async () => {
+  const crypto = await import("node:crypto");
+  const pem = crypto.generateKeyPairSync("ed25519").privateKey.export({ type: "pkcs8", format: "pem" });
+  process.env.SEALEYE_MODEL_URL = standIn;
+  process.env.SEALEYE_GATEWAY_SIGNING_KEY = pem;
+  delete process.env.SEALEYE_GATEWAY_KEY;
+  try {
+    const before = seen.length;
+    const { runInterview } = await import("../api/interview/service.js");
+    await runInterview({ appPath: path.join(root, "apps", "static-website"), ask: () => { throw new Error("no question expected"); } });
+    const call = seen[before];
+    assert.equal(call.key, "sk-ant-test-not-real");
+    assert.equal(call.authorization, undefined);
+  } finally {
+    delete process.env.SEALEYE_GATEWAY_SIGNING_KEY;
+  }
+});

@@ -71,6 +71,8 @@ echo "SEALEYE_IMAGE=${REPOSITORY}:${TAG}" > .env
 
 aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "${REPOSITORY%%/*}" >/dev/null
 docker compose pull --quiet
+# The gateway's settings in this release, checked before anything restarts.
+bash ./gateway.sh validate
 docker compose up -d --remove-orphans
 # Caddy reads its Caddyfile when it starts, and the file is mounted on its own, so a new
 # copy reaches it only in a new container. .caddyfile-started records the one the

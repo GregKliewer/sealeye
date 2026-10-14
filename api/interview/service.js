@@ -21,6 +21,7 @@ import { promptVersion, traceRun, withoutTracing, flushScores } from "../../core
 import { buildInterviewGraph, MAX_TURNS } from "./graph.js";
 import { planFiles } from "../../core/plan-files.js";
 import { DEFAULT_MODEL, modelClient, modelCredential } from "./model.js";
+import { claimsFor, signerFromSettings, withCallerToken } from "../gateway-token.js";
 
 // Everything about an interview is gone a day after it starts, finished or not: its
 // scratch folder (the developer's code) and its saved state (the conversation, file
@@ -72,6 +73,23 @@ export function createInterviewService({
   // restart. In memory otherwise.
   const keep = record => persistence?.save(record);
   let modelClientCache = client || null;
+  // Every model call carries a token naming who is calling, when the API has a signing
+  // key (api/gateway-token.js). A key that cannot be read is said once, by name only,
+  // and the API carries on: the gateway then refuses the calls, and the developer is
+  // told to tell whoever runs the API, rather than every deploy and page going down too.
+  // Only a call to the platform's own gateway carries one: a call straight to Anthropic,
+  // with the model key, never sends a second credential beside it.
+  let signer = null;
+  if (modelCredential()?.gatewayKey) {
+    try {
+      signer = signerFromSettings();
+      console.log(signer
+        ? `seaLeye API: model calls are signed with key ${signer.kid}`
+        : "seaLeye API: there is no SEALEYE_GATEWAY_SIGNING_KEY, so model calls carry no token and the gateway will refuse them");
+    } catch (err) {
+      console.error(`seaLeye API: SEALEYE_GATEWAY_SIGNING_KEY could not be read (${err.message}), so model calls carry no token and the gateway will refuse them`);
+    }
+  }
 
   const graph = buildInterviewGraph({
     checkpointer,
@@ -81,7 +99,7 @@ export function createInterviewService({
       // An interview picked up after a restart reaches here without POST /interviews
       // having made the client first.
       if (!ready()) throw new Error("the seaLeye API has no model key set, so it cannot run an interview");
-      return { client: modelClientCache, emit: event => emit(record, event) };
+      return { client: withCallerToken(modelClientCache, signer, () => claimsFor(record)), emit: event => emit(record, event) };
     }
   });
 
@@ -116,12 +134,15 @@ export function createInterviewService({
    * @param {string}  [options.user]    who asked, for the trace
    * @param {string}  [options.owner]   the caller's email when the API checks tokens: only
    *                                     they may answer, follow or end it
+   * @param {object}  [options.caller]  the token's holder ({ email, org, team }) when the
+   *                                     API checks tokens, for the model gateway's log
+   * @param {string}  [options.surface] "cli" or "portal", the surface that started it
    * @param {string}  [options.model]
    * @param {boolean} [options.trace]   false turns tracing off for this interview only
    * @param {object[]} [options.withheld] files sent empty because they look like they hold
    *                                     a secret (core/scan.js): read_file refuses them
    */
-  function start({ appDir, ownsDir = false, scratchRoot, deployed = null, user, owner = null, model, trace = true, withheld = [] }) {
+  function start({ appDir, ownsDir = false, scratchRoot, deployed = null, user, owner = null, caller = null, surface = "cli", model, trace = true, withheld = [] }) {
     // A run is capped by what it spends, so it never starts on a model seaLeye cannot
     // price: without a price there would be no cap at all (DESIGN.md, "A run's cap is
     // close, not exact"). Throws ModelNotPriced, or a sentence about SEALEYE_RUN_CAP.
@@ -137,6 +158,8 @@ export function createInterviewService({
       scratchRoot: scratchRoot || appDir,
       user,
       owner,
+      caller: caller ? { email: caller.email, org: caller.org, team: caller.team } : null,
+      surface: surface === "portal" ? "portal" : "cli",
       trace,
       mode: deployed ? "re-run" : "first run",
       model: resolvedModel,
