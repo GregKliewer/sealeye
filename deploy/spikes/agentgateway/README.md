@@ -45,8 +45,10 @@ Step 5 pulls the image by that digest (D7).
 
 ## 2. Keys, then the gateway against the stand-in model
 
+From the spike's folder, where step 1 left you:
+
 ```bash
-cd ../../..                                     # the repo root
+cd ../../..
 node deploy/spikes/agentgateway/probe.mjs setup
 cd deploy/spikes/agentgateway
 docker compose run --rm gateway --validate-only -f /config/config.mock.yaml
@@ -83,11 +85,13 @@ back.
 
 ## 5. Optional: the real route to Anthropic (a few cents)
 
-This needs the same key the API uses. The gateway holds it; the probe never sends it.
+This needs the same key the API uses, from your password manager. The gateway holds
+it; the probe never sends it. (No comments after commands in this README: zsh reads a
+`#` mid-line as an argument.)
 
 ```bash
 cd deploy/spikes/agentgateway
-export ANTHROPIC_API_KEY=...                    # from your password manager
+export ANTHROPIC_API_KEY=paste-your-key-here
 AGW_CONFIG=config.real.yaml docker compose up -d --force-recreate gateway
 cd ../../..
 node deploy/spikes/agentgateway/probe.mjs real
