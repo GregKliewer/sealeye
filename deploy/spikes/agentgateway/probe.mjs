@@ -166,7 +166,10 @@ async function sdkToolUseAndCache({ expectUpstream }) {
     tool_choice: { type: "tool", name: "read_file" },
     messages: [{ role: "user", content: "USE TOOL. Read README.md with the read_file tool." }]
   };
-  const first = await anthropic.messages.create(params, { headers: { "anthropic-beta": "spike-check-2026" } });
+  // A made-up beta value shows the stand-in what the gateway forwards. Anthropic refuses
+  // a beta it does not know (400), which is itself proof the header reaches it, so the
+  // real route sends none.
+  const first = await anthropic.messages.create(params, expectUpstream ? { headers: { "anthropic-beta": "spike-check-2026" } } : {});
   const toolUse = first.content.find(b => b.type === "tool_use");
   check("sdk: tool use comes back through the gateway", Boolean(toolUse) && toolUse.name === "read_file" && first.stop_reason === "tool_use", {
     stopReason: first.stop_reason,
