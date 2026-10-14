@@ -99,28 +99,33 @@ test("a call LangFuse could not price leaves the run with no cost, never a cost 
   assert.deepEqual(run.unpricedModels, ["claude-new"]);
 });
 
-test("the read waits until LangFuse has every call, and gives up in words", async () => {
-  const seen = [[], [gen(1, 1, 0, 0, 0.1)], [gen(1, 1, 0, 0, 0.1), gen(1, 1, 0, 0, 0.1)], [gen(1, 1, 0, 0, 0.1), gen(1, 1, 0, 0, 0.1)]];
+test("the read waits until LangFuse has every call the run made, and never reports part of one", async () => {
+  const one = gen(1, 1, 0, 0, 0.1);
+  // LangFuse makes part of a run readable, holds still, then has the rest.
+  const seen = [[], [one], [one], [one], [one, one, one]];
   const paths = [];
   let i = 0;
   const request = async (method, apiPath) => {
     paths.push(apiPath);
     return { data: seen[Math.min(i++, seen.length - 1)] };
   };
-  const run = await readRunCost("abc", { request, pause: async () => {} });
-  assert.equal(run.turns, 2);
-  assert.equal(i, 4, "asked until the count held still");
+  const run = await readRunCost("abc", { turns: 3, request, pause: async () => {} });
+  assert.equal(run.turns, 3, "a count that held still at one was not taken as the run");
+  assert.equal(i, 5);
   assert.match(paths[0], /^\/api\/public\/v2\/observations\?traceId=abc&type=GENERATION&/);
 
-  const never = await readRunCost("abc", { request: async () => ({ data: [] }), pause: async () => {}, tries: 3, every: 1000 });
-  assert.match(never.error, /had not recorded this run's model calls after 3 seconds/);
+  const partial = await readRunCost("abc", { turns: 6, request: async () => ({ data: [one] }), pause: async () => {}, tries: 3, every: 1000 });
+  assert.match(partial.error, /after 3 seconds LangFuse had 1 of this run's 6 model calls/);
+
+  const unknown = await readRunCost("abc", { request, pause: async () => {} });
+  assert.match(unknown.error, /did not say how many model calls it made/);
 });
 
 test("a row that could not be read says why, and the rest still print", async () => {
   const rows = [
-    { app: "a", traceId: "t1" },
+    { app: "a", traceId: "t1", turns: 1 },
     { app: "b", error: "boom" },
-    { app: "c", traceId: "t3" }
+    { app: "c", traceId: "t3", turns: 1 }
   ];
   const request = async (method, apiPath) => {
     if (apiPath.includes("t3")) throw new Error("LangFuse answered 500 to GET /api/public/v2/observations");
@@ -235,6 +240,7 @@ test("one pass grades all three apps and records a dataset run in LangFuse", asy
 
   for (const row of rows) assert.ok(allCorrect(row), JSON.stringify(row));
   assert.deepEqual(rows.map(r => r.outcome), ["ready", "drafted", "ready"]);
+  assert.deepEqual(rows.map(r => r.turns), [2, 2, 2], "each run says how many model calls it made");
 
   const posts = path => requests.filter(r => r.method === "POST" && r.apiPath === path).map(r => r.body);
 
