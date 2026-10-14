@@ -134,3 +134,13 @@ test("each call's line in the gateway's log names who made it, from the token", 
     trace: "jwt.trace"
   });
 });
+
+test("the server's scripts ask Parameter Store only what the server's role may ask", () => {
+  // The role names /sealeye/ parameters one by one (deploy/server.yaml), and listing
+  // them needs a permission it does not have: a release using it stopped (Oct 14, 2026).
+  const role = read("deploy/server.yaml");
+  assert.doesNotMatch(role, /ssm:DescribeParameters/);
+  for (const file of ["deploy/gateway.sh", "deploy/update.sh", "deploy/settings.mjs"]) {
+    assert.doesNotMatch(read(file), /ssm describe-parameters|"describe-parameters"/, file);
+  }
+});

@@ -2401,7 +2401,14 @@ for each model call, and nobody but the API holds the means to make one.
   now signs with the API's own signer, so a run of it on Greg's Mac shows whether the
   gateway itself accepts the API's tokens and logs their claims. The refused cases
   (none, expired, another key, another issuer or audience) run there too, since CI does
-  not run the gateway. That run is owed before the release.
+  not run the gateway. Greg ran it on Oct 14 against agentgateway v1.6.0: 26 of 26. The
+  gateway let the API's own token through and logged its person, organization, team,
+  run, worker, surface and trace. It refused every bad token with a 401 that names why.
+- **The first release stopped before changing anything**, because `gateway.sh` asked
+  Parameter Store whether the signing key exists with `describe-parameters`. The server's
+  role may not make that call: it names `/sealeye/` parameters one by one. It now reads
+  only the key's name, without decrypting it, which the role allows, and a test keeps
+  the server's scripts to the calls the role allows.
 - **Reviewed before the pull request** by a separate agent. It found nothing that
   leaks. Its findings were about the rollout: no check that the two halves match, a
   key script that could leave half a pair, settings started before they were checked,
