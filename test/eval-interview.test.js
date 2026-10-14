@@ -10,7 +10,19 @@ import { spawn } from "node:child_process";
 import YAML from "yaml";
 import { InMemorySpanExporter } from "@opentelemetry/sdk-trace-node";
 
-import { allCorrect, evaluate, grade, loadCases, outcomeOf, DATASET } from "../scripts/eval-interview.js";
+import {
+  addCosts,
+  allCorrect,
+  costLines,
+  evaluate,
+  grade,
+  largestAndTypical,
+  loadCases,
+  outcomeOf,
+  readRunCost,
+  sumGenerations,
+  DATASET
+} from "../scripts/eval-interview.js";
 import { startTracing, useLangfuseTransport } from "../core/tracing.js";
 
 const root = path.resolve(import.meta.dirname, "..");
@@ -64,6 +76,86 @@ test("a run that stopped instead of refusing is not correct", () => {
   const row = grade({ status: "stopped", questions: 4 }, { status: "drafted", needs: FIVE });
   assert.equal(row.outcomeCorrect, false);
   assert.ok(!allCorrect(row));
+});
+
+// ---------------------------------------------------------------------------------
+// What each run spent, read back from LangFuse.
+
+const gen = (input, output, cacheRead, cacheWrite, total, model = "claude-sonnet-5") => ({
+  type: "GENERATION",
+  model,
+  usageDetails: { input, output, cache_read_input_tokens: cacheRead, cache_creation_input_tokens: cacheWrite },
+  ...(total === undefined ? {} : { costDetails: { total }, totalCost: total })
+});
+
+test("a run's calls add up to its turns, tokens and cost", () => {
+  const run = sumGenerations([gen(100, 20, 0, 4000, 0.02), gen(50, 30, 4000, 0, 0.005)]);
+  assert.deepEqual(run, { turns: 2, input: 150, output: 50, cacheRead: 4000, cacheWrite: 4000, cost: 0.025, unpricedModels: [] });
+});
+
+test("a call LangFuse could not price leaves the run with no cost, never a cost of nothing", () => {
+  const run = sumGenerations([gen(100, 20, 0, 0, 0.01), gen(100, 20, 0, 0, undefined, "claude-new")]);
+  assert.equal(run.cost, null);
+  assert.deepEqual(run.unpricedModels, ["claude-new"]);
+});
+
+test("the read waits until LangFuse has every call, and gives up in words", async () => {
+  const seen = [[], [gen(1, 1, 0, 0, 0.1)], [gen(1, 1, 0, 0, 0.1), gen(1, 1, 0, 0, 0.1)], [gen(1, 1, 0, 0, 0.1), gen(1, 1, 0, 0, 0.1)]];
+  const paths = [];
+  let i = 0;
+  const request = async (method, apiPath) => {
+    paths.push(apiPath);
+    return { data: seen[Math.min(i++, seen.length - 1)] };
+  };
+  const run = await readRunCost("abc", { request, pause: async () => {} });
+  assert.equal(run.turns, 2);
+  assert.equal(i, 4, "asked until the count held still");
+  assert.match(paths[0], /^\/api\/public\/v2\/observations\?traceId=abc&type=GENERATION&/);
+
+  const never = await readRunCost("abc", { request: async () => ({ data: [] }), pause: async () => {}, tries: 3, every: 1000 });
+  assert.match(never.error, /had not recorded this run's model calls after 3 seconds/);
+});
+
+test("a row that could not be read says why, and the rest still print", async () => {
+  const rows = [
+    { app: "a", traceId: "t1" },
+    { app: "b", error: "boom" },
+    { app: "c", traceId: "t3" }
+  ];
+  const request = async (method, apiPath) => {
+    if (apiPath.includes("t3")) throw new Error("LangFuse answered 500 to GET /api/public/v2/observations");
+    return { data: [gen(1000, 200, 0, 5000, 0.05)] };
+  };
+  const out = await addCosts(rows, { request, pause: async () => {} });
+  assert.equal(out[0].spend.turns, 1);
+  assert.equal(out[1].spend.error, "the run did not finish");
+  assert.match(out[2].spend.error, /answered 500/);
+
+  const text = costLines(out, "claude-sonnet-5").join("\n");
+  assert.match(text, /a\s+1\s+1,000\s+200\s+0\s+5,000\s+\$0\.0500/);
+  assert.match(text, /b\s+could not read: the run did not finish/);
+  assert.match(text, /Largest run: 1 turn, 6,200 tokens, \$0\.0500/);
+});
+
+test("the largest and typical runs are by cost, or by tokens when a run has no price", () => {
+  const spend = (cost, tokens) => ({ spend: { turns: 1, input: tokens, output: 0, cacheRead: 0, cacheWrite: 0, cost, unpricedModels: [] } });
+  const priced = largestAndTypical([spend(0.3, 10), spend(0.1, 900), spend(0.2, 20)]);
+  assert.equal(priced.by, "cost");
+  assert.equal(priced.largest.cost, 0.3);
+  assert.equal(priced.typical.cost, 0.2);
+
+  const unpriced = largestAndTypical([spend(0.3, 10), spend(null, 900), spend(0.2, 20)]);
+  assert.equal(unpriced.by, "tokens");
+  assert.equal(unpriced.largest.input, 900);
+});
+
+test("with no price, the table says how to add one in LangFuse", () => {
+  const rows = [{ app: "a", spend: sumGenerations([gen(10, 10, 0, 0, undefined)]) }];
+  const text = costLines(rows, "claude-sonnet-5").join("\n");
+  assert.match(text, /no price/);
+  assert.match(text, /LangFuse has no price for claude-sonnet-5/);
+  assert.match(text, /\^claude-sonnet-5\$/);
+  assert.match(text, /run this again once it is added/);
 });
 
 // ---------------------------------------------------------------------------------

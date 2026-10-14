@@ -10,6 +10,9 @@
 // run in LangFuse (Datasets, then sealeye-interview), so two runs side by side show both
 // what a change did and how much the results vary on their own.
 //
+// At the end it reads each run's tokens and cost back from LangFuse and prints them as
+// one table, with the largest run and the typical one (PHASE3-PLAN Step 1).
+//
 // It calls the model and LangFuse, so it is not part of `npm test`, which stays offline.
 // The API it validates plans against is started here, on a spare port with an empty
 // store of its own, so nothing is added to your deployment records.
@@ -190,6 +193,130 @@ export function summaryLines(rows) {
 }
 
 // ---------------------------------------------------------------------------------
+// What each run spent (PHASE3-PLAN Step 1), read back from LangFuse.
+//
+// LangFuse prices each model call from the usage the interview records
+// (`usageDetails` in core/tracing.js), so the eval reads its numbers rather than
+// pricing them again here. This is measurement only: the cap on a run never reads
+// LangFuse (DESIGN.md, "A run's cap is close, not exact").
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/** A number from LangFuse, or 0 when it sent none. */
+const num = v => (Number.isFinite(Number(v)) ? Number(v) : 0);
+
+/**
+ * Add up one run's model calls. A call with tokens but no cost means LangFuse had no
+ * price for its model when the call arrived.
+ */
+export function sumGenerations(generations) {
+  const run = { turns: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, unpricedModels: [] };
+  for (const g of generations) {
+    const u = g.usageDetails || {};
+    const tokens = num(u.input) + num(u.output) + num(u.cache_read_input_tokens) + num(u.cache_creation_input_tokens);
+    run.turns += 1;
+    run.input += num(u.input);
+    run.output += num(u.output);
+    run.cacheRead += num(u.cache_read_input_tokens);
+    run.cacheWrite += num(u.cache_creation_input_tokens);
+    const cost = g.costDetails?.total ?? g.totalCost ?? g.calculatedTotalCost;
+    if (Number.isFinite(Number(cost)) && Number(cost) > 0) run.cost += Number(cost);
+    else if (tokens > 0 && !run.unpricedModels.includes(g.model || "unnamed")) run.unpricedModels.push(g.model || "unnamed");
+  }
+  if (run.unpricedModels.length) run.cost = null;
+  return run;
+}
+
+/**
+ * One run's model calls as LangFuse holds them. LangFuse takes a few seconds to make
+ * what it was sent readable, so this asks until the count of calls stops changing.
+ *
+ * @returns {Promise<object>} sumGenerations' totals, or { error }
+ */
+export async function readRunCost(traceId, { request = langfuseRequest, pause = sleep, tries = 20, every = 3000 } = {}) {
+  let last = -1;
+  let generations = [];
+  for (let i = 0; i < tries; i++) {
+    const page = await request(
+      "GET",
+      `/api/public/v2/observations?traceId=${encodeURIComponent(traceId)}&type=GENERATION&fields=core,basic,model,usage&limit=100`,
+      undefined,
+      10_000
+    );
+    generations = page?.data || [];
+    if (generations.length > 0 && generations.length === last) return sumGenerations(generations);
+    last = generations.length;
+    if (i < tries - 1) await pause(every);
+  }
+  if (generations.length > 0) return sumGenerations(generations);
+  return { error: `LangFuse had not recorded this run's model calls after ${Math.round((tries * every) / 1000)} seconds` };
+}
+
+/** Each graded row with what its run spent added, read after every app has run. */
+export async function addCosts(rows, options) {
+  const out = [];
+  for (const row of rows) {
+    if (!row.traceId) {
+      out.push({ ...row, spend: { error: row.error ? "the run did not finish" : "the run has no trace" } });
+      continue;
+    }
+    try {
+      out.push({ ...row, spend: await readRunCost(row.traceId, options) });
+    } catch (err) {
+      out.push({ ...row, spend: { error: err.message } });
+    }
+  }
+  return out;
+}
+
+const dollars = v => (v === null ? "no price" : `$${v.toFixed(4)}`);
+const count = v => v.toLocaleString("en-CA");
+
+/** The largest run and the median one, by cost when every run has one, else by tokens. */
+export function largestAndTypical(rows) {
+  const spent = rows.map(r => r.spend).filter(s => s && !s.error);
+  if (!spent.length) return null;
+  const priced = spent.every(s => s.cost !== null);
+  const size = s => (priced ? s.cost : s.input + s.output + s.cacheRead + s.cacheWrite);
+  const sorted = [...spent].sort((a, b) => size(a) - size(b));
+  return { by: priced ? "cost" : "tokens", largest: sorted[sorted.length - 1], typical: sorted[Math.floor((sorted.length - 1) / 2)] };
+}
+
+/** What each run spent, as a table for the terminal. */
+export function costLines(rows, model) {
+  const head = ["app", "turns", "input", "output", "cache read", "cache write", "cost"];
+  const body = rows.map(r =>
+    r.spend?.error
+      ? [r.app, "", "", "", "", "", ""]
+      : [r.app, String(r.spend.turns), count(r.spend.input), count(r.spend.output), count(r.spend.cacheRead), count(r.spend.cacheWrite), dollars(r.spend.cost)]
+  );
+  const widths = head.map((h, i) => Math.max(h.length, ...body.map(b => b[i].length)));
+  const line = cells => "  " + cells.map((c, i) => (i === 0 ? c.padEnd(widths[i]) : c.padStart(widths[i]))).join("  ");
+
+  const lines = ["What each run spent, from LangFuse (tokens; cost in US dollars):", line(head)];
+  rows.forEach((r, i) => lines.push(r.spend?.error ? `  ${r.app.padEnd(widths[0])}  could not read: ${r.spend.error}` : line(body[i])));
+
+  const sizes = largestAndTypical(rows);
+  if (sizes) {
+    const say = s => `${s.turns} turn${s.turns === 1 ? "" : "s"}, ${count(s.input + s.output + s.cacheRead + s.cacheWrite)} tokens, ${dollars(s.cost)}`;
+    lines.push("");
+    lines.push(`  Largest run: ${say(sizes.largest)}`);
+    lines.push(`  Typical run: ${say(sizes.typical)}`);
+  }
+
+  const unpriced = [...new Set(rows.flatMap(r => r.spend?.unpricedModels || []))];
+  if (unpriced.length) {
+    lines.push("");
+    lines.push(`  LangFuse has no price for ${unpriced.join(", ")}, so it recorded no cost.`);
+    lines.push("  Add one in LangFuse: Project settings, Models, Add model definition, with a match");
+    lines.push(`  pattern of ^${model}$ and prices for input, output, cache_read_input_tokens and`);
+    lines.push("  cache_creation_input_tokens. LangFuse prices only calls that arrive after that, so");
+    lines.push("  run this again once it is added.");
+  }
+  return lines;
+}
+
+// ---------------------------------------------------------------------------------
 
 async function main() {
   loadEnv();
@@ -241,6 +368,15 @@ async function main() {
 
   console.log("");
   for (const line of summaryLines(rows)) console.log(line);
+
+  // Read once every app has run, so LangFuse has had the most time to take them in.
+  // A cost that cannot be read is said, and does not change whether the set passed.
+  console.log("");
+  console.log("  Reading what each run spent from LangFuse");
+  const spent = await addCosts(rows);
+  console.log("");
+  for (const line of costLines(spent, model)) console.log(line);
+
   console.log("");
   console.log(`In LangFuse: Datasets, ${DATASET}, Experiments, then this run.`);
 
