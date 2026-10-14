@@ -10,6 +10,7 @@ source ./server.env
 
 aws s3 cp "s3://${CONFIG_BUCKET}/server/compose.yaml" compose.yaml --region "$REGION" --only-show-errors
 aws s3 cp "s3://${CONFIG_BUCKET}/server/Caddyfile" Caddyfile --region "$REGION" --only-show-errors
+aws s3 cp "s3://${CONFIG_BUCKET}/server/gateway.yaml" gateway.yaml --region "$REGION" --only-show-errors
 
 # The pages Caddy serves: seaLeye.online, seaLeye.run and the package it installs.
 # --exact-timestamps, because without it a download skips any file whose size has not
@@ -19,10 +20,10 @@ aws s3 cp "s3://${CONFIG_BUCKET}/server/Caddyfile" Caddyfile --region "$REGION" 
 mkdir -p sites
 aws s3 sync "s3://${CONFIG_BUCKET}/server/sites/" sites/ --region "$REGION" --delete --exact-timestamps --only-show-errors
 
-for f in backup.sh restore-check.sh; do
+for f in backup.sh restore-check.sh gateway.sh; do
   aws s3 cp "s3://${CONFIG_BUCKET}/server/$f" "$f" --region "$REGION" --only-show-errors
 done
-chmod +x backup.sh restore-check.sh
+chmod +x backup.sh restore-check.sh gateway.sh
 
 # The database password, from Parameter Store, for the Postgres container. Postgres
 # reads it only when it first creates the database, so changing the parameter later
@@ -35,6 +36,10 @@ if ! aws ssm get-parameter --region "$REGION" --name /sealeye/POSTGRES_PASSWORD 
   exit 1
 fi
 chmod 644 secrets/pg_password.new && mv secrets/pg_password.new secrets/pg_password
+
+# The model gateway's keys and budget, from Parameter Store, in a file only root reads
+# (deploy/gateway.sh). It stops the release, changing nothing, when a key is missing.
+bash ./gateway.sh settings
 
 # The nightly backup, at 03:15 Toronto time. Installed or updated every
 # release; Persistent=true runs a missed one after the server was off.
@@ -75,16 +80,24 @@ if [ "$CADDYFILE_NOW" != "$(cat .caddyfile-started 2>/dev/null || true)" ]; then
   echo "$CADDYFILE_NOW" > .caddyfile-started
   echo "Caddy restarted with this release's Caddyfile"
 fi
+# The gateway reads its settings file and its keys when it starts, so a release that
+# changes either restarts it; its spending stays.
+bash ./gateway.sh restart-if-changed
 docker image prune -f >/dev/null
 
+API_UP=""
 for _ in $(seq 1 36); do
   if [ "$(docker compose ps --format '{{.Health}}' api)" = "healthy" ]; then
-    echo "The API is up, running ${REPOSITORY}:${TAG}"
-    exit 0
+    API_UP=1
+    break
   fi
   sleep 5
 done
+if [ -z "$API_UP" ]; then
+  echo "The API did not become healthy within three minutes. Its last lines:"
+  docker compose logs --tail 40 api
+  exit 1
+fi
+echo "The API is up, running ${REPOSITORY}:${TAG}"
 
-echo "The API did not become healthy within three minutes. Its last lines:"
-docker compose logs --tail 40 api
-exit 1
+bash ./gateway.sh ready

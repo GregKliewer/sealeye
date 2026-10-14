@@ -107,7 +107,7 @@ done
 aws s3 sync "$SITES/" "s3://${BUCKET}/server/sites/" --region "$REGION" --delete --only-show-errors
 
 echo "Sending the server its config"
-for f in compose.yaml Caddyfile update.sh backup.sh restore-check.sh; do
+for f in compose.yaml Caddyfile gateway.yaml gateway.sh update.sh backup.sh restore-check.sh; do
   aws s3 cp "deploy/$f" "s3://${BUCKET}/server/$f" --region "$REGION" --only-show-errors
 done
 

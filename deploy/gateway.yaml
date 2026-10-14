@@ -1,0 +1,65 @@
+# yaml-language-server: $schema=https://agentgateway.dev/schema/config
+# The model gateway on the pilot server (PHASE3-PLAN Step 5; DESIGN.md, "agentgateway,
+# read and run (Step 4)" and "The model gateway on the server"). Every model call the
+# API makes comes through here: the gateway holds the model key, the API holds only a
+# key for the gateway, and the gateway's money budget is the outer limit behind each
+# run's own cap.
+#
+# Sent to the server by deploy/release.sh and read by the gateway container that
+# deploy/compose.yaml starts. update.sh restarts the gateway when this file changes.
+#
+# The gateway expands every dollar-sign name in this file before reading it, comments
+# included, and refuses to start when one is unset; the schema line at the top is its one
+# exception. So no comment here may hold a dollar sign, and test/gateway-config.test.js
+# checks that. The names it expands come from secrets/gateway.env, which update.sh writes
+# from Parameter Store, never from this file.
+config:
+  readinessAddr: 0.0.0.0:15021        # /healthz/ready, read by update.sh through the API
+  statsAddr: 0.0.0.0:15020            # /metrics, on the gateway's own network only
+  adminAddr: "off"                    # its debug view logs claims
+  logging:
+    format: json
+  # The money budget needs a database. SQLite in the gateway's own folder on the server
+  # (/opt/sealeye/gateway-data), so spending survives a restart.
+  database:
+    url: sqlite:///data/gateway.db
+  # No tracing block: nothing leaves the gateway as a trace (Step 6 decides spans).
+
+gateways:
+  default:
+    port: 4000
+
+frontendPolicies:
+  accessLog:
+    database:
+      llm: metadata                   # never full: that would store prompts and replies
+
+llm:
+  gateways: default
+  policies:
+    # Who may call: the API, with its own key, in a header of its own. The key carries
+    # the gateway's money budget (D5): 20 US dollars for each 30-day period, or what
+    # SEALEYE_GATEWAY_BUDGET says, counted from 1970 rather than by calendar month.
+    apiKey:
+      mode: strict
+      location:
+        header:
+          name: x-sealeye-gateway-key
+      keys:
+      - key: $SEALEYE_GATEWAY_KEY
+        metadata: { name: sealeye-api }
+        budgets:
+        - name: period
+          limit: { unit: USD, amount: $SEALEYE_GATEWAY_BUDGET }
+          window: { rolling: 30d }
+          onBudgetExceeded: Block
+    # The API's own timeout (120 seconds a turn) is the one that acts; these are only
+    # the gateway's outer bound.
+    timeout:
+      requestTimeout: 15m
+      responseIdleTimeout: 5m
+  models:
+  - name: claude-*
+    provider: anthropic
+    params:
+      apiKey: $ANTHROPIC_API_KEY

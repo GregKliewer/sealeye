@@ -76,7 +76,6 @@ stays out of your shell history:
 put_secret() { printf "%s: " "$1"; stty -echo; read -r v; stty echo; echo; aws ssm put-parameter --region ca-central-1 --name "/sealeye/$1" --type SecureString --value "$v" --overwrite >/dev/null && echo "saved /sealeye/$1"; unset v; }
 put_value()  { aws ssm put-parameter --region ca-central-1 --name "/sealeye/$1" --type String --value "$2" --overwrite >/dev/null; }
 
-put_secret ANTHROPIC_API_KEY
 put_secret LANGFUSE_SECRET_KEY
 put_value  LANGFUSE_PUBLIC_KEY  pk-lf-...
 put_value  LANGFUSE_BASE_URL    https://us.cloud.langfuse.com
@@ -87,7 +86,9 @@ put_value  SEALEYE_FUNCTION_BOUNDARY_ARN arn:aws:iam::<account>:policy/sealeye-f
 put_value  ORG                  "<organization name>"
 ```
 
-The values for `SEALEYE_BUCKET`, `SEALEYE_LWA_VERSION` and the LangFuse keys are the ones
+The model key does not go here: it belongs to the model gateway, under
+`/sealeye/gateway/`, and "The model gateway" below says how to store it, and how to make
+`SEALEYE_GATEWAY_KEY`, the key the API calls the gateway with. The values for `SEALEYE_BUCKET`, `SEALEYE_LWA_VERSION` and the LangFuse keys are the ones
 already in your repo `.env` and `~/.sealeye/config`. These work in zsh (the macOS
 default) and bash. To check what is stored, names only:
 
@@ -126,6 +127,106 @@ Postgres reads it only the first time it creates the database. Do not change the
 parameter afterwards: the database would keep the old password and the API could no
 longer connect. (To change it on purpose, change it inside Postgres first, with
 `ALTER USER sealeye PASSWORD ...`, then the parameter, then release.)
+
+## Once: the model gateway
+
+From the first release with `deploy/gateway.yaml` (Oct 2026), every model call goes
+through a gateway on the server (agentgateway,
+`deploy/gateway.yaml`; DESIGN.md, "The model gateway on the server"). The gateway holds
+the model key; the API holds only a key for the gateway, and the gateway's budget stops
+model calls once $20 (or what you set) is spent in a 30-day period. The release does not
+switch the API over by itself: you do that in step 3, once the gateway is up, so you can
+switch back the same way.
+
+**1. Before the release that brings it.** The release stops, changing nothing,
+until both keys are in Parameter Store. Copy the model key the API uses now to the
+gateway's folder, without showing it, and make a new random key for the API to call the
+gateway with:
+
+```bash
+aws ssm put-parameter --region ca-central-1 --name /sealeye/gateway/ANTHROPIC_API_KEY --type SecureString --overwrite \
+  --value "$(aws ssm get-parameter --region ca-central-1 --name /sealeye/ANTHROPIC_API_KEY --with-decryption --query Parameter.Value --output text)" \
+  --query Version --output text
+aws ssm put-parameter --region ca-central-1 --name /sealeye/SEALEYE_GATEWAY_KEY --type SecureString --overwrite \
+  --value "$(openssl rand -base64 33 | tr '+/' '-_' | tr -d '=\n')" --query Version --output text
+```
+
+On a new server that never had `/sealeye/ANTHROPIC_API_KEY`, type the model key instead,
+with `put_secret` from "Once: the API's settings": `put_secret gateway/ANTHROPIC_API_KEY`.
+
+Success: two version numbers. The budget is $20 for each 30-day period unless
+`/sealeye/SEALEYE_GATEWAY_BUDGET` says otherwise, in US dollars:
+
+```bash
+aws ssm put-parameter --region ca-central-1 --name /sealeye/SEALEYE_GATEWAY_BUDGET --type String --value 20 --overwrite --query Version --output text
+```
+
+**2. The release.** `deploy/release.sh`, as in "Every release" below. Success: its last
+lines are
+
+```
+The model gateway's settings are written (budget: 20 US dollars a 30-day period)
+The model gateway restarted with this release's settings
+The API is up, running ...
+The model gateway is up
+```
+
+The API still calls the model directly at this point, so nothing a developer sees has
+changed.
+
+**3. Switch the API to the gateway.** Point it at the gateway, take the model key away
+from it, and restart it:
+
+```bash
+aws ssm put-parameter --region ca-central-1 --name /sealeye/SEALEYE_MODEL_URL --type String --value http://gateway:4000 --overwrite --query Version --output text
+aws ssm delete-parameter --region ca-central-1 --name /sealeye/ANTHROPIC_API_KEY
+deploy/server.sh restart
+deploy/server.sh logs | grep "settings read"
+```
+
+(This needs AWS CLI version 2, which `aws --version` shows: version 1 would try to
+fetch the address instead of storing it.)
+
+Success: `The API restarted and is answering.`, then a line of setting names that has
+`SEALEYE_GATEWAY_KEY` and `SEALEYE_MODEL_URL` and no `ANTHROPIC_API_KEY`. Then run an
+interview from any app folder (`sealeye run` in `apps/static-website`, answering N at
+the end), and see the gateway carried it:
+
+```bash
+deploy/server.sh gateway-logs
+```
+
+Success: a line per model call naming `claude-sonnet-5`, its token counts and a cost,
+and no prompt or reply.
+
+**To switch back** (the gateway stays up, unused): give the API its model key again,
+stop pointing it at the gateway, and restart it.
+
+```bash
+aws ssm put-parameter --region ca-central-1 --name /sealeye/ANTHROPIC_API_KEY --type SecureString --overwrite \
+  --value "$(aws ssm get-parameter --region ca-central-1 --name /sealeye/gateway/ANTHROPIC_API_KEY --with-decryption --query Parameter.Value --output text)" \
+  --query Version --output text
+aws ssm delete-parameter --region ca-central-1 --name /sealeye/SEALEYE_MODEL_URL
+deploy/server.sh restart
+```
+
+Success: `The API restarted and is answering.`, and `deploy/server.sh logs | grep
+"settings read"` lists `ANTHROPIC_API_KEY` again and no `SEALEYE_MODEL_URL`.
+
+**Changing the budget or a key later:** change the parameter, then
+
+```bash
+deploy/server.sh gateway-restart
+```
+
+It rewrites the gateway's settings, restarts the gateway and the API, and ends with `The
+model gateway is up`. The money already spent in this period stays counted. The gateway's
+period is 30 days counted from 1970, not the calendar month, so it resets on a date that
+moves by a day or two each month.
+
+**When the budget is spent**, every interview stops at its first model call until the
+period ends or you raise the budget. `deploy/server.sh gateway-logs` shows the refusals
+(status 429).
 
 ## Once: the addresses
 
@@ -368,6 +469,14 @@ The API's last lines, or a restart:
 ```bash
 deploy/server.sh logs
 deploy/server.sh restart
+```
+
+Interviews fail at their first model call: the model gateway may be down, or its budget
+spent. Its last lines, which never hold a key, prompt or reply, or switch the API back
+to calling the model directly ("Once: the model gateway", "To switch back"):
+
+```bash
+deploy/server.sh gateway-logs
 ```
 
 Or open a shell on the server, with no SSH key needed:

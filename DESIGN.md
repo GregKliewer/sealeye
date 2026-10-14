@@ -2279,3 +2279,46 @@ principle 1 says an operation has the same name on both surfaces.
   under way name theirs in a sentence, as they did.
 - **Plan and report shows `sealeye plan <deployment>`**, with `--report` on the report's
   tab, for the deployment it is showing.
+
+## The model gateway on the server
+
+Wed Oct 14, 2026, PHASE3-PLAN Step 5, as D7 decided and the Step 4 spike showed.
+
+- **A container next to the API**, agentgateway v1.6.0 pinned by the digest the spike
+  ran (`deploy/compose.yaml`). Its settings are `deploy/gateway.yaml`, sent by
+  `release.sh` the way the Caddyfile is. It publishes no port and sits on a network of
+  its own (`model`) that only the API joins, so neither Caddy nor Postgres can reach it.
+  That network is not an internal one, so the gateway still reaches the model's address.
+- **The model key moves to the gateway.** It is kept at
+  `/sealeye/gateway/ANTHROPIC_API_KEY`. `deploy/settings.mjs` leaves out anything under
+  `/sealeye/gateway/` (`apiSettings`), so the API's environment never holds it.
+  `deploy/gateway.sh` writes it, with the gateway's key and budget, to
+  `secrets/gateway.env`: 0600, read by compose for the gateway alone. Like the database
+  password, it is a file on the server's disk, because the gateway's image has no shell
+  or AWS CLI to read Parameter Store itself.
+- **This is a boundary in the process, not in AWS.** The API's container still uses
+  the server's instance role, which may read `/sealeye/gateway/`. So an attacker who
+  could run code in the API could still fetch the key. What this removes is the key
+  sitting in the API's memory, its environment and anything it starts (npm, gitleaks,
+  the AWS CLI). Keeping it out of the API's reach in AWS needs the API to have a role
+  of its own, which waits for the move off one server (PHASE2-PLAN, "Owed after this
+  plan").
+- **The API calls the gateway with its own key**, `SEALEYE_GATEWAY_KEY`, in the
+  `x-sealeye-gateway-key` header, and sends no model key at all
+  (`modelCredential` in `api/interview/model.js`). A laptop API, with no gateway key,
+  calls Anthropic with `ANTHROPIC_API_KEY` as before. `SEALEYE_MODEL_URL` with no
+  gateway key still sends the model key, for an organization's own gateway that takes
+  one.
+- **The budget is on from the first release**: $20 for each 30-day period, or
+  `SEALEYE_GATEWAY_BUDGET` (DESIGN.md, "The gateway's budget: $20 a period"). Its
+  refusal is a 429, which the interview would otherwise call a busy model and retry, so
+  a refusal that says `budget_exceeded` is never retried, and the developer reads that
+  seaLeye has used its model budget for this period, with no amount (`isBudgetSpent`).
+  Step 7 still shows it once on the server. The per-run token limit waits for Step 6,
+  since without a token per call every run would share one limit.
+- **Switching is a step of its own, and so is switching back.** The release brings the
+  gateway up but does not move the API. Greg moves it by setting `SEALEYE_MODEL_URL`
+  and deleting the API's model key, then restarting the API. Switching back is the
+  reverse, with no release (deploy/README.md, "The model gateway").
+- **Nothing a person sees changes.** Every check the gateway makes is in its own log,
+  `deploy/server.sh gateway-logs`, which drops any line holding one of its keys.

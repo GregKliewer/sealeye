@@ -1,6 +1,8 @@
 # The pilot server: the API behind Caddy, which obtains and renews the TLS certificate
-# itself, and Postgres for records and interviews (Step 10), reachable only from the API
-# on this machine's own network. Started by deploy/update.sh on the server.
+# itself, Postgres for records and interviews (Step 10), and the model gateway
+# (PHASE3-PLAN Step 5), which holds the model key and through which every model call
+# goes. Postgres and the gateway publish no port. The gateway sits on a network of its
+# own that only the API joins. Started by deploy/update.sh on the server.
 services:
   api:
     image: ${SEALEYE_IMAGE:?set SEALEYE_IMAGE to the image to run}
@@ -14,6 +16,7 @@ services:
         condition: service_healthy
     volumes:
       - sealeye-data:/data
+    networks: [default, model]
     expose:
       - "3000"
     healthcheck:
@@ -21,6 +24,25 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+
+  gateway:
+    # agentgateway v1.6.0, by the digest the Step 4 spike read and ran (DESIGN.md,
+    # "agentgateway, read and run (Step 4)"). A new version is a new digest, run through
+    # the spike first.
+    image: ghcr.io/agentgateway/agentgateway:v1.6.0@sha256:9d3e6044ddcdc0878b1787f77bd401252b95e22684203fb5e874c4c42d2ed90c
+    restart: unless-stopped
+    command: ["-f", "/config/gateway.yaml"]
+    # ANTHROPIC_API_KEY, SEALEYE_GATEWAY_KEY and SEALEYE_GATEWAY_BUDGET, written by
+    # update.sh from Parameter Store (deploy/README.md, "The model gateway").
+    env_file: ./secrets/gateway.env
+    volumes:
+      - ./gateway.yaml:/config/gateway.yaml:ro
+      - ./gateway-data:/data
+    # Only the API can reach it, and it publishes no port. It still reaches the model's
+    # address on the internet, since the network is not an internal one.
+    networks: [model]
+    expose:
+      - "4000"
 
   postgres:
     image: postgres:16-alpine
@@ -59,6 +81,10 @@ services:
       - ./sites:/srv:ro
       - caddy-data:/data
       - caddy-config:/config
+
+networks:
+  default:
+  model:
 
 volumes:
   pgdata:

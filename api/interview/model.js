@@ -41,6 +41,27 @@ export function resolveApiKey() {
   return process.env.ANTHROPIC_API_KEY || null;
 }
 
+/** The header the platform's own gateway reads the API's key from (deploy/gateway.yaml). */
+export const GATEWAY_KEY_HEADER = "x-sealeye-gateway-key";
+
+/**
+ * What the API calls the model with, or null when it has nothing to call it with.
+ *
+ * With SEALEYE_MODEL_URL and SEALEYE_GATEWAY_KEY both set, the API talks to the
+ * platform's own gateway (deploy/gateway.yaml), which holds the model key: the API sends
+ * only its key for the gateway, never a model key, even if it has one (DESIGN.md, "The
+ * model gateway on the server"). Otherwise it uses ANTHROPIC_API_KEY, as before, sent
+ * to SEALEYE_MODEL_URL when that is set (an organization's own gateway that takes one).
+ *
+ * @returns {{ gatewayKey: string } | { apiKey: string } | null}
+ */
+export function modelCredential() {
+  const gatewayKey = setting("GATEWAY_KEY");
+  if (gatewayKey && setting("MODEL_URL")) return { gatewayKey };
+  const apiKey = resolveApiKey();
+  return apiKey ? { apiKey } : null;
+}
+
 /**
  * The Anthropic client the interview talks to.
  *
@@ -49,10 +70,24 @@ export function resolveApiKey() {
  * (often to Claude on Bedrock in its own AWS account) points this at the gateway, and
  * seaLeye needs no route of its own to api.anthropic.com. Unset changes nothing.
  * The SDK's own retries are off: one retry, announced, beats three silent ones.
+ *
+ * @param credential what `modelCredential()` returned, or an Anthropic key on its own
  */
-export function modelClient(apiKey) {
+export function modelClient(credential) {
   const baseURL = setting("MODEL_URL");
-  return new Anthropic({ apiKey, timeout: TIMEOUT_MS, maxRetries: 0, ...(baseURL ? { baseURL } : {}) });
+  const options = { timeout: TIMEOUT_MS, maxRetries: 0, ...(baseURL ? { baseURL } : {}) };
+  if (credential && typeof credential === "object" && credential.gatewayKey) {
+    // No model key at all: `apiKey: null` keeps the SDK from reading ANTHROPIC_API_KEY
+    // from the environment, and the null x-api-key header tells it no key is meant.
+    return new Anthropic({
+      ...options,
+      apiKey: null,
+      authToken: null,
+      defaultHeaders: { [GATEWAY_KEY_HEADER]: credential.gatewayKey, "x-api-key": null }
+    });
+  }
+  const apiKey = typeof credential === "string" ? credential : credential?.apiKey;
+  return new Anthropic({ ...options, apiKey });
 }
 
 /**
@@ -146,8 +181,18 @@ export function userFacing(message, cause) {
   return err;
 }
 
+/**
+ * The platform's gateway refused the call because its money budget for the period is
+ * spent (deploy/gateway.yaml). It answers 429 like a busy model, but waiting a moment
+ * does not help, so it is never retried and never called busy.
+ */
+export function isBudgetSpent(err) {
+  return err?.status === 429 && err?.error?.error?.code === "budget_exceeded";
+}
+
 /** A timeout, a dropped connection, a rate limit or a server fault is worth one retry. */
 function isRetryable(err) {
+  if (isBudgetSpent(err)) return false;
   if (err instanceof Anthropic.APIConnectionError) return true;   // timeouts included
   const status = err?.status;
   return status === 408 || status === 429 || (typeof status === "number" && status >= 500);
@@ -169,6 +214,13 @@ function asUserFacing(err) {
   // The key is the platform's now, not the developer's, so the fix is theirs too.
   if (err?.status === 401 || err?.status === 403) {
     return userFacing("The model key the seaLeye API is using was refused. Tell whoever runs the API.", err);
+  }
+
+  if (isBudgetSpent(err)) {
+    return userFacing(
+      "seaLeye has used its model budget for this period, so the interview stopped. Nothing was written to your folder and nothing was built. Tell whoever runs the API.",
+      err
+    );
   }
 
   if (err?.status === 429) {
