@@ -233,6 +233,21 @@ High stakes: an independent review before the pull request.
   the refusal. The refusal is in the gateway's log, so the administrator can see it.
 - Shown once on the server, on purpose, with a tiny budget. This is the second half of
   the "done when".
+- **A record of model calls that outlives a restart** (added Oct 14, at Greg's request).
+  The gateway's log lives only as long as its container, and each release that changes
+  the gateway starts a new one, so who called the model is lost at every such release.
+  The gateway already keeps each call in its own SQLite file (`gateway-data`), with no
+  prompt or reply (`database.llm: metadata`). `deploy/server.sh gateway-calls` reads it:
+  one line per call (time, person, team, run, worker, surface, model, tokens, cost,
+  status), narrowed to a run or a person, never a prompt, reply, token or key.
+  First, in the spike: whether the stored rows carry the token's claims or need fields
+  of their own, how to read the file while the gateway writes it, and how long rows
+  are kept. Then a retention to set, written in DESIGN.md.
+
+*Already done in Step 5 (DESIGN.md, "The model gateway on the server"): the $20 budget
+on the API's key, and a spent budget is never retried and is told in plain words. Still
+to do: the per-run token limit, now that each call names its run (Step 6), the showing
+on the server, and the record of calls.*
 
 ### Step 8. Routing (D6; DESIGN.md, "Inference from Canada")
 

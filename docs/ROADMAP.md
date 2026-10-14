@@ -147,6 +147,8 @@ through one governed door before Phase 4 adds a swarm of agents.
 - Gateway spans join the run's trace in LangFuse Cloud, as today. Self-hosting
   LangFuse in Canada moves to Phase 4 (DESIGN.md, "Phase 3, settled after review");
   until then tracing stays off for any pilot on real code.
+- A record of every model call that outlives a restart, read from the gateway's own
+  database: who, which run, tokens and cost, never content (PHASE3-PLAN Step 7).
 - The gateway logs no request bodies: file names, never contents, as for traces
   (DESIGN.md, "Tracing the interview with LangFuse").
 - A deterministic secret scanner (answers Q6; brought forward from Phase 4 on Oct 13,
