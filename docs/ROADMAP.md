@@ -281,6 +281,7 @@ and does nothing real. A blank is not started.
 | Status and watch | `sealeye status`, `watch` (an app or an id) | `GET /deployments/{id}`; `step` in `GET /deployments` | built | built (Control, with the change under way across the top) | 1 |
 | Tear down | `sealeye destroy` | `DELETE /deployments/{id}` | built | built (Control) | 1 |
 | Evidence | `sealeye evidence` | `GET /deployments/{id}/evidence` | built | built (Evidence, in Control) | 2 |
+| Plan and report for a deployment | `sealeye plan` (`--report`, `--out <folder>`) | `GET /deployments/{id}/plan` | built | built (Plan and report, in Control) | 2 (added Oct 14, 2026, 2.27.0) |
 | Needs ledger | `sealeye needs` | `GET /needs` | built | built (in Catalog) | 1 |
 | Health check | `sealeye doctor` | `GET /health`, `GET /whoami` | built | built (Health) | 2 |
 | Catalog | `sealeye catalog` | `GET /catalog` | built | built | 1 |

@@ -549,7 +549,8 @@ Q13, answered Oct 13, 2026: LangFuse self-hosted in ca-central-1, in ROADMAP Pha
 - **Parity.** Each operation is an endpoint, a command and a page with one name. The
   table is in [ROADMAP.md](ROADMAP.md#parity-backlog).
 - **Plain language.** Developers see no AWS terms, no em dashes and no capacity numbers.
-  Shared wording lives in `core/plan-words.js` and `core/evidence-summary.js`.
+  Shared wording lives in `core/plan-words.js`, `core/evidence-summary.js` and
+  `core/plan-report-words.js`.
 - **Status is real.** A record moves through queued, packaging, running, then succeeded
   or failed, mirroring the stack, and destroying then destroyed on tear down; a refused
   plan is drafted. Pause state, logs, readings and costs are read from AWS when asked.
