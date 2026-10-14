@@ -59,7 +59,7 @@ recommended" (D2 in "Phase 3, settled after review").
 | D2 | Where the cap on a run lives | In the graph; the gateway's budget is the outer limit | Step 3 | As recommended (Tue Oct 13) |
 | D3 | Where the scanner runs | Twice. Shared rules in `core/`, before upload, on both surfaces, so a finding never leaves the machine; then gitleaks in the API over what arrived, as the deeper check and the swarm's first node later | Step 2 | As recommended (Tue Oct 13) |
 | D4 | What a finding does to a deploy | The deploy is refused until the value moves to a setting, or the line is allowed in `.sealeye-allow` (which records the file, line and rule, never the value, and shows in evidence) | Step 2 | As recommended (Tue Oct 13) |
-| D5 | How big the caps are | A run's cap: three times the largest run Step 1 measures. The gateway's budget: a monthly amount Greg names | Steps 3 and 7 | Changed (Wed Oct 14): a run's cap is $1.00, not three times the largest sample run, which came to about $0.24; the monthly budget is not named yet |
+| D5 | How big the caps are | A run's cap: three times the largest run Step 1 measures. The gateway's budget: a monthly amount Greg names | Steps 3 and 7 | Changed (Wed Oct 14): a run's cap is $1.00, not three times the largest sample run, which came to about $0.24; the gateway's budget is $20 for each 30-day period (Wed Oct 14, DESIGN.md, "The gateway's budget: $20 a period") |
 | D6 | Which route the pilot uses | Build the Bedrock route and prove it in Greg's account; keep the Anthropic API as the pilot's route until Q18 is answered for a bank | Step 8 | As recommended (Tue Oct 13) |
 | D7 | Where the gateway runs (informed by Step 4) | A container on the same server, reachable only from the API, holding the model key in place of the API. Move to a t4g.medium only if Step 4 shows the small one cannot carry it | Step 5 | As recommended (Tue Oct 13); the image pulled by digest from its public registry |
 
@@ -217,8 +217,8 @@ High stakes: an independent review before the pull request.
 
 ### Step 7. The outer limit (D5)
 
-- A budget on the API's gateway key for the period Greg names, and a token rate limit
-  keyed on `jwt.run`, so one run cannot starve the rest.
+- A budget of $20 on the API's gateway key for each 30-day period (D5), and a token
+  rate limit keyed on `jwt.run`, so one run cannot starve the rest.
 - When the gateway refuses, the interview stops and says plainly that seaLeye's model
   budget is used up for now and to ask the platform administrator; it never retries into
   the refusal. The refusal is in the gateway's log, so the administrator can see it.
