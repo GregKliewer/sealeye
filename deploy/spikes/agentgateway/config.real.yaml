@@ -2,9 +2,11 @@
 # The spike's gateway in front of Anthropic's API, with a real key. The same as
 # config.mock.yaml but for `llm.models`.
 #
-# agentgateway expands $NAME across this whole file before reading it, and refuses to
-# start when one is unset: every $ here comes from .work/env, which `probe.mjs setup`
-# writes. A literal $ anywhere (a CEL string included) would be expanded too.
+# agentgateway expands every dollar-sign name in this file before reading it, comments
+# included, and refuses to start when one is unset. Each one in a value below comes
+# from .work/env, which `probe.mjs setup` writes, or from the shell compose runs in.
+# So no comment here may hold a dollar sign (the schema line at the top is the one
+# exception the gateway makes).
 config:
   readinessAddr: 0.0.0.0:15021        # /healthz/ready
   statsAddr: 0.0.0.0:15020            # /metrics

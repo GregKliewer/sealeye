@@ -2099,6 +2099,10 @@ What the source says, and what it means for Steps 5 to 7:
   (the multi-arch index, read Oct 14). It reports version 1.6.0 at the same commit
   as the source read here, built for arm64 on Greg's Mac. Step 5 pulls it by this
   digest.
-- **The configuration file expands every `$NAME`** and refuses to start when one is
-  unset. That is how the keys stay out of it. A literal `$` anywhere in it, even in an
-  expression, would be expanded too.
+- **The configuration file expands every `$NAME`, comments included**, and refuses to
+  start when one is unset. That is how the keys stay out of it. The run showed the
+  comments part: the spike's first configuration explained this in a comment that
+  named `$NAME`, and the gateway refused to start looking for a variable called NAME.
+  The one exception is the `# yaml-language-server: $schema` line. So no comment, and
+  no expression, in a gateway configuration holds a dollar sign. Step 5 checks that in
+  a test.
