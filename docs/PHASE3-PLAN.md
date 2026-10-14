@@ -90,6 +90,9 @@ attaches a budget to a key (D5): the token says who, the key carries the budget.
 
 Run `npm run eval:interview` and read each run's `usage` from the debug output and
 LangFuse: input, output and cached tokens per turn and per run, and what each run cost.
+The eval reads each run's tokens and cost back from its LangFuse trace and prints them
+as one table, and says so when LangFuse has no price for the model rather than showing
+a cost of nothing.
 Record the largest run and the typical one in DESIGN.md. They size D5, and they are the
 "before" for every later step.
 
@@ -128,14 +131,25 @@ High stakes: an independent review before the pull request.
 ### Step 3. A cap on every run (D2, D5)
 
 - The graph adds each turn's `usage` into the run's state and prices it from a small
-  table of model prices in the platform's config.
+  table of model prices in the platform's config. The table is the only source the cap
+  enforces from: never LangFuse, which is optional and after the fact, and never a
+  network call. It carries the date its prices were last checked against the
+  providers' own pages.
+- A model with no price in the table is refused: the interview does not start, and says
+  the platform has no price for that model. Without this, setting `SEALEYE_MODEL` to a
+  new model would run it with no cap at all.
+- `release.sh` warns when the prices were last checked more than 90 days ago. The cap is
+  close, not exact (DESIGN.md, "A run's cap is close, not exact"): a stale price and the
+  call that crosses the cap both let a run spend past it.
 - At the cap the run stops with status `stopped`, the same as `MAX_TURNS` today, and a
   sentence for both surfaces: the run reached its spending limit, nothing was built, and
   what to do next. The trace is scored with the reason.
 - The cap is a setting (`SEALEYE_RUN_CAP`), sized by D5. The counter is keyed by worker
   as well as run, so Phase 4's workers each get one without a new design.
 - Test: a fake client that asks for tools forever is stopped by the cap before
-  `MAX_TURNS`, on both surfaces. This is the first half of the "done when".
+  `MAX_TURNS`, on both surfaces. This is the first half of the "done when". Also: a
+  model missing from the table is refused, and the eval flags a run whose own count
+  differs from LangFuse's cost by more than five percent.
 
 ## Part B: the gateway
 
@@ -151,7 +165,9 @@ In `deploy/spikes/agentgateway/`, before anything is built:
 - `jwtAuth` with a key file accepts the API's token and refuses a missing, expired or
   wrongly signed one; log fields and trace attributes read its claims.
 - A budget on the API's key refuses the call after the one that crosses it, and what
-  database the budget needs (it refuses to start without one).
+  database the budget needs (it refuses to start without one). Whether the budget
+  counts tokens or money, and if money, where its prices come from: a budget in tokens
+  does not drift when prices change.
 - The access log holds no request or response bodies.
 - How much memory it uses on arm64 next to the API, Postgres and Caddy (D7).
 
@@ -210,7 +226,9 @@ High stakes: an independent review before the pull request.
 
 DESIGN.md entries for each decision; ARCHITECTURE.md's containers, security model and a
 new sequence for one model call; CLAUDE.md's invariants (no gateway logs with bodies;
-every call names its caller); deploy/README.md; the Phase 3 picture in BUILD-OUT.md
+every call names its caller); deploy/README.md, with a "Model prices" section: where the
+table is, how to check it, and that it is checked before any organization starts using
+seaLeye and before a release that changes the model; the Phase 3 picture in BUILD-OUT.md
 marked built; and ROADMAP.md's Phase 3 ticked.
 
 ## Order and rough effort
@@ -243,4 +261,6 @@ around a false finding.
 | **Inference in Canada** (Q18) | The route is built (Step 8); Bedrock in Canada runs only through cross-region profiles. | A bank pilot (Phase 5). |
 | **Agents as callers** (Phase 6) | The token in D1 has room for a second issuer. | Phase 6, after Cognito (Phase 5). |
 | **The small model** | Routed (Step 8), not used. | Phase 4's workers. |
+| **Checking prices against the bill** | The cap's prices are checked by hand and dated (Step 3); the eval compares them with LangFuse's. A monthly script comparing a month of the platform's own totals with Anthropic's Cost API (an Admin key, kept off the server) and, once Bedrock carries traffic, Cost Explorer. It only finds drift where there is traffic. | Once an organization is using seaLeye every week. |
+| **Telling an organization what a cap guarantees** | Worded in DESIGN.md, "A run's cap is close, not exact". | In the material the first organization reads before it starts (Phase 4's first paid discovery run, or the first pilot, whichever comes first). |
 | **PHASE2-PLAN's owed list** | Unchanged by this plan; it still stands. | As it says. |

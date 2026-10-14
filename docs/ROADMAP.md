@@ -130,7 +130,9 @@ through one governed door before Phase 4 adds a swarm of agents.
 - Spend caps per run and per worker, held by seaLeye itself: the graph counts what each
   run has used and stops it at its cap, and a person is told why. agentgateway has no
   notion of a run; its budget per key and its rate limit are the outer limit behind
-  seaLeye's cap (DESIGN.md, "Phase 3, settled after review").
+  seaLeye's cap (DESIGN.md, "Phase 3, settled after review"). The cap is close, not
+  exact: a run can spend past it by one reply, or by more if a price changes before
+  seaLeye's table does (DESIGN.md, "A run's cap is close, not exact").
 - Routing by task and by data class: the frontier model for plans and rules, a small
   model for bulk reading, and an organization's code only to an endpoint in its own
   account (Claude on Bedrock). Bedrock serves Claude in Canada only through profiles

@@ -1790,3 +1790,40 @@ recommendation gave.
   what runs, and a mirror would add a repository and push rights for CI to keep, for no
   gain in a pilot. Revisit if an organization requires every image to come from its own
   account.
+
+## A run's cap is close, not exact
+
+Wed Oct 14, 2026, by Greg, while settling where the cap's prices come from (PHASE3-PLAN
+Step 3).
+
+- **The cap prices from a table in the platform's config, and nothing else.** LangFuse
+  knows each run's cost, but tracing is optional by design, it learns the cost after the
+  call, and it is in the US; the cap has to decide from the reply just returned, with no
+  network call. LangFuse and the providers' bills are how the table is checked, never
+  what the cap reads. Anthropic publishes no price list a program can read; AWS's Price
+  List API has Claude only under `AmazonBedrockService`, and not every model yet.
+- **Two things let a run spend past its cap.** The cap is checked after each reply, so
+  the reply that crosses it is already paid for: a run can overshoot by up to one turn.
+  And a price can change before the table does.
+- **A stale table is not fixed by use.** Greg's point: comparing the platform's totals
+  with the bill only finds drift where there is traffic, so if seaLeye sits idle the
+  table can be out of date on the day the first organization starts, and the comparison
+  only notices after that organization has spent against it. Even then it only notices;
+  a person updates the table. So the check does not wait for customers. The table
+  carries the date its prices were last checked against the providers' pages;
+  `release.sh` warns past 90 days; and checking it, with an eval run compared against
+  the Cost API, is an operating step before any organization starts using seaLeye and
+  before any release that changes the model (deploy/README.md, "Model prices", written
+  in Step 9). A model with no price in the table is refused, so a new model can never
+  run uncapped.
+- **The direction of the risk.** A price cut makes the cap stricter than it says, which
+  is safe. The harm is a rise on a model already in use, which is uncommon; a new model
+  at a new price is caught by the refusal above.
+- **Organizations are told, in these words or close to them:** "seaLeye stops a run at
+  its spending limit, using the model prices seaLeye holds. The limit is checked after
+  each reply from the model, so a run can go past it by up to one reply, and by more if
+  a provider changes its prices before seaLeye's are updated. The monthly model budget
+  is the outer limit. Neither replaces the spending limits and billing alerts you set
+  with the model provider, which are the only hard ceiling on what you are charged."
+  This goes in the material the first organization reads before it starts
+  (PHASE3-PLAN, "Owed after this plan").
