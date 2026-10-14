@@ -9,6 +9,7 @@ import { PageTitle, Problem } from "../Layout";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
+import { label } from "../../../core/operations.js";
 
 export function CostsPage() {
   const [since, setSince] = useState("30d");
@@ -17,7 +18,7 @@ export function CostsPage() {
   const money = (v: number) => `${v.toFixed(2)} ${data?.unit || ""}`.trim();
   return (
     <>
-      <PageTitle title="Costs" sub={data?.everyTeam ? "What each app in your organization has cost." : "What each of your team's apps has cost."}
+      <PageTitle title={label("costs")} sub={data?.everyTeam ? "What each app in your organization has cost." : "What each of your team's apps has cost."}
         action={
           <div className="flex gap-1" role="group" aria-label="Over the last">
             {[["7d", "7 days"], ["30d", "30 days"]].map(([key, label]) => (

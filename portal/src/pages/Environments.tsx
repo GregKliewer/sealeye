@@ -9,6 +9,7 @@ import { PageTitle, Problem } from "../Layout";
 import { Badge } from "../components/ui/badge";
 import { Card } from "../components/ui/card";
 import { Input } from "../components/ui/input";
+import { commandLine, label } from "../../../core/operations.js";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 
 const WEEK_MS = 7 * 24 * 3600_000;
@@ -60,8 +61,8 @@ export function Environments() {
 
   return (
     <>
-      <PageTitle title="Environments" sub={`Every environment seaLeye has built for ${whose(person)}, as the platform reports it now.`}
-        action={<Link to="/new" className="inline-flex h-9 items-center rounded-md bg-phosphor px-4 text-sm font-medium text-white hover:opacity-90">New environment</Link>} />
+      <PageTitle title={label("list")} sub={`Every environment seaLeye has built for ${whose(person)}, as the platform reports it now.`}
+        action={<Link to="/new" className="inline-flex h-9 items-center rounded-md bg-phosphor px-4 text-sm font-medium text-white hover:opacity-90">{label("run")}</Link>} />
       {deployments.error ? <Problem message={deployments.error} /> : null}
 
       {stats ? (
@@ -123,7 +124,7 @@ export function Environments() {
         </Table>
         {deployments.data && shown.length === 0 ? (
           <p className="px-4 py-8 text-center text-sm text-dim">
-            {environments.length === 0 ? "No environments yet. A developer creates one with sealeye run." : "No environments match what you are looking for."}
+            {environments.length === 0 ? `No environments yet. A developer creates one with ${commandLine("run")}.` : "No environments match what you are looking for."}
           </p>
         ) : null}
       </Card>

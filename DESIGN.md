@@ -2255,3 +2255,5 @@ principle 1 says an operation has the same name on both surfaces.
   there, does not. A change under way locks the card once, said at the top. Configure
   and Settings end with their command line; Logs, Performance, Evidence and the change
   under way name theirs in a sentence, as they did.
+- **Plan and report shows `sealeye plan <deployment>`**, with `--report` on the report's
+  tab, for the deployment it is showing.

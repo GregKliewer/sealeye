@@ -6,14 +6,15 @@ import { api } from "./api";
 import { useSession } from "./session";
 import { Button } from "./components/ui/button";
 import { cn } from "./lib/utils";
+import { label } from "../../core/operations.js";
 
 const NAV = [
-  { to: "/", label: "Environments", end: true },
-  { to: "/validate", label: "Validate", end: false },
-  { to: "/catalog", label: "Catalog", end: false },
-  { to: "/costs", label: "Costs", end: false },
-  { to: "/team", label: "Team", end: false },
-  { to: "/health", label: "Health", end: false }
+  { to: "/", label: label("list"), end: true },
+  { to: "/validate", label: label("validate"), end: false },
+  { to: "/catalog", label: label("catalog"), end: false },
+  { to: "/costs", label: label("costs"), end: false },
+  { to: "/team", label: label("team"), end: false },
+  { to: "/health", label: label("doctor"), end: false }
 ];
 
 export function Layout() {

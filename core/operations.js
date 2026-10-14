@@ -37,6 +37,7 @@ export const OPERATIONS = Object.freeze([
   { id: "logs", command: "logs", aliases: [], label: "Logs", target: "app" },
   { id: "perf", command: "perf", aliases: [], label: "Performance", target: "app" },
   { id: "evidence", command: "evidence", aliases: [], label: "Evidence", target: "app" },
+  { id: "plan", command: "plan", aliases: [], label: "Plan and report", target: "app" },
   { id: "catalog", command: "catalog", aliases: [], label: "Catalog" },
   { id: "needs", command: "needs", aliases: [], label: "Needs" },
   { id: "costs", command: "costs", aliases: [], label: "Costs" },
@@ -63,11 +64,11 @@ export function label(id) {
 /**
  * The whole line a developer types: `sealeye teardown shop-api`. The target is the
  * app's name or a deployment id, and left out when the command acts on the folder or
- * on nothing.
+ * on nothing. Flags, when there are any, come last (`sealeye plan dep_... --report`).
  */
-export function commandLine(id, target) {
+export function commandLine(id, target, flags = []) {
   const op = operation(id);
-  return [PRODUCT, op.command, op.target && target ? target : null].filter(Boolean).join(" ");
+  return [PRODUCT, op.command, op.target && target ? target : null, ...flags].filter(Boolean).join(" ");
 }
 
 /**

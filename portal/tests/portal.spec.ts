@@ -112,6 +112,8 @@ test("an environment can be torn down from the portal, and the record says so", 
   await page.getByRole("link", { name: "marketing-site", exact: true }).click();
   await expect(page.getByTestId("status")).toHaveText("Live");
   await expect(page.getByTestId("history-row")).toHaveCount(1);
+  // The command line for the same thing, in the command's own word.
+  await expect(page.getByTestId("teardown").getByTestId("command-hint")).toContainText("sealeye teardown marketing-site");
 
   await page.getByRole("button", { name: "Tear down" }).click();
   const confirm = page.getByRole("button", { name: "Tear it down" });
@@ -242,10 +244,12 @@ test("Deploy again sends the code an earlier deployment packaged, and the histor
   await signIn(page);
   await page.getByRole("link", { name: "payments-api", exact: true }).click();
   const card = page.getByTestId("deploy-again");
-  await expect(card).toContainText("dep_aaaaaaaaaaa1");
+  await expect(card.getByTestId("command-hint")).toContainText("sealeye deploy --again payments-api");
   const rows = page.getByTestId("history-row");
   const before = await rows.count();
   await card.getByRole("button", { name: "Deploy again" }).click();
+  // What it does is said where it is asked.
+  await expect(page.getByRole("dialog")).toContainText("dep_aaaaaaaaaaa1");
   await page.getByRole("button", { name: "Deploy it" }).click();
   await expect(rows).toHaveCount(before + 1);
   const newest = rows.first();
@@ -463,11 +467,15 @@ test("Pause stops an API taking requests and Resume starts it again, read back e
   await page.getByRole("link", { name: "payments-api", exact: true }).click();
   const card = page.getByTestId("pause");
   await expect(card.getByTestId("pause-state")).toHaveText("Taking requests");
-  await card.getByRole("button", { name: "Pause" }).click();
+  await expect(card.getByTestId("command-hint")).toContainText("sealeye pause");
+  await card.getByRole("button", { name: "Pause", exact: true }).click();
+  await expect(page.getByRole("dialog")).toContainText("Nothing is removed");
+  await page.getByRole("button", { name: "Pause it" }).click();
   await expect(card.getByTestId("pause-state")).toHaveText("Paused");
+  await expect(card.getByTestId("command-hint")).toContainText("sealeye resume");
   await expect(card).toContainText("Paused by Greg Kliewer from the portal");
   await expect(page.getByTestId("status")).toHaveText("Paused");
-  await card.getByRole("button", { name: "Resume" }).click();
+  await card.getByRole("button", { name: "Resume", exact: true }).click();
   await expect(card.getByTestId("pause-state")).toHaveText("Taking requests");
   await expect(page.getByTestId("status")).toHaveText("Live");
 });
@@ -579,13 +587,13 @@ test("an environment being built says so everywhere, and locks what would change
   await expect(banner.getByTestId("under-way-elapsed")).toHaveText(/^\d+m \d\ds$/);
   await expect(page).toHaveTitle("Building · inventory-api");
 
-  // Every card that would change it is locked, and says why.
-  for (const id of ["deploy-again", "pause", "configure"]) {
+  // Every card that would change it is locked, and says why: the actions once, for all three.
+  for (const id of ["actions", "configure"]) {
     await expect(page.getByTestId(id).getByTestId("locked")).toContainText(/Locked while building, started \d+m ago/);
   }
   await expect(page.getByRole("button", { name: "Tear down" })).toBeDisabled();
   await expect(page.getByRole("button", { name: "Deploy again" })).toBeDisabled();
-  await expect(page.getByTestId("pause").getByRole("button", { name: "Pause" })).toBeDisabled();
+  await expect(page.getByTestId("pause").getByRole("button", { name: "Pause", exact: true })).toBeDisabled();
   await expect(page.getByTestId("settings-while-moving")).toBeVisible();
 
   // The history: the build under way stands out with its step; the earlier deploy is

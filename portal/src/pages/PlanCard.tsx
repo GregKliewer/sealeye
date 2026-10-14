@@ -7,6 +7,8 @@ import { api, type DeploymentSummary } from "../api";
 import { noReportWords, planOrigin } from "../../../core/plan-report-words.js";
 import { useLoad } from "../session";
 import { Problem } from "../Layout";
+import { CommandHint } from "../Command";
+import { label } from "../../../core/operations.js";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 
@@ -36,7 +38,7 @@ export function PlanCard({ dep, latest }: { dep: DeploymentSummary; latest: bool
   return (
     <Card className="mt-6 scroll-mt-6" id="plan" data-testid="plan-card">
       <CardHeader>
-        <CardTitle>Plan and report</CardTitle>
+        <CardTitle>{label("plan")}</CardTitle>
         <span className="ml-auto font-mono text-xs text-dim">{dep.deploymentId}{latest ? " (the latest)" : ""}</span>
       </CardHeader>
       <CardContent className="space-y-4 text-sm">
@@ -77,6 +79,7 @@ export function PlanCard({ dep, latest }: { dep: DeploymentSummary; latest: bool
                 )}
               </div>
             )}
+            <CommandHint op="plan" target={dep.deploymentId} flags={which === "report" ? ["--report"] : []} />
           </>
         ) : null}
       </CardContent>

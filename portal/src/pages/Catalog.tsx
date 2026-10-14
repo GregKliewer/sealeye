@@ -5,6 +5,8 @@ import { api } from "../api";
 import { useLoad } from "../session";
 import { ago } from "../model";
 import { PageTitle, Problem } from "../Layout";
+import { Cmd, CommandHint } from "../Command";
+import { label } from "../../../core/operations.js";
 import { Badge } from "../components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 
@@ -14,7 +16,7 @@ export function CatalogPage() {
 
   return (
     <>
-      <PageTitle title="Catalog" sub="What the platform builds today, and what apps have needed that it does not build yet." />
+      <PageTitle title={label("catalog")} sub="What the platform builds today, and what apps have needed that it does not build yet." />
       {catalog.error ? <Problem message={catalog.error} /> : null}
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -53,7 +55,8 @@ export function CatalogPage() {
               </li>
             ))}
           </ul>
-          <p className="mt-4 text-xs text-dim">When your organization's Platform Library supports one of these, running <code className="font-mono">sealeye run</code> again finishes the plan.</p>
+          <p className="mt-4 text-xs text-dim">When your organization's Platform Library supports one of these, running <Cmd op="run" className="text-inherit" /> again finishes the plan.</p>
+          <CommandHint op="needs" className="mt-2" />
         </CardContent>
       </Card>
     </>
