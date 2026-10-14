@@ -6,9 +6,8 @@ name: sealeye-gateway-spike
 
 services:
   gateway:
-    # The tag the spike was written against; README.md step 1 records its digest, and
-    # Step 5 pulls by that digest (D7).
-    image: ${AGW_IMAGE:-ghcr.io/agentgateway/agentgateway:v1.6.0}
+    # v1.6.0 by its digest, read on Oct 14 (DESIGN.md); Step 5 pulls the same (D7).
+    image: ${AGW_IMAGE:-ghcr.io/agentgateway/agentgateway:v1.6.0@sha256:9d3e6044ddcdc0878b1787f77bd401252b95e22684203fb5e874c4c42d2ed90c}
     command: ["-f", "/config/${AGW_CONFIG:-config.mock.yaml}"]
     env_file: .work/env
     environment:

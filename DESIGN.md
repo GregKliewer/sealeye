@@ -2095,7 +2095,10 @@ What the source says, and what it means for Steps 5 to 7:
   Anthropic's own format to Bedrock (`bedrockEndpointPreference: mantlePreferred`).
   Which one the pilot uses waits on Bedrock access in the account.
 - **The image is `ghcr.io/agentgateway/agentgateway:v1.6.0`**, built for amd64 and
-  arm64, and signed. Its digest is recorded here from the spike's first step.
+  arm64, and signed. The run showed its digest, `sha256:9d3e6044ddcdc0878b1787f77bd401252b95e22684203fb5e874c4c42d2ed90c`
+  (the multi-arch index, read Oct 14). It reports version 1.6.0 at the same commit
+  as the source read here, built for arm64 on Greg's Mac. Step 5 pulls it by this
+  digest.
 - **The configuration file expands every `$NAME`** and refuses to start when one is
   unset. That is how the keys stay out of it. A literal `$` anywhere in it, even in an
   expression, would be expanded too.
