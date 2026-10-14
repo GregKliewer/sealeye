@@ -2039,6 +2039,36 @@ for the same turns, and well under a third of the dollar, so the cap stays a dol
   LangFuse's by more than five percent, and `release.sh` warns when `checkedOn` is more
   than 90 days old. deploy/README.md, "Model prices", is the operating step.
 
+## Inference from Canada: disclosed, on the US profile (answers Q18)
+
+Wed Oct 14, 2026, by Greg, after reading in his own account what Bedrock offers from
+ca-central-1. The commands, for reading it again in any account:
+
+```sh
+aws bedrock list-inference-profiles --region ca-central-1 --type-equals SYSTEM_DEFINED \
+  --query "inferenceProfileSummaries[?contains(inferenceProfileId,'claude')].inferenceProfileId" --output text
+aws bedrock get-inference-profile --region ca-central-1 \
+  --inference-profile-identifier us.anthropic.claude-sonnet-5 --query 'models[].modelArn' --output text
+```
+
+
+- **There is no Canadian profile.** From ca-central-1 every Claude profile is `us.` or
+  `global.`. The US profile for Sonnet 5 may run a call in ca-central-1, us-east-1,
+  us-east-2 or us-west-2, and Bedrock picks per call; the global profile may run it in
+  any commercial region. Neither keeps inference in Canada.
+- **The Bedrock route uses `us.anthropic.claude-sonnet-5`.** It is the interview's own
+  model, so Step 8 needs no change of model and no eval on another one; this replaces
+  the plan's assumption that Canada offered only Sonnet 5.5. The global profile is not
+  used: a bank's code going to any region is not something to offer.
+- **Inference is disclosed, not kept in Canada.** Greg's call: where an organization's
+  code is sent for inference is stated plainly, the US profile's four regions for
+  Bedrock, the US for the Anthropic API, and stored data stays in Canada. Banks often
+  grant an exception for a case like this; one that will not is the time to wait for a
+  Canadian profile or run a model of the organization's own (Phase 7).
+- **Disclosed where it is read**: the evidence for a deployment, and what the platform
+  team is told when an organization starts, name the route the interview took and the
+  regions a call on it may run in (PHASE3-PLAN Step 8).
+
 ## A deployment keeps the plan it was approved with
 
 Wed Oct 14, 2026. Greg could not find a deployment's plan or report in the portal once
@@ -2090,3 +2120,4 @@ deployment, from `GET /deployments/{id}/plan`.
   it is written down, so a module seaLeye cannot build appears as the need it described,
   never by its id (principle 2). A plan that cannot be written down at all gets a
   sentence on both surfaces and the reason in the server's log.
+
