@@ -41,11 +41,12 @@ core/       what cli/ and api/ must agree on: schema.js (the plan contract), cat
             (what a token looks like; api/tokens.js issues and checks them),
             plan-files.js (DEPLOYMENT_PLAN.md and sealeye.yaml, written by the
             command and sent with the interview's plan for the portal),
-            plan-words.js and evidence-summary.js (words the command and the portal
-            both say), retention.js (how long logs are kept), setting-names.js,
+            plan-words.js, evidence-summary.js and plan-report-words.js (words the
+            command and the portal both say), retention.js (how long logs are kept), setting-names.js,
             environments.js (what an environment's key is: one row in `sealeye
             list`, one page in the portal, the page `sealeye online <app>` opens).
             secrets.js, scan.js, upload-rules.js, plan-words.js, evidence-summary.js,
+            plan-report-words.js,
             retention.js, setting-names.js and environments.js run in a browser, so
             the portal imports them too
 prompts/    system prompt, plan contract, plan, report and evidence templates, catalog
@@ -90,6 +91,8 @@ in `core/` or behind an endpoint.
    into the packaged artifact. The only files seaLeye writes into the developer's folder
    are DEPLOYMENT_PLAN.md and sealeye.yaml before they say yes, DEPLOYMENT_REPORT.md on
    success, and DEPLOYMENT_EVIDENCE.md only when they run `sealeye evidence`.
+   `sealeye plan --out` writes a deployment's plan and report only into the folder it
+   names, and never over a file that is there.
 6. **No secrets, anywhere.** Setting values, ConfigValue parameters and .env contents
    never appear in evidence, markdown, the terminal, the ledger, logs or the portal.
    Names only, with "value redacted" where a value would be. Credentials come from the
@@ -148,7 +151,7 @@ module ids, and only for that. Changing the contract is a DESIGN.md decision.
 
 POST /plans/validate, POST /deployments ({ plan, appPath, zip?, settings? }, or
 { fromDeployment, plan? } to deploy code the platform already has again), GET /deployments,
-GET /deployments/{id}, GET /deployments/{id}/evidence, GET /deployments/{id}/logs (masked), GET /deployments/{id}/performance (readings), GET /deployments/{id}/paused and POST
+GET /deployments/{id}, GET /deployments/{id}/plan (the plan as approved and the report), GET /deployments/{id}/evidence, GET /deployments/{id}/logs (masked), GET /deployments/{id}/performance (readings), GET /deployments/{id}/paused and POST
 /deployments/{id}/pause and /resume (APIs only), DELETE /deployments/{id},
 GET /needs, GET /health, GET /interviews (your own still open), POST /interviews ({ app, zip, findings? },
 answered with the interview and its findings), POST
@@ -281,7 +284,7 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   source, never its value.
 - seaLeye.online (`portal/`) has Environments, New environment (the interview, from a
   folder chosen in the browser), Control (state, deploy again, tear down,
-  pause, settings, configure, history, performance, logs, evidence), Validate (check a plan, and deploy a ready one with the
+  pause, settings, configure, history, plan and report, performance, logs, evidence), Validate (check a plan, and deploy a ready one with the
   code the platform has), Catalog (modules and the needs ledger), Costs, Team and Health. Integrations is
   drawn in the archived mock-up only (Phase 5); the portal shows nothing it cannot do.
 

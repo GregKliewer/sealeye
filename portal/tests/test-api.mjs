@@ -40,7 +40,7 @@ const by = (name, user) => ({ user, name, host: "a-laptop", verified: "token" })
 const base = { backend: "cloudformation", orgId: "default", teamId: "default", surface: "cli" };
 fs.writeFileSync(path.join(home, "deployments.json"), JSON.stringify([
   { ...base, deploymentId: "dep_aaaaaaaaaaa1", app: { name: "payments-api" }, kind: "api", status: "succeeded", stackName: "sealeye-payments-api",
-    plan: apiPlan("payments-api"), artifactKey: "sealeye-payments-api/dep_aaaaaaaaaaa1.zip", artifactSha256: "b".repeat(64), outputs: { ApiUrl: "https://abc123.lambda-url.ca-central-1.on.aws/" }, requestedBy: by("Ana Pereira", "ana@example.com"),
+    plan: apiPlan("payments-api"), report: "# Deployment Report\n\nYour API is live at https://abc123.lambda-url.ca-central-1.on.aws/\n", artifactKey: "sealeye-payments-api/dep_aaaaaaaaaaa1.zip", artifactSha256: "b".repeat(64), outputs: { ApiUrl: "https://abc123.lambda-url.ca-central-1.on.aws/" }, requestedBy: by("Ana Pereira", "ana@example.com"),
     startedAt: ago(2 * 3600_000), finishedAt: ago(2 * 3600_000 - 90_000) },
   { ...base, deploymentId: "dep_aaaaaaaaaaa0", app: { name: "payments-api" }, kind: "api", status: "succeeded", stackName: "sealeye-payments-api",
     plan: { profile: "dev" }, outputs: { ApiUrl: "https://abc123.lambda-url.ca-central-1.on.aws/" }, requestedBy: by("Ana Pereira", "ana@example.com"),
