@@ -19,10 +19,10 @@ const bySource = (doc, source) => doc.modules.find(m => m.source === source);
 
 test("the answer key is a catalog by seaLeye's own rules, and passes its own grading", () => {
   assert.deepEqual(catalogProblems(key.catalog), []);
-  assert.equal(key.catalog.modules.length, 13);
+  assert.equal(key.catalog.modules.length, 14);
   const graded = gradeCatalog(key.catalog, key);
   assert.equal(graded.correct, true, gradeLines(graded).join("\n"));
-  assert.deepEqual(graded.pending.map(p => p.case), ["overlap", "gaps", "stages"], "what waits is listed, never counted as passed");
+  assert.deepEqual(graded.pending.map(p => p.case), ["overlap", "unclear module asked", "gaps", "stages"], "what waits is listed, never counted as passed");
   assert.ok(key.catalog.modules.every(m => !isBuildable(m.id, key.catalog)), "nothing builds Terraform until Step 9");
 });
 
@@ -42,7 +42,9 @@ test("each way a catalog can be wrong is caught, and says how", () => {
     [doc => { bySource(doc, "modules/secrets").inputs.kms_key = { line: "x" }; }, /inputs it does not have: kms_key/],
     [doc => { bySource(doc, "modules/http-api").inputs.package_path.required = false; }, /not marked required: package_path/],
     [doc => { doc.modules.push({ id: "made_up", source: "modules/made-up", line: "x" }); }, /modules\/made-up: not in the library/],
-    [doc => { bySource(doc, "modules/postgres").guidance = "A database."; }, /overlap \(part\): a database's guidance does not say which stages/]
+    [doc => { bySource(doc, "modules/postgres").guidance = "A database."; }, /overlap \(part\): a database's guidance does not say which stages/],
+    // "postgres" inside "postgres-cluster" is not naming postgres.
+    [doc => { bySource(doc, "modules/postgres-cluster").guidance = "Always from staging up, as postgres-cluster."; }, /overlap: each names the other: postgres_cluster's entry does not name postgres/]
   ];
   for (const [spoil, says] of cases) {
     const doc = copy();
@@ -118,4 +120,23 @@ test("an id that is an ordinary word is a module's name only when written as cod
   const md = renderPlanMarkdown({ plan, summary: "It reads secrets while it runs.", assumptions: ["Kept the secrets out of the plan."] }, { catalog: key.catalog });
   assert.match(md, /It reads secrets while it runs\./, "a plan file that says the word is still written");
   assert.throws(() => renderPlanMarkdown({ plan, summary: "It uses work_queue.", assumptions: [] }, { catalog: key.catalog }), /names work_queue/);
+});
+
+test("with a run's questions: the unclear module must be asked, and its entry rest on the question", () => {
+  const doc = copy();
+  const q = { id: "q_1", touches: ["modules/cache-valkey"], question: "May new apps use it?", answer: null };
+  bySource(doc, "modules/cache-valkey").open = ["q_1"];
+  assert.equal(gradeCatalog(doc, key, { questions: [q] }).correct, true);
+
+  const notAsked = gradeCatalog(copy(), key, { questions: [] });
+  assert.match(gradeLines(notAsked).join("\n"), /unclear module asked: no question touches modules\/cache-valkey/);
+
+  const notResting = gradeCatalog(copy(), key, { questions: [q] });
+  assert.match(gradeLines(notResting).join("\n"), /asked, but its entry does not rest on the question/);
+
+  // Whatever availability the run guessed for it, only the question is graded.
+  const guessed = copy();
+  bySource(guessed, "modules/cache-valkey").availability = "deprecated";
+  bySource(guessed, "modules/cache-valkey").open = ["q_1"];
+  assert.equal(gradeCatalog(guessed, key, { questions: [q] }).correct, true);
 });
