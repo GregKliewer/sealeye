@@ -177,13 +177,15 @@ gateway's own span in that trace moved to Phase 4. Routes come with Step 8.*
 - Admin onboarding: identity provider, repositories, which automation is strategic.
 - The discovery agent is a swarm, built on Phase 3 from the start: a LangGraph
   supervisor fans work out to parallel workers, one module each, gathers their findings,
-  and pauses for a platform engineer (`interrupt()`) on anything ambiguous.
+  and settles anything ambiguous with a platform engineer. How, without a run waiting
+  on a person, is Q19 (Greg, Oct 14, 2026).
 - Its first node is the secret scanner built in Phase 3: a file with a finding never
   reaches a model.
 - Spend: small models read, the frontier model writes the usage rules; hard caps per run
   and per worker; only modules changed since the last run are read again.
 - Where it runs: a new account opened for the prospect or customer, and the run is paid
-  (decided Oct 13, 2026).
+  (decided Oct 13, 2026). Until the first customer, the seaLeye account (PHASE4-PLAN D2).
+- Progress (PHASE4-PLAN.md): Step 1, the catalog as data, built Oct 14, 2026.
 - LangFuse self-hosted in ca-central-1 (answers Q13; moved here from Phase 3 on Oct 13,
   2026), before the first run on an organization's real code (Greg, Oct 14, 2026:
   Phase 4's own runs read seaLeye's templates, a made-up organization and public
@@ -207,17 +209,18 @@ gateway's own span in that trace moved to Phase 4. Routes come with Step 8.*
   build, taken from the needs ledger, with how often and by which teams. Read-only, from
   what discovery and the ledger already hold. Gaps come from demand first; a generic
   best-practice checklist only breaks ties.
-- How the swarm reads the library is Q17.
+- How the swarm reads the library: plain code, a read-only clone at a named commit
+  (PHASE4-PLAN D3, Oct 14, 2026). How a run settles what it cannot decide alone is Q19.
 - How discovery is tested without a customer (decided Oct 13, 2026), cheapest first:
   - seaLeye's own four building blocks in `templates/`, whose right catalog entries are
     already known. The smoke test.
   - A made-up organization in its own private repository: 10 to 15 Terraform modules and
     a few pipeline files, with an answer key. It plants the hard cases on purpose: two
-    modules that overlap (discovery must pause and ask), a deprecated module (must be
+    modules that overlap (discovery must ask, Q19), a deprecated module (must be
     refused), a usage rule only in a README, a fake key (the scanner must stop it before
     any model), later commits that test "only what changed is read again", and two
     or three known gaps the gap report must find. It is
-    read the way a customer's library is read (Q17), in an account opened for it, and
+    read the way a customer's library is read (D3), in the seaLeye account (D2), and
     becomes the regression set a catalog must pass to go live. Built at the start of
     Phase 4, so every change to discovery is graded against it.
   - Public module libraries on GitHub, for scale and cost caps. No answer key; checked

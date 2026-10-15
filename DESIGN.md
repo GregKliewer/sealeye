@@ -2508,3 +2508,65 @@ LangFuse trace, moves to Phase 4, to be built with self-hosted LangFuse in ca-ce
 - **Phase 3's "done when"** asked that every model call in a trace name its caller and
   its route. The caller is named, by trace id, in the gateway's log and record; the
   route comes with Step 8. The span itself is Phase 4's.
+
+## Phase 4's decisions, and one reopened
+
+Wed Oct 14, 2026, Greg, answering PHASE4-PLAN's decisions.
+
+- **As recommended:**
+  - D2: discovery runs in the seaLeye account until the first customer.
+  - D3: plain code reads the library, a read-only clone at a named commit; the model
+    never chooses what is read. This answers Q17.
+  - D4: a catalog is a versioned document per organization in Postgres; the four
+    built-ins are the starter catalog; plans name the version they were made from.
+  - D5: workers on the small model, the supervisor and rule writer on the frontier
+    model, both as named routes through the gateway.
+  - D6: a cap per worker and per run, set from a measured run.
+  - D8: Terraform as one root module per environment, state in S3.
+- **D9, with Greg's refinement.** The made-up organization's modules are ones commonly
+  assembled into the same kind of application (a backend API, a website, or another),
+  so a sample app's right plan uses several of them together, as a real platform
+  library is used.
+- **D7, reopened as Q19.** Pausing a discovery run for a platform engineer means the
+  run waits until someone notices, so discovery would need watching. Greg: "we should
+  consider first alternative interaction models that allow full runs to complete quickly
+  without pausing for human intervention." Q19 sets out the options. It blocks Step 6
+  only, so Part A goes ahead.
+
+## The catalog is data, and every organization starts with the starter
+
+Wed Oct 14, 2026, PHASE4-PLAN Step 1 (D4).
+
+- **What it is.** A catalog is the document `prompts/module-catalog.yaml` has always
+  been: modules, need kinds, profiles and patterns. Each organization can have its own,
+  versioned, in the `catalogs` table (`api/migrations/006_catalogs.sql`), or in
+  `~/.sealeye/catalogs.json` beside a laptop API, read from memory and written through
+  (`api/catalogs.js`), as the deployment store is.
+- **The starter.** An organization with no live catalog has the starter catalog, which
+  is the file, word for word and read fresh each time. Every organization today has
+  it, so nothing a developer sees changes.
+- **Draft, approved, live, retired.** Discovery will write drafts. A platform engineer
+  approves one, by name. Only an approved catalog goes live, and the live one it
+  replaces is retired in the same transaction; the database allows one live catalog
+  per organization. Nothing makes a catalog live from a request yet: the self-test
+  (Step 7) comes before any endpoint or command that does.
+- **Where the API reads it.** `GET /catalog` (which now says which catalog, as
+  `catalog: { version, source }`), the need lines in `POST /plans/validate` and in the
+  needs ledger, the plan files written onto a record, and the evidence's patterns, each
+  from the caller's or the record's organization. Every function in `core/catalog.js`
+  already took the catalog it reads; the API now hands it the organization's.
+- **A record keeps which catalog it was planned against** (`catalog: { version,
+  source }`, never the document), and its evidence and plan files read that one, even
+  once it is retired. A record from before Oct 14, 2026 names none and was planned
+  against the starter, the only catalog there was (principle 7: read from the record,
+  never from whatever is live now). Deploy again keeps its source's catalog when it
+  keeps its source's plan files.
+- **Changes run one at a time**, each reading the catalogs as they are when its turn
+  comes, so two made together both land. Without a database the file is read again
+  before each change, so one made by another process is not written over.
+- **What still reads the starter.** The interview's prompt (Step 3), the command's card
+  and plan files (Step 2 moves them to `GET /catalog`), and the plan contract's fixed
+  module ids and need kinds (Step 2's planVersion 0.5). Until those land, an
+  organization's catalog can reword the starter but not add to it.
+- **A catalog holds no secret.** It is names, lines and signals, so it is backed up
+  with the rest of Postgres.
