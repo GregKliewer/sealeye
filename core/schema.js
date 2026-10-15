@@ -150,6 +150,22 @@ const UNLISTED_FORBIDDEN = [
 const escaped = text => String(text).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
+ * How a module's id is found in text, as a regular expression's source. An id that
+ * looks like an identifier (an underscore or a digit in it: `http_api_serverless`) is
+ * found anywhere as a whole word. An id that is an ordinary word (`secrets`, `queue`)
+ * is found only written as code, in backticks: otherwise every sentence about secrets
+ * would read as naming the module, and a need's line, an interview passage or a plan
+ * file that says the word would be refused or dropped (found Oct 15, 2026, when the
+ * made-up organization's `secrets` module met the starter's line for runtime_secrets).
+ * Used wherever a module's name is looked for in words: here, core/catalog.js and
+ * core/plan-files.js.
+ */
+export function moduleIdSource(id) {
+  const e = escaped(id);
+  return /[_0-9]/.test(String(id)) ? `\\b${e}\\b` : `\`${e}\``;
+}
+
+/**
  * What is wrong with a plan's unlisted needs, as contract errors. The schema checks the
  * shape; this checks the sentence: in the form of the known kinds' lines ("a ..." or
  * "an ..."), naming no module of `moduleIds` (the catalog's, and the four), and none of
@@ -159,7 +175,7 @@ const escaped = text => String(text).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
  */
 export function unlistedNeedProblems(plan, moduleIds = MODULE_IDS) {
   const ids = [...new Set([...MODULE_IDS, ...moduleIds])];
-  const forbidden = [[new RegExp(`\\b(?:${ids.map(escaped).join("|")})\\b`, "i"), "names a module"], ...UNLISTED_FORBIDDEN];
+  const forbidden = [[new RegExp(`(?:${ids.map(moduleIdSource).join("|")})`, "i"), "names a module"], ...UNLISTED_FORBIDDEN];
   const problems = [];
   (plan?.needs || []).forEach((need, i) => {
     if (need?.kind !== UNLISTED_NEED) return;

@@ -15,7 +15,7 @@ import path from "node:path";
 import YAML from "yaml";
 
 import { repoRoot, loadUserConfig } from "./config.js";
-import { EXECUTORS, LEGACY_MODULE_IDS, MODULE_IDS, STARTER_VERSION, contractSchema, normalizeProfile } from "./schema.js";
+import { EXECUTORS, LEGACY_MODULE_IDS, MODULE_IDS, STARTER_VERSION, contractSchema, moduleIdSource, normalizeProfile } from "./schema.js";
 
 /**
  * The organization the developer belongs to, for the messages that name one. From
@@ -64,7 +64,7 @@ function moduleNamer(doc) {
     ...MODULE_IDS, ...LEGACY_MODULE_IDS,
     ...(Array.isArray(doc?.modules) ? doc.modules.map(m => m?.id).filter(id => typeof id === "string" && /^[a-z][a-z0-9_]*$/.test(id)) : [])
   ])];
-  return text => ids.find(id => new RegExp(`\\b${id}\\b`).test(String(text ?? ""))) || null;
+  return text => ids.find(id => new RegExp(moduleIdSource(id)).test(String(text ?? ""))) || null;
 }
 
 /**
@@ -157,13 +157,14 @@ export function catalogProblems(doc) {
  * four, an id from a plan before 0.4, or one of the catalog's own, that it does not
  * build. Returns the id named, or null. Ids are lowercase letters, digits and
  * underscores (catalogProblems), so a word boundary is exact: `http_api` is not found
- * inside `http_api_serverless`. An id no catalog has ever had cannot be known, and is
- * not caught here.
+ * inside `http_api_serverless`. An id that is an ordinary word is found only in
+ * backticks (moduleIdSource in core/schema.js). An id no catalog has ever had cannot be
+ * known, and is not caught here.
  */
 export function namesUnbuilt(catalog = loadCatalog()) {
   const built = new Set(buildableModules(catalog).map(m => m.id));
   const unbuilt = [...new Set([...MODULE_IDS, ...LEGACY_MODULE_IDS, ...catalogModuleIds(catalog)])].filter(id => !built.has(id));
-  const patterns = unbuilt.map(id => [id, new RegExp(`\\b${id}\\b`)]);
+  const patterns = unbuilt.map(id => [id, new RegExp(moduleIdSource(id))]);
   return text => patterns.find(([, re]) => re.test(String(text)))?.[0] || null;
 }
 
@@ -441,9 +442,11 @@ export function interviewPassages(catalog = loadCatalog(), { starter = false } =
     rule_one_way: core
       ? `One way of running the app, never two. Exactly one of ${idList(core)} is enabled. An app that none of them can run takes a need for what it is, and leaves them all disabled.`
       : "One way of running the app, never two.",
-    modules_intro:
-      `seaLeye.run builds ${numberWord(ids.length)} module${ids.length === 1 ? "" : "s"} here and no others: ${idList(ids)}. ` +
-      "Those are the only module ids that exist. Never write any other id into a plan, a summary or an assumption, and never invent one.",
+    modules_intro: ids.length
+      ? `seaLeye.run builds ${numberWord(ids.length)} module${ids.length === 1 ? "" : "s"} here and no others: ${idList(ids)}. ` +
+        "Those are the only module ids that exist. Never write any other id into a plan, a summary or an assumption, and never invent one."
+      : "seaLeye.run builds no modules here yet. Never write a module id into a plan, a summary or an assumption, and never invent one: " +
+        "everything the app needs is a need.",
     catalog_source: "The whole catalog, {{org}}'s own, which is the one place the modules and the need kinds are defined:",
     module_guidance: modules
       .filter(m => typeof m.guidance === "string" && m.guidance.trim() && !names(m.guidance))

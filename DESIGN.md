@@ -2770,3 +2770,24 @@ every request the model received byte for byte as on main).
   stopped, so a failed run can be read from the terminal before opening its trace.
 - Questions no answer fits get the fallback, "I'm not sure. Use your best judgement from
   the code.", as the question about what the app is for always has.
+
+## A module's name is found as code when it is an ordinary word
+
+Thu Oct 15, 2026, found by the first run of `npm run eval:discovery`.
+
+seaLeye looks for module ids in words in four places: a need's or a pattern's line
+(`catalogProblems`), the interview's prompt (`namesUnbuilt`), DEPLOYMENT_PLAN.md
+(`strayModule`) and an unlisted need's line (`unlistedNeedProblems`). Each matched an id
+as a whole word. The made-up organization has a module called `secrets`, and the
+starter's need line "secrets it reads while it runs" then read as naming it: the
+catalog was refused, and in the interview every line saying "secrets" would have been
+dropped, and a plan file saying it refused.
+
+- **An id that looks like an identifier** (an underscore or a digit in it:
+  `http_api_serverless`, `work_queue`) is found anywhere, as a whole word, as before.
+- **An id that is an ordinary word** (`secrets`, `queue`, `cache`) is found only written
+  as code, in backticks. Prose about secrets is not a module's name.
+- One rule for all four places: `moduleIdSource` in `core/schema.js`.
+- What this gives up: a catalog, a model or a plan file may say an ordinary-word id as
+  plain prose without being caught. The four starter modules, and any id with an
+  underscore, are caught as before.
