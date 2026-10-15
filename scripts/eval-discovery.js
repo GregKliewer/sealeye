@@ -24,6 +24,7 @@ import YAML from "yaml";
 
 import { repoRoot } from "../core/config.js";
 import { catalogProblems, starterCatalog } from "../core/catalog.js";
+import { isRedactedLine } from "../core/scan.js";
 import { secretFileReason } from "../core/secrets.js";
 
 export const ANSWER_KEY = path.join(repoRoot, "test", "fixtures", "sample-platform", "answer-key.yaml");
@@ -171,12 +172,12 @@ export function moduleVariables(dir) {
 /**
  * Check the key against a clone of the library: every module folder has an entry and
  * every entry a folder; each entry's inputs are its variables, required where the
- * variable has no default; and seaLeye's scanner stops the planted secret, while the
- * variables file is one it never reads.
+ * variable has no default; and, read as discovery reads it, the planted secret's line is
+ * replaced, the variables file is held back as its name, and the pipeline is read.
  *
  * @returns {Promise<{ problems: string[], checked: string[] }>}
  */
-export async function checkLibrary(libraryDir, key, { scan } = {}) {
+export async function checkLibrary(libraryDir, key, { readFolder } = {}) {
   const problems = [];
   const checked = [];
   const folders = fs.readdirSync(path.join(libraryDir, "modules"), { withFileTypes: true })
@@ -198,21 +199,46 @@ export async function checkLibrary(libraryDir, key, { scan } = {}) {
   }
   checked.push("every entry's inputs against its variables");
 
+  // Read as discovery reads it (api/discovery/library.js, PHASE4-PLAN Step 5): the same
+  // walk, the shared rules and gitleaks, and each flagged line replaced before any
+  // worker could read the file.
   const hc = key.hard_cases || {};
-  if (hc.planted_secret) {
-    const scanApp = scan || (await import("../api/secret-scan.js")).scanApp;
-    const { found } = await scanApp(libraryDir);
-    const hit = found.find(f => f.file === hc.planted_secret.file && f.line === hc.planted_secret.line);
-    if (!hit) problems.push(`the scanner did not stop ${hc.planted_secret.file}:${hc.planted_secret.line}`);
-    else if (hit.rule !== hc.planted_secret.rule) problems.push(`the scanner stopped ${hc.planted_secret.file}:${hc.planted_secret.line} as ${hit.rule}, not ${hc.planted_secret.rule}`);
-    const others = found.filter(f => f !== hit);
-    if (others.length) problems.push(`the scanner found what the key does not plant: ${others.map(f => `${f.file}:${f.line}`).join(", ")}`);
-    checked.push("the planted secret is stopped, and nothing else is found");
-  }
-  if (hc.secret_file) {
-    if (!fs.existsSync(path.join(libraryDir, hc.secret_file.file))) problems.push(`${hc.secret_file.file} is not in the library`);
-    else if (!secretFileReason(path.basename(hc.secret_file.file))) problems.push(`${hc.secret_file.file} is not a file seaLeye refuses to read`);
-    checked.push("the variables file is one seaLeye never reads");
+  const read = readFolder || (await import("../api/discovery/library.js")).readLibraryFolder;
+  const snapshot = await read(libraryDir);
+  try {
+    const inSnapshot = file => path.join(snapshot.dir, ...file.split("/"));
+    const missing = folders.filter(f => !fs.existsSync(inSnapshot(f)));
+    if (missing.length) problems.push(`discovery's reading left out ${missing.join(", ")}`);
+    const pipeline = path.join(snapshot.dir, ".github", "workflows");
+    if (!fs.existsSync(pipeline) || !fs.readdirSync(pipeline).length) problems.push("discovery's reading left out the library's pipeline");
+    checked.push("discovery reads every module folder and the pipeline");
+
+    if (hc.planted_secret) {
+      const { file, line, rule } = hc.planted_secret;
+      const hit = snapshot.findings.find(f => f.file === file && f.line === line);
+      if (!hit) problems.push(`the scanner did not stop ${file}:${line}`);
+      else if (hit.rule !== rule) problems.push(`the scanner stopped ${file}:${line} as ${hit.rule}, not ${rule}`);
+      const others = snapshot.findings.filter(f => f !== hit);
+      if (others.length) problems.push(`the scanner found what the key does not plant: ${others.map(f => `${f.file}:${f.line}`).join(", ")}`);
+      // The line is replaced, and the rest of the file is still there to read.
+      const original = fs.readFileSync(path.join(libraryDir, file), "utf8").split("\n");
+      const seen = fs.existsSync(inSnapshot(file)) ? fs.readFileSync(inSnapshot(file), "utf8").split("\n") : [];
+      const others_ = lines => lines.filter((_, i) => i !== line - 1).join("\n");
+      if (!isRedactedLine(seen[line - 1] || "")) problems.push(`${file}:${line} would reach a model as it is`);
+      else if (seen.length !== original.length || others_(seen) !== others_(original)) {
+        problems.push(`${file} reaches a model with more than its flagged line taken out`);
+      }
+      checked.push("the planted secret is stopped, its line replaced and the rest of its file read, and nothing else is found");
+    }
+    if (hc.secret_file) {
+      const file = hc.secret_file.file;
+      if (!fs.existsSync(path.join(libraryDir, file))) problems.push(`${file} is not in the library`);
+      else if (!secretFileReason(path.basename(file))) problems.push(`${file} is not a file seaLeye refuses to read`);
+      else if (!snapshot.secretFiles.includes(file) || fs.statSync(inSnapshot(file)).size !== 0) problems.push(`${file} is read, not held back as its name`);
+      checked.push("the variables file is held back as its name only");
+    }
+  } finally {
+    snapshot.remove();
   }
   return { problems, checked };
 }

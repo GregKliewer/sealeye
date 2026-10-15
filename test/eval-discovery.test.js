@@ -53,12 +53,15 @@ test("each way a catalog can be wrong is caught, and says how", () => {
   }
 });
 
-test("the key is checked against a library: folders, variables, and the planted secret", async () => {
+test("the key is checked against a library as discovery reads it: folders, variables, the planted secret", async () => {
   const lib = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-library-"));
   const put = (file, text) => { fs.mkdirSync(path.dirname(path.join(lib, file)), { recursive: true }); fs.writeFileSync(path.join(lib, file), text); };
   put("modules/one/variables.tf", 'variable "name" {\n  type = string\n}\n\nvariable "size" {\n  type    = number\n  default = 1\n}\n');
   put("modules/two/variables.tf", 'variable "name" {\n  type = string\n}\n');
   put("modules/one/examples/x/terraform.tfvars", "a = 1\n");
+  // Made up, in the shape Juniper's is: the scanner must stop it.
+  put("modules/one/main.tf", 'resource "x" "y" {\n  name = var.name\n  master_password = "Qv7r2Nx9Tb4Kw8Mz3Hc6Pd5"\n}\n');
+  put(".github/workflows/build.yml", "on: push\n");
   const small = {
     catalog: { modules: [
       { id: "one", source: "modules/one", inputs: { name: { required: true }, size: { default: 1 } } },
@@ -70,16 +73,17 @@ test("the key is checked against a library: folders, variables, and the planted 
     }
   };
   assert.deepEqual(moduleVariables(path.join(lib, "modules/one")), { name: { required: true }, size: { required: false } });
-  const scan = async () => ({ found: [{ file: "modules/one/main.tf", line: 3, rule: "assigned-secret" }] });
-  const { problems } = await checkLibrary(lib, small, { scan });
+  const { problems } = await checkLibrary(lib, small);
   assert.deepEqual(problems, ["modules/two is in the library and not in the key", "modules/gone is in the key and not in the library"]);
 
   small.catalog.modules[0].inputs.size.required = true;
-  const missed = async () => ({ found: [{ file: "modules/one/other.tf", line: 1, rule: "assigned-secret" }] });
-  const again = await checkLibrary(lib, small, { scan: missed });
+  small.hard_cases.planted_secret.line = 2;
+  fs.rmSync(path.join(lib, ".github"), { recursive: true });
+  const again = await checkLibrary(lib, small);
   assert.ok(again.problems.includes("modules/one: size is not required in the library"));
-  assert.ok(again.problems.includes("the scanner did not stop modules/one/main.tf:3"));
-  assert.ok(again.problems.includes("the scanner found what the key does not plant: modules/one/other.tf:1"));
+  assert.ok(again.problems.includes("the scanner did not stop modules/one/main.tf:2"));
+  assert.ok(again.problems.includes("the scanner found what the key does not plant: modules/one/main.tf:3"));
+  assert.ok(again.problems.includes("discovery's reading left out the library's pipeline"));
 });
 
 test("Juniper's catalog in the interview: no module named, and every need still there", () => {
