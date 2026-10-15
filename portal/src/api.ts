@@ -30,6 +30,27 @@ async function request<T>(path: string, init: { method?: string; body?: unknown 
 // (DESIGN.md, "Each team sees its own environments").
 export interface Person { email: string; name: string; org: string; team: string; scope?: "team" | "org"; organizationName?: string; auth?: "off" }
 
+// Discovery (PHASE4-PLAN Step 6): a run over the organization's platform library, the
+// questions it asks, and the draft catalog it writes.
+export interface DiscoveryQuestion {
+  id: string; kind: string; question: string; options: string[]; guess: string; touches: string[];
+  evidence: { file: string; line?: number; shows: string }[];
+  answer: string | null; answeredBy: string | null; answeredAt: string | null; usedAt: string | null;
+}
+export interface DiscoverySummary {
+  discoveryId: string; org: string; status: "running" | "finished" | "stopped" | "failed"; reason?: string; message?: string;
+  startedBy: string | null; surface: string; repos: { repo: string; commit: string | null }[];
+  modules: { source: string; id: string; status: string }[]; catalog: { version: number } | null; spent: number;
+  createdAt: string; finishedAt: string | null;
+}
+export interface DiscoveryRun extends DiscoverySummary { questions: DiscoveryQuestion[] }
+export interface DiscoveryEvent { seq: number; type: string; [key: string]: unknown }
+export interface DraftModule {
+  id: string; source: string; availability: string; line: string; when?: string; guidance?: string;
+  inputs?: Record<string, { required: boolean; line?: string }>; open?: string[]; not_read?: string;
+}
+export interface DraftCatalog { modules: DraftModule[]; discovery?: { open?: string[] } }
+
 export interface RequestedBy { user?: string; name?: string; host?: string | null; verified?: string; surface?: string; at?: string }
 
 export interface DeploymentSummary {
@@ -236,6 +257,28 @@ export const api = {
   costs: (since: string) => request<Costs>(`/costs?since=${encodeURIComponent(since)}`),
   performance: (id: string, since: string) => request<Performance>(`/deployments/${encodeURIComponent(id)}/performance?since=${encodeURIComponent(since)}`),
   catalog: () => request<Catalog>("/catalog"),
+  // Discovery (PHASE4-PLAN Step 6b), as `sealeye discover` drives it. An
+  // organization-wide token's only; the API refuses anyone else.
+  discoveries: () => request<{ discoveries: DiscoverySummary[] }>("/discoveries").then(r => r.discoveries),
+  discovery: (id: string) => request<DiscoveryRun>(`/discoveries/${encodeURIComponent(id)}`),
+  discoveryDraft: (id: string) => request<{ version: number; document: DraftCatalog }>(`/discoveries/${encodeURIComponent(id)}/catalog`),
+  startDiscovery: () => request<DiscoverySummary>("/discoveries", { method: "POST", body: {} }),
+  answerDiscovery: (id: string, question: string, answer: string) =>
+    request<{ question: DiscoveryQuestion }>(`/discoveries/${encodeURIComponent(id)}/answers`, { method: "POST", body: { question, answer } }).then(r => r.question),
+  /** Every event so far, then each as it comes, until the run ends. */
+  discoveryEvents: (id: string, onEvent: (e: DiscoveryEvent) => void, onEnd: () => void) => {
+    const source = new EventSource(`/api/discoveries/${encodeURIComponent(id)}/events`);
+    const types = ["started", "library", "modules", "reading", "read", "not_read", "question", "answered", "writing", "draft", "answers_used", "answer_not_used", "finished", "stopped", "failed"];
+    for (const type of types) {
+      source.addEventListener(type, ev => {
+        onEvent(JSON.parse((ev as MessageEvent).data) as DiscoveryEvent);
+        if (type === "finished" || type === "stopped" || type === "failed") { source.close(); onEnd(); }
+      });
+    }
+    // A run that is over closes the stream once it has replayed what it has.
+    source.onerror = () => { if (source.readyState !== EventSource.OPEN) { source.close(); onEnd(); } };
+    return () => source.close();
+  },
   needs: () => request<NeedsLedger>("/needs"),
   settings: (app: string, team: string) => request<AppSettings>(settingsPath(app, team)),
   setSetting: (app: string, team: string, name: string, value: string) =>

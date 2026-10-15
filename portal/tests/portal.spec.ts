@@ -650,3 +650,56 @@ test("an earlier deploy a newer one replaced says so, and only the newest is Liv
   await expect(older.getByTestId("replaced-by")).toContainText("by dep_");
   await expect(rows.filter({ hasText: "Live" })).toHaveCount(1);
 });
+
+// Discovery (PHASE4-PLAN Step 6b): a platform engineer's page, for an organization-wide
+// token only, as `sealeye discover` is.
+async function signInOrgWide(page: Page) {
+  await page.goto("/sign-in");
+  await page.fill("#token", `sl_${"z".repeat(43)}`);
+  await page.click("button[type=submit]");
+  await expect(page.getByTestId("person")).toHaveText("Lee Admin");
+}
+
+test("a team's token sees no Discovery page, and is sent home from its address", async ({ page }) => {
+  await signIn(page);
+  await expect(page.getByRole("navigation", { name: "Sections" })).not.toContainText("Discovery");
+  await page.goto("/discovery");
+  await expect(page).toHaveURL(/\/$/);
+});
+
+test("Discovery shows the run, its open question, and the draft resting on it; an answer is taken", async ({ page }) => {
+  await signInOrgWide(page);
+  await page.getByRole("navigation", { name: "Sections" }).getByText("Discovery").click();
+  await expect(page.getByTestId("run")).toContainText("Finished, draft catalog 1");
+  await expect(page.getByTestId("run")).toContainText("northwind/platform-library at 5e63aa5");
+  await expect(page.getByTestId("command-hint").first()).toContainText("sealeye discover");
+
+  const q = page.getByTestId("open-question");
+  await expect(q).toHaveCount(1);
+  await expect(q).toContainText("Does cache-valkey replace cache-redis for new apps?");
+  await expect(q).toContainText("the run's guess");
+  await expect(q).toContainText("modules/cache-redis/README.md:3");
+  await expect(page.getByTestId("draft-module")).toHaveCount(3);
+  await expect(page.getByTestId("rests-on-question")).toHaveCount(1);
+  await expect(page.getByTestId("answered-question")).toContainText("postgres-cluster");
+
+  // An answer of one's own, in words.
+  await q.getByLabel("Something else").check();
+  await q.getByLabel("Your own answer").fill("Only the payments and lending teams, until the trial ends");
+  await q.getByRole("button", { name: "Answer" }).click();
+  await expect(page.getByTestId("open-question")).toHaveCount(0);
+  await expect(page.getByTestId("answered-question").filter({ hasText: "trial ends" })).toContainText("lead@example.com");
+  // Written into the draft by the stand-in supervisor: nothing rests on a question now.
+  await expect(async () => {
+    await page.reload();
+    await expect(page.getByTestId("rests-on-question")).toHaveCount(0);
+    await expect(page.getByTestId("answered-question").filter({ hasText: "trial ends" })).toContainText("in the draft");
+  }).toPass({ timeout: 10_000 });
+});
+
+test("starting a run with no library named says so in words", async ({ page }) => {
+  await signInOrgWide(page);
+  await page.goto("/discovery");
+  await page.getByTestId("start-discovery").click();
+  await expect(page.getByRole("alert")).toContainText("No platform library is named for discovery yet");
+});

@@ -14,6 +14,8 @@ const NAV = [
   { to: "/catalog", label: label("catalog"), end: false },
   { to: "/costs", label: label("costs"), end: false },
   { to: "/team", label: label("team"), end: false },
+  // A platform engineer's: shown only to an organization-wide token (Greg, Oct 15, 2026).
+  { to: "/discovery", label: label("discover"), end: false, orgWide: true },
   { to: "/health", label: label("doctor"), end: false }
 ];
 
@@ -32,7 +34,7 @@ export function Layout() {
         <div className="mx-auto max-w-6xl flex flex-wrap items-center gap-x-8 gap-y-2 px-6 h-auto min-h-14 py-2">
           <img src="/sealeye-online-wordmark-light.svg" alt="seaLeye.online" className="h-8" />
           <nav className="flex gap-6 text-sm" aria-label="Sections">
-            {NAV.map(n => (
+            {NAV.filter(n => !n.orgWide || person?.scope === "org").map(n => (
               <NavLink key={n.to} to={n.to} end={n.end}
                 className={({ isActive }) => cn("py-4 border-b-2 -mb-px", isActive ? "border-phosphor text-ink font-medium" : "border-transparent text-dim hover:text-ink")}>
                 {n.label}
