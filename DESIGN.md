@@ -2598,7 +2598,10 @@ from the API over the portal asking again on a timer (option d of four).
   changes, most finding nothing new. The API sends an event only when something
   `GET /deployments` shows of it is different, so an open page reads again when there
   is something to see.
-- **Bounded.** One person may hold 20 streams open; the 21st is refused with 429
+- **A deploy that replaces another says so for both.** The older one is not saved when
+  a newer success replaces it, so the API tells that record's readers too: on a stack
+  from before teams had names, they can be another team.
+- **Bounded.** HEAD gets no stream. One person may hold 20 streams open; the 21st is refused with 429
   TOO_MANY_STREAMS, and the portal tries again after 30 seconds. A comment line every
   15 seconds keeps Caddy and anything between from closing a quiet stream (Caddy
   already flushes `/api` at once, for the interview).

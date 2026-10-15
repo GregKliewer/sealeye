@@ -18,7 +18,8 @@ const RETRY_MS = 30_000;
 export function ChangesProvider({ children }: { children: React.ReactNode }) {
   const { person } = useSession();
   const [count, setCount] = useState(0);
-  const who = person?.email || null;
+  // A laptop API with sign-in off has one person and no email.
+  const who = person ? person.email || (person.auth === "off" ? "sign-in off" : null) : null;
 
   useEffect(() => {
     if (!who || typeof EventSource === "undefined") return;

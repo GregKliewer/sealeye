@@ -135,3 +135,13 @@ test("one person may hold only so many streams open, and closing one frees it", 
   two.stop();
   again.stop();
 });
+
+test("HEAD gets no stream and holds no place", async () => {
+  for (let i = 0; i < 3; i++) {
+    const res = await fetch(`${api.api}/deployments/events`, { method: "HEAD", headers: { authorization: `Bearer ${LEE}` } });
+    assert.equal(res.status, 405);
+  }
+  const lee = await follow(LEE);
+  assert.equal(lee.res.status, 200);
+  lee.stop();
+});

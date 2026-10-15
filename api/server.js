@@ -721,12 +721,22 @@ const shownOf = dep => JSON.stringify([
 ]);
 const lastShown = new Map();
 const shownListeners = new Set();
+const tell = dep => {
+  for (const listener of shownListeners) {
+    try { listener(dep); } catch {}
+  }
+};
 onDeploymentSaved(dep => {
   const shown = shownOf(dep);
   if (lastShown.get(dep.deploymentId) === shown) return;
   lastShown.set(dep.deploymentId, shown);
-  for (const listener of shownListeners) {
-    try { listener(dep); } catch {}
+  tell(dep);
+  // A success replaces the one before it, which is not saved for that, so tell its
+  // readers too: on a stack from before teams had names, they can be another team.
+  if (dep.status === "succeeded") {
+    for (const [older, newer] of replacements(listDeployments())) {
+      if (newer === dep.deploymentId) tell(getDeployment(older));
+    }
   }
 });
 const onShownChange = listener => {
@@ -736,6 +746,10 @@ const onShownChange = listener => {
 const STREAMS_PER_PERSON = Number(process.env.SEALEYE_TEST_STREAMS_PER_PERSON) || 20;
 const openStreams = new Map();
 app.get("/deployments/events", (req, res) => {
+  // HEAD gets no stream (Express hands it to this route), and a client gone while its
+  // sign-in was checked is not given one to hold.
+  if (req.method === "HEAD") return res.status(405).end();
+  if (req.socket.destroyed || res.destroyed) return;
   const person = req.caller?.email || "";
   const open = openStreams.get(person) || 0;
   if (open >= STREAMS_PER_PERSON) {
@@ -773,6 +787,7 @@ app.get("/deployments/events", (req, res) => {
   });
 
   req.on("close", close);
+  res.on("close", close);
 });
 
 // GET /deployments/{deploymentId}
