@@ -13,6 +13,8 @@ import { InMemorySpanExporter } from "@opentelemetry/sdk-trace-node";
 import {
   addCosts,
   allCorrect,
+  answerFor,
+  summaryLines,
   costLines,
   evaluate,
   grade,
@@ -71,6 +73,49 @@ test("needs must match exactly, and the difference is named", () => {
   assert.equal(exact.needsCorrect, true);
   assert.equal(exact.modulesCorrect, null, "a drafted plan is not graded on modules");
   assert.ok(allCorrect(exact));
+});
+
+test("each question gets the answer written for it, whatever order the model asks in", () => {
+  const answers = [
+    { when: ["setting", "environment"], answer: "No, nothing else." },
+    { when: ["is that right", "when it runs"], answer: "Yes, it answers requests." }
+  ];
+  const settings = "Does your app read any settings from the environment?";
+  const confirm = "This looks like an API. Is that right?";
+  for (const order of [[settings, confirm], [confirm, settings]]) {
+    const state = {};
+    const got = order.map(q => answerFor(q, answers, state).answer);
+    assert.deepEqual(got, order.map(q => (q === settings ? "No, nothing else." : "Yes, it answers requests.")));
+  }
+  // The specific answer wins over the general one when a question holds both.
+  assert.equal(answerFor("It reads settings from the environment, is that right?", answers).answer, "No, nothing else.");
+  assert.deepEqual(answerFor("What is this for?", answers), { answer: "I'm not sure. Use your best judgement from the code.", by: "no answer fits" });
+
+  // Plain strings still go in order, once each, as every fixture did before.
+  const state = {};
+  assert.deepEqual(["a?", "b?", "c?"].map(q => answerFor(q, ["one", "two"], state).answer), ["one", "two", "I'm not sure. Use your best judgement from the code."]);
+});
+
+test("every fixture's answers say which questions they answer", () => {
+  for (const { app, answers } of loadCases()) {
+    for (const a of answers) {
+      assert.ok(a && typeof a === "object" && Array.isArray(a.when) && a.when.length && typeof a.answer === "string", `${app}: ${JSON.stringify(a)}`);
+    }
+  }
+});
+
+test("a run not as expected shows what was asked, how it was answered, and why it stopped", () => {
+  const row = {
+    app: "beneficiary-lookup-api",
+    ...grade({ status: "stopped", questions: 1 }, { status: "ready", modules: ["http_api_serverless"], needs: [] }),
+    asked: [{ question: "What does your app do when it runs?", by: "matched \"when it runs\"" }],
+    stopped: "This version of the platform deploys sites and HTTP apps."
+  };
+  const lines = summaryLines([row]).join("\n");
+  assert.match(lines, /asked: What does your app do when it runs\? \(matched "when it runs"\)/);
+  assert.match(lines, /stopped: This version of the platform deploys sites and HTTP apps\./);
+  const fine = { app: "static-website", ...grade({ status: "submitted", plan: staticPlan, questions: 1 }, { status: "ready", modules: ["static_site_edge"], needs: [] }), asked: [{ question: "x?", by: "next in order" }] };
+  assert.doesNotMatch(summaryLines([fine]).join("\n"), /asked:/, "an app as expected is one line");
 });
 
 test("a run that stopped instead of refusing is not correct", () => {
