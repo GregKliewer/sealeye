@@ -59,7 +59,7 @@ The plan has four parts, in the order the dependencies force.
 | D4 | What a catalog is | A versioned document per organization in Postgres, in the same shape as `module-catalog.yaml`. The four built-ins become a starter catalog. Plans name the catalog version they were made from (planVersion 0.5). A catalog goes live only when a platform engineer approves it and it passes its self-test | Step 1 | Greg, Wed Oct 14: as recommended |
 | D5 | Which models the swarm uses | Workers read with the small model (`claude-haiku-5-5`); the supervisor and the rule writer use the frontier model (`claude-sonnet-5`). Both through the gateway on the Anthropic route, as named routes: the non-Bedrock half of Phase 3 Step 8, brought forward | Step 5 | Greg, Wed Oct 14: as recommended |
 | D6 | A discovery run's caps | A cap per worker and per run, set from a measured run on the made-up organization, as Phase 3 sized the interview's dollar. Placeholder until measured: a dollar a worker, twenty a run | Step 6 | Greg, Wed Oct 14: as recommended |
-| D7 | Where a platform engineer answers the swarm's questions | Both surfaces, one operation: `sealeye discover` and a Discovery page, on an endpoint first (parity). The run pauses with `interrupt()` and waits in Postgres, as the interview does | Step 6 | Reopened, Greg, Wed Oct 14: a run that waits on a person stalls until someone notices. Look first at ways a whole run finishes quickly without pausing. Now Q19 in OPEN-QUESTIONS.md; blocks Step 6, not Part A |
+| D7 | Where a platform engineer answers the swarm's questions | Both surfaces, one operation: `sealeye discover` and a Discovery page, on an endpoint first (parity). The run pauses with `interrupt()` and waits in Postgres, as the interview does | Step 6 | Greg, Thu Oct 15 (Q19, reopened Oct 14): the run never pauses. Questions go out on the run's events as they arise and sit on the draft with a guess; an answer is used if it comes before its entry is written, and re-runs only the entries it touches if it comes later. A guess never goes live. Both surfaces, one operation, as first written (DESIGN.md, "A discovery run never pauses") |
 | D8 | The Terraform executor's scope | One root module per environment that calls the organization's module by source and version; state in an S3 bucket with a lock file, in the account the environment is built in; `terraform` run by the API like the AWS CLI. Only modules discovery marked buildable, with their inputs from the catalog | Step 9 | Greg, Wed Oct 14: as recommended |
 | D9 | What the made-up organization is | A private repository, `sealeye-sample-platform`, of 10 to 15 Terraform modules and a few pipeline files, with an answer key in a file discovery never reads. Built at the start of Part B | Step 4 | Greg, Wed Oct 14: as recommended, with modules that are commonly assembled into the same kind of application (a backend API, a website, or another), so a sample app can be planned from several of them together |
 
@@ -165,13 +165,19 @@ until then.
 ### Step 6. The swarm (D5, D6, D7)
 
 - A LangGraph supervisor fans out one worker per module, in parallel, gathers their
-  findings, and writes the catalog entries. How it handles ambiguity (two modules that
-  overlap, a rule that contradicts a README) is Q19: pausing for a platform engineer, as
-  first planned, or finishing the run and leaving the questions on the draft.
+  findings, and writes the catalog entries.
+- It never pauses for a person (D7, answering Q19). A worker that cannot settle
+  something (two modules that overlap, a rule that contradicts a README) writes a
+  question with its evidence and a guess, marked as one, and carries on. The question
+  goes out on the run's events and stays on the draft catalog. Before writing an entry,
+  the supervisor uses any answer already given; an answer that comes later re-runs only
+  the entries it touches. An entry with an open question is never approved.
 - Each worker has its own cap, and the run has one, in the graph's existing `spend` map
   keyed by worker. The gateway's per-run limit and budget stay the outer limit.
-- `POST /discoveries`, `GET /discoveries/{id}/events`, `POST /discoveries/{id}/answers`:
-  the interview's shape, reused. `sealeye discover` and the Discovery page on top.
+- `POST /discoveries`, `GET /discoveries/{id}/events`, `POST /discoveries/{id}/answers`
+  (taken while the run is going or after it ends). `sealeye discover` and the Discovery
+  page on top: an engineer who is watching answers inline; one who is not answers on
+  the draft later.
 - Only modules changed since the last run are read again.
 
 ### Step 7. Self-test, then live
@@ -182,7 +188,9 @@ that uses it (CATALOG_CHANGED), and running it again would not help (DESIGN.md, 
 names its catalog").
 
 - The made-up organization's answer key, as a LangFuse dataset, graded on every change
-  to discovery: entries right, must-refuse cases refused, hard cases caught.
+  to discovery: entries right, must-refuse cases refused, hard cases caught. Graded
+  twice, so each result repeats: once with no answers (the questions raised and the
+  guesses made), once with answers a script gives at fixed points.
 - Must-refuse plans: for each catalog, plans that must be refused, and are. A catalog
   goes live only when they pass and a platform engineer approves it.
 
@@ -226,7 +234,7 @@ Phase 4 ticked; BUILD-OUT's picture marked built.
 | 1 to 3 | The catalog as data, the contract, the interview | four to five days |
 | 4 | The made-up organization and its answer key | two to three days |
 | 5 | Reading the library, named routes | two days |
-| 6 | The swarm, on both surfaces | five to seven days |
+| 6 | The swarm, on both surfaces, taking answers live or later | six to eight days |
 | 7 | Self-test, then live | two days |
 | 8 | Planning from a discovered catalog | one to two days |
 | 9 | The Terraform executor | five to seven days |

@@ -177,8 +177,9 @@ gateway's own span in that trace moved to Phase 4. Routes come with Step 8.*
 - Admin onboarding: identity provider, repositories, which automation is strategic.
 - The discovery agent is a swarm, built on Phase 3 from the start: a LangGraph
   supervisor fans work out to parallel workers, one module each, gathers their findings,
-  and settles anything ambiguous with a platform engineer. How, without a run waiting
-  on a person, is Q19 (Greg, Oct 14, 2026).
+  and settles anything ambiguous with a platform engineer without ever waiting for one:
+  questions go out as the run goes and stay on the draft with a guess, an answer is
+  taken live or later, and a guess never goes live (Q19, answered Oct 15, 2026).
 - Its first node is the secret scanner built in Phase 3: a file with a finding never
   reaches a model.
 - Spend: small models read, the frontier model writes the usage rules; hard caps per run
@@ -214,13 +215,14 @@ gateway's own span in that trace moved to Phase 4. Routes come with Step 8.*
   what discovery and the ledger already hold. Gaps come from demand first; a generic
   best-practice checklist only breaks ties.
 - How the swarm reads the library: plain code, a read-only clone at a named commit
-  (PHASE4-PLAN D3, Oct 14, 2026). How a run settles what it cannot decide alone is Q19.
+  (PHASE4-PLAN D3, Oct 14, 2026). A run settles what it cannot decide alone without
+  pausing (PHASE4-PLAN D7, Oct 15, 2026).
 - How discovery is tested without a customer (decided Oct 13, 2026), cheapest first:
   - seaLeye's own four building blocks in `templates/`, whose right catalog entries are
     already known. The smoke test.
   - A made-up organization in its own private repository: 10 to 15 Terraform modules and
     a few pipeline files, with an answer key. It plants the hard cases on purpose: two
-    modules that overlap (discovery must ask, Q19), a deprecated module (must be
+    modules that overlap (discovery must ask), a deprecated module (must be
     refused), a usage rule only in a README, a fake key (the scanner must stop it before
     any model), later commits that test "only what changed is read again", and two
     or three known gaps the gap report must find. It is

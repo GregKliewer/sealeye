@@ -127,7 +127,8 @@ export function gradeCatalog(candidate, key) {
   }
 
   // The overlap: what can be checked today is that both are there, each saying which
-  // stages it is for. How a run records that it had to ask is Q19's; how a plan names a
+  // stages it is for. The question a run raises about it is graded once Step 6 gives a
+  // question its shape (DESIGN.md, "A discovery run never pauses"); how a plan names a
   // module per stage is Q20's.
   const pending = [];
   if (hc.overlap) {
@@ -138,7 +139,7 @@ export function gradeCatalog(candidate, key) {
       ok: both.every(m => m && saysStage(m)),
       why: both.some(m => !m) ? "not both in the catalog" : both.every(saysStage) ? "both there, each saying its stages" : "a database's guidance does not say which stages it is for"
     });
-    pending.push({ case: "overlap", waits: "Q19 and Q20", what: hc.overlap.rule });
+    pending.push({ case: "overlap", waits: "PHASE4-PLAN Step 6 and Q20", what: hc.overlap.rule });
   }
   if (key.gaps?.length) pending.push({ case: "gaps", waits: "PHASE4-PLAN Step 10, the gap report", what: key.gaps.join(", ") });
   if (key.stages) pending.push({ case: "stages", waits: "Phase 5", what: (key.stages.path || []).join(", ") });
