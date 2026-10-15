@@ -471,3 +471,32 @@ test("one run at a time for an organization, and one library a run", async () =>
   await service.settled(discoveryId);
   await assert.rejects(service.start({ caller: other, repos: [{ owner: "acme", repo: "one" }, { owner: "acme", repo: "two" }] }), err => err.code === "ONE_LIBRARY");
 });
+
+test("every rule a reader found reaches its entry, whatever the supervisor wrote", async () => {
+  const { draftCatalog } = await import("../api/discovery/draft.js");
+  const modules = [
+    { source: "modules/logs", id: "logs", inputs: {}, finding: { line: "Logs.", availability: "available", stages: "all", rules: [
+      { rule: "From staging up, alarms go to oncall-pager and nowhere else", stages: "staging and up", evidence: { file: "modules/logs/README.md", line: 12, shows: "says so" } },
+      { rule: "Keep logs a year in prod.", evidence: { file: "modules/logs/main.tf", shows: "retention" } }
+    ] } },
+    { source: "modules/db", id: "db", inputs: {}, finding: { line: "A database.", availability: "available", stages: "all", rules: [] } }
+  ];
+  const library = { stages: ["dev", "prod"], rules: [
+    { rule: "Prod needs a change ticket", applies_to: ["all"], evidence: { file: "README.md", shows: "says so" } },
+    { rule: "Databases are backed up nightly", applies_to: ["db/"], evidence: { file: "README.md", shows: "says so" } }
+  ] };
+  const entries = [
+    // The supervisor kept one rule in its own words and dropped the other.
+    { source: "modules/logs", line: "Logs.", guidance: "Alarms go to the on-call team from staging up. Keep logs a year in prod.", availability: "available" },
+    { source: "modules/db", line: "A database.", guidance: "Use it for relational data.", availability: "available" }
+  ];
+  const doc = draftCatalog({ run: { id: "dsc_r", repos: [] }, modules, library, entries, questions: [] });
+  const logs = doc.modules.find(m => m.id === "logs");
+  assert.match(logs.guidance, /oncall-pager/, "the dropped rule is added in the reader's words");
+  assert.equal(logs.guidance.match(/Keep logs a year in prod/g).length, 1, "a rule already there is not repeated");
+  assert.match(logs.guidance, /Prod needs a change ticket/);
+  assert.deepEqual(logs.rules[0], { rule: "From staging up, alarms go to oncall-pager and nowhere else", stages: "staging and up", evidence: { file: "modules/logs/README.md", line: 12 } });
+  const db = doc.modules.find(m => m.id === "db");
+  assert.match(db.guidance, /^Use it for relational data\. .*Databases are backed up nightly/);
+  assert.ok(!/oncall-pager/.test(db.guidance), "a module's rule stays with its module");
+});

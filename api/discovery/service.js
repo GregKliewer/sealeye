@@ -30,9 +30,11 @@ import { createBudget, readLibraryLevel, readModule, SpendingLimit, superviseEnt
 import * as store from "./store.js";
 import { idFor, listModules, moduleHash, moduleInputs } from "./terraform.js";
 
-// Placeholders until a measured run on the made-up organization sets them (PHASE4-PLAN D6).
-export const DEFAULT_WORKER_CAP = 1;
-export const DEFAULT_RUN_CAP = 20;
+// Set from the first measured run on the made-up organization, Oct 15, 2026 (PHASE4-PLAN
+// D6): its most expensive worker spent half a cent and the whole run eighteen cents;
+// Greg chose ten cents a worker and three dollars a run.
+export const DEFAULT_WORKER_CAP = 0.1;
+export const DEFAULT_RUN_CAP = 3;
 const MAX_PARALLEL = 4;
 
 const capSetting = (name, fallback) => {
@@ -295,7 +297,7 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
       }
       let version = run.catalogVersion;
       const current = catalogAt(run.org, version);
-      const document = rewriteEntries(structuredClone(current), { modules: run.modules, entries, questions: store.questionsOf(id) });
+      const document = rewriteEntries(structuredClone(current), { modules: run.modules, entries, questions: store.questionsOf(id), library: run.library });
       const status = catalogsOf(run.org).find(c => c.version === version)?.status;
       if (status === "draft") await updateDraft({ org: run.org, version, document });
       else version = (await addCatalog({ org: run.org, document, by: run.startedBy })).version;
