@@ -6,7 +6,7 @@ import path from "node:path";
 import { STARTER_VERSION, isDrafted, upgradePlan } from "../core/schema.js";
 import { catalogOfPlan, checkPlan, checkUpgraded, noLongerBuilt } from "./validate.js";
 import { backendMappings } from "./mappings.js";
-import { putDeployment, getDeployment, listDeployments, storeFile, count, openStore, flushStore } from "./store.js";
+import { putDeployment, getDeployment, listDeployments, storeFile, count, openStore, flushStore, onDeploymentSaved } from "./store.js";
 import { startDeployment, startDestroy } from "./executor/index.js";
 import { entryPointFor, namingFor, sharedWithAnotherTeam } from "./executor/compose.js";
 import { acceptSent, MAX_STORED_BYTES, storableName, storeFolder } from "./executor/settings.js";
@@ -750,6 +750,95 @@ app.get("/deployments", (req, res) => {
   }));
 
   return res.status(200).json({ deployments });
+});
+
+// GET /deployments/events: an event each time a deployment this caller can see is saved,
+// as server-sent events, so the portal shows a change made from the command line, or by
+// someone else, without being refreshed (DESIGN.md, "The portal follows changes as they
+// happen"). An event names the deployment and nothing more: the page reads it again
+// through GET /deployments, which checks the caller as every read does.
+// A stream lasts five minutes at most and then ends; the browser opens a new one by
+// itself, and that request is checked like any other. So a revoked token or an ended
+// sign-in stops hearing of changes within five minutes. Registered before
+// /deployments/:deploymentId, which would otherwise take "events" for an id.
+const STREAM_MS = Number(process.env.SEALEYE_TEST_STREAM_MS) || 5 * 60_000;
+// A record is saved on every look at its stack while it changes, most of them finding
+// nothing new. A stream hears of a save only when something GET /deployments shows has
+// changed, so an open page reads again when there is something to see.
+const shownOf = dep => JSON.stringify([
+  dep.status, dep.step || null, dep.outputs || {}, dep.stackName || null, dep.failureReason || null,
+  dep.interrupted === true, dep.destroyRequestedBy || null, dep.paused === true, dep.pauses?.length || 0,
+  dep.cleaningUp === true, dep.finishedAt || null, Boolean(dep.artifactKey)
+]);
+const lastShown = new Map();
+const shownListeners = new Set();
+const tell = dep => {
+  for (const listener of shownListeners) {
+    try { listener(dep); } catch {}
+  }
+};
+onDeploymentSaved(dep => {
+  const shown = shownOf(dep);
+  if (lastShown.get(dep.deploymentId) === shown) return;
+  lastShown.set(dep.deploymentId, shown);
+  tell(dep);
+  // A success replaces the one before it, which is not saved for that, so tell its
+  // readers too: on a stack from before teams had names, they can be another team.
+  if (dep.status === "succeeded") {
+    for (const [older, newer] of replacements(listDeployments())) {
+      if (newer === dep.deploymentId) tell(getDeployment(older));
+    }
+  }
+});
+const onShownChange = listener => {
+  shownListeners.add(listener);
+  return () => shownListeners.delete(listener);
+};
+const STREAMS_PER_PERSON = Number(process.env.SEALEYE_TEST_STREAMS_PER_PERSON) || 20;
+const openStreams = new Map();
+app.get("/deployments/events", (req, res) => {
+  // HEAD gets no stream (Express hands it to this route), and a client gone while its
+  // sign-in was checked is not given one to hold.
+  if (req.method === "HEAD") return res.status(405).end();
+  if (req.socket.destroyed || res.destroyed) return;
+  const person = req.caller?.email || "";
+  const open = openStreams.get(person) || 0;
+  if (open >= STREAMS_PER_PERSON) {
+    return res.status(429).json({ error: { code: "TOO_MANY_STREAMS", message: `You already have ${open} pages following changes. Close some, then try again.` } });
+  }
+  openStreams.set(person, open + 1);
+
+  res.writeHead(200, {
+    "content-type": "text/event-stream",
+    "cache-control": "no-cache, no-transform",
+    connection: "keep-alive",
+    "x-accel-buffering": "no"
+  });
+  // How long the browser waits before opening the next stream when this one ends.
+  res.write("retry: 2000\n: seaLeye deployment changes\n\n");
+
+  let closed = false;
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    clearInterval(keepAlive);
+    clearTimeout(lifetime);
+    stop();
+    const left = (openStreams.get(person) || 1) - 1;
+    if (left > 0) openStreams.set(person, left);
+    else openStreams.delete(person);
+    res.end();
+  };
+  // A comment line now and then keeps proxies from closing a quiet stream.
+  const keepAlive = setInterval(() => res.write(": still here\n\n"), 15_000);
+  const lifetime = setTimeout(close, STREAM_MS);
+  const stop = onShownChange(dep => {
+    if (closed || !canSee(req, dep)) return;
+    res.write(`event: changed\ndata: ${JSON.stringify({ deploymentId: dep.deploymentId })}\n\n`);
+  });
+
+  req.on("close", close);
+  res.on("close", close);
 });
 
 // GET /deployments/{deploymentId}

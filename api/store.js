@@ -222,10 +222,25 @@ export async function openStore() {
   return { kind: "postgres", records: deployments.size, migrations: applied, ...(adopted ? { adopted, from: STORE_FILE } : {}) };
 }
 
+// Whoever wants to know each time a record is saved (GET /deployments/events). This
+// process's own saves only, as the store itself is one process's (DESIGN.md, "The
+// portal follows changes as they happen").
+const watchers = new Set();
+
+/** Call `listener(record)` after each record is saved. Returns the function that stops it. */
+export function onDeploymentSaved(listener) {
+  watchers.add(listener);
+  return () => watchers.delete(listener);
+}
+
 export function putDeployment(dep) {
   deployments.set(dep.deploymentId, dep);
   if (usingDatabase) persistRow(dep);
   else persistFile();
+  // A listener that throws must not stop the save, or the others hearing of it.
+  for (const listener of watchers) {
+    try { listener(dep); } catch {}
+  }
   return dep;
 }
 

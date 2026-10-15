@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 import { api } from "../api";
+import { useChanges } from "../changes";
+import { Address } from "../Address";
 import { useLoad, useSession } from "../session";
 import { addressOf, ago, groupEnvironments, PAST, statusOf, underWay, who } from "../model";
 import { PageTitle, Problem } from "../Layout";
@@ -22,7 +24,9 @@ function whose(person: { team?: string; scope?: string; auth?: string } | null |
 
 export function Environments() {
   const { person } = useSession();
-  const deployments = useLoad(api.deployments);
+  // Read again each time one of them changes, from either surface or anyone's hand.
+  const changes = useChanges();
+  const deployments = useLoad(api.deployments, [changes]);
   const catalog = useLoad(api.catalog);
   const [search, setSearch] = useState("");
   const [showPast, setShowPast] = useState(false);
@@ -113,7 +117,7 @@ export function Environments() {
                   <TableCell>{who(env.latest.requestedBy)}</TableCell>
                   <TableCell><Badge tone={status.tone} moving={moving}>{status.label}</Badge></TableCell>
                   <TableCell className="max-w-[280px]">
-                    {url ? <a href={url} target="_blank" rel="noreferrer" title={url} className="block truncate font-mono text-xs text-phosphor hover:underline">{url}</a> : <span className="text-dim">None yet</span>}
+                    <Address env={env} url={url} row />
                   </TableCell>
                   <TableCell className="font-mono text-xs text-dim" title={env.latest.startedAt || ""}>{ago(env.latest.startedAt)}</TableCell>
                   <TableCell className="text-right font-mono text-xs">{env.deploys.length}</TableCell>

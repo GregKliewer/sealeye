@@ -11,8 +11,10 @@ import { PerformanceCard } from "./PerformanceCard";
 import { PlanCard } from "./PlanCard";
 import { RETENTION_CHOICES, retentionOf, withRetention } from "../../../core/retention.js";
 import { useLoad, useSession } from "../session";
+import { useChanges } from "../changes";
 import { addressOf, ago, changedAt, doing, elapsed, groupEnvironments, IN_FLIGHT, lockedWhile, statusOf, underWay, when, who } from "../model";
 import { PageTitle, Problem } from "../Layout";
+import { Address } from "../Address";
 import { Cmd, CommandHint } from "../Command";
 import { commandLine, label } from "../../../core/operations.js";
 import { Badge } from "../components/ui/badge";
@@ -38,7 +40,10 @@ function useNow(on: boolean) {
 export function Control() {
   const { person } = useSession();
   const key = decodeURIComponent(useParams().key || "");
-  const deployments = useLoad(api.deployments, [key]);
+  // Read again each time one of this person's deployments changes, so a tear-down run
+  // from the command line shows here without a refresh.
+  const changes = useChanges();
+  const deployments = useLoad(api.deployments, [key, changes]);
   const env = useMemo(() => groupEnvironments(deployments.data || []).find(e => e.key === key) || null, [deployments.data, key]);
   const latest = env?.latest;
   const [evidenceFor, setEvidenceFor] = useState<string | null>(null);
@@ -119,7 +124,7 @@ export function Control() {
           <CardContent>
             <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-3 text-sm">
               <dt className="text-dim">Address</dt>
-              <dd>{url ? <a href={url} target="_blank" rel="noreferrer" className="font-mono text-xs text-phosphor hover:underline break-all">{url}</a> : <span className="text-dim">None yet</span>}</dd>
+              <dd data-testid="address"><Address env={env} url={url} /></dd>
               <dt className="text-dim">Last change</dt>
               <dd>{when(latest.startedAt)} <span className="text-dim">({ago(latest.startedAt)})</span></dd>
               <dt className="text-dim">Requested by</dt>
@@ -248,7 +253,9 @@ function PauseRow({ deploymentId, app, pauses, locked, onDone }: { deploymentId:
       .then(r => { if (live) setPausedState(r.paused); })
       .catch(err => { if (!live) return; if (err instanceof SignedOut) signedOut(err.message); else setError(err.message); });
     return () => { live = false; };
-  }, [deploymentId, signedOut]);
+    // A pause or resume made elsewhere, the command line's included, adds to the record's
+    // list: read the state again then.
+  }, [deploymentId, signedOut, pauses.length]);
 
   async function change(next: boolean) {
     setBusy(true);

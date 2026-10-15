@@ -43,7 +43,7 @@ test("Environments shows your team's environments, read live from the API", asyn
   await expect(page.getByText("built for your team, default")).toBeVisible();
   await expect(page.getByText("Northwind Payments")).toBeVisible();
   const rows = page.getByTestId("environment-row");
-  await expect(rows).toHaveCount(4);
+  await expect(rows).toHaveCount(5);
   await expect(rows.filter({ hasText: "payments-api" })).toContainText("Live");
   await expect(rows.filter({ hasText: "inventory-api" })).toContainText("Building");
   await expect(rows.filter({ hasText: "report-builder" })).toContainText("Failed");
@@ -51,8 +51,12 @@ test("Environments shows your team's environments, read live from the API", asyn
   await expect(page.getByText("another-teams-api")).toHaveCount(0);
 
   await page.getByLabel("Include drafted and torn down").check();
-  await expect(rows).toHaveCount(6);
+  await expect(rows).toHaveCount(7);
   await expect(rows.filter({ hasText: "ledger-sync" })).toContainText("Drafted");
+  // A torn-down record keeps the address it had, and the list does not link to it.
+  const gone = rows.filter({ hasText: "old-demo" });
+  await expect(gone).toContainText("None, it was torn down");
+  await expect(gone.getByRole("link", { name: /s3-website/ })).toHaveCount(0);
 
   await page.getByLabel("Search apps and people").fill("ana");
   await expect(rows).toHaveCount(3);
@@ -128,6 +132,28 @@ test("an environment can be torn down from the portal, and the record says so", 
   await expect(page.getByText("Tear down asked by")).toBeVisible();
   await expect(page.getByText("Greg Kliewer from the portal", { exact: false }).first()).toBeVisible();
   await expect(page.getByTestId("status")).toHaveText("Torn down", { timeout: 20_000 });
+  // Gone, so no address to follow, though the record keeps the one it had.
+  await expect(page.getByTestId("address")).toHaveText("None, it was torn down");
+  await expect(page.getByTestId("address").getByRole("link")).toHaveCount(0);
+});
+
+test("a tear-down run from the command line shows on the open page without a refresh", async ({ page, request }) => {
+  await signIn(page);
+  await page.getByRole("link", { name: "cli-side-api", exact: true }).click();
+  await expect(page.getByTestId("status")).toHaveText("Live");
+  await expect(page.getByTestId("address").getByRole("link")).toHaveText("https://cli789.lambda-url.ca-central-1.on.aws/");
+  // Marked, so a reload would show: the page must follow without one.
+  await page.evaluate(() => { (window as unknown as { stayed: boolean }).stayed = true; });
+
+  // What `sealeye teardown cli-side-api` sends: the token, straight to the API.
+  const res = await request.delete("http://localhost:3999/deployments/dep_hhhhhhhhhhh1", { headers: { authorization: `Bearer ${TOKEN}` } });
+  expect(res.status()).toBe(202);
+
+  await expect(page.getByTestId("status")).toHaveText(/Tearing down|Torn down/, { timeout: 5_000 });
+  await expect(page.getByTestId("status")).toHaveText("Torn down", { timeout: 20_000 });
+  await expect(page.getByText("Greg Kliewer from the command line", { exact: false }).last()).toBeVisible();
+  await expect(page.getByTestId("address")).toHaveText("None, it was torn down");
+  expect(await page.evaluate(() => (window as unknown as { stayed?: boolean }).stayed)).toBe(true);
 });
 
 test("Evidence reads the change record on request, in the command's words, with the file to download", async ({ page }) => {
