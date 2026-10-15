@@ -134,7 +134,9 @@ public module libraries are read after Step 7. Part A is done.
 ### Step 4. The made-up organization (D1, D2, D9)
 
 Built Thu Oct 15, 2026 (DESIGN.md, "The made-up organization: Juniper Mutual"):
-`GregKliewer/sealeye-sample-platform`, thirteen modules that each know their stage, the
+`GregKliewer/sealeye-sample-platform`, thirteen modules that each know their stage (a
+fourteenth, `cache-valkey`, whose standing the library leaves unclear, added after the
+second measured run; DESIGN.md, "An overlap the library settles is not a question"), the
 library's own build-once-and-promote pipeline, the hard cases below with the overlap by
 stage, and three gaps; the answer key in seaLeye
 (`test/fixtures/sample-platform/answer-key.yaml`) and `npm run eval:discovery`. Greg

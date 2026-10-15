@@ -294,6 +294,24 @@ catalog:
         tags: { default: {}, line: Extra labels on everything it makes. }
       guidance: Deprecated since March 2025. There is no cache for new apps until it is replaced.
 
+    # Its standing is what the library leaves unclear (hard_cases.ambiguous): in trial with
+    # two teams, while cache-redis says there is no cache for new apps. A careful engineer
+    # asks. Until a run's question is answered, only the question is graded, never this
+    # entry's availability.
+    - id: cache_valkey
+      source: modules/cache-valkey
+      availability: available
+      builds_with: terraform
+      role: optional
+      line: A cache in front of something slower, encrypted at rest and on the way.
+      inputs:
+        name: { required: true, line: Your app's name. }
+        stage: { required: true, line: Which stage on the path to production. }
+        subnet_group_name: { required: true, line: The stage's cache network. }
+        security_group_ids: { required: true, line: Who may connect. }
+        tags: { default: {}, line: Extra labels on everything it makes. }
+      guidance: In trial with the payments and lending teams. Whether new apps may use it is the platform team's to say.
+
   rules:
     core_modules: [static_site, http_api, container_service]
     exactly_one_core: true
@@ -320,11 +338,17 @@ hard_cases:
   overlap:
     modules: [modules/postgres, modules/postgres-cluster]
     resolved_by: stage
+    settled_by_library: true
     rule: postgres below staging, postgres_cluster from staging up, said only in their READMEs.
     graded: >-
-      Waits on Step 6 (the shape of the question a run raises) and Q20 (how a plan
-      names a module per stage). Until then the grader checks only that both are in the
-      catalog, each with guidance naming the stage it is for.
+      The library settles it, so it is not a question (Greg, Oct 15, 2026): caught when
+      each entry says which stages it is for and names the other, so a planner sees the
+      pair. How a plan names a module per stage still waits on Q20.
+  ambiguous:
+    module: modules/cache-valkey
+    must: >-
+      be asked about, since the library leaves its standing unclear, and its entry rest
+      on that question until it is answered.
   deprecated:
     module: modules/cache-redis
     must: "never be offered, so its availability is not available"

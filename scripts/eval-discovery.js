@@ -91,7 +91,9 @@ export function gradeCatalog(candidate, key, { questions = null } = {}) {
     const why = [];
     if (found.builds_with !== k.builds_with) why.push(`builds_with is ${found.builds_with ?? "missing"}, not ${k.builds_with}`);
     const offered = found.availability === "available";
-    if (offered !== (k.availability === "available")) {
+    // A module the library leaves unclear is graded on its question, not on a guess.
+    const unclear = key.hard_cases?.ambiguous?.module === k.source;
+    if (!unclear && offered !== (k.availability === "available")) {
       why.push(offered ? "offered, and it must not be" : `not offered (${found.availability ?? "no availability"})`);
     }
     const keyInputs = Object.keys(k.inputs || {});
@@ -132,11 +134,16 @@ export function gradeCatalog(candidate, key, { questions = null } = {}) {
     });
   }
 
-  // The overlap: what can be checked today is that both are there, each saying which
-  // stages it is for. The question a run raises about it is graded once Step 6 gives a
-  // question its shape (DESIGN.md, "A discovery run never pauses"); how a plan names a
-  // module per stage is Q20's.
+  // The overlap. One the library settles (Juniper's databases, by stage) is not a
+  // question (Greg, Oct 15, 2026): it is caught when each entry says which stages it is
+  // for and names the other, so a planner sees the pair. One it leaves unclear is caught
+  // by a question touching every module in it. How a plan names a module per stage is
+  // Q20's either way.
   const pending = [];
+  const text = m => norm([m?.guidance, m?.when, m?.line].filter(Boolean).join(" "));
+  // A module's name as a word of its own: "postgres" in "postgres-cluster" is not it.
+  const names = m => [m.id, m.source, m.source.split("/").pop(), m.id.replace(/_/g, "-")].filter(Boolean);
+  const named = (m, other) => names(other).some(n => new RegExp(`(^|[^a-z0-9_-])${n.toLowerCase().replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")}($|[^a-z0-9_-])`).test(text(m)));
   if (hc.overlap) {
     const both = (hc.overlap.modules || []).map(s => bySource.get(s));
     const saysStage = m => /\bstaging\b/.test(norm(m?.guidance));
@@ -145,14 +152,31 @@ export function gradeCatalog(candidate, key, { questions = null } = {}) {
       ok: both.every(m => m && saysStage(m)),
       why: both.some(m => !m) ? "not both in the catalog" : both.every(saysStage) ? "both there, each saying its stages" : "a database's guidance does not say which stages it is for"
     });
-    // A run's questions, when given (Step 6): the overlap is caught when a question
-    // touches every module in it. How a plan names a module per stage is still Q20's.
-    if (Array.isArray(questions)) {
+    if (hc.overlap.settled_by_library) {
+      const [a, b] = both;
+      const ok = Boolean(a && b) && named(a, b) && named(b, a);
+      hardCases.push({ case: "overlap: each names the other", ok, why: !a || !b ? "not both in the catalog" : ok ? "each says which to use instead" : `${named(a, b) ? b.id : a.id}'s entry does not name ${named(a, b) ? a.id : b.id}` });
+    } else if (Array.isArray(questions)) {
       const asked = questions.find(q => (hc.overlap.modules || []).every(s => (q.touches || []).includes(s)));
       hardCases.push({ case: "overlap asked", ok: Boolean(asked), why: asked ? `asked: ${asked.question}` : "no question touches both" });
-      pending.push({ case: "overlap", waits: "Q20 (a module per stage in a plan)", what: hc.overlap.rule });
+    }
+    pending.push({ case: "overlap", waits: "Q20 (a module per stage in a plan)", what: hc.overlap.rule });
+  }
+
+  // What the library leaves unclear must be asked, and the entry rest on the question.
+  if (hc.ambiguous) {
+    const m = bySource.get(hc.ambiguous.module);
+    if (Array.isArray(questions)) {
+      const asked = questions.find(q => (q.touches || []).includes(hc.ambiguous.module));
+      const unanswered = asked && (asked.answer === null || asked.answer === undefined);
+      const rests = Boolean(asked) && (!unanswered || (m?.open || []).includes(asked.id));
+      hardCases.push({
+        case: "unclear module asked",
+        ok: Boolean(m) && Boolean(asked) && rests,
+        why: !m ? "not in the catalog" : !asked ? `no question touches ${hc.ambiguous.module}` : !rests ? "asked, but its entry does not rest on the question" : `asked: ${asked.question}`
+      });
     } else {
-      pending.push({ case: "overlap", waits: "PHASE4-PLAN Step 6 and Q20", what: hc.overlap.rule });
+      pending.push({ case: "unclear module asked", waits: "a run's questions (--run)", what: hc.ambiguous.module });
     }
   }
   if (key.gaps?.length) pending.push({ case: "gaps", waits: "PHASE4-PLAN Step 10, the gap report", what: key.gaps.join(", ") });

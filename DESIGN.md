@@ -3098,3 +3098,28 @@ worker more than half a cent. Three changes, each Greg's choice as recommended.
 with cloud terms ("log group") despite the prompt. The self-test that gates a catalog
 going live should check developer-facing words, as the interview's are checked, rather
 than trust the prompt.
+
+## An overlap the library settles is not a question
+
+Thu Oct 15, 2026, Greg, after the second measured run. That run asked two questions (down
+from 17), caught the README-only rule, and asked nothing about Juniper's two databases,
+which the grader then failed. The model was right: both READMEs say postgres below
+staging and postgres-cluster from staging up, and the prompts say never to ask what the
+library settles. The answer key had assumed every overlap must be asked, before Q19 gave
+a question its shape.
+
+- **An overlap the library settles is graded on the entries.** It is caught when each
+  entry says which stages it is for and names the other, so a planner sees the pair
+  (`settled_by_library` in the key). A name only counts as a word of its own: postgres
+  inside postgres-cluster is not naming postgres. An overlap the library leaves unclear
+  is still graded on its question. How a plan names a module per stage is Q20's either
+  way.
+- **Juniper gains a module whose standing it leaves unclear**, so the question path is
+  still tested: `cache-valkey` (sealeye-sample-platform PR #2), in trial with two teams,
+  while cache-redis's README says there is no cache for new apps. A run passes only if it
+  asks about it and the entry rests on that question; whatever availability it guessed
+  is not graded until the question is answered.
+- **A question asked twice is dropped by code.** The supervisor sees the readers'
+  questions and, in the second run, asked one again in its own words. A question it
+  raises is dropped when it touches nothing an open question does not and is the same
+  kind (other than "other") or mostly the same words. The prompt still says not to.
