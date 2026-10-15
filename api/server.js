@@ -27,6 +27,7 @@ import { peopleOf } from "./team.js";
 import { readPerformance } from "./performance.js";
 import { readCosts } from "./costs.js";
 import { createInterviewService, ModelNotPriced, NotWaiting, UploadRefused } from "./interview/service.js";
+import { createDiscoveryService, DiscoveryNotFound, mayDiscover, QuestionNotFound, RunGoing } from "./discovery/service.js";
 import { scanApp, ScanFailed } from "./secret-scan.js";
 import { deployRefusalMessage } from "../core/scan.js";
 import { interviewNotesFor, noteInterviewPlan, planDigest, planFilesFor, planView } from "./plan-record.js";
@@ -38,7 +39,7 @@ import { databaseUrl, closeDb } from "./db.js";
 import { startTracing } from "../core/tracing.js";
 import { authMode, callerFor, callerForSession, endSession, SESSION_COOKIE, SESSION_HOURS, startSession } from "./tokens.js";
 import { buildableView, needKinds, orgName } from "../core/catalog.js";
-import { liveCatalog, openCatalogs } from "./catalogs.js";
+import { catalogAt, liveCatalog, openCatalogs } from "./catalogs.js";
 
 const app = express();
 
@@ -141,6 +142,8 @@ app.use((req, res, next) => {
 // is open. The model key and any LangFuse keys are the API's own; developers hold
 // neither.
 let interviews;
+// Discovery runs (PHASE4-PLAN Step 6), made once the catalogs and records are open.
+let discoveries;
 
 // The version comes from the package, not from a literal, so it cannot drift from what
 // was actually shipped.
@@ -1171,6 +1174,102 @@ app.get("/interviews/:interviewId/events", (req, res) => {
   req.on("close", close);
 });
 
+// Discovery (PHASE4-PLAN Step 6): read the organization's platform library and write a
+// draft catalog, asking what it cannot settle. A platform engineer's: an
+// organization-wide token only (Greg, Oct 15, 2026). The repositories are the server's
+// to name (SEALEYE_LIBRARY_REPOS), never a request's.
+const discoveryForbidden = res =>
+  res.status(403).json({ error: { code: "ORG_WIDE_ONLY", message: "Discovery is for your platform team: it needs an organization-wide token." } });
+const discoveryNotFound = res => res.status(404).json({ error: { code: "NOT_FOUND", message: "discoveryId not found" } });
+const ownRun = (req, id) => {
+  const run = discoveries.get(id);
+  return run && run.org === (req.caller ? req.caller.org : "default") ? run : null;
+};
+
+// POST /discoveries: start a run over the named library. Body: {}.
+app.post("/discoveries", async (req, res) => {
+  if (!mayDiscover(req.caller)) return discoveryForbidden(res);
+  try {
+    const started = await discoveries.start({ caller: req.caller, surface: req.surface });
+    return res.status(202).json(started);
+  } catch (err) {
+    if (err instanceof RunGoing) return res.status(409).json({ error: { code: "RUN_GOING", message: "A discovery run is already going for your organization. Follow that one, or wait for it to end." } });
+    if (err.code === "ONE_LIBRARY") return res.status(409).json({ error: { code: "ONE_LIBRARY", message: "Discovery reads one library a run for now, and more than one is named. Ask whoever runs seaLeye to name one." } });
+    if (err.code === "NO_LIBRARY") return res.status(409).json({ error: { code: "NO_LIBRARY", message: "No platform library is named for discovery yet. Ask whoever runs seaLeye to name it." } });
+    if (err.code === "NO_MODEL_KEY") return res.status(503).json({ error: { code: "NO_MODEL_KEY", message: "the seaLeye API has no model key set, so it cannot run discovery" } });
+    return res.status(500).json({ error: { code: "DISCOVERY_FAILED", message: String(err.message || "discovery could not start") } });
+  }
+});
+
+// GET /discoveries: the organization's runs, newest first.
+app.get("/discoveries", (req, res) => {
+  if (!mayDiscover(req.caller)) return discoveryForbidden(res);
+  return res.status(200).json({ discoveries: discoveries.list(req.caller ? req.caller.org : "default") });
+});
+
+// GET /discoveries/{id}: the run, its questions with any answers, and its draft's version.
+app.get("/discoveries/:discoveryId", (req, res) => {
+  if (!mayDiscover(req.caller)) return discoveryForbidden(res);
+  const run = ownRun(req, req.params.discoveryId);
+  if (!run) return discoveryNotFound(res);
+  return res.status(200).json({ ...run, questions: discoveries.questions(run.discoveryId) });
+});
+
+// GET /discoveries/{id}/catalog: the draft the run wrote, as it stands with the answers so far.
+app.get("/discoveries/:discoveryId/catalog", (req, res) => {
+  if (!mayDiscover(req.caller)) return discoveryForbidden(res);
+  const run = ownRun(req, req.params.discoveryId);
+  if (!run) return discoveryNotFound(res);
+  if (!run.catalog) return res.status(409).json({ error: { code: "NO_DRAFT_YET", message: "This run has not written its draft yet." } });
+  return res.status(200).json({ version: run.catalog.version, document: catalogAt(run.org, run.catalog.version) });
+});
+
+// POST /discoveries/{id}/answers: { question, answer }, while the run goes or after it.
+app.post("/discoveries/:discoveryId/answers", async (req, res) => {
+  if (!mayDiscover(req.caller)) return discoveryForbidden(res);
+  const run = ownRun(req, req.params.discoveryId);
+  if (!run) return discoveryNotFound(res);
+  const { question, answer } = req.body || {};
+  try {
+    const saved = await discoveries.answer({ id: run.discoveryId, questionId: String(question || ""), answer, by: req.caller?.email || null });
+    return res.status(200).json({ question: saved });
+  } catch (err) {
+    if (err instanceof QuestionNotFound) return res.status(404).json({ error: { code: "NOT_FOUND", message: "question not found in this run" } });
+    if (err instanceof DiscoveryNotFound) return discoveryNotFound(res);
+    if (err.code === "BAD_ANSWER") return res.status(400).json({ error: { code: "BAD_ANSWER", message: err.message } });
+    throw err;
+  }
+});
+
+// GET /discoveries/{id}/events: the run as it goes, as server-sent events: what was read,
+// each question as it arises, answers taken, the draft, and how it ended. Every event so
+// far is sent first; a run that is over ends the stream once they are.
+app.get("/discoveries/:discoveryId/events", (req, res) => {
+  if (!mayDiscover(req.caller)) return discoveryForbidden(res);
+  const after = Number(req.get("Last-Event-ID") ?? req.query.after ?? 0) || 0;
+  const run = ownRun(req, req.params.discoveryId);
+  if (!run) return discoveryNotFound(res);
+  res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache, no-transform", connection: "keep-alive", "x-accel-buffering": "no" });
+  res.write(": seaLeye discovery events\n\n");
+  let closed = false;
+  let unsubscribe = () => {};
+  const keepAlive = setInterval(() => res.write(": still here\n\n"), 15_000);
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    clearInterval(keepAlive);
+    unsubscribe();
+    res.end();
+  };
+  unsubscribe = discoveries.subscribe(run.discoveryId, after, event => {
+    if (closed) return;
+    if (!event) return close();
+    res.write(`id: ${event.seq}\nevent: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
+    if (["finished", "stopped", "failed"].includes(event.type)) close();
+  }) || (() => {});
+  req.on("close", close);
+});
+
 const port = process.env.PORT || 3000;
 startTracing();
 sweepUploads();
@@ -1189,6 +1288,8 @@ if (databaseUrl()) {
   interviews = createInterviewService();
 }
 const restoredInterviews = await interviews.restore();
+discoveries = createDiscoveryService();
+await discoveries.open();
 
 // A stop (a release, a reboot) waits for the last record to be written.
 for (const signal of ["SIGTERM", "SIGINT"]) {
