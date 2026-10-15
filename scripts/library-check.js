@@ -30,7 +30,8 @@ for (const target of repos) {
     try {
       console.log(`${name} at ${s.commit} (read with the ${s.via === "app" ? "GitHub App" : "read-only token"})`);
       console.log(`  ${s.files} files read; gitleaks ${s.gitleaks}`);
-      console.log(`  held back as names only: ${s.secretFiles.length ? s.secretFiles.join(", ") : "none"}`);
+      console.log(`  secret files held back as names only: ${s.secretFiles.length ? s.secretFiles.join(", ") : "none"}`);
+      if (s.unreadFiles.length) console.log(`  archives and files that are not text, as names only: ${s.unreadFiles.join(", ")}`);
       if (!s.findings.length) console.log("  nothing that looks like a secret");
       for (const f of s.findings) console.log(`  ${f.whole ? "file emptied" : "line replaced"}: ${f.file}:${f.line} (${f.rule})`);
     } finally {

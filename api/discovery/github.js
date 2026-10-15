@@ -141,6 +141,15 @@ export async function githubReader(target, { credential = githubCredential(), fe
     }
     return res;
   };
+  // A body read as JSON, or a plain refusal: a parse error would quote the body, which
+  // for the token request is the token.
+  const jsonOf = async (res, what) => {
+    try {
+      return await res.json();
+    } catch {
+      throw new LibraryUnreadable(`seaLeye could not ${what} ${name}: GitHub's answer was not what it expected`);
+    }
+  };
   const refused = (res, what) => {
     const why = res.status === 401 ? "the credential seaLeye reads with was not accepted"
       : res.status === 403 ? "GitHub refused it, or its rate limit was reached"
@@ -155,7 +164,7 @@ export async function githubReader(target, { credential = githubCredential(), fe
     const jwt = appJwt(credential.appId, credential.key, now());
     const found = await call(`/repos/${target.owner}/${target.repo}/installation`, { bearer: jwt });
     if (!found.ok) throw refused(found, "find the GitHub App's installation on");
-    const { id } = await found.json();
+    const { id } = await jsonOf(found, "find the GitHub App's installation on");
     if (!Number.isSafeInteger(id)) throw new LibraryUnreadable(`seaLeye could not find the GitHub App's installation on ${name}`);
     // Narrowed to the one repository, and to reading it.
     const issued = await call(`/app/installations/${id}/access_tokens`, {
@@ -164,12 +173,23 @@ export async function githubReader(target, { credential = githubCredential(), fe
       body: { repositories: [target.repo], permissions: { contents: "read" } }
     });
     if (!issued.ok) throw refused(issued, "get a token from the GitHub App to read");
-    token = (await issued.json()).token;
+    token = (await jsonOf(issued, "get a token from the GitHub App to read")).token;
     if (typeof token !== "string" || !token) throw new LibraryUnreadable(`seaLeye could not get a token from the GitHub App to read ${name}`);
   }
 
   return {
     via: credential.kind,
+
+    /**
+     * Done reading: an app's token is revoked at once rather than left live for its
+     * hour. Best effort; a personal token is the platform team's and is left alone.
+     */
+    async close() {
+      if (credential.kind !== "app") return;
+      try {
+        await call("/installation/token", { bearer: token, method: "DELETE" });
+      } catch {}
+    },
 
     /** The full commit a ref names now, or the default branch's when there is none. */
     async commitOf(ref) {
@@ -177,10 +197,11 @@ export async function githubReader(target, { credential = githubCredential(), fe
       if (!wanted) {
         const res = await call(`/repos/${target.owner}/${target.repo}`, { bearer: token });
         if (!res.ok) throw refused(res, "read");
-        wanted = (await res.json()).default_branch;
+        wanted = (await jsonOf(res, "read")).default_branch;
         if (typeof wanted !== "string" || !REF.test(wanted)) throw new LibraryUnreadable(`seaLeye could not find ${name}'s default branch`);
       }
-      const res = await call(`/repos/${target.owner}/${target.repo}/commits/${encodeURIComponent(wanted)}`, { bearer: token, accept: "application/vnd.github.sha" });
+      // Each segment encoded and the slashes kept, as a branch like release/2026 is written.
+      const res = await call(`/repos/${target.owner}/${target.repo}/commits/${wanted.split("/").map(encodeURIComponent).join("/")}`, { bearer: token, accept: "application/vnd.github.sha" });
       if (!res.ok) throw refused(res, `find ${JSON.stringify(wanted)} in`);
       const sha = (await res.text()).trim();
       if (!SHA.test(sha)) throw new LibraryUnreadable(`seaLeye could not find ${JSON.stringify(wanted)} in ${name}`);
@@ -204,7 +225,7 @@ export async function githubReader(target, { credential = githubCredential(), fe
         } catch {
           throw new LibraryUnreadable(`seaLeye could not download ${name}: GitHub gave no download link`);
         }
-        if (url.protocol !== "https:" || !/(^|\.)github(usercontent)?\.com$/.test(url.hostname)) {
+        if (url.protocol !== "https:" || url.hostname !== "codeload.github.com") {
           throw new LibraryUnreadable(`seaLeye could not download ${name}: GitHub's download link is not GitHub's`);
         }
         try {

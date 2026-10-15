@@ -79,7 +79,7 @@ const MAX_COPY_FILES = 20000;
  * what a link points at), each real folder once, so a loop of links ends. The copy is
  * the API's own, in a folder of a random name, so nothing in the app can name it.
  */
-function scanCopy(dir, dest, { skipFolders = SKIP_FOLDERS } = {}) {
+function scanCopy(dir, dest, { skipFolders = SKIP_FOLDERS, library = false } = {}) {
   const seen = new Set();
   const root = fs.realpathSync(path.resolve(dir));
   const extra = [];
@@ -119,7 +119,9 @@ function scanCopy(dir, dest, { skipFolders = SKIP_FOLDERS } = {}) {
       files++;
       bytes += stat.size;
       if (files > MAX_COPY_FILES || bytes > MAX_COPY_BYTES) {
-        throw new UploadRefused(`your folder is more than ${MAX_COPY_FILES} files or ${MAX_COPY_BYTES / 1024 / 1024} MB, leaving out node_modules, .git and secret files, which is more than the platform can package`);
+        throw new UploadRefused(library
+          ? `the library is more than ${MAX_COPY_FILES} files or ${MAX_COPY_BYTES / 1024 / 1024} MB, which is more than discovery reads`
+          : `your folder is more than ${MAX_COPY_FILES} files or ${MAX_COPY_BYTES / 1024 / 1024} MB, leaving out node_modules, .git and secret files, which is more than the platform can package`);
       }
       fs.copyFileSync(from, path.join(out, name));
     }
@@ -222,7 +224,7 @@ export async function scanApp(dir, { binary, library = false } = {}) {
   const work = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-scan-"));
   const copy = path.join(work, "app");
   try {
-    const extra = scanCopy(dir, copy, library ? { skipFolders: LIBRARY_SKIP_FOLDERS } : {});
+    const extra = scanCopy(dir, copy, library ? { skipFolders: LIBRARY_SKIP_FOLDERS, library } : {});
     const [shared, deeper] = await Promise.all([
       sharedFindings(copy, extra),
       gitleaksFindings(copy, binary === undefined ? {} : { binary })

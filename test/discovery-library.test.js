@@ -247,3 +247,83 @@ test("a folder on this machine is read by the same rules", async () => {
     snapshot.remove();
   }
 });
+
+test("odd headers: a pax size is honoured, and an old GNU header's times are not a folder name", () => {
+  const files = untar(githubTarball({}, {
+    raw: [
+      { name: "acme-library-0123456/sized.tf", body: "sized by pax", paxSize: true },
+      { name: "acme-library-0123456/after.tf", body: "still in step" },
+      // An old GNU header: the bytes ustar keeps a prefix in hold times there.
+      { name: "acme-library-0123456/gnu.tf", body: "gnu", magic: "ustar  \0", prefix: "14712345670" }
+    ]
+  }), { maxBytes: 1024 * 1024, maxFiles: 10 });
+  assert.deepEqual(files.map(f => [f.path, f.text()]), [["sized.tf", "sized by pax"], ["after.tf", "still in step"], ["gnu.tf", "gnu"]]);
+});
+
+test("a path that runs into a file is skipped, never moved somewhere else", async () => {
+  const gh = standInGitHub({ tarball: githubTarball({ "x": "a file", "x/y.tf": "under a file", "keep.tf": "kept" }, { commit: COMMIT }) });
+  const snapshot = await readLibrary(target, { credential: { kind: "token", token: TOKEN }, fetch: gh.fetch });
+  try {
+    assert.equal(fs.readFileSync(path.join(snapshot.dir, "x"), "utf8"), "a file");
+    assert.ok(!fs.existsSync(path.join(snapshot.dir, "y.tf")), "not moved to the top");
+    assert.ok(fs.existsSync(path.join(snapshot.dir, "keep.tf")));
+  } finally {
+    snapshot.remove();
+  }
+});
+
+test("archives and files that are not text stay names only; gitleaks' ignore file is left out", async () => {
+  const gh = standInGitHub({ tarball: githubTarball({
+    "modules/db/README.md": "text\n",
+    "modules/db/fixtures/old.zip": "PK\u0003\u0004 anything at all",
+    "modules/db/logo.png": Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 0, 0, 1]),
+    ".gitleaksignore": "modules/db/main.tf:assigned-secret:3\n"
+  }, { commit: COMMIT }) });
+  const snapshot = await readLibrary(target, { credential: { kind: "token", token: TOKEN }, fetch: gh.fetch });
+  try {
+    const size = rel => fs.statSync(path.join(snapshot.dir, rel)).size;
+    assert.deepEqual(snapshot.unreadFiles.sort(), ["modules/db/fixtures/old.zip", "modules/db/logo.png"]);
+    assert.equal(size("modules/db/fixtures/old.zip"), 0);
+    assert.equal(size("modules/db/logo.png"), 0);
+    assert.ok(size("modules/db/README.md") > 0);
+    assert.ok(!fs.existsSync(path.join(snapshot.dir, ".gitleaksignore")));
+  } finally {
+    snapshot.remove();
+  }
+});
+
+test("an app's token is revoked once the archive is read; a personal token is left alone", async () => {
+  const { privateKey } = crypto.generateKeyPairSync("rsa", { modulusLength: 2048 });
+  const gh = standInGitHub();
+  (await readLibrary(target, { credential: { kind: "app", appId: "123456", key: privateKey }, fetch: gh.fetch })).remove();
+  const last = gh.calls.at(-1);
+  assert.equal(`${last.method} ${last.path}`, "DELETE /installation/token");
+  assert.equal(last.headers.authorization, "Bearer ghs_InstallationStandIn");
+
+  const plain = standInGitHub();
+  (await readLibrary(target, { credential: { kind: "token", token: TOKEN }, fetch: plain.fetch })).remove();
+  assert.ok(!plain.calls.some(c => c.method === "DELETE"));
+});
+
+test("a branch with a slash keeps it; an answer that is not JSON is refused without quoting it", async () => {
+  const gh = standInGitHub();
+  (await readLibrary({ ...target, ref: "release/2026-q4" }, { credential: { kind: "token", token: TOKEN }, fetch: gh.fetch })).remove();
+  assert.equal(gh.calls[0].path, "/repos/acme/library/commits/release/2026-q4");
+
+  const { privateKey } = crypto.generateKeyPairSync("rsa", { modulusLength: 2048 });
+  const garbled = async (url, init) => String(url).endsWith("/access_tokens")
+    ? new Response('{"token":"ghs_LeakedIfQuoted', { status: 201 })
+    : standInGitHub().fetch(url, init);
+  await assert.rejects(readLibrary(target, { credential: { kind: "app", appId: "123456", key: privateKey }, fetch: garbled }), err => {
+    assert.match(err.message, /GitHub's answer was not what it expected/);
+    assert.ok(!err.message.includes("ghs_"));
+    return true;
+  });
+});
+
+test("the archive is downloaded only from GitHub's download host", async () => {
+  const other = async (url, init) => String(url).includes("/tarball/")
+    ? new Response(null, { status: 302, headers: { location: "https://gist.githubusercontent.com/x.tgz" } })
+    : standInGitHub().fetch(url, init);
+  await assert.rejects(readLibrary(target, { credential: { kind: "token", token: TOKEN }, fetch: other }), /download link is not GitHub's/);
+});

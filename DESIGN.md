@@ -2906,8 +2906,10 @@ platform library before any model sees it. Greg chose each of the four below.
   (`SEALEYE_GITHUB_READ_TOKEN`), the pilot's way in until an app is installed. When both
   are set the app is used. Either way the credential goes to GitHub's API and nowhere
   else: the archive's download link carries its own short-lived permission and is
-  fetched without it, and only from a GitHub address. No credential is logged, kept on a
-  record or put in an error.
+  fetched without it, and only from `codeload.github.com`. An app's token is revoked as
+  soon as the archive is read, rather than left live for its hour. No credential is
+  logged, kept on a record or put in an error, and an answer from GitHub that is not
+  what was expected is refused in words, never quoted.
   - *Why both:* the token is an hour of setup and lets the pilot read Juniper Mutual now;
     the app is how an organization grants seaLeye its library without lending a person's
     token, and is what a customer will be asked to install. Building it now costs about a
@@ -2924,7 +2926,9 @@ platform library before any model sees it. Greg chose each of the four below.
   upload is (`redactScanned`, shared with the interview): each line with a value that
   looks like a secret becomes a line that says why, and a value over several lines, or
   a file that is not text, leaves its file empty. A worker can still read the rest of a
-  module's example. The plan's "done when" now says no value the scanner finds reaches a
+  module's example. Archives (a `.zip`, a `.tgz`) and other files that are not text are
+  kept as their names only: neither scanner sees inside them, and they mean nothing to a
+  worker reading modules. A library's `.gitleaksignore` is left out of the snapshot. The plan's "done when" now says no value the scanner finds reaches a
   model, rather than no file.
 - **A library's `.sealeye-allow` is not read** (Greg, agreeing). It is a developer's
   word about their own app; a library's findings are the platform team's to fix, not to
@@ -2945,6 +2949,14 @@ platform library before any model sees it. Greg chose each of the four below.
   named the worker and the model and held no prompt. The `worker` claim already on
   every call's token (`claimsFor`) is how each discovery worker's spend will show in
   `gateway-calls`.
+
+**Reviewed independently** before the pull request. Nothing had to be fixed for safety;
+the review's should-fixes are in: archives and binaries as names only, the
+`.gitleaksignore` left out, the app's token revoked, a file whose path runs into another
+file skipped rather than moved (`treeFromPaths`, which the portal uses too), a tar's pax
+size honoured and an old GNU header's times never read as a folder, GitHub's answers
+parsed without quoting them, a slashed branch kept as written, and the download host
+pinned.
 
 **What it does not do yet.** Nothing calls a model: the graph that reads the snapshot is
 Step 6, and it removes each snapshot when its run ends. Juniper Mutual is checked as

@@ -79,7 +79,7 @@ const PURPOSES = {
     maxFiles: 20000,
     subject: "The library",
     readsAs: "discovery reads",
-    leftOut: ".git and what its .gitignore leaves out"
+    leftOut: "node_modules, .git and what its .gitignore leaves out"
   }
 };
 
@@ -255,7 +255,7 @@ export async function collectUpload(root, { purpose = "interview", ignore } = {}
  */
 export function treeFromPaths(rootName, files) {
   const root = { name: rootName, kind: "dir", map: new Map() };
-  for (const file of files) {
+  each: for (const file of files) {
     const parts = String(file.path).split("/").filter(p => p && p !== ".");
     if (!parts.length || parts.includes("..")) continue;
     let dir = root;
@@ -265,7 +265,9 @@ export function treeFromPaths(rootName, files) {
         next = { name: part, kind: "dir", map: new Map() };
         dir.map.set(part, next);
       }
-      if (next.kind !== "dir") break;
+      // A path that runs into a file ("x" and "x/y.tf") is skipped, never put somewhere
+      // else: where a file sits decides which .gitignore rules apply to it.
+      if (next.kind !== "dir") continue each;
       dir = next;
     }
     const name = parts[parts.length - 1];

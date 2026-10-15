@@ -104,7 +104,9 @@ export function untar(gz, { maxBytes, maxFiles, subject = "The library" }) {
     for (let i = 0; i < BLOCK; i++) sum += i >= 148 && i < 156 ? 0x20 : header[i];
     if (stated !== sum) throw new UploadRefused(`${subject} did not arrive as an archive seaLeye can read.`);
 
-    const size = sizeOf(header, 124);
+    // A pax header may give the next entry's size, past what the header's field holds.
+    const paxSize = pax.size !== undefined && /^\d+$/.test(pax.size) ? Number(pax.size) : null;
+    const size = paxSize ?? sizeOf(header, 124);
     const type = String.fromCharCode(header[156] || 0x30);
     const start = offset + BLOCK;
     const end = start + size;
@@ -118,7 +120,8 @@ export function untar(gz, { maxBytes, maxFiles, subject = "The library" }) {
     if (type === "x") { pax = paxRecords(data); continue; }
     if (type === "L") { longName = field(data, 0, data.length); continue; }
 
-    const prefix = field(header, 345, 155);
+    // The prefix field is ustar's; in an old GNU header the same bytes hold times.
+    const prefix = header.subarray(257, 263).toString("latin1") === "ustar\0" ? field(header, 345, 155) : "";
     const plain = field(header, 0, 100);
     const name = pax.path || longName || (prefix ? `${prefix}/${plain}` : plain);
     pax = {};
