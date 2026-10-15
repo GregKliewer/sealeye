@@ -55,6 +55,18 @@ export function loadCatalog() {
   return starterCatalog();
 }
 
+/** A {{name}} other than {{org}}, which only the prompt itself may hold. */
+const otherPlaceholder = text => /\{\{(?!org\}\})[^}]*\}\}/.test(String(text));
+
+/** A test for text naming any module a document could mean: its own, the four, an old plan's. */
+function moduleNamer(doc) {
+  const ids = [...new Set([
+    ...MODULE_IDS, ...LEGACY_MODULE_IDS,
+    ...(Array.isArray(doc?.modules) ? doc.modules.map(m => m?.id).filter(id => typeof id === "string" && /^[a-z][a-z0-9_]*$/.test(id)) : [])
+  ])];
+  return text => ids.find(id => new RegExp(`\\b${id}\\b`).test(String(text ?? ""))) || null;
+}
+
 /**
  * What is wrong with a catalog document, in words; empty when nothing is. Only its shape:
  * the parts every function here reads. Whether its entries are right is the self-test's
@@ -102,6 +114,7 @@ export function catalogProblems(doc) {
   if (Array.isArray(doc.modules)) {
     for (const m of doc.modules) {
       if (m && text(m.id) && m.guidance !== undefined && !text(m.guidance)) problems.push(`module ${m.id}: guidance is text`);
+      else if (m && text(m.id) && text(m.guidance) && otherPlaceholder(m.guidance)) problems.push(`module ${m.id}: guidance may hold {{org}} and no other {{name}}`);
     }
   }
   if (doc.interview !== undefined) {
@@ -110,7 +123,25 @@ export function catalogProblems(doc) {
       for (const [key, value] of Object.entries(doc.interview)) {
         if (!INTERVIEW_PASSAGES.includes(key)) problems.push(`interview.${key} is not a passage the interview has`);
         else if (typeof value !== "string") problems.push(`interview.${key} is text`);
+        else if (otherPlaceholder(value)) problems.push(`interview.${key} may hold {{org}} and no other {{name}}`);
       }
+    }
+  }
+
+  // What a need and a pattern say is about the app and the environment, never a module:
+  // a module named there would reach the interview and the developer whether it is
+  // built or not.
+  const anyModule = moduleNamer(doc);
+  if (Array.isArray(doc.need_kinds)) {
+    for (const n of doc.need_kinds) {
+      if (!n || !text(n.key)) continue;
+      const said = [n.line, ...Object.values(n.profile_expects || {})].map(String).find(anyModule);
+      if (said) problems.push(`need kind ${n.key} names a module (${anyModule(said)}); a need says what the app needs`);
+    }
+  }
+  if (doc.patterns && typeof doc.patterns === "object" && !Array.isArray(doc.patterns)) {
+    for (const [profile, block] of Object.entries(doc.patterns)) {
+      if (block && anyModule(block.line)) problems.push(`patterns.${profile} names a module (${anyModule(block.line)}) in its line`);
     }
   }
 
@@ -119,6 +150,21 @@ export function catalogProblems(doc) {
     problems.push("patterns is a set of named profiles");
   }
   return problems;
+}
+
+/**
+ * A test for text that names a module this catalog does not build: one of the starter's
+ * four, an id from a plan before 0.4, or one of the catalog's own, that it does not
+ * build. Returns the id named, or null. Ids are lowercase letters, digits and
+ * underscores (catalogProblems), so a word boundary is exact: `http_api` is not found
+ * inside `http_api_serverless`. An id no catalog has ever had cannot be known, and is
+ * not caught here.
+ */
+export function namesUnbuilt(catalog = loadCatalog()) {
+  const built = new Set(buildableModules(catalog).map(m => m.id));
+  const unbuilt = [...new Set([...MODULE_IDS, ...LEGACY_MODULE_IDS, ...catalogModuleIds(catalog)])].filter(id => !built.has(id));
+  const patterns = unbuilt.map(id => [id, new RegExp(`\\b${id}\\b`)]);
+  return text => patterns.find(([, re]) => re.test(String(text)))?.[0] || null;
 }
 
 export function moduleEntry(id, catalog = loadCatalog()) {
@@ -299,7 +345,12 @@ export function catalogForPrompt(catalog = loadCatalog()) {
     lines.push("");
   }
 
-  return lines.join("\n").trim();
+  // The last guard of principle 2: a line naming a module the catalog does not build
+  // (a pattern's line, a need's, a module's own words) is left out. Each line here
+  // stands alone, so dropping one leaves the rest readable; catalogProblems refuses a
+  // catalog whose need and pattern lines name a module at all.
+  const names = namesUnbuilt(catalog);
+  return lines.filter(line => !names(line)).join("\n").trim();
 }
 
 /** The patterns a profile applies to the modules a plan enables, for the card. */
@@ -366,13 +417,15 @@ function oneWayOfRunning(catalog) {
  *
  * @returns {Record<string, string>} keyed by INTERVIEW_PASSAGES, and module_count
  */
-export function interviewPassages(catalog = loadCatalog()) {
+export function interviewPassages(catalog = loadCatalog(), { starter = false } = {}) {
   // The starter's passages live beside the prompt, on the server only
-  // (prompts/interview-starter.yaml); an organization's catalog carries its own.
-  const isStarter = JSON.stringify(catalog) === JSON.stringify(starterCatalog());
+  // (prompts/interview-starter.yaml); an organization's catalog carries its own. Whether
+  // this is the starter is the caller's to say, from the catalog it was given (its
+  // version), never guessed from the document: a copy of the starter is not the starter.
   const own = catalog.interview && typeof catalog.interview === "object"
     ? catalog.interview
-    : isStarter ? starterPassages() : {};
+    : starter ? starterPassages() : {};
+  const names = namesUnbuilt(catalog);
   const modules = buildableModules(catalog);
   const ids = modules.map(m => m.id);
   const core = oneWayOfRunning(catalog);
@@ -393,7 +446,7 @@ export function interviewPassages(catalog = loadCatalog()) {
       "Those are the only module ids that exist. Never write any other id into a plan, a summary or an assumption, and never invent one.",
     catalog_source: "The whole catalog, {{org}}'s own, which is the one place the modules and the need kinds are defined:",
     module_guidance: modules
-      .filter(m => typeof m.guidance === "string" && m.guidance.trim())
+      .filter(m => typeof m.guidance === "string" && m.guidance.trim() && !names(m.guidance))
       .map(m => `### ${m.id}\n${m.guidance.trim()}`)
       .join("\n\n"),
     settings_question: ""
@@ -402,15 +455,12 @@ export function interviewPassages(catalog = loadCatalog()) {
   // A passage of the catalog's own that names a module it does not build is set aside
   // for the written one: a catalog that began as a copy of the starter keeps the
   // starter's words about modules it may have dropped (principle 2).
-  const built = new Set(ids);
-  const unbuilt = [...new Set([...MODULE_IDS, ...LEGACY_MODULE_IDS, ...catalogModuleIds(catalog)])].filter(id => !built.has(id));
-  const namesUnbuilt = text => unbuilt.some(id => new RegExp(`\\b${id}\\b`).test(text));
 
   const passages = { module_count: numberWord(ids.length) };
   // Where the catalog comes from is the starter's to say only of itself: an
   // organization's catalog that began as its copy is not prompts/module-catalog.yaml.
   for (const key of INTERVIEW_PASSAGES) {
-    const usable = typeof own[key] === "string" && !namesUnbuilt(own[key]) && (key !== "catalog_source" || isStarter);
+    const usable = typeof own[key] === "string" && !names(own[key]) && (key !== "catalog_source" || starter);
     passages[key] = usable ? own[key] : written[key];
   }
   return passages;

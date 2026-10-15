@@ -2659,7 +2659,23 @@ over plumbing only, with the large-catalog half moved to after Step 7.
     began as a copy of the starter cannot tell the interview about a module it dropped.
 - **The interview never hears of a module the catalog does not build.** The catalog
   section of the prompt lists only buildable modules and their patterns, and the tool's
-  module ids are the catalog's buildable ones.
+  module ids are the catalog's buildable ones. As a last guard, any line of that section
+  naming a module the catalog does not build (a pattern's line, a module's own words, a
+  need's expectation) is dropped, and so is a module's guidance that does; each such line
+  stands alone, so the rest still reads. A catalog whose need or pattern lines name any
+  module is refused when it is added (`catalogProblems`): a need says what the app needs,
+  never a module. What cannot be caught is an id no catalog has ever had: the check knows
+  the four, the ids of plans before 0.4, and the catalog's own. (From the independent
+  review of this step.)
+- **A catalog's own words are never read as the prompt's.** Every `{{name}}` is filled in
+  one pass over the template, so a `{{name}}` inside a passage or a module's guidance is
+  never filled, nor filled twice; `{{org}}` is the one a catalog may use, and
+  `catalogProblems` refuses any other.
+- **Whether a catalog is the starter is said by its version, not guessed from its
+  document.** A byte-exact copy of the starter in an organization's catalog is the
+  organization's, and gets passages written from its rules, not the starter's file.
+- **A plan in a version the model was not asked for is left for the check to refuse**,
+  rather than stamped 0.5 over, so the model hears its mistake.
 - **The model never names a catalog; the platform does.** The tool keeps the 0.4 shape
   with the catalog's modules and need kinds (`interviewContract`, which for the starter
   is `planSchema04`). The graph stamps the plan 0.5 with the interview's catalog

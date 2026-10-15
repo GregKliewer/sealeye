@@ -19,7 +19,7 @@ import { unzipInto, UploadRefused } from "../../core/upload.js";
 import { scanApp } from "../secret-scan.js";
 import { promptVersionOf, traceRun, withoutTracing, flushScores } from "../../core/tracing.js";
 import { liveCatalog } from "../catalogs.js";
-import { buildInterviewGraph, interviewCatalog, MAX_TURNS } from "./graph.js";
+import { buildInterviewGraph, interviewCatalog, isStarterRef, MAX_TURNS } from "./graph.js";
 import { planFiles } from "../../core/plan-files.js";
 import { catalogOfPlan } from "../validate.js";
 import { DEFAULT_MODEL, loadSystemPrompt, modelClient, modelCredential } from "./model.js";
@@ -294,7 +294,7 @@ export function createInterviewService({
       // Which prompt this run reads: its catalog's, as the graph fills it in.
       const catalogRef = saved?.values?.catalog || input?.catalog || record.catalog || null;
       const catalogDoc = interviewCatalog(catalogRef);
-      const promptSha = catalogDoc ? promptVersionOf(loadSystemPrompt(catalogDoc)) : "unknown";
+      const promptSha = catalogDoc ? promptVersionOf(loadSystemPrompt(catalogDoc, { starter: isStarterRef(catalogRef) })) : "unknown";
 
       return traceRun(
         { app: record.app, mode: record.mode, model: record.model, promptSha, catalog: String(catalogRef?.version ?? "starter"), user: record.user, continueFrom },

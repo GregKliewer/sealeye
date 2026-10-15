@@ -115,17 +115,27 @@ export function modelClient(credential) {
  * the platform's config, because whose platform library this is was never ours to hard
  * code.
  */
-export function loadSystemPrompt(catalog = starterCatalog()) {
+export function loadSystemPrompt(catalog, { starter = catalog === undefined } = {}) {
+  const doc = catalog || starterCatalog();
   let text = fs.readFileSync(path.join(repoRoot, "prompts", "interview-system.md"), "utf8");
   // The passages that speak of the modules are the catalog's (PHASE4-PLAN Step 3). One
   // the catalog has nothing for goes, with its line, rather than leaving a gap.
-  const passages = interviewPassages(catalog);
+  const org = orgName();
+  const passages = interviewPassages(doc, { starter });
   for (const [name, value] of Object.entries(passages)) {
+    if (value) continue;
     const mark = `{{${name}}}`;
-    if (value) text = text.split(mark).join(value);
-    else text = text.split(`${mark}\n\n`).join("").split(`${mark}\n`).join("").split(mark).join("");
+    text = text.split(`${mark}\n\n`).join("").split(`${mark}\n`).join("").split(mark).join("");
   }
-  return text.split("{{catalog}}").join(catalogForPrompt(catalog)).split("{{org}}").join(orgName());
+  // Every {{name}} filled in one pass over the template, so nothing put in is read again:
+  // a {{name}} inside a catalog's own words is never filled, and never filled twice. A
+  // passage may say {{org}} (catalogProblems allows that and no other), filled first.
+  const values = {
+    ...Object.fromEntries(Object.entries(passages).map(([k, v]) => [k, String(v).split("{{org}}").join(org)])),
+    catalog: catalogForPrompt(doc),
+    org
+  };
+  return text.replace(/\{\{([a-z_]+)\}\}/g, (mark, name) => (Object.hasOwn(values, name) ? values[name] : mark));
 }
 
 /**

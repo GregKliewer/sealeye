@@ -92,6 +92,9 @@ export const InterviewState = Annotation.Root({
   approved: replace(() => null)
 });
 
+/** Whether an interview's catalog is the starter: by its version, never its document. */
+export const isStarterRef = ref => !ref || ref.version === undefined || ref.version === STARTER_VERSION;
+
 /** The organization an interview's catalog belongs to: "default" on a laptop API. */
 const catalogOrg = ref => ref?.org || "default";
 
@@ -100,7 +103,7 @@ const catalogOrg = ref => ref?.org || "default";
  * interview saved before it kept one. Null when the organization no longer has it.
  */
 export function interviewCatalog(ref) {
-  if (!ref || ref.version === STARTER_VERSION || ref.version === undefined) return starterCatalog();
+  if (isStarterRef(ref)) return starterCatalog();
   return catalogOfPlan({ catalog: ref.version }, catalogOrg(ref)).document || null;
 }
 
@@ -114,6 +117,9 @@ export function stampCatalog(plan, ref) {
   const version = ref?.version ?? STARTER_VERSION;
   const { catalog: _ignored, ...written } = plan;
   if (version === STARTER_VERSION) return { ...upgradePlan(written), catalog: STARTER_VERSION };
+  // The model writes the 0.4 shape. Any other version is left as written, for the check
+  // to refuse and the model to correct, rather than hidden by the stamp.
+  if (written.planVersion !== undefined && written.planVersion !== "0.4") return { ...written, catalog: version };
   return { ...written, planVersion: PLAN_VERSION, catalog: version };
 }
 
@@ -174,7 +180,8 @@ export function buildInterviewGraph({ runtimeFor, checkpointer }) {
         message: `The catalog this interview started with is no longer one your organization has. Run ${COMMAND} run again.`
       });
     }
-    const system = [{ type: "text", text: loadSystemPrompt(catalog), cache_control: { type: "ephemeral" } }];
+    const starter = isStarterRef(state.catalog);
+    const system = [{ type: "text", text: loadSystemPrompt(catalog, { starter }), cache_control: { type: "ephemeral" } }];
     const startedAt = Date.now();
 
     let response;
@@ -185,7 +192,7 @@ export function buildInterviewGraph({ runtimeFor, checkpointer }) {
           model: state.model,
           max_tokens: MAX_TOKENS,
           system,
-          tools: [listFilesTool, readFileTool, submitPlanToolFor(catalog)],
+          tools: [listFilesTool, readFileTool, submitPlanToolFor(catalog, { starter })],
           messages: state.messages,
           ...(supportsTemperature(state.model) ? { temperature: 0.2 } : {})
         },

@@ -21,7 +21,7 @@ const { createInterviewService } = await import("../api/interview/service.js");
 const { asTheModelWritesIt, deployedContext, loadSystemPrompt } = await import("../api/interview/model.js");
 const { stampCatalog } = await import("../api/interview/graph.js");
 const { submitPlanToolFor, submitPlanTool } = await import("../api/interview/schema.js");
-const { interviewPassages, starterCatalog, catalogProblems } = await import("../core/catalog.js");
+const { catalogForPrompt, interviewPassages, starterCatalog, catalogProblems } = await import("../core/catalog.js");
 const { promptVersionOf } = await import("../core/tracing.js");
 const { planSchema04 } = await import("../core/schema.js");
 
@@ -103,7 +103,7 @@ async function interview(client, caller) {
 test("the starter's prompt and tool are the ones the interview was evaluated with", () => {
   assert.equal(promptVersionOf(loadSystemPrompt()), EVALUATED_PROMPT);
   assert.equal(promptVersionOf(JSON.stringify(submitPlanTool)), EVALUATED_TOOL);
-  assert.deepEqual(JSON.stringify(submitPlanToolFor(starterCatalog())), JSON.stringify(submitPlanTool));
+  assert.deepEqual(JSON.stringify(submitPlanToolFor(starterCatalog(), { starter: true })), JSON.stringify(submitPlanTool));
   const { description, ...plan } = submitPlanTool.input_schema.properties.plan;
   assert.deepEqual(plan, planSchema04);
   assert.doesNotMatch(loadSystemPrompt(), /\{\{/, "every passage filled in");
@@ -195,4 +195,50 @@ test("a catalog's passage that names a module it does not build is set aside", (
   const own = { ...doc, interview: { ...doc.interview, redeploy_example: "\"your app now reads a setting, which the plan records\"" } };
   assert.equal(interviewPassages(own).redeploy_example, "\"your app now reads a setting, which the plan records\"", "its own passage, when it names nothing it cannot build");
   assert.deepEqual(catalogProblems({ ...doc, interview: { nonsense: "x" } }), ["interview.nonsense is not a passage the interview has"]);
+});
+
+test("nothing a catalog says can name a module it does not build, wherever it says it", () => {
+  const doc = acme(LINE_V1);
+  // Words a platform engineer might write: guidance, a pattern's line, a module's own
+  // words, a need's expectation. Each names something acme does not build.
+  doc.modules[0].guidance = "Prefer static_site_edge for sites.";
+  doc.modules[1].guidance = "Always on, unlike acme_queue.";
+  doc.modules[0].when = "Anything that listens for HTTP; not a site, which is static_site_edge.";
+  doc.patterns.dev.line = "Like config_basic, but for teams.";
+  doc.need_kinds.find(n => n.key === "cache").profile_expects = { prod: "a data_cache in front of it" };
+  const prompt = loadSystemPrompt(doc);
+  assert.doesNotMatch(prompt, /static_site_edge|config_basic|acme_queue|data_cache/);
+  assert.match(prompt, /\*\*http_api_serverless\*\*/, "the module itself is still there");
+  assert.doesNotMatch(catalogForPrompt(doc), /static_site_edge|config_basic|acme_queue|data_cache/);
+
+  // And a catalog whose need or pattern lines name a module is refused when it is added.
+  const problems = catalogProblems(doc);
+  assert.ok(problems.includes("need kind cache names a module (data_cache); a need says what the app needs"), problems.join("; "));
+  assert.ok(problems.includes("patterns.dev names a module (config_basic) in its line"), problems.join("; "));
+});
+
+test("a {{name}} in a catalog's own words is never filled in, and {{org}} is", () => {
+  const doc = acme(LINE_V1);
+  doc.interview = { redeploy_example: "\"{{catalog}} and {{module_count}} at {{org}}\"" };
+  doc.modules[0].guidance = "Ask {{org}} first.";
+  const prompt = loadSystemPrompt(doc);
+  assert.equal(prompt.split("### Modules seaLeye.run builds").length, 2, "the catalog appears once");
+  assert.ok(prompt.includes("Ask your organization first."));
+  assert.ok(prompt.includes("\"{{catalog}} and {{module_count}} at your organization\""), "left as written, never filled twice");
+  assert.deepEqual(catalogProblems(doc), ["interview.redeploy_example may hold {{org}} and no other {{name}}"]);
+});
+
+test("a copy of the starter is not the starter: it gets its own words, not the starter's file", () => {
+  const copy = starterCatalog();
+  assert.notEqual(loadSystemPrompt(copy), loadSystemPrompt(), "the caller says which is the starter, by its version");
+  assert.doesNotMatch(loadSystemPrompt(copy), /generated from `prompts\/module-catalog\.yaml`/);
+  assert.match(loadSystemPrompt(copy), /13\. One way of running the app, never two\. Exactly one of `static_site_edge` and `http_api_serverless` is enabled\./, "written from its rules");
+  assert.doesNotMatch(loadSystemPrompt(copy), /\{\{/);
+});
+
+test("a plan in a version the model was not asked for is left for the check to refuse", () => {
+  const odd = stampCatalog({ ...apiPlan, planVersion: "9.9" }, { org: "acme", version: 3 });
+  assert.equal(odd.planVersion, "9.9");
+  assert.equal(odd.catalog, 3);
+  assert.equal(stampCatalog({ ...apiPlan, planVersion: undefined }, { org: "acme", version: 3 }).planVersion, "0.5");
 });

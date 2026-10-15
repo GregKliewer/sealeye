@@ -15,7 +15,7 @@ import { interviewPassages, schemaFor, starterCatalog } from "../../core/catalog
  * writes it, with that catalog's modules and need kinds and its words for the plan
  * (interviewPassages in core/catalog.js). For the starter, exactly what it always was.
  */
-export function submitPlanInputSchemaFor(catalog = starterCatalog()) {
+export function submitPlanInputSchemaFor(catalog = starterCatalog(), { starter = false } = {}) {
   const schema = schemaFor(catalog);
   return {
     type: "object",
@@ -27,7 +27,7 @@ export function submitPlanInputSchemaFor(catalog = starterCatalog()) {
           moduleIds: schema.properties.modules.items.properties.id.enum || [],
           needKinds: schema.properties.needs.items.properties.kind.enum.filter(k => k !== "unlisted")
         }),
-        description: interviewPassages(catalog).plan_description
+        description: interviewPassages(catalog, { starter }).plan_description
       },
       summary: {
         type: "string",
@@ -51,22 +51,22 @@ export function submitPlanInputSchemaFor(catalog = starterCatalog()) {
 }
 
 /** The starter's, as the eval and the tests read it. */
-export const submitPlanInputSchema = submitPlanInputSchemaFor();
+export const submitPlanInputSchema = submitPlanInputSchemaFor(starterCatalog(), { starter: true });
 
 // The tool definition itself, so the interview loop and any test share one shape.
-export function submitPlanToolFor(catalog = starterCatalog()) {
+export function submitPlanToolFor(catalog = starterCatalog(), { starter = false } = {}) {
   return {
     name: "submit_plan",
     description:
       "Submit the finished deployment plan and end the interview. Call this exactly " +
       "once, after every question you needed has been answered. If the result reports " +
       "validation errors, correct the plan and call it again.",
-    input_schema: submitPlanInputSchemaFor(catalog)
+    input_schema: submitPlanInputSchemaFor(catalog, { starter })
   };
 }
 
 /** The starter's tool. */
-export const submitPlanTool = submitPlanToolFor(starterCatalog());
+export const submitPlanTool = submitPlanToolFor(starterCatalog(), { starter: true });
 
 /**
  * Split a submit_plan tool input into the plan the API takes and the interview's own
