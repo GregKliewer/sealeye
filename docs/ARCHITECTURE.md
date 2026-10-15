@@ -564,8 +564,10 @@ when the catalog marks it available and the platform has an executor for what it
 (`static_site_edge`, `http_api_serverless`, `observability_basic`, `config_basic`).
 Anything else an app needs is a NEED from that catalog's need kinds, or `unlisted`,
 with evidence naming the file. A plan with needs is `drafted`; a plan without is
-`ready`. 0.2, 0.3 and 0.4 plans are read as 0.5 against the starter; the interview
-still writes 0.4 until PHASE4-PLAN Step 3. A record keeps the plan's catalog, and a
+`ready`. 0.2, 0.3 and 0.4 plans are read as 0.5 against the starter. The interview plans
+against the organization's live catalog from when it started: its model writes the 0.4
+shape with that catalog's modules, and the platform stamps the plan 0.5 with the
+catalog. A record keeps the plan's catalog, and a
 deploy whose plan names a replaced catalog that no longer builds a module it uses is
 refused (CATALOG_CHANGED).
 
@@ -652,7 +654,7 @@ The decisions that shaped the architecture, by DESIGN.md heading.
 | Area | DESIGN.md heading |
 |---|---|
 | Hosting | One small server in ca-central-1; Each domain has one job |
-| The interview | The interview runs as a LangGraph graph; The interview runs in the API; The model's address is a setting |
+| The interview | The interview runs as a LangGraph graph; The interview runs in the API; The model's address is a setting; The interview reads the organization's catalog |
 | Uploads and packaging | Deployments package an uploaded copy; One walk decides what travels, from the command and from the browser; The interview never reads secret files; Installing an app's dependencies runs none of its code; Secret files never go into the package |
 | Data | Deployment records live in Postgres; The catalog is data, and every organization starts with the starter; A plan names its catalog (planVersion 0.5) |
 | Identity | Every caller has a token, until sign-in; The portal signs in with a session cookie; Each team sees its own environments; Each team's environments have names of their own |
@@ -663,7 +665,7 @@ The decisions that shaped the architecture, by DESIGN.md heading.
 | Tracing | Tracing the interview with LangFuse; Tracing stays in the product |
 | Secrets in code | The secret scanner; The interview reads around a secret, not past the file |
 | Spending | A run's cap is close, not exact; What a run costs, and a cap of a dollar; The cap on every run; The gateway's budget: $20 a period; The outer limit, and a record of calls kept 90 days |
-| Learning the platform | Phase 4's decisions, and one reopened; The catalog is data, and every organization starts with the starter; A plan names its catalog (planVersion 0.5) |
+| Learning the platform | Phase 4's decisions, and one reopened; The catalog is data, and every organization starts with the starter; A plan names its catalog (planVersion 0.5); The interview reads the organization's catalog |
 | The model gateway | Phase 3's decisions, as recommended; agentgateway, read and run (Step 4); The model gateway on the server; A token on every model call; Inference from Canada: disclosed, on the US profile |
 
 ## 12. Known limits and where they go next

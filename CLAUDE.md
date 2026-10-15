@@ -51,7 +51,8 @@ core/       what cli/ and api/ must agree on: schema.js (the plan contract), cat
             secrets.js, scan.js, upload-rules.js, plan-words.js, evidence-summary.js,
             plan-report-words.js, retention.js, setting-names.js, environments.js and
             operations.js run in a browser, so the portal imports them too
-prompts/    system prompt, plan contract, plan, report and evidence templates, catalog
+prompts/    system prompt and the starter's passages for it (interview-starter.yaml), plan
+            contract, plan, report and evidence templates, catalog
 templates/  one CloudFormation template per buildable module, plus run.sh and
             sealeye-settings.mjs (the settings reader run.sh loads first)
 deploy/     the pilot server: Dockerfile's start script, its CloudFormation (server,
@@ -165,8 +166,9 @@ available` and an executor builds what its `builds_with` names (`EXECUTORS`, tod
 cloudformation and the starter's four: static_site_edge, http_api_serverless,
 observability_basic, config_basic). 0.2, 0.3 and 0.4 plans are read as 0.5 against the
 starter: a planned module in a 0.2 or 0.3 plan is read as the need it described and the
-plan becomes a draft. The interview still writes 0.4 (`planSchema04`, its tool's
-contract, frozen) until PHASE4-PLAN Step 3. `core/schema.js` is the only file allowed to
+plan becomes a draft. The interview's model writes the 0.4 shape with its catalog's
+modules (`interviewContract`; `planSchema04` for the starter) and never a catalog: the
+graph stamps the plan 0.5 with the interview's own (`stampCatalog`). `core/schema.js` is the only file allowed to
 name the old module ids, and only for that. Changing the contract is a DESIGN.md
 decision.
 
@@ -247,6 +249,14 @@ Keep existing endpoints and commands working; add, do not break.
   only SEALEYE_GATEWAY_KEY, the model key being the gateway's (`modelCredential`);
   without either, POST /interviews says so. `sealeye run` uploads the folder (`core/upload.js`: without
   what `.gitignore` leaves out, secret files as names only), follows the events and sends the answers; it holds no keys.
+- An interview starts with the organization's live catalog and keeps it in its saved
+  state. Its prompt and plan tool are built from that catalog: the passages of
+  `prompts/interview-system.md` that speak of the modules (`{{name}}`) are the
+  catalog's (`interviewPassages` in `core/catalog.js`; the starter's in
+  `prompts/interview-starter.yaml`, which, like the prompt, never leaves the server),
+  or written from its modules and rules. It never hears of a module the catalog does not
+  build. The starter's prompt and tool are pinned by `test/interview-catalog.test.js`:
+  changing them means running the eval before and after, then updating the pins.
 - Each `interrupt()` (a question, "Deploy this?") is in a node of its own with no model
   call before it. An interview's scratch folder and saved state are deleted when it
   ends, or after a day.
