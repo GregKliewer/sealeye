@@ -344,6 +344,11 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   (`.github/workflows/test.yml`), with Postgres. It needs no AWS and no API key. Tests that need
   Postgres run only with `SEALEYE_TEST_DATABASE_URL` set (a server they may create
   databases on), and are skipped without it.
+- `npm run eval:discovery` grades a catalog against the made-up organization's answer key
+  (`test/fixtures/sample-platform/answer-key.yaml`; the library is the private
+  `GregKliewer/sealeye-sample-platform`). `--library <clone>` also checks the key against
+  the library and the scanner against its planted secret; with `SEALEYE_SAMPLE_PLATFORM`
+  set to a clone, `npm test` does too. No model, no keys.
 - `npm run eval:interview` before and after any change to `prompts/`. It runs the
   interview graph in-process on each sample app, grades the plans, and records a
   LangFuse dataset run; it needs ANTHROPIC_API_KEY and LangFuse keys, and deploys
