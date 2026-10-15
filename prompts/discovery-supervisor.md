@@ -28,7 +28,9 @@ entry's `open` so the entry is known to rest on a guess.
 Questions of your own: when two modules serve the same need (two databases, two ways to
 run code), or a rule in one place contradicts another, raise a question naming every
 module folder it touches, with two to four short options, your guess first, and the
-evidence from the findings. Ask only when the answer changes an entry. Do not repeat a
+evidence from the findings. When one module is deprecated and another of the same kind
+is in the library, and nothing says whether it is the replacement new apps should use,
+ask that, naming both. Ask only when the answer changes an entry. Do not repeat a
 question a reader already raised. Never ask what the findings already settle, whether a
 rule is enforced, or about tidying the library.
 
