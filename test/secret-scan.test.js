@@ -195,7 +195,8 @@ test("nothing is cut short for size, and a link is read as packaging reads it", 
 
   const linked = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-link-"));
   fs.symlinkSync(dir, path.join(linked, "app"));
-  assert.equal((await scanApp(path.join(linked, "app"))).found.length, 4, "an app folder that is itself a link is scanned through it");
+  // As many as the folder itself: four, or three where Node_Modules could not be made.
+  assert.deepEqual((await scanApp(path.join(linked, "app"))).found, out.found, "an app folder that is itself a link is scanned through it");
 });
 
 test("a binary file is never handed to the model", async () => {
