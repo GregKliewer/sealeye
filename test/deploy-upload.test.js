@@ -68,8 +68,9 @@ before(async () => {
   fs.mkdirSync(path.join(home, "bin"), { recursive: true });
   fs.writeFileSync(path.join(home, "bin", "aws"), "#!/bin/sh\n[ \"$2\" = get-parameters-by-path ] && { echo '[]'; exit 0; }\necho 'not in this stand-in' >&2; exit 254\n", { mode: 0o755 });
   const env = { ...process.env, PORT: String(port), SEALEYE_HOME: home, HOME: home, SEALEYE_AUTH: "off", PATH: `${path.join(home, "bin")}:${process.env.PATH}` };
-  delete env.SEALEYE_LWA_VERSION;
-  delete env.SEALEYE_BUCKET;
+  // Blank rather than deleted: a setting missing from the environment is filled in from
+  // the repo's .env (core/config.js), which on a developer's machine may hold real ones.
+  for (const name of ["SEALEYE_LWA_VERSION", "SEALEYE_BUCKET", "DEPLOYME_LWA_VERSION", "DEPLOYME_BUCKET"]) env[name] = "";
   server = spawn(process.execPath, ["api/server.js"], { cwd: root, env, stdio: ["ignore", "pipe", "pipe"] });
   let log = "";
   server.stdout.on("data", d => (log += d));

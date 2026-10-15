@@ -166,17 +166,25 @@ test("nothing is cut short for size, and a link is read as packaging reads it", 
   fs.symlinkSync(path.join(dir, "node_modules", "cfg", "real.js"), path.join(dir, "config.js"));
   fs.symlinkSync(dir, path.join(dir, "loop"));   // a loop of links ends
   // rsync's --exclude node_modules matches exactly, so this is packaged, and scanned.
-  fs.mkdirSync(path.join(dir, "Node_Modules"));
-  fs.writeFileSync(path.join(dir, "Node_Modules", "x.js"), `t = "${FAKE.gitlabToken}"\n`);
+  // Only where the file system tells the two names apart: on a Mac's, by default, it
+  // does not, and Node_Modules is the node_modules made above.
+  const caseless = fs.existsSync(path.join(dir, "NODE_MODULES"));
+  if (!caseless) {
+    fs.mkdirSync(path.join(dir, "Node_Modules"));
+    fs.writeFileSync(path.join(dir, "Node_Modules", "x.js"), `t = "${FAKE.gitlabToken}"\n`);
+  }
   // Kept from gitleaks, still read by the shared rules.
   fs.writeFileSync(path.join(dir, ".gitleaksignore"), `# ${FAKE.npmToken}\n`);
 
   const out = await scanApp(dir);
-  assert.deepEqual(out.found.map(f => `${f.file}:${f.rule}`), [".gitleaksignore:npm-token", "Node_Modules/x.js:gitlab-token", "config.js:stripe-key", "dist/bundle.js:github-token"],
+  assert.deepEqual(out.found.map(f => `${f.file}:${f.rule}`), [".gitleaksignore:npm-token", ...(caseless ? [] : ["Node_Modules/x.js:gitlab-token"]), "config.js:stripe-key", "dist/bundle.js:github-token"],
     "the bundle past any limit, the link's target, and not .env, which is never packaged");
 
   const outside = folder("outside-link", { "index.js": "x" });
-  fs.symlinkSync("/etc/hostname", path.join(outside, "host.txt"));
+  // A file that is there on any machine, outside the app folder (a Mac has no /etc/hostname).
+  const elsewhere = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-scan-elsewhere-"));
+  fs.writeFileSync(path.join(elsewhere, "hostname"), "a-host\n");
+  fs.symlinkSync(path.join(elsewhere, "hostname"), path.join(outside, "host.txt"));
   await assert.rejects(scanApp(outside), /host\.txt is a link to something outside your app folder/);
 
   // What packaging never takes may point anywhere: a shared .env, a monorepo's modules.
@@ -273,8 +281,9 @@ before(async () => {
   fs.mkdirSync(path.join(home, "bin"), { recursive: true });
   fs.writeFileSync(path.join(home, "bin", "aws"), "#!/bin/sh\n[ \"$2\" = get-parameters-by-path ] && { echo '[]'; exit 0; }\necho 'not in this stand-in' >&2; exit 254\n", { mode: 0o755 });
   const env = { ...process.env, PORT: String(port), SEALEYE_HOME: home, HOME: home, SEALEYE_AUTH: "off", PATH: `${path.join(home, "bin")}:${process.env.PATH}` };
-  delete env.SEALEYE_LWA_VERSION;
-  delete env.SEALEYE_BUCKET;
+  // Blank rather than deleted: a setting missing from the environment is filled in from
+  // the repo's .env (core/config.js), which on a developer's machine may hold real ones.
+  for (const name of ["SEALEYE_LWA_VERSION", "SEALEYE_BUCKET", "DEPLOYME_LWA_VERSION", "DEPLOYME_BUCKET"]) env[name] = "";
   server = spawn(process.execPath, ["api/server.js"], { cwd: root, env, stdio: "ignore" });
   for (let i = 0; i < 50; i++) {
     try {
