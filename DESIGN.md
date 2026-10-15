@@ -2770,3 +2770,76 @@ every request the model received byte for byte as on main).
   stopped, so a failed run can be read from the terminal before opening its trace.
 - Questions no answer fits get the fallback, "I'm not sure. Use your best judgement from
   the code.", as the question about what the app is for always has.
+
+## A module's name is found as code when it is an ordinary word
+
+Thu Oct 15, 2026, found by the first run of `npm run eval:discovery`.
+
+seaLeye looks for module ids in words in four places: a need's or a pattern's line
+(`catalogProblems`), the interview's prompt (`namesUnbuilt`), DEPLOYMENT_PLAN.md
+(`strayModule`) and an unlisted need's line (`unlistedNeedProblems`). Each matched an id
+as a whole word. The made-up organization has a module called `secrets`, and the
+starter's need line "secrets it reads while it runs" then read as naming it: the
+catalog was refused, and in the interview every line saying "secrets" would have been
+dropped, and a plan file saying it refused.
+
+- **An id that looks like an identifier** (an underscore or a digit in it:
+  `http_api_serverless`, `work_queue`) is found anywhere, as a whole word, as before.
+- **An id that is an ordinary word** (`secrets`, `queue`, `cache`) is found only written
+  as code, in backticks. Prose about secrets is not a module's name.
+- One rule for all four places: `moduleIdSource` in `core/schema.js`.
+- What this gives up: a catalog, a model or a plan file may say an ordinary-word id as
+  plain prose without being caught. The four starter modules, and any id with an
+  underscore, are caught as before.
+
+## The made-up organization: Juniper Mutual
+
+Thu Oct 15, 2026, PHASE4-PLAN Step 4 (D1, D2, D9). Greg chose the design with three
+changes for the path to production, and Q20 recorded.
+
+- **The library** is the private repository `GregKliewer/sealeye-sample-platform`:
+  Juniper Mutual, a fictional credit union, and its platform team's thirteen Terraform
+  modules for websites and backend APIs (static site, custom domain, HTTP API,
+  container service, internal entry, two relational databases, document table, work
+  queue, file bucket, secrets, logs and alarms, and a deprecated cache), with the
+  pipeline every app is built and promoted with. Its own GitHub check runs Terraform's
+  formatter and validator on every push, so the modules are real Terraform.
+- **Every module knows its stage** (dev, sit, uat, staging, perf, prod), and from
+  staging up is held to production's rules: more copies, more backups, protection
+  against deletion. Greg, Oct 15: the roadmap goes on to higher environments and
+  promotion (Phase 5), so the regression set has to exercise more than dev, or it is
+  rebuilt then.
+- **The planted hard cases:**
+  - **The overlap is by stage:** `postgres` below staging, `postgres-cluster` from
+    staging up, said only in their READMEs. How a run records what it had to ask waits
+    on Q19, and how a plan names a module per stage on Q20 (raised here); until then the
+    grader checks that both are in the catalog, each saying its stages.
+  - **A deprecated module**, the cache, must never be offered.
+  - **A rule only in a README:** from staging up, alarms go to the on-call topic and
+    nowhere else. Discovery must learn it from prose, for nothing in the code checks it.
+  - **A planted password** in an old example file, made up, which seaLeye's scanner
+    must stop before any model reads the file, and a Terraform variables file beside it
+    that seaLeye must never read.
+  - **Three gaps:** nothing for an event stream, user sign-in or scheduled work, for
+    the gap report (Step 10).
+- **The path to production is the library's own:** the package is built once and the
+  same package, by its checksum, is promoted through sit, uat, staging and prod, with a
+  platform approval for staging and prod and a change ticket for prod; perf is built
+  from staging, never promoted from. The answer key records it for Phase 5; nothing
+  grades it yet.
+- **The answer key lives in seaLeye, not in the library**
+  (`test/fixtures/sample-platform/answer-key.yaml`), so discovery can never read it: the
+  catalog a careful platform engineer would write, in seaLeye's own catalog form, with
+  each module's folder as its `source`, so a catalog is graded whatever ids discovery
+  chooses.
+- **`npm run eval:discovery`** (`scripts/eval-discovery.js`) grades a catalog against the
+  key. Until discovery exists (Step 6) it grades the key itself, which must pass its own
+  grading; with `--library <clone>` it checks that the key still matches the library
+  (every folder an entry, every input a variable, required where the variable has no
+  default) and that the scanner stops the planted password and nothing else; `--smoke`
+  is the starter catalog, the answer for seaLeye's own `templates/`. What waits on a later
+  step or an open question is listed as waiting, never counted as passed. LangFuse
+  records it from Step 7.
+- **Nothing in it is buildable yet.** Its modules are built with Terraform, which seaLeye
+  builds from Step 9; until then its catalog builds nothing, and the interview, given
+  it, says so and plans every need as a need.

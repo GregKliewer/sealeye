@@ -47,6 +47,32 @@ tokens survive for automation; how a person's team and an organization-wide scop
 **Leaning:** its own plan, once seaLeye goes past a handful of people or to a bank.
 Moved to Phase 5 on Oct 13, 2026. Blocks a wider pilot, not the friendly team.
 
+### Q20. How does a plan name a different module for a later stage?
+
+Raised Oct 15, 2026, building the made-up organization (PHASE4-PLAN Step 4). A plan names
+one set of modules, and its profile says which patterns later stages apply to them. Real
+libraries also change the module itself on the way to production: Juniper Mutual's
+`postgres` is for dev, sit and uat only, and from staging up the same app's database is
+a `postgres-cluster`, which takes the same inputs. Today's contract cannot say that, so
+a plan written in dev is either wrong for production or not buildable in dev.
+
+**Options:**
+- **One module per need, a stage map in the catalog.** The plan names what the app
+  needs ("a relational database") and the catalog says which module serves it at each
+  stage. Plans stay short and stage-free; the catalog carries the rule, which is where
+  the platform team wrote it.
+- **Modules per stage in the plan.** A plan lists, for each module, which stages it is
+  for. Explicit and reviewable, but every plan repeats the platform team's rule, and a
+  rule that changes means every plan changes.
+- **A plan per stage.** Promotion writes the next stage's plan from the last one. Each
+  plan stays as simple as today's, but a developer's one plan becomes several, and
+  what was approved in dev is no longer what reaches production word for word.
+
+**Leaning:** the first: the rule is the platform team's, and it belongs in their
+catalog; the plan the developer approved stays the plan that is promoted. It changes
+the plan contract, so it is a DESIGN.md decision when it is made. Blocks Phase 5
+(`sealeye promote`), not Phase 4: until then, plans are for dev.
+
 ## Later
 
 ### Q7. Windows

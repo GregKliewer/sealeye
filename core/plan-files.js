@@ -13,7 +13,7 @@ import path from "node:path";
 
 import YAML from "yaml";
 
-import { normalizeProfile, LEGACY_MODULE_IDS, MODULE_IDS } from "./schema.js";
+import { normalizeProfile, LEGACY_MODULE_IDS, MODULE_IDS, moduleIdSource } from "./schema.js";
 import { buildableModules, catalogModuleIds, isBuildable, loadCatalog, unsupportedNeeds } from "./catalog.js";
 import { repoRoot } from "./config.js";
 import { CONFIG_FILE } from "./names.js";
@@ -366,10 +366,12 @@ export function renderPlanMarkdown(submission, { template = loadTemplate(), cata
 
 /** The first module id in `text` that this catalog does not build, or null. */
 function strayModule(text, catalog) {
-  const ids = [...new Set([...MODULE_IDS, ...LEGACY_MODULE_IDS, ...catalogModuleIds(catalog)])]
-    .map(id => id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-  const pattern = new RegExp(`\\b(?:${ids.join("|")})\\b`, "g");
-  for (const [id] of String(text).matchAll(pattern)) if (!isBuildable(id, catalog)) return id;
+  const ids = [...new Set([...MODULE_IDS, ...LEGACY_MODULE_IDS, ...catalogModuleIds(catalog)])];
+  const pattern = new RegExp(`(?:${ids.map(moduleIdSource).join("|")})`, "g");
+  for (const [match] of String(text).matchAll(pattern)) {
+    const id = match.replace(/`/g, "");
+    if (!isBuildable(id, catalog)) return id;
+  }
   return null;
 }
 
