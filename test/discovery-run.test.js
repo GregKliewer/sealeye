@@ -53,7 +53,7 @@ const text = c => (typeof c === "string" ? c : JSON.stringify(c));
  * supervisor's first call waits on; `holdWorker` one the db-cluster worker waits on
  * before it hands in, so a test can answer a question at either moment.
  */
-function scripted({ hold = null, holdWorker = null, deprecated = ["modules/cache"], libraryQuestion = false, looseTouches = false, rewriteQuestion = false, repeat = false } = {}) {
+function scripted({ hold = null, holdWorker = null, deprecated = ["modules/cache"], libraryQuestion = false, looseTouches = false, rewriteQuestion = false, repeat = false, repeatWider = false } = {}) {
   const calls = [];
   const seen = { results: [] };
   const create = async params => {
@@ -107,13 +107,16 @@ function scripted({ hold = null, holdWorker = null, deprecated = ["modules/cache
         guidance: source === "modules/db" ? `Below staging only${overlapAnswer ? ` (${overlapAnswer})` : ""}.` : source === "modules/db-cluster" ? "From staging up." : "As the library says.",
         open: []
       }));
+      const wider = repeatWider && first
+        ? [{ kind: "other", question: "Is the cache still offered to anyone at all?", options: ["No", "Yes"], guess: "No", touches: ["modules/cache", "modules/db"], evidence: [{ file: "modules/cache/README.md", shows: "deprecated" }] }]
+        : [];
       const repeated = repeat && first
         ? [
             { kind: "deprecated", question: "Is the cache module still offered to any apps at all?", options: ["No", "Yes"], guess: "No", touches: ["modules/cache"], evidence: [{ file: "modules/cache/README.md", shows: "deprecated" }] },
             { kind: "other", question: "Should the cache's own README name what replaces it?", options: ["Yes", "No"], guess: "Yes", touches: ["modules/cache"], evidence: [{ file: "modules/cache/README.md", shows: "no replacement named" }] }
           ]
         : [];
-      const questions = [...repeated, ...(first
+      const questions = [...wider, ...repeated, ...(first
         ? [{ kind: "overlap", question: "Which database is for which stage?", options: ["db below staging, db-cluster from staging up", "Either at any stage"], guess: "db below staging, db-cluster from staging up", touches: looseTouches ? ["db", "modules/db-cluster/"] : ["modules/db", "modules/db-cluster"], evidence: [{ file: "modules/db/README.md", shows: "says dev only" }] }]
         : rewriteQuestion
           ? [{ kind: "other", question: "Is the cluster's backup rule for prod only?", options: ["Yes", "No"], guess: "Yes", touches: ["modules/db-cluster"], evidence: [{ file: "modules/db-cluster/README.md", shows: "says staging up" }] }]
@@ -514,4 +517,13 @@ test("a question the supervisor asks again in its own words is dropped; a new on
   await service.settled(discoveryId);
   const onCache = service.questions(discoveryId).filter(q => q.touches.includes("modules/cache"));
   assert.deepEqual(onCache.map(q => q.question), ["Is the cache still offered to anyone?", "Should the cache's own README name what replaces it?"]);
+});
+
+test("a question asked again in nearly the same words is dropped, even naming one more module", async () => {
+  const model = scripted({ repeatWider: true });
+  const service = createDiscoveryService({ client: model.client, readLibrary: readFolder(library()) });
+  const { discoveryId } = await service.start({ caller, repos: [{ owner: "acme", repo: "platform" }] });
+  await service.settled(discoveryId);
+  const onCache = service.questions(discoveryId).filter(q => q.touches.includes("modules/cache"));
+  assert.deepEqual(onCache.map(q => q.question), ["Is the cache still offered to anyone?"]);
 });
