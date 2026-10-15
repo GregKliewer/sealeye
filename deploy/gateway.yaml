@@ -91,7 +91,23 @@ llm:
     timeout:
       requestTimeout: 15m
       responseIdleTimeout: 5m
+  # Named routes (PHASE4-PLAN Step 5, D5): the API asks for a route by name and the
+  # gateway chooses the model, so moving a route (to Bedrock, say) is a change here only.
+  # small reads in bulk, frontier writes plans and rules; both on the Anthropic route for
+  # now. Each name and model is also in api/model-routes.js, which prices a call by the
+  # model its route names, and test/gateway-config.test.js keeps the two the same.
+  # Any other Claude model, the interview's own today, still goes by its own name.
   models:
+  - name: small
+    provider: anthropic
+    params:
+      model: claude-haiku-5-5
+      apiKey: $ANTHROPIC_API_KEY
+  - name: frontier
+    provider: anthropic
+    params:
+      model: claude-sonnet-5
+      apiKey: $ANTHROPIC_API_KEY
   - name: claude-*
     provider: anthropic
     params:
