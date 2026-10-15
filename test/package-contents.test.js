@@ -25,6 +25,7 @@ test("the installed package is the command, core, and the files they read", () =
   }
   assert.ok(!files.some(f => f.startsWith("api/")), "never the API");
   assert.ok(!files.includes("prompts/interview-system.md"), "never the interview's prompt");
+  assert.ok(!files.includes("prompts/interview-starter.yaml"), "nor the passages it is filled in with");
 });
 
 test("every prompt or template the command and core read is in the package", () => {
@@ -44,6 +45,8 @@ test("every prompt or template the command and core read is in the package", () 
   walk("core");
   // Read only by the API, through core/tracing.js, to name the prompt version in a trace.
   read.delete("prompts/interview-system.md");
+  // The starter's passages for that prompt (PHASE4-PLAN Step 3): the API's, like it.
+  read.delete("prompts/interview-starter.yaml");
   assert.ok(read.size >= 5, "found the files the command reads");
   for (const f of read) assert.ok(files.has(f), `${f} is read by the command but not in the package`);
 });

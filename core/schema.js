@@ -191,6 +191,16 @@ export function contractSchema({ moduleIds = MODULE_IDS, needKinds = NEED_KINDS 
 export const planSchema = contractSchema();
 
 /**
+ * The shape the interview writes a plan in, for one catalog: 0.4's, with the modules and
+ * need kinds of the catalog it was given (PHASE4-PLAN Step 3). The model never chooses
+ * which catalog: the platform stamps the plan 0.5 with the interview's own. For the
+ * starter catalog it is planSchema04 exactly.
+ */
+export function interviewContract({ moduleIds = MODULE_IDS, needKinds = NEED_KINDS } = {}) {
+  return contractShape({ versions: ["0.2", "0.3", "0.4"], moduleIds: [...moduleIds], needKinds: [...needKinds], catalogField: false });
+}
+
+/**
  * The 0.4 contract, frozen. The interview still writes 0.4 against the starter catalog
  * (its submit_plan tool, api/interview/schema.js), and the API reads what it writes as
  * 0.5 against the starter, until PHASE4-PLAN Step 3 moves the interview to the

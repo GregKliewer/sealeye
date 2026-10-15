@@ -20,7 +20,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { DEFAULT_MODEL, resolveApiKey } from "../api/interview/model.js";
+import { DEFAULT_MODEL, loadSystemPrompt, resolveApiKey } from "../api/interview/model.js";
 import { runInterview } from "../api/interview/service.js";
 import { loadEnv, loadUserConfig, repoRoot, setting } from "../core/config.js";
 import {
@@ -28,7 +28,7 @@ import {
   flushTracing,
   langfuseRequest,
   newExperimentId,
-  promptVersion,
+  promptVersionOf,
   scoreTrace,
   startTracing,
   traceExperimentItem,
@@ -154,7 +154,7 @@ async function ensureDataset() {
  */
 export async function evaluate({ cases, runName, model, clientFor, log = () => {} }) {
   const datasetId = await ensureDataset();
-  const description = `Interview prompt ${promptVersion()}, model ${model}`;
+  const description = `Interview prompt ${promptVersionOf(loadSystemPrompt())}, model ${model}`;
   const experimentId = newExperimentId();
 
   const rows = [];
@@ -423,7 +423,7 @@ async function main() {
   const two = n => String(n).padStart(2, "0");
   const stamp = `${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())} ` +
     `${two(now.getHours())}:${two(now.getMinutes())}:${two(now.getSeconds())}`;
-  const runName = `${stamp} prompt ${promptVersion()}`;
+  const runName = `${stamp} prompt ${promptVersionOf(loadSystemPrompt())}`;
   const cases = loadCases();
 
   console.log(`Interview regression set: ${cases.length} apps, model ${model}`);

@@ -6,7 +6,7 @@ import path from "node:path";
 
 import Anthropic from "@anthropic-ai/sdk";
 
-import { catalogForPrompt, orgName } from "../../core/catalog.js";
+import { catalogForPrompt, interviewPassages, orgName, starterCatalog } from "../../core/catalog.js";
 import { repoRoot, loadEnv, loadUserConfig, setting } from "../../core/config.js";
 import { traceTurn } from "../../core/tracing.js";
 import { spendingLimitWords } from "../../core/model-prices.js";
@@ -108,13 +108,46 @@ export function modelClient(credential) {
  * folder.
  *
  * The catalog is substituted in rather than written out twice: a module described in
- * two places eventually says two different things. The organization's name comes from
+ * two places eventually says two different things. Since PHASE4-PLAN Step 3 it is the
+ * interview's catalog, the organization's live one when it started, with the passages
+ * that speak of its modules (interviewPassages in core/catalog.js); the starter's are
+ * the prompt exactly as it was before. The organization's name comes from
  * the platform's config, because whose platform library this is was never ours to hard
  * code.
  */
-export function loadSystemPrompt() {
-  const text = fs.readFileSync(path.join(repoRoot, "prompts", "interview-system.md"), "utf8");
-  return text.split("{{catalog}}").join(catalogForPrompt()).split("{{org}}").join(orgName());
+export function loadSystemPrompt(catalog, { starter = catalog === undefined } = {}) {
+  const doc = catalog || starterCatalog();
+  let text = fs.readFileSync(path.join(repoRoot, "prompts", "interview-system.md"), "utf8");
+  // The passages that speak of the modules are the catalog's (PHASE4-PLAN Step 3). One
+  // the catalog has nothing for goes, with its line, rather than leaving a gap.
+  const org = orgName();
+  const passages = interviewPassages(doc, { starter });
+  for (const [name, value] of Object.entries(passages)) {
+    if (value) continue;
+    const mark = `{{${name}}}`;
+    text = text.split(`${mark}\n\n`).join("").split(`${mark}\n`).join("").split(mark).join("");
+  }
+  // Every {{name}} filled in one pass over the template, so nothing put in is read again:
+  // a {{name}} inside a catalog's own words is never filled, and never filled twice. A
+  // passage may say {{org}} (catalogProblems allows that and no other), filled first.
+  const values = {
+    ...Object.fromEntries(Object.entries(passages).map(([k, v]) => [k, String(v).split("{{org}}").join(org)])),
+    catalog: catalogForPrompt(doc),
+    org
+  };
+  return text.replace(/\{\{([a-z_]+)\}\}/g, (mark, name) => (Object.hasOwn(values, name) ? values[name] : mark));
+}
+
+/**
+ * A plan in the shape the model writes one: 0.4, with no catalog. A plan deployed since
+ * Oct 15, 2026 is 0.5 and names its catalog, which the model's tool does not have and
+ * the platform fills in itself; shown as it is, the model could copy them back and have
+ * its plan refused.
+ */
+export function asTheModelWritesIt(plan) {
+  if (!plan || typeof plan !== "object" || plan.planVersion !== "0.5") return plan;
+  const { catalog, ...rest } = plan;
+  return { ...rest, planVersion: "0.4" };
 }
 
 /** The plan the live environment was built from, for the first message. */
@@ -123,7 +156,7 @@ export function deployedContext(plan) {
   return [
     "This app already has a live environment with this plan:",
     "",
-    JSON.stringify(plan, null, 2),
+    JSON.stringify(asTheModelWritesIt(plan), null, 2),
     "",
     "This run updates that environment rather than creating a second one."
   ].join("\n");
