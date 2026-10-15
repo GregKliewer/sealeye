@@ -59,7 +59,11 @@ fs.writeFileSync(path.join(home, "deployments.json"), JSON.stringify([
     plan: { profile: "dev" }, outputs: {}, failureReason: "The function could not start: index.js was not in the folder.", requestedBy: by("Greg Kliewer", "greg@example.com"),
     startedAt: ago(40 * 60_000) },
   { ...base, deploymentId: "dep_eeeeeeeeeee1", app: { name: "old-demo" }, kind: "static", status: "destroyed", stackName: "sealeye-old-demo",
-    plan: { profile: "poc" }, outputs: {}, requestedBy: by("Greg Kliewer", "greg@example.com"), startedAt: ago(9 * 86400_000) },
+    plan: { profile: "poc" }, outputs: { WebsiteUrl: "http://sealeye-old-demo.s3-website.ca-central-1.amazonaws.com" }, requestedBy: by("Greg Kliewer", "greg@example.com"), startedAt: ago(9 * 86400_000) },
+  // Live until a test tears it down from the command line while its page is open.
+  { ...base, deploymentId: "dep_hhhhhhhhhhh1", app: { name: "cli-side-api" }, kind: "api", status: "succeeded", stackName: "sealeye-cli-side-api",
+    plan: apiPlan("cli-side-api"), outputs: { ApiUrl: "https://cli789.lambda-url.ca-central-1.on.aws/" }, requestedBy: by("Greg Kliewer", "greg@example.com"),
+    startedAt: ago(4 * 3600_000), finishedAt: ago(4 * 3600_000 - 90_000) },
   { ...base, teamId: "payments", deploymentId: "dep_99999999999a", app: { name: "another-teams-api" }, kind: "api", status: "succeeded", stackName: "sealeye-payments-another-teams-api-0a1b2c",
     plan: apiPlan("another-teams-api"), artifactKey: "sealeye-payments-another-teams-api-0a1b2c/dep_99999999999a.zip", outputs: {}, requestedBy: by("Pat Other", "pat@example.com"), startedAt: ago(3600_000) },
   // Being built right now, from the portal: the platform carries on following it when the

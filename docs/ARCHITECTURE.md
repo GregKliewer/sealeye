@@ -383,6 +383,12 @@ sequenceDiagram
   C->>API: GET /deployments
   API->>DB: session hash -> token -> person, team, scope
   API-->>B: this team's records (or the organization's, for an org-wide token)
+  B->>C: GET /api/deployments/events (cookie), held open
+  C->>API: GET /deployments/events
+  Note over B,API: a deployment this person can see changes (from either surface)
+  API-->>B: event: changed { deploymentId }
+  B->>C: GET /api/deployments, read again
+  Note over B,API: The stream ends after five minutes and the browser opens the next, checked again
   Note over B,API: Any change made with the cookie must also carry x-sealeye-portal: 1
 ```
 
