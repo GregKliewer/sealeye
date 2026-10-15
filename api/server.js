@@ -3,8 +3,8 @@ import crypto from "crypto";
 import fs from "node:fs";
 import path from "node:path";
 
-import { isDrafted, upgradePlan } from "../core/schema.js";
-import { checkPlan, checkUpgraded } from "./validate.js";
+import { STARTER_VERSION, isDrafted, upgradePlan } from "../core/schema.js";
+import { catalogOfPlan, checkPlan, checkUpgraded, noLongerBuilt } from "./validate.js";
 import { backendMappings } from "./mappings.js";
 import { putDeployment, getDeployment, listDeployments, storeFile, count, openStore, flushStore, onDeploymentSaved } from "./store.js";
 import { startDeployment, startDestroy } from "./executor/index.js";
@@ -37,8 +37,8 @@ import { postgresCheckpointer, postgresInterviewStore } from "./interview/pgstor
 import { databaseUrl, closeDb } from "./db.js";
 import { startTracing } from "../core/tracing.js";
 import { authMode, callerFor, callerForSession, endSession, SESSION_COOKIE, SESSION_HOURS, startSession } from "./tokens.js";
-import { needKinds, orgName } from "../core/catalog.js";
-import { catalogRef, liveCatalog, openCatalogs } from "./catalogs.js";
+import { buildableView, needKinds, orgName } from "../core/catalog.js";
+import { liveCatalog, openCatalogs } from "./catalogs.js";
 
 const app = express();
 
@@ -191,26 +191,61 @@ app.delete("/sessions", async (req, res) => {
 
 // The organization a request is made for: the token's, or "default" on a laptop API.
 const callerOrg = req => req.caller?.org || "default";
-// The catalog the organization plans and refuses against (api/catalogs.js).
+// The catalog the organization plans and refuses against now (api/catalogs.js).
 const catalogOf = req => liveCatalog(callerOrg(req)).document;
+// The catalog a plan was written against (planVersion 0.5), in the caller's organization:
+// what its files and its record read. Asked only of a plan that has passed the contract,
+// which already refused one naming a catalog the organization does not have.
+const planCatalog = (req, plan) => catalogOfPlan(plan, callerOrg(req));
+// What a record keeps of it: which catalog, never the document.
+const planCatalogRef = (req, plan) => {
+  const { version, source } = planCatalog(req, plan);
+  return { version, source };
+};
+// A deploy is refused, with the modules, when the plan names a catalog that has since
+// been replaced and the live one no longer builds something it uses.
+const catalogChanged = lines => ({
+  error: {
+    code: "CATALOG_CHANGED",
+    message: `This plan was written against an earlier version of your organization's catalog, and the catalog no longer builds everything it uses. ${lines.map(l => (/[.!?]$/.test(l) ? l : `${l}.`)).join(" ")} Run sealeye run again to plan against the catalog as it is now. Nothing was deployed.`,
+    details: { noLongerBuilt: lines }
+  }
+});
 
 // GET /catalog: what the platform can build, and the fixed list of needs it cannot yet,
 // in the words of the organization's live catalog, or the starter catalog
 // (prompts/module-catalog.yaml) when it has none. `catalog` says which; added Oct 14, 2026.
+// ?version=<v> asks for the catalog a plan names instead (planVersion 0.5): the starter,
+// or one of the organization's that is or was live. `document` is that catalog as the
+// clients draw a plan from it, the command's card and DEPLOYMENT_PLAN.md: only what the
+// platform builds, the need kinds, the profiles and their patterns. Added Oct 15, 2026.
 app.get("/catalog", (req, res) => {
   const live = liveCatalog(callerOrg(req));
-  const catalog = live.document;
+  let chosen = live;
+  if (req.query.version !== undefined) {
+    const raw = String(req.query.version);
+    const version = raw === STARTER_VERSION ? raw : /^[1-9][0-9]*$/.test(raw) ? Number(raw) : null;
+    if (version === null) return res.status(400).json({ error: { code: "INVALID_VERSION", message: `version is ${STARTER_VERSION} or a catalog's number` } });
+    const found = catalogOfPlan({ catalog: version }, callerOrg(req));
+    if (found.error) return res.status(404).json({ error: { code: found.error.code, message: found.error.message.replace(/^\/catalog names/, "That names") } });
+    const row = version === live.version ? live : { version, source: found.source, document: found.document, approvedBy: null, approvedAt: null };
+    chosen = row;
+  }
+  const catalog = chosen.document;
+  const view = buildableView(catalog);
   return res.status(200).json({
-    catalog: { version: live.version, source: live.source, approvedBy: live.approvedBy, approvedAt: live.approvedAt },
+    catalog: { version: chosen.version, source: chosen.source, approvedBy: chosen.approvedBy, approvedAt: chosen.approvedAt, live: chosen.version === live.version },
     catalogVersion: catalog.catalogVersion,
-    modules: (catalog.modules || []).map(m => ({
+    // Only the modules the platform builds: seaLeye never names one it cannot.
+    modules: view.modules.map(m => ({
       id: m.id,
       availability: m.availability,
       role: m.role,
       line: String(m.line || "").trim(),
       shortLine: String(m.short_line || "").trim() || null
     })),
-    needs: needKinds(catalog).map(n => ({ kind: n.key, line: String(n.line || "").trim() }))
+    needs: needKinds(catalog).map(n => ({ kind: n.key, line: String(n.line || "").trim() })),
+    document: view
   });
 });
 
@@ -228,10 +263,11 @@ app.get("/whoami", (req, res) => {
 // valid and errors fields are unchanged.
 app.post("/plans/validate", (req, res) => {
   // A plan written against an older contract is read as what it meant, then checked.
-  const result = checkPlan(req.body);
+  const result = checkPlan(req.body, { org: callerOrg(req) });
   if (!result.valid) return res.status(200).json(result);
   const plan = upgradePlan(req.body);
-  const lines = new Map(needKinds(catalogOf(req)).map(n => [n.key, String(n.line || "").trim()]));
+  // In the words of the catalog the plan was written against.
+  const lines = new Map(needKinds(planCatalog(req, plan).document).map(n => [n.key, String(n.line || "").trim()]));
   const needs = (plan.needs || []).map(n => ({
     kind: n.kind,
     line: lines.get(n.kind) || n.line,
@@ -278,7 +314,7 @@ async function deployAgain(req, res) {
   const given = req.body?.plan !== undefined;
   const plan = upgradePlan(given ? req.body.plan : source.plan);
   if (!plan || typeof plan !== "object") return refuse(400, "MISSING_PLAN", "That deployment has no plan on record, so give one.");
-  const checked = checkUpgraded(plan);
+  const checked = checkUpgraded(plan, { org: callerOrg(req) });
   if (!checked.valid) {
     return res.status(400).json({ error: { code: "INVALID_PLAN", message: "plan failed validation", details: checked.errors } });
   }
@@ -287,6 +323,10 @@ async function deployAgain(req, res) {
   }
   if (unsupportedNeeds(plan).length) {
     return refuse(422, "UNSUPPORTED_NEEDS", "This plan is drafted: it needs what the platform does not build yet, so there is nothing to deploy again. Validate it to see what it needs.");
+  }
+  {
+    const gone = noLongerBuilt(plan, callerOrg(req));
+    if (gone.length) return res.status(409).json(catalogChanged(gone));
   }
 
   // One change at a time: the environment this goes to must not be changing now.
@@ -372,13 +412,14 @@ async function deployAgain(req, res) {
     // what was approved; a plan changed with Configure is written down from the plan.
     // and the catalog they were written from: a record keeps which, never the document.
     ...(source.planFiles && source.plan && planDigest(source.plan) === planDigest(plan)
-      ? { planFiles: source.planFiles, catalog: source.catalog || { version: "starter", source: "starter" } }
-      : { ...planFilesFor(plan, null, new Date(), catalogOf(req)), catalog: catalogRef(callerOrg(req)) }),
+      ? { planFiles: source.planFiles, catalog: source.catalog || { version: STARTER_VERSION, source: "starter" } }
+      : { ...planFilesFor(plan, null, new Date(), planCatalog(req, plan).document), catalog: planCatalogRef(req, plan) }),
     ...(req.caller ? { orgId: req.caller.org, teamId: req.caller.team, tokenId: req.caller.tokenId } : {}),
     surface: req.surface || "cli",
     ...(requestedBy ? { requestedBy } : {}),
     origin,
-    planSha256: crypto.createHash("sha256").update(JSON.stringify(plan), "utf8").digest("hex"),
+    // Of the plan as given, or as the deployment it repeats keeps it.
+    planSha256: crypto.createHash("sha256").update(JSON.stringify(given ? req.body.plan : source.plan), "utf8").digest("hex"),
     // The code: the earlier deployment's artifact, as it is in S3, and its checksum.
     artifactKey: source.artifactKey,
     artifactSha256: source.artifactSha256 ?? null,
@@ -421,7 +462,9 @@ async function deployNew(req, res) {
     ? { user: req.caller.email, name: req.caller.name, host: typeof claimed?.host === "string" ? claimed.host : null, verified: "token" }
     : claimed;
   const origin = req.body?.origin && typeof req.body.origin === "object" ? req.body.origin : undefined;
-  const planSha256 = plan ? crypto.createHash("sha256").update(JSON.stringify(plan), "utf8").digest("hex") : undefined;
+  // Of the plan as it was sent, so the evidence's checksum matches the file it came from
+  // (a 0.4 sealeye.yaml is read as 0.5, and that reading is not what was sent).
+  const planSha256 = plan ? crypto.createHash("sha256").update(JSON.stringify(req.body.plan), "utf8").digest("hex") : undefined;
   const provenance = {
     ...(req.caller ? { orgId: req.caller.org, teamId: req.caller.team, tokenId: req.caller.tokenId } : {}),
     surface: req.surface || "cli",
@@ -477,7 +520,7 @@ async function deployNew(req, res) {
     }
   }
 
-  const checked = checkUpgraded(plan);
+  const checked = checkUpgraded(plan, { org: callerOrg(req) });
   if (!checked.valid) {
     return res.status(400).json({
       error: {
@@ -523,9 +566,9 @@ async function deployNew(req, res) {
       plan,
       needs,
       // The plan as the developer saw it, so either surface can show it later.
-      ...planFilesFor(plan, interviewNotesFor(req.caller, plan), new Date(), catalogOf(req)),
+      ...planFilesFor(plan, interviewNotesFor(req.caller, plan), new Date(), planCatalog(req, plan).document),
       // Which catalog it was planned against, so its evidence and files read that one.
-      catalog: catalogRef(callerOrg(req)),
+      catalog: planCatalogRef(req, plan),
       ...provenance,
       outputs: {},
       failureReason: null,
@@ -540,6 +583,14 @@ async function deployNew(req, res) {
         details: { needs, deploymentId: drafted.deploymentId }
       }
     });
+  }
+
+  // A plan written against a catalog that was since replaced is built only if the live
+  // catalog still builds everything it uses. (A drafted plan builds nothing, so it was
+  // saved above in the words of the catalog it names.)
+  {
+    const gone = noLongerBuilt(plan, callerOrg(req));
+    if (gone.length) return res.status(409).json(catalogChanged(gone));
   }
 
   // An uploaded copy is unpacked now, so a bad upload is a 400 and never a queued
@@ -608,9 +659,9 @@ async function deployNew(req, res) {
     plan,
     // And written down as the developer approved it (api/plan-record.js), for
     // GET /deployments/{id}/plan.
-    ...planFilesFor(plan, interviewNotesFor(req.caller, plan), new Date(), catalogOf(req)),
+    ...planFilesFor(plan, interviewNotesFor(req.caller, plan), new Date(), planCatalog(req, plan).document),
     // Which catalog it was planned against, so its evidence and files read that one.
-    catalog: catalogRef(callerOrg(req)),
+    catalog: planCatalogRef(req, plan),
     // What the secret scan let through on the developer's word (.sealeye-allow), and
     // whether gitleaks ran: file, line and rule, never a value. The evidence lists it.
     secretScan: { allowed: scan.allowed.map(({ file, line, rule }) => ({ file, line, rule })), gitleaks: scan.gitleaks },

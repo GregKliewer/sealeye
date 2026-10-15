@@ -102,6 +102,8 @@ test("Catalog shows the modules and what apps are waiting on", async ({ page }) 
   await signIn(page);
   await page.getByRole("link", { name: "Catalog" }).click();
   await expect(page.getByTestId("module-card")).toHaveCount(4);
+  // Which catalog, in the words `sealeye catalog` says: every organization has the starter.
+  await expect(page.getByTestId("catalog-version")).toHaveText(/^The starter catalog: the modules seaLeye builds on its own/);
   const rows = page.getByTestId("need-row");
   await expect(rows).toHaveCount(2);
   await expect(rows.first()).toContainText("ledger-sync");

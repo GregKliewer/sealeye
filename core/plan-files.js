@@ -13,8 +13,8 @@ import path from "node:path";
 
 import YAML from "yaml";
 
-import { normalizeProfile, isBuildable, MODULE_IDS, STRAY_MODULE_ID } from "./schema.js";
-import { loadCatalog, unsupportedNeeds } from "./catalog.js";
+import { normalizeProfile, LEGACY_MODULE_IDS, MODULE_IDS } from "./schema.js";
+import { buildableModules, catalogModuleIds, isBuildable, loadCatalog, unsupportedNeeds } from "./catalog.js";
 import { repoRoot } from "./config.js";
 import { CONFIG_FILE } from "./names.js";
 
@@ -270,7 +270,7 @@ function expectedOutput({ plan }) {
 function modulesNotRequired({ plan, catalog }) {
   // Only modules seaLeye.run builds are ever named here. What the app needs beyond
   // them has its own section and is not a module that was "not required".
-  const skipped = disabledModules(plan).filter(m => isBuildable(m.id));
+  const skipped = disabledModules(plan).filter(m => isBuildable(m.id, catalog));
   if (!skipped.length) return "Every module seaLeye.run builds is in use for this app.";
 
   return bullets(
@@ -350,18 +350,28 @@ export function renderPlanMarkdown(submission, { template = loadTemplate(), cata
 
   // The one rule this file exists to keep. A module id in here that seaLeye.run cannot
   // build is a promise to a developer that nobody can keep, so it fails here, loudly,
-  // rather than reaching their folder.
-  const stray = STRAY_MODULE_ID.exec(markdown);
-  if (stray && !isBuildable(stray[0])) {
+  // rather than reaching their folder. Any id the catalog names, the four, and the ids
+  // of plans before 0.4 are looked for; only what this catalog builds may appear.
+  const stray = strayModule(markdown, catalog);
+  if (stray) {
     throw new Error(
-      `DEPLOYMENT_PLAN.md names ${stray[0]}, which seaLeye.run does not build. ` +
-        "Only " + MODULE_IDS.join(", ") + " may appear in a plan file."
+      `DEPLOYMENT_PLAN.md names ${stray}, which seaLeye.run does not build. ` +
+        "Only " + buildableModules(catalog).map(m => m.id).join(", ") + " may appear in a plan file."
     );
   }
 
   return markdown;
 }
 
+
+/** The first module id in `text` that this catalog does not build, or null. */
+function strayModule(text, catalog) {
+  const ids = [...new Set([...MODULE_IDS, ...LEGACY_MODULE_IDS, ...catalogModuleIds(catalog)])]
+    .map(id => id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const pattern = new RegExp(`\\b(?:${ids.join("|")})\\b`, "g");
+  for (const [id] of String(text).matchAll(pattern)) if (!isBuildable(id, catalog)) return id;
+  return null;
+}
 
 /** sealeye.yaml: the plan as submitted, nothing added. */
 export function renderPlanYaml(plan) {

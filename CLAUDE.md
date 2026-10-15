@@ -157,17 +157,28 @@ in `core/` or behind an endpoint.
 
 ## The plan contract
 
-planVersion 0.4 (`core/schema.js`, `prompts/plan-contract.yaml`). Four buildable modules:
-static_site_edge, http_api_serverless, observability_basic, config_basic. 0.2 and 0.3
-plans still load: a planned module in an old plan is read as the need it described and
-the plan becomes a draft. `core/schema.js` is the only file allowed to name the old
-module ids, and only for that. Changing the contract is a DESIGN.md decision.
+planVersion 0.5 (`core/schema.js`). A plan names its catalog (`catalog: starter`, or
+the version of one of the organization's catalogs that is or was live), and its module
+ids and need kinds are checked against that catalog (`schemaFor` in `core/catalog.js`,
+`api/validate.js`). A module is buildable when its catalog marks it `availability:
+available` and an executor builds what its `builds_with` names (`EXECUTORS`, today
+cloudformation and the starter's four: static_site_edge, http_api_serverless,
+observability_basic, config_basic). 0.2, 0.3 and 0.4 plans are read as 0.5 against the
+starter: a planned module in a 0.2 or 0.3 plan is read as the need it described and the
+plan becomes a draft. The interview still writes 0.4 (`planSchema04`, its tool's
+contract, frozen) until PHASE4-PLAN Step 3. `core/schema.js` is the only file allowed to
+name the old module ids, and only for that. Changing the contract is a DESIGN.md
+decision.
 
 Each organization may have catalogs of its own (`api/catalogs.js`, the `catalogs` table:
 draft, approved, live, retired; one live). One with no live catalog has the starter,
 `prompts/module-catalog.yaml`, word for word. The API hands the functions in
-`core/catalog.js` the caller's or the record's organization's live catalog; nothing
-makes a catalog live from a request until the self-test (PHASE4-PLAN Step 7).
+`core/catalog.js` the catalog a plan or a record names, or for the catalog listing and
+the needs ledger the organization's live one; nothing makes a catalog live from a
+request until the self-test (PHASE4-PLAN Step 7). A deploy whose plan names a replaced
+catalog that no longer builds a module it uses is refused with 409 CATALOG_CHANGED. The
+command draws its card and DEPLOYMENT_PLAN.md from `GET /catalog?version=`, never its
+own copy (`catalogForPlan` in `cli/client.js`).
 
 ## API
 
@@ -179,7 +190,7 @@ whenever what GET /deployments shows of it changes; five minutes a stream), GET 
 GET /needs, GET /health, GET /interviews (your own still open), POST /interviews ({ app, zip, findings? },
 answered with the interview and its findings), POST
 /interviews/{id}/answers ({ answer }), GET /interviews/{id}/events (server-sent events),
-DELETE /interviews/{id}, GET /whoami, GET /team (people with tokens, never a token), GET /costs (by tag), GET /catalog (the organization's live catalog, or the starter, and which), GET /apps/{app}/settings, PUT
+DELETE /interviews/{id}, GET /whoami, GET /team (people with tokens, never a token), GET /costs (by tag), GET /catalog (the organization's live catalog, or the starter, and which; ?version= the one a plan names; `document` is it as clients draw a plan from it, only what the platform builds), GET /apps/{app}/settings, PUT
 /apps/{app}/settings/{name} ({ value }) and DELETE /apps/{app}/settings/{name} (an app's
 settings in the store: names out, values in, never back), POST /sessions ({ token }) and
 DELETE /sessions (the portal's sign-in and sign-out). Every endpoint but GET /health

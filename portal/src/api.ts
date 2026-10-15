@@ -75,6 +75,8 @@ export interface DeploymentRecord extends DeploymentSummary {
 }
 
 export interface Catalog {
+  // Which catalog this is (planVersion 0.5): the starter, or one of the organization's.
+  catalog?: { version: number | "starter"; source: "starter" | "organization"; approvedBy: string | null; approvedAt: string | null; live?: boolean };
   modules: { id: string; line: string; shortLine: string | null; availability: string; role: string }[];
   needs: { kind: string; line: string }[];
 }

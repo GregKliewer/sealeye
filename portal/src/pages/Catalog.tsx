@@ -7,6 +7,7 @@ import { ago } from "../model";
 import { PageTitle, Problem } from "../Layout";
 import { Cmd, CommandHint } from "../Command";
 import { label } from "../../../core/operations.js";
+import { catalogSentence } from "../../../core/plan-words.js";
 import { Badge } from "../components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 
@@ -18,6 +19,7 @@ export function CatalogPage() {
     <>
       <PageTitle title={label("catalog")} sub="What the platform builds today, and what apps have needed that it does not build yet." />
       {catalog.error ? <Problem message={catalog.error} /> : null}
+      {catalog.data ? <p className="mb-4 text-sm text-dim" data-testid="catalog-version">{catalogSentence(catalog.data.catalog)}</p> : null}
 
       <div className="grid gap-4 md:grid-cols-2">
         {(catalog.data?.modules || []).map(m => (

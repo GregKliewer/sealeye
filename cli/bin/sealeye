@@ -30,7 +30,8 @@ import {
   putSetting,
   deleteSetting,
   NotSignedInError,
-  getCatalog
+  getCatalog,
+  catalogForPlan
 } from "../client.js";
 import { looksLikeToken, seesInWords } from "../../core/token.js";
 import { banner, step, ask, answer, typing, typed, c, product, spinner, stopSpinner, animations } from "../brand.js";
@@ -43,7 +44,7 @@ import { unsupportedNeeds, refusalClosing, orgName } from "../../core/catalog.js
 import { interviewThroughApi } from "../interview/follow.js";
 import { runDoctor } from "../doctor.js";
 import { writeInterviewFiles, decisionCard } from "../interview/render.js";
-import { plainValidationErrors } from "../../core/plan-words.js";
+import { catalogSentence, plainValidationErrors } from "../../core/plan-words.js";
 import { evidenceSummary } from "../../core/evidence-summary.js";
 import { noReportWords, planOrigin } from "../../core/plan-report-words.js";
 import { RETENTION_CHOICES, retentionOf, withRetention } from "../../core/retention.js";
@@ -475,9 +476,23 @@ async function main() {
 
         submission = result;
 
+        // The catalog the plan was written against, from the API, so the card and the
+        // plan file say what seaLeye.online says about the same modules.
+        let catalog;
+        try {
+          catalog = await catalogForPlan({ apiBaseUrl, plan: submission.plan });
+        } catch (err) {
+          if (setting("DEBUG")) console.error(`  [debug] ${err.message}`);
+          console.log("");
+          console.log(c.fail("The platform did not send the catalog this plan was written against, so it cannot be shown."));
+          say("Nothing has been written to your folder. Run it again in a moment.");
+          process.exitCode = 1;
+          return;
+        }
+
         // The plan is valid. These two files are the only thing written before the
         // developer says yes.
-        const written = writeInterviewFiles(appPath, submission);
+        const written = writeInterviewFiles(appPath, submission, { catalog });
         wrote = true;
 
         // The card is rendered from the plan that just passed validation, never from
@@ -485,6 +500,7 @@ async function main() {
         console.log("");
         // With an environment already up, the card is a diff against what is deployed.
         console.log(decisionCard(submission.plan, {
+          catalog,
           frame: true,
           charset: "line",
           previous: live ? (live.record?.plan ? { plan: live.record.plan } : { modules: live.modules }) : null
@@ -1049,6 +1065,10 @@ async function main() {
       console.log(JSON.stringify(catalog, null, 2));
       return;
     }
+    console.log("");
+    // Which catalog this is, as the Catalog page says it. An API from before Oct 14,
+    // 2026 sends no `catalog`, and had only the starter.
+    say(catalogSentence(catalog.catalog));
     console.log("");
     console.log(c.fg("What the platform builds"));
     for (const m of catalog.modules) console.log(`  ${c.accent(m.id)}  ${c.dim(m.shortLine || m.line)}`);
@@ -1665,6 +1685,15 @@ async function runDeploy({ apiBaseUrl, backend, plan, appPath, requestedBy: who,
 
     // Another change to this environment is under way. Say what, and how to follow it.
     if (refusal?.code === "ENVIRONMENT_BUSY") {
+      wait.stop();
+      console.error(c.fail(refusal.message));
+      process.exitCode = 1;
+      return null;
+    }
+
+    // The plan was written against a catalog that was since replaced, and the catalog
+    // now live no longer builds something it uses. Nothing was deployed.
+    if (refusal?.code === "CATALOG_CHANGED") {
       wait.stop();
       console.error(c.fail(refusal.message));
       process.exitCode = 1;

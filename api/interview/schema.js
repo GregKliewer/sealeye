@@ -1,11 +1,12 @@
 // api/interview/schema.js
 // The input schema for the submit_plan tool the interview gives the model.
 //
-// The plan half is planSchema itself, not a copy: the contract is frozen and the
-// interview must not be able to drift from what POST /plans/validate accepts. The two
-// extra arguments are conversation output, not part of the plan, and are dropped
-// before the plan is validated or deployed.
-import { planSchema } from "../../core/schema.js";
+// The plan half is the 0.4 contract itself, not a copy (planSchema04): the interview
+// must not be able to drift from what POST /plans/validate accepts, which reads a 0.4
+// plan as 0.5 against the starter catalog. PHASE4-PLAN Step 3 moves it to 0.5 and the
+// organization's catalog. The two extra arguments are conversation output, not part of
+// the plan, and are dropped before the plan is validated or deployed.
+import { planSchema04 } from "../../core/schema.js";
 
 export const submitPlanInputSchema = {
   type: "object",
@@ -13,7 +14,7 @@ export const submitPlanInputSchema = {
   required: ["plan", "summary", "assumptions"],
   properties: {
     plan: {
-      ...planSchema,
+      ...planSchema04,
       description:
         "The planVersion 0.4 deployment plan. Exactly one of static_site_edge and " +
         "http_api_serverless enabled, observability_basic always enabled. Modules are " +

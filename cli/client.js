@@ -5,6 +5,7 @@ import YAML from "yaml";
 
 import { envValuesFor } from "../core/settings.js";
 import { setting } from "../core/config.js";
+import { loadCatalog, STARTER_VERSION } from "../core/catalog.js";
 import { zipFolder, UploadRefused } from "../core/upload.js";
 
 /**
@@ -373,7 +374,25 @@ export async function whoAmI({ apiBaseUrl, token }) {
   return platformFetch(apiBaseUrl, "/whoami", { token });
 }
 
-/** What the platform can build, and the needs it cannot yet (GET /catalog). */
-export async function getCatalog({ apiBaseUrl }) {
-  return platformFetch(apiBaseUrl, "/catalog");
+/**
+ * What the platform can build, and the needs it cannot yet (GET /catalog): the
+ * organization's live catalog, or with `version` the one a plan names.
+ */
+export async function getCatalog({ apiBaseUrl, version }) {
+  return platformFetch(apiBaseUrl, version === undefined ? "/catalog" : `/catalog?version=${encodeURIComponent(version)}`);
+}
+
+/**
+ * The catalog a plan was written against (planVersion 0.5), as the API serves it for
+ * drawing the plan: the card and DEPLOYMENT_PLAN.md read it, so an organization's own
+ * module reads the same in the terminal as in seaLeye.online. An API from before
+ * Oct 15, 2026 sends no document, and only ever had the starter, which is the command's
+ * own copy word for word.
+ */
+export async function catalogForPlan({ apiBaseUrl, plan }) {
+  const version = plan?.catalog ?? STARTER_VERSION;
+  const body = await getCatalog({ apiBaseUrl, version });
+  if (body?.document && typeof body.document === "object") return body.document;
+  if (version === STARTER_VERSION) return loadCatalog();
+  throw new Error(`the platform did not send catalog ${version}, which this plan was written against`);
 }

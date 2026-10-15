@@ -185,7 +185,8 @@ gateway's own span in that trace moved to Phase 4. Routes come with Step 8.*
   and per worker; only modules changed since the last run are read again.
 - Where it runs: a new account opened for the prospect or customer, and the run is paid
   (decided Oct 13, 2026). Until the first customer, the seaLeye account (PHASE4-PLAN D2).
-- Progress (PHASE4-PLAN.md): Step 1, the catalog as data, built Oct 14, 2026.
+- Progress (PHASE4-PLAN.md): Step 1, the catalog as data, built Oct 14, 2026. Step 2,
+  plans name their catalog (planVersion 0.5), built Oct 15, 2026.
 - LangFuse self-hosted in ca-central-1 (answers Q13; moved here from Phase 3 on Oct 13,
   2026), before the first run on an organization's real code (Greg, Oct 14, 2026:
   Phase 4's own runs read seaLeye's templates, a made-up organization and public
