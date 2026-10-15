@@ -527,3 +527,12 @@ test("a question asked again in nearly the same words is dropped, even naming on
   const onCache = service.questions(discoveryId).filter(q => q.touches.includes("modules/cache"));
   assert.deepEqual(onCache.map(q => q.question), ["Is the cache still offered to anyone?"]);
 });
+
+test("the supervisor is bounded by the run's cap, not a reader's, so a late answer is written after a costly first draft", async () => {
+  const { createBudget, SpendingLimit } = await import("../api/discovery/readers.js");
+  const budget = createBudget({ workerCap: 0.1, runCap: 3, spend: { supervisor: { cost: 0.15 }, "worker:modules/db": { cost: 0.1 } } });
+  assert.doesNotThrow(() => budget.check("supervisor"));
+  assert.throws(() => budget.check("worker:modules/db"), SpendingLimit);
+  const full = createBudget({ workerCap: 0.1, runCap: 3, spend: { supervisor: { cost: 3 } } });
+  assert.throws(() => full.check("supervisor"), err => err.scope === "run");
+});

@@ -200,7 +200,8 @@ function runFileTool(snapshot, scope, use) {
 }
 
 /**
- * A budget shared by a run's readers: each worker's spend, and the run's. `charge`
+ * A budget shared by a run's readers: each worker's spend, and the run's; a reader
+ * ("worker:...") stops at the cap per worker, the supervisor only at the run's. `charge`
  * prices a reply and adds it; `check` throws SpendingLimit before a call that should not
  * be made. A reader can go past its cap by one reply, as an interview can.
  */
@@ -210,7 +211,11 @@ export function createBudget({ workerCap, runCap, spend = {} }) {
   return {
     check(worker) {
       if (total() >= runCap) throw new SpendingLimit("run");
-      if ((totals[worker]?.cost || 0) >= workerCap) throw new SpendingLimit("worker");
+      // The cap per worker is the readers' (one module each). The supervisor writes the
+      // whole catalog, and again for each late answer, so only the run's cap bounds it:
+      // with the readers' cap it was refused every late answer once its first write had
+      // spent more than a reader may (found Oct 15, 2026, before release).
+      if (String(worker).startsWith("worker:") && (totals[worker]?.cost || 0) >= workerCap) throw new SpendingLimit("worker");
     },
     charge(worker, model, usage) {
       totals[worker] = addSpend(totals[worker], priceUsage(model, usage));

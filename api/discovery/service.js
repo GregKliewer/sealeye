@@ -335,7 +335,12 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
       emit(id, { type: "answers_used", questions: pending.map(q => q.id), sources, catalog: { version } });
       // An answer that changed while this pass ran is still pending: one more pass.
       if (store.questionsOf(id).some(q => q.answer != null && !q.usedAt)) useAnswers(id);
-    }).catch(() => {});
+    }).catch(err => {
+      // Kept, never lost: the answers stay pending and the next pass uses them. Said on
+      // the run's events and in the API's log, which holds no content of the library.
+      console.error(`discovery ${id}: answers could not be written into the draft: ${err?.message || err}`);
+      emit(id, { type: "answer_not_used", why: "seaLeye could not write the entries again" });
+    });
     return s.writing;
   }
 
