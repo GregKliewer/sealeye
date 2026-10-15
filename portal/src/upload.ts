@@ -134,7 +134,7 @@ export async function appNameOf(folder: ChosenFolder): Promise<string> {
   return folder.name;
 }
 
-export interface Packed { zip: string; withheld: string[]; ignored: number; findings: Finding[] }
+export interface Packed { zip: string; withheld: string[]; unread: string[]; ignored: number; findings: Finding[] }
 
 /**
  * Walk and zip the folder for an interview or a deploy. Throws UploadRefused in words,
@@ -142,9 +142,9 @@ export interface Packed { zip: string; withheld: string[]; ignored: number; find
  * secret. An interview's files with a finding are sent as names only.
  */
 export async function pack(folder: ChosenFolder, purpose: "interview" | "deploy"): Promise<Packed> {
-  const { entries, withheld, ignored, findings } = await collectUpload(folder.root, { purpose, ignore });
+  const { entries, withheld, unread, ignored, findings } = await collectUpload(folder.root, { purpose, ignore });
   const zip = zipSync(entries as Record<string, Uint8Array>, { level: 6 });
-  return { zip: toBase64(zip), withheld, ignored, findings: findings as Finding[] };
+  return { zip: toBase64(zip), withheld, unread, ignored, findings: findings as Finding[] };
 }
 
 function toBase64(bytes: Uint8Array): string {

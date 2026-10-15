@@ -144,13 +144,23 @@ export function withheldReason(appPath, file, withheld = []) {
     "The developer has been told to move the value into a setting; plan as if the app reads it from its environment";
 }
 
+/**
+ * Why an archive or a file that is not text is not read, or null: it was sent as its
+ * name only (core/upload-rules.js), so there is nothing to read.
+ */
+export function unreadReason(appPath, file, unread = []) {
+  if (!unread.length) return null;
+  const rel = path.relative(fs.realpathSync(appPath), realpathOfNearest(file)).split(path.sep).join("/");
+  return unread.includes(rel) ? `${rel} is an archive or a file that is not text, so only its name was sent and it is never read` : null;
+}
+
 /** A text file, capped at 20 KB. */
-export function readFile(appPath, requested, { withheld = [] } = {}) {
+export function readFile(appPath, requested, { withheld = [], unread = [] } = {}) {
   const file = resolveInside(appPath, requested);
 
   // Check the name asked for and the name it really is, so a link called notes.txt
   // that points at .env is refused too.
-  const refusal = secretFileReason(file) || secretFileReason(realpathOfNearest(file)) || withheldReason(appPath, file, withheld);
+  const refusal = secretFileReason(file) || secretFileReason(realpathOfNearest(file)) || withheldReason(appPath, file, withheld) || unreadReason(appPath, file, unread);
   if (refusal) throw new ToolRefusal(refusal);
 
   let stat;
@@ -179,10 +189,10 @@ export function readFile(appPath, requested, { withheld = [] } = {}) {
  * Run one tool call by name. Refusals come back as text for the model to read, not as
  * exceptions: a refused path is a normal event in a conversation, not a crash.
  */
-export function runTool(appPath, name, input = {}, { withheld = [] } = {}) {
+export function runTool(appPath, name, input = {}, { withheld = [], unread = [] } = {}) {
   try {
     if (name === "list_files") return { content: listFiles(appPath, input.path), isError: false };
-    if (name === "read_file") return { content: readFile(appPath, input.path, { withheld }), isError: false };
+    if (name === "read_file") return { content: readFile(appPath, input.path, { withheld, unread }), isError: false };
     return { content: `no tool named ${name}`, isError: true };
   } catch (err) {
     if (err instanceof ToolRefusal) return { content: `refused: ${err.message}`, isError: true };

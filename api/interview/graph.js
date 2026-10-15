@@ -75,6 +75,9 @@ export const InterviewState = Annotation.Root({
   // Files sent empty because they look like they hold a secret (core/scan.js): file,
   // line, rule and kind, never a value. read_file refuses them and says why.
   withheld: replace(() => []),
+  // Archives and files that are not text, sent as their names only
+  // (core/upload-rules.js). read_file refuses them and says why.
+  unread: replace(() => []),
 
   // The conversation, and the counts the rules are written in.
   messages: replace(() => []),
@@ -312,7 +315,7 @@ export function buildInterviewGraph({ runtimeFor, checkpointer }) {
         continue;
       }
 
-      const { content, isError } = runTool(state.appDir, use.name, use.input || {}, { withheld: state.withheld });
+      const { content, isError } = runTool(state.appDir, use.name, use.input || {}, { withheld: state.withheld, unread: state.unread || [] });
       traceTool(toolRecord(use, content, isError));
 
       // The line comes after the tool ran, so it says what happened rather than what

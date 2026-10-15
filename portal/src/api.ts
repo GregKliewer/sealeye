@@ -196,10 +196,11 @@ export const api = {
   openInterviews: () => request<{ interviews: OpenInterview[] }>("/interviews").then(r => r.interviews),
   // The findings go as file, line and rule, so the platform can say why those files
   // arrived empty; it scans again and answers with its own and these together.
-  startInterview: (app: string, zip: string, deployed?: unknown, findings: { file: string; line: number; rule: string }[] = []) =>
+  // Archives and files that are not text went as names only; the list says which.
+  startInterview: (app: string, zip: string, deployed?: unknown, findings: { file: string; line: number; rule: string }[] = [], unread: string[] = []) =>
     request<{ interviewId: string; status: string; withheld?: string[]; findings?: { file: string; line: number; rule: string; kind: string }[] }>("/interviews", {
       method: "POST",
-      body: { app, zip, ...(deployed ? { deployed } : {}), ...(findings.length ? { findings: findings.map(({ file, line, rule }) => ({ file, line, rule })) } : {}) }
+      body: { app, zip, ...(deployed ? { deployed } : {}), ...(findings.length ? { findings: findings.map(({ file, line, rule }) => ({ file, line, rule })) } : {}), ...(unread.length ? { unread } : {}) }
     }),
   answerInterview: (id: string, answer: string) =>
     request<{ status: string }>(`/interviews/${encodeURIComponent(id)}/answers`, { method: "POST", body: { answer } }),

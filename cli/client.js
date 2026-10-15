@@ -242,6 +242,7 @@ export async function startInterview({ apiBaseUrl, appPath, deployed, user, trac
     app: path.basename(path.resolve(appPath)),
     zip: Buffer.from(packed.zip).toString("base64"),
     ...(packed.findings.length ? { findings: packed.findings.map(({ file, line, rule }) => ({ file, line, rule })) } : {}),
+    ...(packed.unread?.length ? { unread: packed.unread } : {}),
     ...(deployed ? { deployed } : {}),
     ...(user ? { user } : {}),
     ...(trace ? {} : { trace: false })
