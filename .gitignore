@@ -1,4 +1,4 @@
-node_modules/
+node_modules
 .env
 *.zip
 .sealeye/
@@ -12,3 +12,4 @@ sealeye.yaml
 deployme.yaml
 .claude/
 qa/
+eval-results/
