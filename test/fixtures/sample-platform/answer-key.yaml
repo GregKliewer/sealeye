@@ -346,6 +346,10 @@ hard_cases:
       pair. How a plan names a module per stage still waits on Q20.
   ambiguous:
     module: modules/cache-valkey
+    # The ambiguity spans both: cache-redis says there is no cache for new apps until it
+    # is replaced, and cache-valkey is a cache in trial. Only a question touching both
+    # is about it (Oct 15, after the third measured run passed on an unrelated one).
+    with: modules/cache-redis
     must: >-
       be asked about, since the library leaves its standing unclear, and its entry rest
       on that question until it is answered.

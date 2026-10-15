@@ -124,12 +124,18 @@ test("an id that is an ordinary word is a module's name only when written as cod
 
 test("with a run's questions: the unclear module must be asked, and its entry rest on the question", () => {
   const doc = copy();
-  const q = { id: "q_1", touches: ["modules/cache-valkey"], question: "May new apps use it?", answer: null };
+  const q = { id: "q_1", touches: ["modules/cache-valkey", "modules/cache-redis"], question: "Does cache-valkey replace cache-redis for new apps?", answer: null };
   bySource(doc, "modules/cache-valkey").open = ["q_1"];
   assert.equal(gradeCatalog(doc, key, { questions: [q] }).correct, true);
 
   const notAsked = gradeCatalog(copy(), key, { questions: [] });
-  assert.match(gradeLines(notAsked).join("\n"), /unclear module asked: no question touches modules\/cache-valkey/);
+  assert.match(gradeLines(notAsked).join("\n"), /unclear module asked: no question touches modules\/cache-valkey and modules\/cache-redis/);
+
+  // A question about the module alone is about something else (the third measured run).
+  const aside = copy();
+  bySource(aside, "modules/cache-valkey").open = ["q_2"];
+  const other = { id: "q_2", touches: ["modules/cache-valkey"], question: "Does it add backups from staging up?", answer: null };
+  assert.equal(gradeCatalog(aside, key, { questions: [other] }).correct, false);
 
   const notResting = gradeCatalog(copy(), key, { questions: [q] });
   assert.match(gradeLines(notResting).join("\n"), /asked, but its entry does not rest on the question/);
