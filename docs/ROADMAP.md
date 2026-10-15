@@ -301,7 +301,7 @@ and does nothing real. A blank is not started.
 | Re-run on a live environment | `sealeye run`, `sealeye deploy --again <app>` | `POST /deployments` (`fromDeployment`) | built | built (Deploy again, in Control) | 2 |
 | Validate a plan | `sealeye validate` | `POST /plans/validate` (ready or drafted, with needs) | built | built (Validate) | 2 |
 | List environments | `sealeye list` | `GET /deployments` | built | built (Environments) | 1 |
-| Status and watch | `sealeye status`, `watch` (an app or an id) | `GET /deployments/{id}`; `step` in `GET /deployments` | built | built (Control, with the change under way across the top) | 1 |
+| Status and watch | `sealeye status`, `watch` (an app or an id) | `GET /deployments/{id}`; `step` in `GET /deployments`; `GET /deployments/events` | built | built (Control, with the change under way across the top; every page follows changes as they happen) | 1 (events added Oct 15, 2026) |
 | Tear down | `sealeye teardown` (`destroy` still works) | `DELETE /deployments/{id}` | built | built (Control) | 1 |
 | Evidence | `sealeye evidence` | `GET /deployments/{id}/evidence` | built | built (Evidence, in Control) | 2 |
 | Plan and report for a deployment | `sealeye plan` (`--report`, `--out <folder>`) | `GET /deployments/{id}/plan` | built | built (Plan and report, in Control) | 2 (added Oct 14, 2026, 2.27.0) |

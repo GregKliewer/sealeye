@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes, useLocation } from "react-router";
 import { SessionProvider, useSession } from "./session";
+import { ChangesProvider } from "./changes";
 import { Layout } from "./Layout";
 import { SignIn } from "./pages/SignIn";
 import { Environments } from "./pages/Environments";
@@ -24,6 +25,7 @@ function SignedIn({ children }: { children: React.ReactNode }) {
 export function App() {
   return (
     <SessionProvider>
+      <ChangesProvider>
       <Routes>
         <Route path="/sign-in" element={<SignIn />} />
         <Route element={<SignedIn><Layout /></SignedIn>}>
@@ -38,6 +40,7 @@ export function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
+      </ChangesProvider>
     </SessionProvider>
   );
 }

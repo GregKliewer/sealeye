@@ -2632,6 +2632,56 @@ written here.
   the starter and hands the clients that. Step 3 moves the interview to 0.5 and the
   organization's live catalog, with the eval run before and after.
 
+## The portal follows changes as they happen
+
+Thu Oct 15, 2026.
+
+A page in the portal read its environments once, and again every five seconds only
+while it already knew a change was under way. A tear-down run from the command line, or
+anything a teammate did, did not show until the page was refreshed. Greg chose a stream
+from the API over the portal asking again on a timer (option d of four).
+
+- **What it is.** `GET /deployments/events`, server-sent events, as the interview's
+  events already are. Each event is `changed` with `{ deploymentId }` and nothing more.
+  The portal holds one stream per tab (`portal/src/changes.tsx`) and, on an event, reads
+  `GET /deployments` again, at most once every 300 ms. Environments and Control re-read
+  this way, so the list and the page change by themselves and nothing flickers: the old
+  data stays until the new arrives.
+- **Only what can be seen, and only the id.** An event goes to a stream only for a
+  record its caller can see (`canSee`, as every read), and says which one changed, never
+  what. What changed is read through `GET /deployments`, which checks the caller as
+  always. Another team, or another organization, hears nothing.
+- **A stream lasts five minutes.** Then the API ends it and the browser opens the next
+  by itself, a request checked like any other. So a revoked token or an ended sign-in
+  stops hearing of changes within five minutes, and the page, reading again, is sent to
+  Sign in. Every opening after the first reads again, for anything saved in between.
+- **Only changes worth showing.** A record is saved on every look at its stack while it
+  changes, most finding nothing new. The API sends an event only when something
+  `GET /deployments` shows of it is different, so an open page reads again when there
+  is something to see.
+- **A deploy that replaces another says so for both.** The older one is not saved when
+  a newer success replaces it, so the API tells that record's readers too: on a stack
+  from before teams had names, they can be another team.
+- **Bounded.** HEAD gets no stream. One person may hold 20 streams open; the 21st is refused with 429
+  TOO_MANY_STREAMS, and the portal tries again after 30 seconds. A comment line every
+  15 seconds keeps Caddy and anything between from closing a quiet stream (Caddy
+  already flushes `/api` at once, for the interview).
+- **One API process, as the store is.** The stream hears of saves in its own process
+  (`onDeploymentSaved` in `api/store.js`). A second API process would need the store to
+  change first, and so would this.
+- **The five-second reading while a change is under way stays.** It is how a page
+  follows a change if the stream is down, and costs nothing when the stream is up.
+- **The command is unchanged.** `sealeye watch` follows one environment by asking every
+  five seconds, as before, and `sealeye list` shows the moment it is run; the stream is
+  how the portal stays current, not a new operation. Moving `watch` onto the stream is
+  for when the command's package next changes, if it is worth doing then.
+
+With it, a torn-down environment shows no address. Its record keeps the address it had,
+for the evidence and the history, but the environment no longer answers there, so
+Environments and Control say "None, it was torn down" rather than link to an error.
+While it is being torn down the address shows greyed out, not as a link, with "Going
+away: it is being torn down" (`portal/src/Address.tsx`).
+
 ## The interview reads the organization's catalog
 
 Thu Oct 15, 2026, PHASE4-PLAN Step 3. Greg chose the whole job now (option 1 of three)
