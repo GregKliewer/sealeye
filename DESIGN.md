@@ -2843,3 +2843,42 @@ changes for the path to production, and Q20 recorded.
 - **Nothing in it is buildable yet.** Its modules are built with Terraform, which seaLeye
   builds from Step 9; until then its catalog builds nothing, and the interview, given
   it, says so and plans every need as a need.
+
+## A discovery run never pauses; engineers answer live or later
+
+Thu Oct 15, 2026, Greg, answering Q19 (PHASE4-PLAN D7, reopened Oct 14). How a discovery
+run settles what it cannot decide alone: two modules that overlap, a rule that
+contradicts a README, a module that may be deprecated.
+
+- **The run never waits on a person.** No `interrupt()` in discovery. A worker that
+  meets something it cannot settle writes a question with its evidence and a best
+  guess, marked as a guess, and carries on.
+- **Questions go out as they arise.** Each is an event on the run's stream, which
+  `sealeye discover` and the Discovery page follow, and an open item on the draft
+  catalog it belongs to.
+- **An answer is taken whenever it comes.** The supervisor looks for an answer just
+  before it writes the entry a question touches; one that is there is used instead of
+  the guess. An answer that comes later, a second or a week, re-runs only the entries it
+  touches. Both are the same path, so an answer arriving while its entry is being
+  written needs no special case: it is a late answer.
+- **A guess never goes live.** An entry with an open question cannot pass Step 7: it is
+  not approved, and a catalog that holds it cannot go live with it buildable. Whoever
+  answered, and when, is kept on the entry.
+- **No waiting at the end either.** Greg chose not to let a watching engineer hold a run
+  open for the last questions: a missed answer costs one re-run of the entries it
+  touches, which is cheap, and any wait brings back the stall Q19 was raised to avoid.
+
+**Why a hybrid.** Greg chose "finish, and leave the questions on the draft", then asked
+why an engineer who is there should not clear things up while the run proceeds. Nothing
+stops that: accepting an answer at any time is the same mechanism as accepting one after
+the run, arriving earlier. Pausing (the first D7) makes a run as slow as its slowest
+answer and needs watching; refusing every uncertain entry outright throws away a guess
+that is usually right; rules stated up front only cover the kinds foreseen, and can be
+added later to shorten the list of questions.
+
+**What it costs.** About a day on Step 6, for the check before each entry is written and
+the test of an answer arriving mid-write. A run's draft now depends on who answered and
+when, so the graded eval runs twice: once with no answers, graded on the questions
+raised and the guesses made, and once with answers a script gives at fixed points, so
+both results repeat. Juniper Mutual's overlap is graded on its question once Step 6
+gives a question its shape; how a plan names a module per stage is still Q20.
