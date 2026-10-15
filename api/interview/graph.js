@@ -1,7 +1,8 @@
 // api/interview/graph.js
 // The interview as a LangGraph graph (DESIGN.md, "The interview runs as a LangGraph
 // graph"). The model looks at the app, asks at most four questions, and submits a
-// planVersion 0.4 plan; the developer then says whether to deploy it.
+// plan (the model writes 0.4; the API reads it as 0.5 against the starter catalog);
+// the developer then says whether to deploy it.
 //
 //   begin -> model_turn -> tools -> model_turn ...   (reading files, a plan to correct)
 //                       -> ask   -> model_turn ...   (a question: pauses for the answer)
@@ -28,6 +29,7 @@ import { unsupportedNeeds } from "../../core/catalog.js";
 import { addSpend, priceUsage, spendingLimitWords } from "../../core/model-prices.js";
 import { scoreTrace, traceEvent, traceStep, traceTool } from "../../core/tracing.js";
 import { checkPlan } from "../validate.js";
+import { upgradePlan } from "../../core/schema.js";
 import {
   createWithOneRetry,
   debugTurn,
@@ -243,7 +245,9 @@ export function buildInterviewGraph({ runtimeFor, checkpointer }) {
         });
 
         if (checked.valid) {
-          return finish({ ...state, validationRetries }, { status: "submitted", ...submission }, "approve");
+          // As the contract reads it: 0.5, naming the catalog the interview was given,
+          // which is the starter until PHASE4-PLAN Step 3. The model still writes 0.4.
+          return finish({ ...state, validationRetries }, { status: "submitted", ...submission, plan: upgradePlan(submission.plan) }, "approve");
         }
 
         if (validationRetries >= MAX_VALIDATION_RETRIES) {

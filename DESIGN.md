@@ -2570,3 +2570,52 @@ Wed Oct 14, 2026, PHASE4-PLAN Step 1 (D4).
   organization's catalog can reword the starter but not add to it.
 - **A catalog holds no secret.** It is names, lines and signals, so it is backed up
   with the rest of Postgres.
+
+## A plan names its catalog (planVersion 0.5)
+
+Thu Oct 15, 2026, PHASE4-PLAN Step 2 (D4). Changing the contract is a decision, so it is
+written here.
+
+- **What changed.** A 0.5 plan has a `catalog` field: `starter`, or the version of one
+  of the organization's own catalogs. Its module ids are checked against the modules
+  that catalog builds, and its need kinds against that catalog's, rather than against
+  fixed lists. `core/schema.js`'s `contractSchema` builds the contract from those two
+  lists, `schemaFor` in `core/catalog.js` from a catalog, and `api/validate.js` checks a
+  plan against the catalog it names (compiled once per shape).
+- **Every older plan names the starter.** 0.2, 0.3 and 0.4 plans were all written
+  against seaLeye's own four modules, so `upgradePlan` reads them as 0.5 with
+  `catalog: starter` and nothing else changed (0.2 and 0.3 still turn modules the
+  platform never built into needs). A plan claiming any other version is no longer read
+  as an old one; the contract refuses it.
+- **Buildable is the catalog's to say, and the platform's to back.** A module is
+  buildable when its catalog marks it `availability: available` and the platform has an
+  executor for what its `builds_with` names that builds it (`EXECUTORS` in
+  `core/schema.js`; `isBuildable` in `core/catalog.js`). Today that is CloudFormation,
+  which builds the four modules it has templates for; the starter's four now say
+  `builds_with: cloudformation`. A module in an organization's catalog that nothing
+  builds yet (its own Terraform module, until Step 9) is never a module in a plan: an
+  app that needs it has a need. Refuse, never shrink.
+- **Which catalogs a plan can name.** The starter, or one of the organization's that
+  is or was live (live or retired). A draft, or one approved and never live, is not
+  something a developer's plan was written against: CATALOG_NOT_LIVE. A version the
+  organization does not have, or another organization's: CATALOG_UNKNOWN.
+- **A plan from a replaced catalog.** It still validates against the catalog it names,
+  and a drafted one is saved in that catalog's words. A deploy is refused with 409
+  CATALOG_CHANGED when the live catalog no longer builds a module the plan uses, naming
+  the module in the plan's catalog's words and saying to run `sealeye run` again. When
+  everything it uses is still built, it deploys. Never true today: every organization's
+  live catalog is the starter.
+- **A record keeps the plan's catalog**, not whatever is live when it is written, so its
+  evidence and plan files read the catalog the developer saw.
+- **The clients draw from the plan's catalog.** `GET /catalog?version=<v>` serves the
+  starter or any catalog a plan may name, and `document` is that catalog as clients
+  draw a plan from it: the modules the platform builds, the need kinds, the profiles
+  and their patterns. A module nothing builds is left out, and so is what a pattern
+  says about it, because seaLeye never names a module it cannot build (principle 2), not
+  even in JSON a command prints. The command draws its card and writes DEPLOYMENT_PLAN.md
+  from it; the interview's plan files on the API come from the same catalog.
+- **The interview is unchanged.** Its `submit_plan` tool keeps the 0.4 contract exactly
+  (`planSchema04`), and its prompt is byte for byte what it was (a test keeps both so;
+  `builds_with` is never in the prompt). The API reads what it writes as 0.5 against
+  the starter and hands the clients that. Step 3 moves the interview to 0.5 and the
+  organization's live catalog, with the eval run before and after.

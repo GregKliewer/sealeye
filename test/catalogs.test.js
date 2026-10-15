@@ -36,6 +36,10 @@ function ownCatalog(line = "a store for the files your app keeps, of this organi
   doc.need_kinds.find(n => n.key === "file_storage").line = line;
   doc.modules = doc.modules.filter(m => m.id !== "static_site_edge");
   doc.modules.find(m => m.id === "http_api_serverless").line = "Runs your API on acme's own serverless platform.";
+  // One of acme's own, which nothing in the platform builds yet (a Terraform executor is
+  // PHASE4-PLAN Step 9): never named to a developer, and never in a plan.
+  doc.modules.push({ id: "acme_queue", availability: "available", builds_with: "terraform", role: "optional", line: "Acme's own queue." });
+  doc.patterns.dev.modules.acme_queue = "Acme's queue pattern.";
   return doc;
 }
 
@@ -225,7 +229,7 @@ test("GET /catalog: the starter for an organization with none, word for word, an
   const starter = fromFile();
   const mine = await call("/catalog", ours);
   assert.equal(mine.status, 200);
-  assert.deepEqual(mine.body.catalog, { version: "starter", source: "starter", approvedBy: null, approvedAt: null });
+  assert.deepEqual(mine.body.catalog, { version: "starter", source: "starter", approvedBy: null, approvedAt: null, live: true });
   assert.equal(mine.body.catalogVersion, starter.catalogVersion);
   assert.deepEqual(mine.body.modules.map(m => [m.id, m.line]), starter.modules.map(m => [m.id, String(m.line).trim()]));
   assert.deepEqual(mine.body.needs, starter.need_kinds.map(n => ({ kind: n.key, line: String(n.line).trim() })));
@@ -239,7 +243,7 @@ test("GET /catalog: the starter for an organization with none, word for word, an
   assert.equal(acme.body.needs.find(n => n.kind === "file_storage").line, ownLine);
 });
 
-test("POST /plans/validate reads each need in the caller's organization's words", async () => {
+test("POST /plans/validate reads each need in the words of the catalog the plan names", async () => {
   const plan = {
     planVersion: "0.4", app: { name: "files", type: "api" }, profile: "dev",
     modules: [{ id: "http_api_serverless", inputs: { runtime: "nodejs", entry_point: "index.js", trigger: "http" } }],
@@ -248,7 +252,15 @@ test("POST /plans/validate reads each need in the caller's organization's words"
   };
   const starterLine = String(fromFile().need_kinds.find(n => n.key === "file_storage").line).trim();
   assert.equal((await call("/plans/validate", ours, plan)).body.needs[0].line, starterLine);
-  assert.equal((await call("/plans/validate", theirs, plan)).body.needs[0].line, ownLine);
+  // A 0.4 plan was written against the starter, whoever sends it.
+  assert.equal((await call("/plans/validate", theirs, plan)).body.needs[0].line, starterLine);
+  // A 0.5 plan naming acme's live catalog reads in acme's words.
+  const named = { ...plan, planVersion: "0.5", catalog: 1 };
+  assert.equal((await call("/plans/validate", theirs, named)).body.needs[0].line, ownLine);
+  // Another organization's catalog is not one a plan can name.
+  const elsewhere = await call("/plans/validate", ours, named);
+  assert.equal(elsewhere.body.valid, false);
+  assert.equal(elsewhere.body.errors[0].code, "CATALOG_UNKNOWN");
 });
 
 test("a drafted plan is written down, and counted, in the words of the catalog it was planned against", async () => {
@@ -260,10 +272,15 @@ test("a drafted plan is written down, and counted, in the words of the catalog i
     needs: [{ kind: "file_storage", line: "a place to keep files", evidence: [{ file: "index.js", shows: "an upload handler" }] }]
   };
   for (const [token, words, version] of [[theirs, ownLine, 1], [ours, String(fromFile().need_kinds.find(n => n.key === "file_storage").line).trim(), "starter"]]) {
-    const made = await call("/deployments", token, { plan, appPath, backend: "cloudformation" });
+    const named = version === 1 ? { ...plan, planVersion: "0.5", catalog: 1 } : plan;
+    const made = await call("/deployments", token, { plan: named, appPath, backend: "cloudformation" });
     assert.equal(made.status, 422, JSON.stringify(made.body).slice(0, 600));
     const id = made.body.error?.details?.deploymentId;
     assert.ok(id, JSON.stringify(made.body));
+
+    const record = await call(`/deployments/${id}`, token);
+    assert.deepEqual(record.body.catalog, version === 1 ? { version: 1, source: "organization" } : { version: "starter", source: "starter" }, "the record keeps the catalog the plan names");
+    assert.equal(record.body.plan.planVersion, "0.5");
 
     const shown = await call(`/deployments/${id}/plan`, token);
     const markdown = shown.body.files["DEPLOYMENT_PLAN.md"];
@@ -273,6 +290,78 @@ test("a drafted plan is written down, and counted, in the words of the catalog i
     const needs = await call("/needs", token);
     assert.equal(needs.body.needs.find(n => n.kind === "file_storage").line.trim(), words);
   }
+});
+
+test("GET /catalog?version= serves the catalog a plan names, and only what the platform builds", async () => {
+  const one = await call("/catalog?version=1", theirs);
+  assert.equal(one.status, 200);
+  assert.deepEqual(one.body.catalog, { version: 1, source: "organization", approvedBy: "pat@acme.example", approvedAt: one.body.catalog.approvedAt, live: true });
+  assert.ok(!one.body.modules.some(m => m.id === "acme_queue"), "a module nothing builds is never named");
+  assert.ok(!one.body.document.modules.some(m => m.id === "acme_queue"));
+  assert.ok(!("acme_queue" in one.body.document.patterns.dev.modules), "nor anything a pattern says about it");
+  assert.ok(!JSON.stringify(one.body).includes("acme_queue"));
+  assert.equal(one.body.document.modules.find(m => m.id === "http_api_serverless").line, "Runs your API on acme's own serverless platform.");
+
+  const starter = await call("/catalog?version=starter", theirs);
+  assert.equal(starter.status, 200);
+  assert.equal(starter.body.catalog.source, "starter");
+  assert.equal(starter.body.catalog.live, false, "acme's live catalog is its own");
+  assert.deepEqual(starter.body.document.modules.map(m => m.id), fromFile().modules.map(m => m.id));
+  assert.deepEqual(starter.body.document.need_kinds, fromFile().need_kinds);
+
+  for (const [version, code] of [["2", "CATALOG_NOT_LIVE"], ["3", "CATALOG_NOT_LIVE"], ["9", "CATALOG_UNKNOWN"]]) {
+    const got = await call(`/catalog?version=${version}`, theirs);
+    assert.equal(got.status, 404, version);
+    assert.equal(got.body.error.code, code, version);
+  }
+  assert.equal((await call("/catalog?version=1", ours)).body.error.code, "CATALOG_UNKNOWN", "never another organization's");
+  assert.equal((await call("/catalog?version=one", ours)).status, 400);
+});
+
+test("a plan may name only what its catalog builds, and only a catalog that is or was live", async () => {
+  const plan = {
+    planVersion: "0.5", catalog: 1, app: { name: "files", type: "api" }, profile: "dev",
+    modules: [{ id: "http_api_serverless", inputs: { runtime: "nodejs", entry_point: "index.js", trigger: "http" } }],
+    outputs: ["public_url"]
+  };
+  assert.equal((await call("/plans/validate", theirs, plan)).body.status, "ready");
+
+  const unbuilt = await call("/plans/validate", theirs, { ...plan, modules: [...plan.modules, { id: "acme_queue" }] });
+  assert.equal(unbuilt.body.valid, false, "a module the catalog lists and nothing builds is a need, never a module");
+  const gone = await call("/plans/validate", theirs, { ...plan, modules: [{ id: "static_site_edge", inputs: {} }], app: { name: "site", type: "static-site" } });
+  assert.equal(gone.body.valid, false, "acme's catalog does not have the starter's static site");
+
+  const draft = await call("/plans/validate", theirs, { ...plan, catalog: 2 });
+  assert.equal(draft.body.errors[0].code, "CATALOG_NOT_LIVE");
+  assert.equal((await call("/plans/validate", theirs, { ...plan, catalog: "latest" })).body.valid, false);
+  const unversioned = { ...plan };
+  delete unversioned.catalog;
+  assert.equal((await call("/plans/validate", theirs, unversioned)).body.valid, false, "a 0.5 plan names its catalog");
+
+  const unlisted = await call("/plans/validate", theirs, {
+    ...plan, needs: [{ kind: "unlisted", line: "an acme_queue for its jobs", evidence: [{ file: "index.js", shows: "a job queue" }] }]
+  });
+  assert.equal(unlisted.body.valid, false, "an unlisted need may not name one of the catalog's modules either");
+});
+
+test("a deploy is refused when the plan's catalog was replaced and no longer builds what it uses", async () => {
+  const appPath = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-catalogs-changed-"));
+  fs.writeFileSync(path.join(appPath, "index.html"), "<p>hi</p>");
+  // Written against the starter, which builds a static site; acme's live catalog does not.
+  const plan = {
+    planVersion: "0.4", app: { name: "site", type: "static-site" }, profile: "dev",
+    modules: [{ id: "static_site_edge", inputs: { site_root: ".", entry_point: "index.html" } }, { id: "observability_basic" }],
+    outputs: ["public_url"]
+  };
+  const made = await call("/deployments", theirs, { plan, appPath, backend: "cloudformation" });
+  assert.equal(made.status, 409, JSON.stringify(made.body).slice(0, 400));
+  assert.equal(made.body.error.code, "CATALOG_CHANGED");
+  assert.match(made.body.error.message, /Run sealeye run again/);
+  assert.equal(made.body.error.details.noLongerBuilt.length, 1);
+  assert.doesNotMatch(made.body.error.message, /static_site_edge|\u2014/, "in the module's words, never its id, and no em dash");
+  const listed = await call("/deployments", theirs);
+  assert.ok(Array.isArray(listed.body.deployments), JSON.stringify(listed.body).slice(0, 200));
+  assert.ok(!listed.body.deployments.some(d => d.app?.name === "site"), "nothing was recorded or queued");
 });
 
 test("a record is read against the catalog it names, and an old record against the starter", async () => {
