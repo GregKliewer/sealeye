@@ -2750,3 +2750,23 @@ over plumbing only, with the large-catalog half moved to after Step 7.
 - **No organization's catalog goes live before this step** (DESIGN.md, "A plan names its
   catalog"): it is now shipped, and the rule is met. Whether the interview plans well
   from an organization's catalog is Step 8's to show, against the made-up organization.
+
+## The eval answers each question by what it asks
+
+Thu Oct 15, 2026, Greg.
+
+The eval's scripted answers were a queue: the first question got the first answer,
+whatever it asked. A model that asked in another order than the run the answers were
+written against got an answer meant for another question, and failed for that reason
+rather than its own (beneficiary-lookup-api stopped after one question on Oct 15, with
+every request the model received byte for byte as on main).
+
+- **A fixture's answer says which questions it answers** (`{ when: [phrases], answer }`):
+  the first whose phrase is in the question, in any case, answers it, as often as such a
+  question comes. Specific answers (settings, who reaches the app) are listed before a
+  general "is that right?". The answers' words are unchanged, so the eval asks the same
+  of the model. Plain strings still go in order, once each (`answerFor`).
+- **An app not as expected shows its questions**, how each was answered, and why it
+  stopped, so a failed run can be read from the terminal before opening its trace.
+- Questions no answer fits get the fallback, "I'm not sure. Use your best judgement from
+  the code.", as the question about what the app is for always has.

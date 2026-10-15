@@ -1,12 +1,37 @@
 {
   "answers": [
-    "Yes, that's right. It stays up and answers requests.",
-    "No, nothing else."
+    {
+      "when": [
+        "setting",
+        "environment",
+        "api key",
+        "database url",
+        "anything else"
+      ],
+      "answer": "No, nothing else."
+    },
+    {
+      "when": [
+        "is that right",
+        "right?",
+        "looks like",
+        "what does your app do",
+        "when it runs",
+        "does it",
+        "serve",
+        "listen"
+      ],
+      "answer": "Yes, that's right. It stays up and answers requests."
+    }
   ],
   "expected": {
     "status": "ready",
-    "modules": ["http_api_serverless"],
-    "notModules": ["static_site_edge"],
+    "modules": [
+      "http_api_serverless"
+    ],
+    "notModules": [
+      "static_site_edge"
+    ],
     "needs": []
   }
 }

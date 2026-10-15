@@ -1,12 +1,36 @@
 {
   "answers": [
-    "Yes, that's right.",
-    "No, nothing else. It's just the site."
+    {
+      "when": [
+        "setting",
+        "environment",
+        "api key",
+        "database url",
+        "anything else"
+      ],
+      "answer": "No, nothing else. It's just the site."
+    },
+    {
+      "when": [
+        "is that right",
+        "right?",
+        "looks like",
+        "static",
+        "what does your app do",
+        "when it runs",
+        "does it"
+      ],
+      "answer": "Yes, that's right."
+    }
   ],
   "expected": {
     "status": "ready",
-    "modules": ["static_site_edge"],
-    "notModules": ["http_api_serverless"],
+    "modules": [
+      "static_site_edge"
+    ],
+    "notModules": [
+      "http_api_serverless"
+    ],
     "needs": []
   }
 }

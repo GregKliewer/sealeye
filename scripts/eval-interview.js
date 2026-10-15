@@ -38,9 +38,44 @@ import {
 
 export const DATASET = "sealeye-interview";
 const FIXTURES = path.join(repoRoot, "test", "fixtures", "eval");
-// When the scripted answers run out, the interview still gets an answer a developer
-// might give, rather than an empty line.
+// When no scripted answer fits the question, the interview still gets an answer a
+// developer might give, rather than an empty line.
 const FALLBACK_ANSWER = "I'm not sure. Use your best judgement from the code.";
+
+/**
+ * The scripted answer to one question. A fixture's answer is either
+ * - `{ when: [phrases], answer }`: given to any question holding one of the phrases
+ *   (in any case), as often as such a question is asked. The first in the fixture whose
+ *   phrase is in the question wins, so the specific ones (settings, who reaches it) go
+ *   before a general "is that right?". Added Oct 15, 2026: a model that asks in another
+ *   order than the last run still gets the answer meant for its question.
+ * - a plain string: given to the next question no phrase matched, in the order written,
+ *   once each, as every answer was before.
+ * Nothing fits: FALLBACK_ANSWER.
+ *
+ * @param {string} question
+ * @param {(string|{when: string[], answer: string})[]} answers
+ * @param {{ next?: number }} state how many plain strings have been given; changed here
+ * @returns {{ answer: string, by: string }} `by` says how it was chosen, for the terminal
+ */
+export function answerFor(question, answers = [], state = {}) {
+  const asked = String(question || "").toLowerCase();
+  for (const entry of answers) {
+    if (!entry || typeof entry !== "object") continue;
+    const phrase = (entry.when || []).find(p => asked.includes(String(p).toLowerCase()));
+    if (phrase) return { answer: entry.answer, by: `matched "${phrase}"` };
+  }
+  const plain = answers.filter(a => typeof a === "string");
+  state.next = state.next || 0;
+  if (state.next < plain.length) return { answer: plain[state.next++], by: "next in order" };
+  return { answer: FALLBACK_ANSWER, by: "no answer fits" };
+}
+
+/** Text on one line, cut to fit the terminal. */
+const oneLine = text => {
+  const flat = String(text || "").replace(/\s+/g, " ").trim();
+  return flat.length > 140 ? `${flat.slice(0, 137)}...` : flat;
+};
 
 /** Every sample app with a fixture: its answers and what its plan should be. */
 export function loadCases(dir = FIXTURES) {
@@ -135,7 +170,9 @@ export async function evaluate({ cases, runName, model, clientFor, log = () => {
     }, 10_000);
 
     log(`${app}: interviewing`);
-    const queue = [...answers];
+    const state = {};
+    // What was asked and how each was answered, shown when the app is not as expected.
+    const asked = [];
     let row;
 
     try {
@@ -148,10 +185,18 @@ export async function evaluate({ cases, runName, model, clientFor, log = () => {
             appPath: path.join(repoRoot, "apps", app),
             model,
             user: "eval",
-            ask: async () => (queue.length ? queue.shift() : FALLBACK_ANSWER),
+            ask: async question => {
+              const { answer, by } = answerFor(question, answers, state);
+              asked.push({ question: oneLine(question), by });
+              return answer;
+            },
             ...(clientFor ? { client: clientFor(app) } : {})
           });
-          return { app, traceId: result.traceId, turns: result.turns, spent: result.spent, ...grade(result, expected) };
+          return {
+            app, traceId: result.traceId, turns: result.turns, spent: result.spent, asked,
+            ...(result.status === "stopped" && result.message ? { stopped: oneLine(result.message) } : {}),
+            ...grade(result, expected)
+          };
         }
       );
       await flushTracing();
@@ -188,6 +233,12 @@ export function summaryLines(rows) {
     );
     if (r.missingNeeds.length) lines.push(`  ${"".padEnd(26)}    missing: ${r.missingNeeds.join(", ")}`);
     if (r.extraNeeds.length) lines.push(`  ${"".padEnd(26)}    not expected: ${r.extraNeeds.join(", ")}`);
+    // Not as expected: what the model asked, how each was answered, and why it stopped,
+    // so a run that went wrong can be read without opening its trace.
+    if (!allCorrect(r)) {
+      for (const a of r.asked || []) lines.push(`  ${"".padEnd(26)}    asked: ${a.question} (${a.by})`);
+      if (r.stopped) lines.push(`  ${"".padEnd(26)}    stopped: ${r.stopped}`);
+    }
   }
   return lines;
 }
