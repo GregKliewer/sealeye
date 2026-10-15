@@ -61,6 +61,38 @@ export function discoveryStateWords(run) {
   return "Did not finish";
 }
 
+/**
+ * How far a run has got, kept up from its events, so a surface can say so while a
+ * question is open (Greg, Oct 15, 2026: his first run looked paused at its first
+ * question). A module counts once its reader is done with it, read or not.
+ */
+export function nextProgress(p, event) {
+  const next = { modules: 0, read: 0, writing: false, over: false, ...(p || {}) };
+  if (event?.type === "modules") next.modules = (event.modules || []).length;
+  if ((event?.type === "read" || event?.type === "not_read") && event.source !== ".") next.read += 1;
+  if (event?.type === "writing") next.writing = true;
+  if (["draft", "finished", "stopped", "failed"].includes(event?.type)) next.writing = false;
+  if (["finished", "stopped", "failed"].includes(event?.type)) next.over = true;
+  return next;
+}
+
+/** What the run is doing, in a line, while someone answers. */
+export function progressWords(p) {
+  if (p?.over) return "The run has finished. What you leave is kept for later.";
+  if (p?.writing) return "Still going in the background: writing the draft catalog.";
+  if (p?.modules) return `Still going in the background: ${p.read} of ${p.modules} modules read.`;
+  return "Still going in the background: reading your platform library.";
+}
+
+/** How many more questions wait after the one being answered, or null for none. */
+export const moreWaitingWords = n => (n > 0 ? `${n === 1 ? "One more question is" : `${n} more questions are`} waiting after this one.` : null);
+
+/** Said wherever a question is asked: answering is never in a hurry. */
+export const TAKE_YOUR_TIME = "Take your time: the run does not wait on you, and every question is kept.";
+
+/** Modules whose readers are done, from a run as the API gives it. */
+export const modulesDone = run => (run?.modules || []).filter(m => m.status === "read" || m.status === "not_read").length;
+
 /** Whether a question still waits on an answer. */
 export const isOpen = q => q.answer === null || q.answer === undefined;
 

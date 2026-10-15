@@ -106,10 +106,49 @@ test("the picker: arrow keys move, Enter chooses, Ctrl+C stops", async () => {
   assert.equal(await chosen, "No", "up from the first is the last");
 
   input = keyboard();
+  chosen = pick(["Yes", "No", SOMETHING_ELSE, LATER], { input, output });
+  input.write("\u001b[B\u001b[B\u001b[B\r");
+  assert.equal(await chosen, LATER, "keys that arrive together are each taken");
+
+  input = keyboard();
   chosen = pick(["Yes", "No"], { input, output });
   input.write("\u0003");
   // Ctrl+C is a sentence and exit 130, never a stack trace: it says where to answer.
   await assert.rejects(chosen, err => err.interrupted && err.userFacing && /sealeye discover answers/.test(err.message));
+});
+
+test("the picker draws the run's progress under the choices, and again as it moves", async () => {
+  const { pick } = await import("../cli/discover.js");
+  const input = new PassThrough();
+  input.setRawMode = () => {};
+  let written = "";
+  const output = { write: t => { written += t; }, columns: 80 };
+  let read = 1;
+  const live = {};
+  const chosen = pick(["Yes", "No"], { input, output, live, footer: () => [`${read} of 3 modules read.`, null, "Take your time."] });
+  assert.match(written, /1 of 3 modules read\./);
+  read = 2;
+  live.redraw();
+  assert.match(written, /2 of 3 modules read\./, "drawn again while the question is open");
+  input.write("\r");
+  assert.equal(await chosen, "Yes");
+  assert.equal(live.redraw, null, "nothing draws over the screen once it is answered");
+});
+
+test("both surfaces count a run's progress from its events, not a module's own status", async () => {
+  const { nextProgress, progressWords, moreWaitingWords, modulesDone } = await import("../core/discovery-words.js");
+  let p = nextProgress(null, null);
+  assert.equal(progressWords(p), "Still going in the background: reading your platform library.");
+  for (const e of [{ type: "modules", modules: [{}, {}, {}] }, { type: "read", source: "." }, { type: "read", source: "modules/a" }, { type: "not_read", source: "modules/b", why: "x" }]) p = nextProgress(p, e);
+  assert.equal(progressWords(p), "Still going in the background: 2 of 3 modules read.", "the library's own README is not a module");
+  p = nextProgress(p, { type: "writing" });
+  assert.match(progressWords(p), /writing the draft catalog/);
+  p = nextProgress(p, { type: "finished" });
+  assert.match(progressWords(p), /finished\. What you leave is kept/);
+  assert.equal(moreWaitingWords(0), null);
+  assert.equal(moreWaitingWords(1), "One more question is waiting after this one.");
+  assert.equal(moreWaitingWords(3), "3 more questions are waiting after this one.");
+  assert.equal(modulesDone({ modules: [{ status: "reading" }, { status: "read" }, { status: "not_read" }] }), 2, "a module still being read is not done");
 });
 
 test("both surfaces say the same things about a run", () => {
