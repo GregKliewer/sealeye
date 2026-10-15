@@ -86,6 +86,16 @@ of the file (Step 2 moves it to `GET /catalog`).
 
 ### Step 2. The plan contract learns which catalog (D4)
 
+Built Thu Oct 15, 2026 (DESIGN.md, "A plan names its catalog"): `contractSchema` and
+`EXECUTORS` in `core/schema.js`; `isBuildable`, `schemaFor` and `buildableView` in
+`core/catalog.js`; `api/validate.js` checks a plan against the catalog it names;
+`GET /catalog?version=` with a `document`; `catalogForPlan` in `cli/client.js`;
+`catalogSentence` in `core/plan-words.js` for `sealeye catalog` and the Catalog page.
+Two things beyond the list below: a deploy whose plan names a replaced catalog that no
+longer builds a module it uses is refused (CATALOG_CHANGED), and contract errors carry
+the values the plan's catalog allows. The interview's tool and prompt are unchanged,
+byte for byte; its plan is read as 0.5 against the starter until Step 3.
+
 - planVersion 0.5: a plan names its catalog's version, and its module ids are checked
   against that catalog, not a fixed enum. 0.4 plans still load, read against the starter
   catalog. Changing the contract is a DESIGN.md decision, written in this step.
