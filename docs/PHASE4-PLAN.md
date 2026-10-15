@@ -18,7 +18,8 @@ front door agent plans from that catalog. Nothing is fine-tuned.
 - a developer whose app needs something the catalog cannot build is refused, and the
   gap report counts it;
 - every model call in a discovery run is capped, named and routed through the gateway,
-  and no file with a finding reaches a model.
+  and no value the scanner finds reaches a model (each such line is replaced, and the
+  rest of its file read: Greg, Oct 15, 2026).
 
 The plan has four parts, in the order the dependencies force.
 
@@ -154,6 +155,14 @@ until then.
   the starter catalog.
 
 ### Step 5. Reading the library (D3, D5)
+
+Built Thu Oct 15, 2026 (DESIGN.md, "Reading the library"): `api/discovery/` reads one
+commit of each repository named in `SEALEYE_LIBRARY_REPOS`, with a GitHub App or a
+read-only token, by the upload's rules and both scans, before any model; the gateway
+has `small` and `frontier`. Greg chose both ways in, flagged lines replaced rather than
+files held back, no `.sealeye-allow` for a library, and the repositories in a setting.
+`deploy/server.sh library-check` reads them on the server as the run will. Not yet: the
+graph it is the first node of (Step 6).
 
 - Plain code: clone the named repositories read-only at a commit, walk them with the
   same rules the upload uses (`core/upload-rules.js`), and scan everything with the

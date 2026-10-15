@@ -32,7 +32,10 @@ cli/        the sealeye command: bin/sealeye, client.js (talks to the API), inte
 api/        the API: server.js, store.js, db.js, migrations/, catalogs.js (each organization's
             catalog, or the starter), needs.js, mappings.js, validate.js,
             secret-scan.js and gitleaks.toml (the API's scan of what arrives),
-            gateway-token.js (the token on every model call), interview/
+            gateway-token.js (the token on every model call), model-routes.js (the
+            gateway's named routes, small and frontier), discovery/ (reading a platform
+            library: github.js fetches one commit, tar.js reads it, library.js walks and
+            scans it; Step 6 builds the swarm on it), interview/
             (the LangGraph graph, the model, the tools, the service), executor/
             (compose, package, deploy, poll, report, evidence)
 core/       what cli/ and api/ must agree on: schema.js (the plan contract), catalog.js,
@@ -142,12 +145,16 @@ in `core/` or behind an endpoint.
   `<name>/<deploymentId>.zip`.
 - Settings are `SEALEYE_<NAME>` (ACCOUNT, BUCKET, LWA_VERSION, FUNCTION_BOUNDARY_ARN, REGION, MODEL, DEBUG,
   HOME, TRACING, MODEL_URL, API, PORTAL, TOKEN, AUTH, RUN_CAP, GATEWAY_KEY, GATEWAY_BUDGET,
-  GATEWAY_SIGNING_KEY), read through `setting()` in
+  GATEWAY_SIGNING_KEY, LIBRARY_REPOS, GITHUB_APP_ID, GITHUB_APP_KEY, GITHUB_READ_TOKEN),
+  read through `setting()` in
   `core/config.js`. SEALEYE_TOKEN is a secret: it lives in `~/.sealeye/config` (0600),
   is never printed, logged or put on a record. SEALEYE_GATEWAY_KEY is a secret too: the
   key the API calls the platform's model gateway with, kept in the server's settings. So
   is SEALEYE_GATEWAY_SIGNING_KEY, the Ed25519 key the API signs each model call's token
   with (`api/gateway-token.js`); the gateway holds only its public half.
+  SEALEYE_GITHUB_APP_KEY (the GitHub App's private key) and SEALEYE_GITHUB_READ_TOKEN are
+  secrets too: what the API reads a platform library with, from the server's settings,
+  sent to GitHub's API and nowhere else (`api/discovery/github.js`).
 - `deployme` was the original name. Until 2.17.0 the plan file was `deployme.yaml`, the
   config folder `~/.deployme`, and settings `DEPLOYME_*`. They are still read, never
   written. Only `core/config.js`, `core/names.js`, `core/schema.js` and `api/store.js`
@@ -349,6 +356,12 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   `GregKliewer/sealeye-sample-platform`). `--library <clone>` also checks the key against
   the library and the scanner against its planted secret; with `SEALEYE_SAMPLE_PLATFORM`
   set to a clone, `npm test` does too. No model, no keys.
+- A platform library is read by `readLibrary` (`api/discovery/library.js`): one commit,
+  read-only, walked by `core/upload-rules.js` with purpose `discovery` (`.github` read,
+  secret files as names), scanned again with gitleaks, each flagged line replaced, and no
+  `.sealeye-allow` honoured. `deploy/server.sh library-check` reads the repositories in
+  `SEALEYE_LIBRARY_REPOS` on the server that way. A discovery worker asks the gateway for
+  a route (`small`, `frontier`; `api/model-routes.js`), never a model by name.
 - `npm run eval:interview` before and after any change to `prompts/`. It runs the
   interview graph in-process on each sample app, grades the plans, and records a
   LangFuse dataset run; it needs ANTHROPIC_API_KEY and LangFuse keys, and deploys
