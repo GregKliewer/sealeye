@@ -35,7 +35,9 @@ api/        the API: server.js, store.js, db.js, migrations/, catalogs.js (each 
             gateway-token.js (the token on every model call), model-routes.js (the
             gateway's named routes, small and frontier), discovery/ (reading a platform
             library: github.js fetches one commit, tar.js reads it, library.js walks and
-            scans it; Step 6 builds the swarm on it), interview/
+            scans it; terraform.js finds modules and their inputs; readers.js the
+            workers and the supervisor; draft.js the draft catalog; service.js the run;
+            store.js its records and questions), interview/
             (the LangGraph graph, the model, the tools, the service), executor/
             (compose, package, deploy, poll, report, evidence)
 core/       what cli/ and api/ must agree on: schema.js (the plan contract), catalog.js,
@@ -145,7 +147,8 @@ in `core/` or behind an endpoint.
   `<name>/<deploymentId>.zip`.
 - Settings are `SEALEYE_<NAME>` (ACCOUNT, BUCKET, LWA_VERSION, FUNCTION_BOUNDARY_ARN, REGION, MODEL, DEBUG,
   HOME, TRACING, MODEL_URL, API, PORTAL, TOKEN, AUTH, RUN_CAP, GATEWAY_KEY, GATEWAY_BUDGET,
-  GATEWAY_SIGNING_KEY, LIBRARY_REPOS, GITHUB_APP_ID, GITHUB_APP_KEY, GITHUB_READ_TOKEN),
+  GATEWAY_SIGNING_KEY, LIBRARY_REPOS, GITHUB_APP_ID, GITHUB_APP_KEY, GITHUB_READ_TOKEN,
+  DISCOVERY_WORKER_CAP, DISCOVERY_RUN_CAP),
   read through `setting()` in
   `core/config.js`. SEALEYE_TOKEN is a secret: it lives in `~/.sealeye/config` (0600),
   is never printed, logged or put on a record. SEALEYE_GATEWAY_KEY is a secret too: the
@@ -202,7 +205,11 @@ answered with the interview and its findings), POST
 DELETE /interviews/{id}, GET /whoami, GET /team (people with tokens, never a token), GET /costs (by tag), GET /catalog (the organization's live catalog, or the starter, and which; ?version= the one a plan names; `document` is it as clients draw a plan from it, only what the platform builds), GET /apps/{app}/settings, PUT
 /apps/{app}/settings/{name} ({ value }) and DELETE /apps/{app}/settings/{name} (an app's
 settings in the store: names out, values in, never back), POST /sessions ({ token }) and
-DELETE /sessions (the portal's sign-in and sign-out). Every endpoint but GET /health
+DELETE /sessions (the portal's sign-in and sign-out), POST /discoveries (a run over the
+library the server names), GET /discoveries, GET /discoveries/{id} (the run and its
+questions), GET /discoveries/{id}/events (server-sent events), GET
+/discoveries/{id}/catalog (its draft), POST /discoveries/{id}/answers ({ question, answer },
+while it runs or after); discovery is an organization-wide token's only, one run at a time for an organization (409 RUN_GOING), over one library repository (409 ONE_LIBRARY). Every endpoint but GET /health
 and the two /sessions needs `Authorization: Bearer <token>` (`api/tokens.js`) or the
 portal's session cookie; a change made with the cookie must also carry
 `x-sealeye-portal: 1`. A record says which surface made it. A laptop API may run with
@@ -364,6 +371,11 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   `.sealeye-allow` honoured. `deploy/server.sh library-check` reads the repositories in
   `SEALEYE_LIBRARY_REPOS` on the server that way. A discovery worker asks the gateway for
   a route (`small`, `frontier`; `api/model-routes.js`), never a model by name.
+- A discovery run (`api/discovery/service.js`) never waits on a person: readers raise
+  questions with a guess, and an answer re-writes only the entries it touches, whenever
+  it comes. Code, not the model, reads each module's inputs and decides which entries
+  rest on an open question. `npm run eval:discovery -- --run --library <clone>` runs one
+  for real (it needs a model key) and prints each worker's spend.
 - `npm run eval:interview` before and after any change to `prompts/`. It runs the
   interview graph in-process on each sample app, grades the plans, and records a
   LangFuse dataset run; it needs ANTHROPIC_API_KEY and LangFuse keys, and deploys
