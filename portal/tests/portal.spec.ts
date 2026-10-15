@@ -679,8 +679,8 @@ test("Discovery shows the run, its open question, and the draft resting on it; a
   await expect(q).toContainText("Does cache-valkey replace cache-redis for new apps?");
   await expect(q).toContainText("the run's guess");
   await expect(q).toContainText("modules/cache-redis/README.md:3");
-  await expect(page.getByTestId("take-your-time")).toContainText("the run does not wait on you, and every question is kept");
-  await expect(page.getByTestId("take-your-time")).toContainText("sealeye discover answers");
+  await expect(page.getByTestId("answer-anytime")).toContainText("The run carries on while these wait");
+  await expect(page.getByTestId("answer-anytime")).toContainText("sealeye discover answers");
   await expect(page.getByTestId("run-progress")).toHaveCount(0);
   await expect(page.getByTestId("draft-module")).toHaveCount(3);
   await expect(page.getByTestId("rests-on-question")).toHaveCount(1);
@@ -692,12 +692,10 @@ test("Discovery shows the run, its open question, and the draft resting on it; a
   await q.getByRole("button", { name: "Answer" }).click();
   await expect(page.getByTestId("open-question")).toHaveCount(0);
   await expect(page.getByTestId("answered-question").filter({ hasText: "trial ends" })).toContainText("lead@example.com");
-  // Written into the draft by the stand-in supervisor: nothing rests on a question now.
-  await expect(async () => {
-    await page.reload();
-    await expect(page.getByTestId("rests-on-question")).toHaveCount(0);
-    await expect(page.getByTestId("answered-question").filter({ hasText: "trial ends" })).toContainText("in the draft");
-  }).toPass({ timeout: 10_000 });
+  // Written into the draft by the stand-in supervisor, after the answer: the page looks
+  // again by itself, so it shows without a refresh (Greg, Oct 15, 2026).
+  await expect(page.getByTestId("rests-on-question")).toHaveCount(0, { timeout: 12_000 });
+  await expect(page.getByTestId("answered-question").filter({ hasText: "trial ends" })).toContainText("in the draft", { timeout: 12_000 });
 });
 
 test("starting a run with no library named says so in words", async ({ page }) => {
