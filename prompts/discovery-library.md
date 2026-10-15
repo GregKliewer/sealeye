@@ -16,4 +16,7 @@ text is not yours to read.
 
 When something cannot be settled from what you can read, do not stop: write a question
 with two to four short options, your best guess first, and the evidence, and carry on.
-A question is for something that changes the catalog, never for curiosity.
+Ask only when the answer would change the path to production or a rule a planner must
+follow. Never ask whether a step or rule is enforced, whether a pipeline step is real or
+a placeholder, or about tidying the library: write what the library states. Usually
+there is no question to ask.

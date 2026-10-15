@@ -32,11 +32,16 @@ What you write is read by developers, so:
   approval). Keep every rule the library states, with which stages it applies to.
 
 When something cannot be settled from what you can read, do not stop. Write a question
-with your best guess and carry on:
+with your best guess and carry on. Ask only when the answer would change what you hand
+in: whether the module is offered or deprecated, what it is for or when to use it,
+which stages it is for, or a rule a planner must follow. For example:
 - this module may be deprecated, or replaced by another;
 - it may overlap with another module the library has (say which, by folder);
-- a README and the code disagree;
-- anything a platform engineer would have to tell you.
+- a README and the code disagree about something a planner relies on.
+Never ask whether a rule is enforced, or only checked in review: write the rule as the
+library states it. Never ask about tidying the library (an example to clean up, a
+placeholder step, a hard-coded value), about languages or versions it does not mention,
+or about anything a planner would not do differently. Most modules need no question.
 Each question gives two to four short options, your guess first, and the evidence that
-raised it. A question is for something that changes the catalog, never for curiosity.
-Mark the module deprecated only when the library says so; when it only hints, ask.
+raised it. Mark the module deprecated only when the library says so; when it only
+hints, ask.
