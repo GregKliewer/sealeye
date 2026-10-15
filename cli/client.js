@@ -285,7 +285,7 @@ export async function followInterview({ apiBaseUrl, interviewId, onEvent, after 
  * it left off when it drops, until an event of a type in `ends` arrives or the handler
  * returns "stop". Resolves with that last event and the last seq seen.
  */
-async function followEvents({ apiBaseUrl, route, onEvent, after = 0, ends, gone, broken }) {
+async function followEvents({ apiBaseUrl, route, onEvent, after = 0, ends, gone, broken, over = async () => true }) {
   let last = after;
   let drops = 0;
 
@@ -344,8 +344,9 @@ async function followEvents({ apiBaseUrl, route, onEvent, after = 0, ends, gone,
       if (err?.fromHandler || err?.userFacing) throw err;
     }
     // A stream the platform closed on purpose with nothing more to say (a run that was
-    // already over when it was asked): there is nothing to pick up again.
-    if (ended && ends.includes("closed")) return { type: "closed", lastSeq: last };
+    // already over when it was asked): there is nothing to pick up again. A proxy or a
+    // restart can close it cleanly too, so `over` asks whether the run really is.
+    if (ended && ends.includes("closed") && await over()) return { type: "closed", lastSeq: last };
     // The stream ended without the run ending: pick it up again, a little later each
     // time, so a proxy that keeps closing it is not hammered.
     if (++drops > 5) throw new PlatformUnreachableError(apiBaseUrl, new Error("the event stream kept closing"));
@@ -382,6 +383,7 @@ export function followDiscovery({ apiBaseUrl, id, onEvent, after = 0 }) {
     onEvent,
     after,
     ends: ["finished", "stopped", "failed", "closed"],
+    over: async () => (await getDiscovery({ apiBaseUrl, id }).catch(() => ({ status: "running" }))).status !== "running",
     gone: "The platform has no such discovery run.",
     broken: status => `The platform could not stream the discovery run (it answered ${status}).`
   });

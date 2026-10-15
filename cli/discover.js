@@ -12,7 +12,42 @@ import readline from "node:readline/promises";
 
 import { answer, c, spinner, step, stopSpinner, typed, typing } from "./brand.js";
 import { answerDiscovery, followDiscovery, getDiscovery, listDiscoveries, startDiscovery } from "./client.js";
-import { choicesFor, discoveryEventLine, discoveryStateWords, isOpen, LATER, SOMETHING_ELSE } from "../core/discovery-words.js";
+import { ANSWER_LIMIT, choicesFor, discoveryEventLine, discoveryStateWords, isOpen, LATER, SOMETHING_ELSE } from "../core/discovery-words.js";
+
+/** Ctrl+C at a question: the run goes on without this terminal. */
+const stopped = () => Object.assign(new Error("Stopped. The run goes on: sealeye discover answers, or the Discovery page on seaLeye.online, for its questions."), { interrupted: true, userFacing: true });
+
+/** Words of one's own, up to the limit the API keeps. Ctrl+C stops, as in the picker. */
+async function ownWords() {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    while (true) {
+      const own = await new Promise((resolve, reject) => {
+        rl.once("SIGINT", () => reject(stopped()));
+        rl.question(typing()).then(resolve, reject);
+      });
+      process.stdout.write(typed());
+      const words = own.trim();
+      if (words.length <= ANSWER_LIMIT) return words || null;
+      console.log(c.dim(`  That is longer than an answer is kept. A sentence or two, under ${ANSWER_LIMIT} characters.`));
+    }
+  } finally {
+    rl.close();
+  }
+}
+
+/** Send one answer. One the platform would not take is said, and the run is still followed. */
+async function send({ apiBaseUrl, id, q, reply }) {
+  try {
+    await answerDiscovery({ apiBaseUrl, id, question: q.id, answer: reply });
+    console.log(c.ok(`Answered: ${reply}`));
+    return true;
+  } catch (err) {
+    if (!err.userFacing && !err.details) throw err;
+    console.log(c.fail(`Not answered: ${err.message}`));
+    return false;
+  }
+}
 
 /** Pick one of `choices` with the arrow keys and Enter; the first is chosen to start. */
 export function pick(choices, { input = process.stdin, output = process.stdout } = {}) {
@@ -32,7 +67,7 @@ export function pick(choices, { input = process.stdin, output = process.stdout }
     };
     const onData = chunk => {
       const key = String(chunk);
-      if (key === "\u0003") return done(null, Object.assign(new Error("Stopped."), { interrupted: true }));
+      if (key === "\u0003") return done(null, stopped());
       if (key === "\r" || key === "\n") return done(choices[at]);
       if (key === "\u001b[A" || key === "k") at = (at - 1 + choices.length) % choices.length;
       else if (key === "\u001b[B" || key === "j") at = (at + 1) % choices.length;
@@ -61,14 +96,7 @@ async function askQuestion(q, { label = "" } = {}) {
     return null;
   }
   if (choice !== SOMETHING_ELSE) return choice;
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  try {
-    const own = (await rl.question(typing())).trim();
-    process.stdout.write(typed());
-    return own || null;
-  } finally {
-    rl.close();
-  }
+  return ownWords();
 }
 
 /** Answer the open questions of one run, one at a time. */
@@ -81,9 +109,7 @@ async function answerOpen({ apiBaseUrl, run, say }) {
   }
   for (const [i, q] of open.entries()) {
     const reply = await askQuestion(q, { label: `${i + 1} of ${open.length}` });
-    if (reply === null) continue;
-    await answerDiscovery({ apiBaseUrl, id: run.discoveryId, question: q.id, answer: reply });
-    console.log(c.ok(`Answered: ${reply}`));
+    if (reply !== null) await send({ apiBaseUrl, id: run.discoveryId, q, reply });
   }
 }
 
@@ -110,7 +136,18 @@ function printRun(run, say) {
  * The `discover` command.
  * @param {{ apiBaseUrl: string, args: string[], say: (line: string) => void, json: boolean }} p
  */
-export async function discover({ apiBaseUrl, args, say, json = false }) {
+export async function discover(options) {
+  try {
+    return await discoverCommand(options);
+  } catch (err) {
+    if (!err.interrupted) throw err;
+    console.log("");
+    options.say(err.message);
+    process.exit(130);
+  }
+}
+
+async function discoverCommand({ apiBaseUrl, args, say, json = false }) {
   const [sub, id] = args;
 
   if (sub === "status") {
@@ -175,11 +212,7 @@ export async function discover({ apiBaseUrl, args, say, json = false }) {
             return wait("Reading");
           }
           const reply = await askQuestion(event.question);
-          if (reply === null) skipped.push(event.question);
-          else {
-            await answerDiscovery({ apiBaseUrl, id: run.discoveryId, question: event.question.id, answer: reply });
-            console.log(c.ok(`Answered: ${reply}`));
-          }
+          if (reply === null || !(await send({ apiBaseUrl, id: run.discoveryId, q: event.question, reply }))) skipped.push(event.question);
           return wait("Reading");
         }
         if (event.type === "answered") return;   // ours was said already; another's shows on the run

@@ -10,6 +10,8 @@
 export const SOMETHING_ELSE = "Something else";
 /** The choice that leaves a question on the draft, to answer later. */
 export const LATER = "Answer later";
+/** The longest answer the API keeps: a sentence, not a document. */
+export const ANSWER_LIMIT = 600;
 
 const short = commit => (typeof commit === "string" ? commit.slice(0, 7) : "");
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;

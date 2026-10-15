@@ -108,7 +108,8 @@ test("the picker: arrow keys move, Enter chooses, Ctrl+C stops", async () => {
   input = keyboard();
   chosen = pick(["Yes", "No"], { input, output });
   input.write("\u0003");
-  await assert.rejects(chosen, /Stopped/);
+  // Ctrl+C is a sentence and exit 130, never a stack trace: it says where to answer.
+  await assert.rejects(chosen, err => err.interrupted && err.userFacing && /sealeye discover answers/.test(err.message));
 });
 
 test("both surfaces say the same things about a run", () => {

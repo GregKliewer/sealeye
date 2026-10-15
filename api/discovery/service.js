@@ -26,6 +26,7 @@ import { switchOffLangSmith } from "../interview/service.js";
 import { draftCatalog, rewriteEntries } from "./draft.js";
 import { libraryRepos, repoName } from "./github.js";
 import { readLibrary as readFromGitHub } from "./library.js";
+import { ANSWER_LIMIT } from "../../core/discovery-words.js";
 import { createBudget, readLibraryLevel, readModule, SpendingLimit, superviseEntries } from "./readers.js";
 import * as store from "./store.js";
 import { idFor, listModules, moduleHash, moduleInputs } from "./terraform.js";
@@ -339,7 +340,7 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
       // Kept, never lost: the answers stay pending and the next pass uses them. Said on
       // the run's events and in the API's log, which holds no content of the library.
       console.error(`discovery ${id}: answers could not be written into the draft: ${err?.message || err}`);
-      emit(id, { type: "answer_not_used", why: "seaLeye could not write the entries again" });
+      emit(id, { type: "answer_not_used", why: err instanceof SpendingLimit ? "the run reached its spending limit" : "seaLeye could not write the entries again" });
     });
     return s.writing;
   }
@@ -443,7 +444,7 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
     const q = store.getQuestion(questionId);
     if (!q || q.discovery !== id) throw new QuestionNotFound(questionId);
     const value = String(text ?? "").trim();
-    if (!value || value.length > 600) throw Object.assign(new Error("an answer is one of the options, or a sentence of your own"), { code: "BAD_ANSWER" });
+    if (!value || value.length > ANSWER_LIMIT) throw Object.assign(new Error("an answer is one of the options, or a sentence of your own"), { code: "BAD_ANSWER" });
     const saved = await store.saveQuestion({ ...q, answer: value, answeredBy: by, answeredAt: new Date(now()).toISOString(), usedAt: null, usedIn: null });
     emit(id, { type: "answered", question: publicQuestion(saved) });
     // Used now if its entries are already written; otherwise the supervisor reads it

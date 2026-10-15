@@ -6,12 +6,12 @@
 import { useEffect, useState } from "react";
 import { Navigate } from "react-router";
 import { api, ApiError, type DiscoveryQuestion, type DiscoveryRun, type DraftCatalog } from "../api";
-import { useLoad, useSession } from "../session";
+import { orgWide, useLoad, useSession } from "../session";
 import { ago, when } from "../model";
 import { PageTitle, Problem } from "../Layout";
 import { CommandHint } from "../Command";
 import { label } from "../../../core/operations.js";
-import { choicesFor, discoveryEventLine, discoveryStateWords, isOpen, SOMETHING_ELSE } from "../../../core/discovery-words.js";
+import { choicesFor, discoveryEventLine, discoveryStateWords, isOpen, SOMETHING_ELSE, ANSWER_LIMIT } from "../../../core/discovery-words.js";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -20,7 +20,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 
 export function DiscoveryPage() {
   const { person } = useSession();
-  if (person && person.scope !== "org") return <Navigate to="/" replace />;
+  if (person && !orgWide(person)) return <Navigate to="/" replace />;
   return <Discovery />;
 }
 
@@ -179,7 +179,7 @@ function QuestionCard({ runId, q, onAnswered }: { runId: string; q: DiscoveryQue
           ))}
         </fieldset>
         {choice === SOMETHING_ELSE ? (
-          <Input className="mt-2" value={own} onChange={e => setOwn(e.target.value)} placeholder="Your answer, in a sentence" aria-label="Your own answer" maxLength={600} />
+          <Input className="mt-2" value={own} onChange={e => setOwn(e.target.value)} placeholder="Your answer, in a sentence" aria-label="Your own answer" maxLength={ANSWER_LIMIT} />
         ) : null}
         <div className="mt-3 flex items-center gap-3">
           <Button size="sm" onClick={send} disabled={busy || !reply}>Answer</Button>

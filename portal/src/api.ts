@@ -275,8 +275,10 @@ export const api = {
         if (type === "finished" || type === "stopped" || type === "failed") { source.close(); onEnd(); }
       });
     }
-    // A run that is over closes the stream once it has replayed what it has.
-    source.onerror = () => { if (source.readyState !== EventSource.OPEN) { source.close(); onEnd(); } };
+    // The browser reconnects by itself through a blip, carrying the last event's id, and
+    // the API replays what was missed. Either way the page reads the run again: one that
+    // is over (a restart stops it) stops being followed, one still going is picked up.
+    source.onerror = () => onEnd();
     return () => source.close();
   },
   needs: () => request<NeedsLedger>("/needs"),

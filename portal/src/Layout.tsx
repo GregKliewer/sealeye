@@ -3,7 +3,7 @@
 // person on the right, and the footer line that does not move.
 import { NavLink, Outlet } from "react-router";
 import { api } from "./api";
-import { useSession } from "./session";
+import { orgWide, useSession } from "./session";
 import { Button } from "./components/ui/button";
 import { cn } from "./lib/utils";
 import { label } from "../../core/operations.js";
@@ -34,7 +34,7 @@ export function Layout() {
         <div className="mx-auto max-w-6xl flex flex-wrap items-center gap-x-8 gap-y-2 px-6 h-auto min-h-14 py-2">
           <img src="/sealeye-online-wordmark-light.svg" alt="seaLeye.online" className="h-8" />
           <nav className="flex gap-6 text-sm" aria-label="Sections">
-            {NAV.filter(n => !n.orgWide || person?.scope === "org").map(n => (
+            {NAV.filter(n => !n.orgWide || orgWide(person)).map(n => (
               <NavLink key={n.to} to={n.to} end={n.end}
                 className={({ isActive }) => cn("py-4 border-b-2 -mb-px", isActive ? "border-phosphor text-ink font-medium" : "border-transparent text-dim hover:text-ink")}>
                 {n.label}
