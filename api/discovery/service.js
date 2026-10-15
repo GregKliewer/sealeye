@@ -147,6 +147,9 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
     const s = state(run.id);
     for (const q of raised || []) {
       const touches = [...new Set([...(touchesDefault ? [touchesDefault] : []), ...(Array.isArray(q.touches) ? q.touches : [])].map(t => sourceFor(run, t)).filter(Boolean))];
+      // The supervisor sees the readers' questions and may ask one again in its own
+      // words; the prompt says not to, and code makes sure (Greg, Oct 15, 2026).
+      if (!touchesDefault && repeats({ kind: q.kind || "other", question: String(q.question || ""), touches }, store.questionsOf(run.id))) continue;
       const options = (q.options || []).map(String).slice(0, 4);
       const question = {
         id: `q_${crypto.randomBytes(6).toString("hex")}`,
@@ -168,6 +171,26 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
       out.push(question);
     }
     return out;
+  }
+
+  /**
+   * Whether a question asks again what an open one already asks: it touches nothing the
+   * other does not (both touching no module counts), and it is the same kind (other than
+   * "other") or mostly the same words.
+   */
+  function repeats(q, existing) {
+    const words = t => new Set(String(t).toLowerCase().match(/[a-z0-9]+/g)?.filter(w => w.length > 3) || []);
+    const mine = words(q.question);
+    return existing.some(e => {
+      if (e.answer !== null && e.answer !== undefined) return false;
+      const covered = q.touches.length ? q.touches.every(t => (e.touches || []).includes(t)) : !(e.touches || []).length;
+      if (!covered) return false;
+      const theirs = words(e.question);
+      const shared = [...mine].filter(w => theirs.has(w)).length;
+      const overlap = shared / Math.max(1, new Set([...mine, ...theirs]).size);
+      // "other" is a catch-all, so only the words can say two of those are the same.
+      return (e.kind === q.kind && q.kind !== "other") || overlap >= 0.4;
+    });
   }
 
   const publicQuestion = q => ({
