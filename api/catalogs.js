@@ -105,28 +105,67 @@ export function catalogFor(org = "default") {
   return liveCatalog(org).document;
 }
 
-/** Apply one change: to the database first, then to memory, so memory never runs ahead. */
-async function commit(org, next, sql) {
-  if (databaseUrl()) {
-    const conn = await db().connect();
-    try {
-      await conn.query("BEGIN");
-      for (const [text, args] of sql) await conn.query(text, args);
-      await conn.query("COMMIT");
-    } catch (err) {
-      await conn.query("ROLLBACK").catch(() => {});
-      throw err;
-    } finally {
-      conn.release();
-    }
-    byOrg.set(org, next);
-  } else {
-    const map = new Map(byOrg);
-    map.set(org, next);
-    writeFile(map);
-    byOrg = map;
-  }
+/** The document of one of an organization's catalogs, live or not, or the starter's. */
+export function catalogAt(org = "default", version = STARTER_VERSION) {
+  if (version === STARTER_VERSION || version === undefined || version === null) return starterCatalog();
+  return (byOrg.get(org) || []).find(c => c.version === Number(version))?.document || null;
 }
+
+/**
+ * The catalog a record was planned against: the one it names, or, for a record from
+ * before catalogs were kept (Oct 14, 2026), the starter, which was the only one. Null
+ * when the record names one this API does not hold.
+ */
+export function catalogOfRecord(record) {
+  return catalogAt(record?.orgId || "default", record?.catalog?.version ?? STARTER_VERSION);
+}
+
+/** What a record keeps of the catalog it was planned against: never the document. */
+export function catalogRef(org = "default") {
+  const { version, source } = liveCatalog(org);
+  return { version, source };
+}
+
+// Changes run one at a time, each reading the catalogs as they are when its turn comes,
+// so two changes made together both land, in memory as in the database.
+let changes = Promise.resolve();
+
+/**
+ * Apply one change. `change(list)` gets the organization's catalogs as they are now and
+ * returns { next, sql, result }; the database is written first, then memory, so memory
+ * never runs ahead. Without a database the file is read again first, so a change made by
+ * another process (a platform engineer's script beside a laptop API) is kept.
+ */
+function commit(org, change) {
+  const turn = changes.then(async () => {
+    if (!databaseUrl()) byOrg = index(readFile());
+    const { next, sql, result } = change(byOrg.get(org) || []);
+    if (databaseUrl()) {
+      const conn = await db().connect();
+      try {
+        await conn.query("BEGIN");
+        for (const [text, args] of sql) await conn.query(text, args);
+        await conn.query("COMMIT");
+      } catch (err) {
+        await conn.query("ROLLBACK").catch(() => {});
+        throw err;
+      } finally {
+        conn.release();
+      }
+      byOrg.set(org, next);
+    } else {
+      const map = new Map(byOrg);
+      map.set(org, next);
+      writeFile(map);
+      byOrg = map;
+    }
+    return result;
+  });
+  changes = turn.catch(() => {});
+  return turn;
+}
+
+const fail = (message, code, extra = {}) => Object.assign(new Error(message), { code, ...extra });
 
 /**
  * Keep a new catalog for an organization, as a draft, at the next version.
@@ -134,52 +173,51 @@ async function commit(org, next, sql) {
  */
 export async function addCatalog({ org, document, by = null }) {
   const problems = catalogProblems(document);
-  if (problems.length) {
-    const err = new Error(`not a catalog: ${problems.join("; ")}`);
-    err.code = "CATALOG_INVALID";
-    err.problems = problems;
-    throw err;
-  }
-  const list = byOrg.get(org) || [];
-  const row = {
-    org,
-    version: (list.at(-1)?.version || 0) + 1,
-    status: "draft",
-    document: structuredClone(document),
-    createdBy: by,
-    createdAt: new Date().toISOString(),
-    approvedBy: null,
-    approvedAt: null
-  };
-  await commit(org, [...list, row], [[
-    `INSERT INTO catalogs (org_id, version, status, document, created_by, created_at) VALUES ($1, $2, $3, $4, $5, $6)`,
-    [org, row.version, row.status, JSON.stringify(row.document), row.createdBy, row.createdAt]
-  ]]);
-  return { ...row, document: undefined };
+  if (problems.length) throw fail(`not a catalog: ${problems.join("; ")}`, "CATALOG_INVALID", { problems });
+  return commit(org, list => {
+    const row = {
+      org,
+      version: (list.at(-1)?.version || 0) + 1,
+      status: "draft",
+      document: structuredClone(document),
+      createdBy: by,
+      createdAt: new Date().toISOString(),
+      approvedBy: null,
+      approvedAt: null
+    };
+    return {
+      next: [...list, row],
+      sql: [[
+        `INSERT INTO catalogs (org_id, version, status, document, created_by, created_at) VALUES ($1, $2, $3, $4, $5, $6)`,
+        [org, row.version, row.status, JSON.stringify(row.document), row.createdBy, row.createdAt]
+      ]],
+      result: { ...row, document: undefined }
+    };
+  });
 }
 
-function find(org, version) {
-  const row = (byOrg.get(org) || []).find(c => c.version === Number(version));
-  if (!row) {
-    const err = new Error(`${org} has no catalog version ${version}`);
-    err.code = "CATALOG_NOT_FOUND";
-    throw err;
-  }
+function find(list, org, version) {
+  const row = list.find(c => c.version === Number(version));
+  if (!row) throw fail(`${org} has no catalog version ${version}`, "CATALOG_NOT_FOUND");
   return row;
 }
 
 /** A platform engineer approves a draft. */
 export async function approveCatalog({ org, version, by }) {
-  const row = find(org, version);
-  if (row.status !== "draft") throw Object.assign(new Error(`catalog ${version} is ${row.status}, not a draft`), { code: "CATALOG_STATUS" });
-  if (!by) throw Object.assign(new Error("an approval names who approved"), { code: "CATALOG_APPROVER" });
-  const approved = { ...row, status: "approved", approvedBy: by, approvedAt: new Date().toISOString() };
-  const next = byOrg.get(org).map(c => (c === row ? approved : c));
-  await commit(org, next, [[
-    `UPDATE catalogs SET status = 'approved', approved_by = $3, approved_at = $4 WHERE org_id = $1 AND version = $2`,
-    [org, row.version, approved.approvedBy, approved.approvedAt]
-  ]]);
-  return { ...approved, document: undefined };
+  if (!by) throw fail("an approval names who approved", "CATALOG_APPROVER");
+  return commit(org, list => {
+    const row = find(list, org, version);
+    if (row.status !== "draft") throw fail(`catalog ${version} is ${row.status}, not a draft`, "CATALOG_STATUS");
+    const approved = { ...row, status: "approved", approvedBy: by, approvedAt: new Date().toISOString() };
+    return {
+      next: list.map(c => (c.version === row.version ? approved : c)),
+      sql: [[
+        `UPDATE catalogs SET status = 'approved', approved_by = $3, approved_at = $4 WHERE org_id = $1 AND version = $2`,
+        [org, row.version, approved.approvedBy, approved.approvedAt]
+      ]],
+      result: { ...approved, document: undefined }
+    };
+  });
 }
 
 /**
@@ -187,14 +225,18 @@ export async function approveCatalog({ org, version, by }) {
  * retired, together. Not reachable from any request: Step 7 puts the self-test in front.
  */
 export async function makeLive({ org, version }) {
-  const row = find(org, version);
-  if (row.status !== "approved") throw Object.assign(new Error(`catalog ${version} is ${row.status}; only an approved catalog goes live`), { code: "CATALOG_STATUS" });
-  const next = byOrg.get(org).map(c =>
-    c === row ? { ...c, status: "live" } : c.status === "live" ? { ...c, status: "retired" } : c
-  );
-  await commit(org, next, [
-    [`UPDATE catalogs SET status = 'retired' WHERE org_id = $1 AND status = 'live'`, [org]],
-    [`UPDATE catalogs SET status = 'live' WHERE org_id = $1 AND version = $2`, [org, row.version]]
-  ]);
-  return { org, version: row.version, status: "live" };
+  return commit(org, list => {
+    const row = find(list, org, version);
+    if (row.status !== "approved") throw fail(`catalog ${version} is ${row.status}; only an approved catalog goes live`, "CATALOG_STATUS");
+    return {
+      next: list.map(c =>
+        c.version === row.version ? { ...c, status: "live" } : c.status === "live" ? { ...c, status: "retired" } : c
+      ),
+      sql: [
+        [`UPDATE catalogs SET status = 'retired' WHERE org_id = $1 AND status = 'live'`, [org]],
+        [`UPDATE catalogs SET status = 'live' WHERE org_id = $1 AND version = $2`, [org, row.version]]
+      ],
+      result: { org, version: row.version, status: "live" }
+    };
+  });
 }

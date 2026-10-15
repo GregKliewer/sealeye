@@ -38,7 +38,7 @@ import { databaseUrl, closeDb } from "./db.js";
 import { startTracing } from "../core/tracing.js";
 import { authMode, callerFor, callerForSession, endSession, SESSION_COOKIE, SESSION_HOURS, startSession } from "./tokens.js";
 import { needKinds, orgName } from "../core/catalog.js";
-import { liveCatalog, openCatalogs } from "./catalogs.js";
+import { catalogRef, liveCatalog, openCatalogs } from "./catalogs.js";
 
 const app = express();
 
@@ -370,9 +370,10 @@ async function deployAgain(req, res) {
     plan,
     // The same plan as the deployment it repeats keeps that deployment's files, which are
     // what was approved; a plan changed with Configure is written down from the plan.
+    // and the catalog they were written from: a record keeps which, never the document.
     ...(source.planFiles && source.plan && planDigest(source.plan) === planDigest(plan)
-      ? { planFiles: source.planFiles }
-      : planFilesFor(plan, null, new Date(), catalogOf(req))),
+      ? { planFiles: source.planFiles, catalog: source.catalog || { version: "starter", source: "starter" } }
+      : { ...planFilesFor(plan, null, new Date(), catalogOf(req)), catalog: catalogRef(callerOrg(req)) }),
     ...(req.caller ? { orgId: req.caller.org, teamId: req.caller.team, tokenId: req.caller.tokenId } : {}),
     surface: req.surface || "cli",
     ...(requestedBy ? { requestedBy } : {}),
@@ -523,6 +524,8 @@ async function deployNew(req, res) {
       needs,
       // The plan as the developer saw it, so either surface can show it later.
       ...planFilesFor(plan, interviewNotesFor(req.caller, plan), new Date(), catalogOf(req)),
+      // Which catalog it was planned against, so its evidence and files read that one.
+      catalog: catalogRef(callerOrg(req)),
       ...provenance,
       outputs: {},
       failureReason: null,
@@ -606,6 +609,8 @@ async function deployNew(req, res) {
     // And written down as the developer approved it (api/plan-record.js), for
     // GET /deployments/{id}/plan.
     ...planFilesFor(plan, interviewNotesFor(req.caller, plan), new Date(), catalogOf(req)),
+    // Which catalog it was planned against, so its evidence and files read that one.
+    catalog: catalogRef(callerOrg(req)),
     // What the secret scan let through on the developer's word (.sealeye-allow), and
     // whether gitleaks ran: file, line and rule, never a value. The evidence lists it.
     secretScan: { allowed: scan.allowed.map(({ file, line, rule }) => ({ file, line, rule })), gitleaks: scan.gitleaks },

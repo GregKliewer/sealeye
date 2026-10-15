@@ -14,7 +14,7 @@ import crypto from "node:crypto";
 
 import { upgradePlan } from "../core/schema.js";
 import { planFiles } from "../core/plan-files.js";
-import { catalogFor } from "./catalogs.js";
+import { catalogOfRecord } from "./catalogs.js";
 
 const KEEP_MS = 60 * 60 * 1000;   // an hour: an answer and its deploy are seconds apart
 const MAX_KEPT = 500;
@@ -106,7 +106,7 @@ export function planView(record) {
   if (!record.plan) return { ...view, files: null, filesError: "this deployment's record holds no plan", rebuilt: false };
 
   const started = record.startedAt ? new Date(record.startedAt) : new Date();
-  const written = planFilesFor(record.plan, null, Number.isNaN(started.getTime()) ? new Date() : started, catalogFor(record.orgId || "default"));
+  const written = planFilesFor(record.plan, null, Number.isNaN(started.getTime()) ? new Date() : started, catalogOfRecord(record) || undefined);
   if (written.planFilesError) return { ...view, files: null, filesError: written.planFilesError, rebuilt: true };
   return { ...view, files: written.planFiles.files, notesKept: false, rebuilt: true };
 }

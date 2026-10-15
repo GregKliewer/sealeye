@@ -2555,6 +2555,15 @@ Wed Oct 14, 2026, PHASE4-PLAN Step 1 (D4).
   needs ledger, the plan files written onto a record, and the evidence's patterns, each
   from the caller's or the record's organization. Every function in `core/catalog.js`
   already took the catalog it reads; the API now hands it the organization's.
+- **A record keeps which catalog it was planned against** (`catalog: { version,
+  source }`, never the document), and its evidence and plan files read that one, even
+  once it is retired. A record from before Oct 14, 2026 names none and was planned
+  against the starter, the only catalog there was (principle 7: read from the record,
+  never from whatever is live now). Deploy again keeps its source's catalog when it
+  keeps its source's plan files.
+- **Changes run one at a time**, each reading the catalogs as they are when its turn
+  comes, so two made together both land. Without a database the file is read again
+  before each change, so one made by another process is not written over.
 - **What still reads the starter.** The interview's prompt (Step 3), the command's card
   and plan files (Step 2 moves them to `GET /catalog`), and the plan contract's fixed
   module ids and need kinds (Step 2's planVersion 0.5). Until those land, an

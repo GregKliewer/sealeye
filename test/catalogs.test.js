@@ -35,6 +35,7 @@ function ownCatalog(line = "a store for the files your app keeps, of this organi
   const doc = fromFile();
   doc.need_kinds.find(n => n.key === "file_storage").line = line;
   doc.modules = doc.modules.filter(m => m.id !== "static_site_edge");
+  doc.modules.find(m => m.id === "http_api_serverless").line = "Runs your API on acme's own serverless platform.";
   return doc;
 }
 
@@ -196,6 +197,10 @@ before(async () => {
       const { version } = await addCatalog({ org: "acme", document: JSON.parse(process.env.DOC) });
       await approveCatalog({ org: "acme", version, by: "pat@acme.example" });
       await makeLive({ org: "acme", version });
+      // A newer draft, and an approved one, that must never be what the API serves.
+      await addCatalog({ org: "acme", document: { ...JSON.parse(process.env.DOC), catalogVersion: "draft" } });
+      const { version: v3 } = await addCatalog({ org: "acme", document: { ...JSON.parse(process.env.DOC), catalogVersion: "approved" } });
+      await approveCatalog({ org: "acme", version: v3, by: "pat@acme.example" });
       console.log("{}"); process.exit(0);
     `);
   } finally {
@@ -226,7 +231,8 @@ test("GET /catalog: the starter for an organization with none, word for word, an
   assert.deepEqual(mine.body.needs, starter.need_kinds.map(n => ({ kind: n.key, line: String(n.line).trim() })));
 
   const acme = await call("/catalog", theirs);
-  assert.equal(acme.body.catalog.version, 1);
+  assert.equal(acme.body.catalog.version, 1, "a draft or an approved catalog is never served; only the live one");
+  assert.equal(acme.body.catalogVersion, fromFile().catalogVersion);
   assert.equal(acme.body.catalog.source, "organization");
   assert.equal(acme.body.catalog.approvedBy, "pat@acme.example");
   assert.ok(!acme.body.modules.some(m => m.id === "static_site_edge"));
@@ -243,4 +249,89 @@ test("POST /plans/validate reads each need in the caller's organization's words"
   const starterLine = String(fromFile().need_kinds.find(n => n.key === "file_storage").line).trim();
   assert.equal((await call("/plans/validate", ours, plan)).body.needs[0].line, starterLine);
   assert.equal((await call("/plans/validate", theirs, plan)).body.needs[0].line, ownLine);
+});
+
+test("a drafted plan is written down, and counted, in the words of the catalog it was planned against", async () => {
+  const appPath = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-catalogs-app-"));
+  const plan = {
+    planVersion: "0.4", app: { name: "files", type: "api" }, profile: "dev",
+    modules: [{ id: "http_api_serverless", inputs: { runtime: "nodejs", entry_point: "index.js", trigger: "http" } }],
+    outputs: ["public_url"],
+    needs: [{ kind: "file_storage", line: "a place to keep files", evidence: [{ file: "index.js", shows: "an upload handler" }] }]
+  };
+  for (const [token, words, version] of [[theirs, ownLine, 1], [ours, String(fromFile().need_kinds.find(n => n.key === "file_storage").line).trim(), "starter"]]) {
+    const made = await call("/deployments", token, { plan, appPath, backend: "cloudformation" });
+    assert.equal(made.status, 422, JSON.stringify(made.body).slice(0, 600));
+    const id = made.body.error?.details?.deploymentId;
+    assert.ok(id, JSON.stringify(made.body));
+
+    const shown = await call(`/deployments/${id}/plan`, token);
+    const markdown = shown.body.files["DEPLOYMENT_PLAN.md"];
+    const ownModuleLine = "Runs your API on acme's own serverless platform.";
+    assert.equal(markdown.includes(ownModuleLine), version === 1, "the plan file reads the module in its organization's words");
+
+    const needs = await call("/needs", token);
+    assert.equal(needs.body.needs.find(n => n.kind === "file_storage").line.trim(), words);
+  }
+});
+
+test("a record is read against the catalog it names, and an old record against the starter", async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-catalogs-record-"));
+  process.env.DOC = JSON.stringify(ownCatalog());
+  try {
+    const out = await inChild(home, `
+      import { openCatalogs, addCatalog, approveCatalog, makeLive, catalogOfRecord, catalogRef } from "./api/catalogs.js";
+      await openCatalogs();
+      const doc = JSON.parse(process.env.DOC);
+      for (const tag of ["one", "two"]) {
+        const { version } = await addCatalog({ org: "acme", document: { ...doc, catalogVersion: tag } });
+        await approveCatalog({ org: "acme", version, by: "pat" });
+        await makeLive({ org: "acme", version });
+      }
+      console.log(JSON.stringify({
+        ref: catalogRef("acme"),
+        planned: catalogOfRecord({ orgId: "acme", catalog: { version: 1, source: "organization" } }).catalogVersion,
+        old: catalogOfRecord({ orgId: "acme" }).catalogVersion,
+        missing: catalogOfRecord({ orgId: "acme", catalog: { version: 9 } }),
+        other: catalogOfRecord({ orgId: "other", catalog: { version: 1 } })
+      }));
+      process.exit(0);
+    `);
+    assert.deepEqual(out.ref, { version: 2, source: "organization" }, "a record keeps which catalog, never the document");
+    assert.equal(out.planned, "one", "a retired catalog still reads for the records planned against it");
+    assert.equal(out.old, fromFile().catalogVersion, "a record from before catalogs were kept was planned against the starter");
+    assert.equal(out.missing, null);
+    assert.equal(out.other, null, "another organization's catalog is never read for a record");
+  } finally {
+    delete process.env.DOC;
+  }
+});
+
+test("changes made together all land, in memory and in the file", async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-catalogs-together-"));
+  process.env.DOC = JSON.stringify(ownCatalog());
+  try {
+    const out = await inChild(home, `
+      import { openCatalogs, addCatalog, approveCatalog, catalogsOf } from "./api/catalogs.js";
+      await openCatalogs();
+      const doc = JSON.parse(process.env.DOC);
+      await addCatalog({ org: "acme", document: doc });
+      await Promise.all([
+        addCatalog({ org: "acme", document: doc }),
+        approveCatalog({ org: "acme", version: 1, by: "pat" }),
+        addCatalog({ org: "acme", document: doc }),
+        addCatalog({ org: "beta", document: doc })
+      ]);
+      const inMemory = catalogsOf("acme").map(c => [c.version, c.status]);
+      await openCatalogs();
+      console.log(JSON.stringify({ inMemory, reread: catalogsOf("acme").map(c => [c.version, c.status]), beta: catalogsOf("beta").length }));
+      process.exit(0);
+    `);
+    const expected = [[1, "approved"], [2, "draft"], [3, "draft"]];
+    assert.deepEqual(out.inMemory, expected);
+    assert.deepEqual(out.reread, expected);
+    assert.equal(out.beta, 1);
+  } finally {
+    delete process.env.DOC;
+  }
 });
