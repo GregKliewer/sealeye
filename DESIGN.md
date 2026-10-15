@@ -2791,6 +2791,11 @@ dropped, and a plan file saying it refused.
 - What this gives up: a catalog, a model or a plan file may say an ordinary-word id as
   plain prose without being caught. The four starter modules, and any id with an
   underscore, are caught as before.
+- **Greg, Oct 15: kept, as recommended.** The stricter alternative, requiring every
+  catalog module id to hold an underscore and having discovery rename the rest, was
+  declined: an organization's catalog should keep the names its platform team uses. A
+  plan's module list is still checked exactly, so an ordinary-word id said in prose can
+  never be built from; at worst a developer reads the word.
 
 ## The made-up organization: Juniper Mutual
 
