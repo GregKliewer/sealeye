@@ -15,7 +15,7 @@ import path from "node:path";
 import YAML from "yaml";
 
 import { repoRoot, loadUserConfig } from "./config.js";
-import { normalizeProfile } from "./schema.js";
+import { EXECUTORS, STARTER_VERSION, contractSchema, normalizeProfile } from "./schema.js";
 
 /**
  * The organization the developer belongs to, for the messages that name one. From
@@ -39,7 +39,7 @@ export function refusalClosing(org = orgName()) {
 }
 
 /** The version a plan names for the starter catalog (planVersion 0.5, Step 2). */
-export const STARTER_VERSION = "starter";
+export { STARTER_VERSION };
 
 /** The starter catalog: seaLeye's own modules, from prompts/module-catalog.yaml. */
 export function starterCatalog() {
@@ -88,6 +88,17 @@ export function catalogProblems(doc) {
     });
   }
 
+  if (Array.isArray(doc.modules)) {
+    for (const m of doc.modules) {
+      if (m && text(m.id) && m.builds_with !== undefined && !text(m.builds_with)) problems.push(`module ${m.id}: builds_with names what builds it`);
+      if (m && text(m.id) && m.buildable !== undefined) problems.push(`module ${m.id}: whether it is buildable is the platform's to say, not the catalog's`);
+      // An executor the platform may not have yet (Terraform, until PHASE4-PLAN Step 9)
+      // is fine: the module is simply not buildable. Only a name that could never be
+      // one is a mistake in the document.
+      else if (m && text(m.id) && typeof m.builds_with === "string" && !/^[a-z][a-z0-9_-]*$/.test(m.builds_with)) problems.push(`module ${m.id}: builds_with is a lowercase name`);
+    }
+  }
+
   if (doc.profiles !== undefined && !Array.isArray(doc.profiles)) problems.push("profiles is a list");
   if (doc.patterns !== undefined && (typeof doc.patterns !== "object" || doc.patterns === null || Array.isArray(doc.patterns))) {
     problems.push("patterns is a set of named profiles");
@@ -97,6 +108,69 @@ export function catalogProblems(doc) {
 
 export function moduleEntry(id, catalog = loadCatalog()) {
   return (catalog.modules || []).find(m => m.id === id) || null;
+}
+
+/**
+ * Whether the platform builds a catalog's module: the catalog marks it available, and
+ * the platform has an executor for what it says builds it (`builds_with`, EXECUTORS in
+ * core/schema.js) that builds this module. Anything else in a catalog is a module the
+ * platform cannot build yet, and an app that needs it has a need: refuse, never shrink.
+ */
+export function isBuildable(id, catalog = loadCatalog()) {
+  const m = moduleEntry(id, catalog);
+  if (!m || m.availability !== "available") return false;
+  // The view the API sends a client (buildableView) has already asked, and says so.
+  if (m.buildable === true) return true;
+  const builds = typeof m.builds_with === "string" && Object.hasOwn(EXECUTORS, m.builds_with) ? EXECUTORS[m.builds_with] : [];
+  return builds.includes(m.id);
+}
+
+/** The modules a plan against this catalog may name, in the catalog's order. */
+export function buildableModules(catalog = loadCatalog()) {
+  return (catalog.modules || []).filter(m => m && isBuildable(m.id, catalog));
+}
+
+/**
+ * The plan contract (0.5) for a plan written against this catalog: the modules it may
+ * name and the need kinds it knows. A JSON schema; the API compiles it (api/validate.js).
+ */
+export function schemaFor(catalog = loadCatalog()) {
+  return contractSchema({
+    moduleIds: buildableModules(catalog).map(m => m.id),
+    needKinds: (catalog.need_kinds || []).map(n => n?.key).filter(Boolean)
+  });
+}
+
+/**
+ * A catalog as the clients read it (GET /catalog): what the platform builds, the need
+ * kinds, the profiles and their patterns. A module the platform cannot build is left
+ * out, and so is anything a pattern says about one, because seaLeye never names a
+ * module it cannot build (principle 2), not even in a document a command prints. What
+ * builds a module (`builds_with`) is left out too: the platform's to know.
+ */
+export function buildableView(catalog = loadCatalog()) {
+  const modules = buildableModules(catalog);
+  const ids = new Set(modules.map(m => m.id));
+  const patterns = Object.fromEntries(
+    Object.entries(catalog.patterns || {}).map(([profile, block]) => [
+      profile,
+      { ...block, modules: Object.fromEntries(Object.entries(block?.modules || {}).filter(([id]) => ids.has(id))) }
+    ])
+  );
+  return {
+    ...(catalog.catalogVersion !== undefined ? { catalogVersion: catalog.catalogVersion } : {}),
+    // What builds a module is the platform's to know, and its name is an AWS term; the
+    // client is told only that the platform builds it.
+    modules: modules.map(({ builds_with, ...m }) => ({ ...m, buildable: true })),
+    need_kinds: catalog.need_kinds || [],
+    profiles: catalog.profiles || [],
+    patterns
+  };
+}
+
+/** Every module id a catalog names, built or not: what a plan file must not name unless it is built. */
+export function catalogModuleIds(catalog = loadCatalog()) {
+  return (catalog.modules || []).map(m => m?.id).filter(Boolean);
 }
 
 export function profileEntry(id, catalog = loadCatalog()) {

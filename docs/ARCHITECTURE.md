@@ -555,13 +555,19 @@ LangGraph's own checkpoint tables also live in `interview_state`.
 
 ### 8.3 The plan contract
 
-planVersion 0.4, in `core/schema.js` and `prompts/plan-contract.yaml`. Four buildable
-modules: `static_site_edge`, `http_api_serverless`, `observability_basic`,
-`config_basic`. Anything else an app needs is a NEED from the fixed list in
-`prompts/module-catalog.yaml`, with evidence naming the file. A plan with needs is
-`drafted`; a plan without is `ready`. The API reads need lines and patterns from the
-organization's live catalog (`api/catalogs.js`); the module ids and need kinds the
-contract accepts are still the starter's until planVersion 0.5 (PHASE4-PLAN Step 2).
+planVersion 0.5, in `core/schema.js` (`contractSchema`). A plan names the catalog it
+was written against (`catalog: starter`, or the version of one of the organization's
+own that is or was live), and its module ids and need kinds are checked against that
+catalog (`schemaFor` in `core/catalog.js`, `api/validate.js`). A module is buildable
+when the catalog marks it available and the platform has an executor for what its
+`builds_with` names: today CloudFormation, which builds the starter's four
+(`static_site_edge`, `http_api_serverless`, `observability_basic`, `config_basic`).
+Anything else an app needs is a NEED from that catalog's need kinds, or `unlisted`,
+with evidence naming the file. A plan with needs is `drafted`; a plan without is
+`ready`. 0.2, 0.3 and 0.4 plans are read as 0.5 against the starter; the interview
+still writes 0.4 until PHASE4-PLAN Step 3. A record keeps the plan's catalog, and a
+deploy whose plan names a replaced catalog that no longer builds a module it uses is
+refused (CATALOG_CHANGED).
 
 ## 9. Security model
 
@@ -648,7 +654,7 @@ The decisions that shaped the architecture, by DESIGN.md heading.
 | Hosting | One small server in ca-central-1; Each domain has one job |
 | The interview | The interview runs as a LangGraph graph; The interview runs in the API; The model's address is a setting |
 | Uploads and packaging | Deployments package an uploaded copy; One walk decides what travels, from the command and from the browser; The interview never reads secret files; Installing an app's dependencies runs none of its code; Secret files never go into the package |
-| Data | Deployment records live in Postgres; The catalog is data, and every organization starts with the starter |
+| Data | Deployment records live in Postgres; The catalog is data, and every organization starts with the starter; A plan names its catalog (planVersion 0.5) |
 | Identity | Every caller has a token, until sign-in; The portal signs in with a session cookie; Each team sees its own environments; Each team's environments have names of their own |
 | Settings | Setting values travel with the deploy, for now; Settings live in the organization's store |
 | Portal | The portal is a client of the API; The portal shares words with the command through core/ |
@@ -657,7 +663,7 @@ The decisions that shaped the architecture, by DESIGN.md heading.
 | Tracing | Tracing the interview with LangFuse; Tracing stays in the product |
 | Secrets in code | The secret scanner; The interview reads around a secret, not past the file |
 | Spending | A run's cap is close, not exact; What a run costs, and a cap of a dollar; The cap on every run; The gateway's budget: $20 a period; The outer limit, and a record of calls kept 90 days |
-| Learning the platform | Phase 4's decisions, and one reopened; The catalog is data, and every organization starts with the starter |
+| Learning the platform | Phase 4's decisions, and one reopened; The catalog is data, and every organization starts with the starter; A plan names its catalog (planVersion 0.5) |
 | The model gateway | Phase 3's decisions, as recommended; agentgateway, read and run (Step 4); The model gateway on the server; A token on every model call; Inference from Canada: disclosed, on the US profile |
 
 ## 12. Known limits and where they go next

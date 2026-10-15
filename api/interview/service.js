@@ -20,6 +20,7 @@ import { scanApp } from "../secret-scan.js";
 import { promptVersion, traceRun, withoutTracing, flushScores } from "../../core/tracing.js";
 import { buildInterviewGraph, MAX_TURNS } from "./graph.js";
 import { planFiles } from "../../core/plan-files.js";
+import { catalogOfPlan } from "../validate.js";
 import { DEFAULT_MODEL, modelClient, modelCredential } from "./model.js";
 import { claimsFor, signerFromSettings, withCallerToken } from "../gateway-token.js";
 
@@ -319,7 +320,7 @@ export function createInterviewService({
           if (paused.type === "confirm") record.result = { ...strip(paused), traceId: record.traceId || undefined };
           keep(record);
           emit(record, paused.type === "confirm"
-            ? { type: "plan", ...record.result, ...filesFor(record.result) }
+            ? { type: "plan", ...record.result, ...filesFor(record.result, record.caller?.org) }
             : { type: "question", number: paused.number, question: paused.question, lead: paused.lead || [] });
           return;
         }
@@ -571,10 +572,12 @@ export async function runInterview({ appPath, deployed = null, ask, onStep = () 
  * seaLeye.online can offer exactly what `sealeye run` writes into the folder. A plan
  * the files cannot be written for still reaches "Deploy this?"; the event says why.
  */
-function filesFor(result) {
+function filesFor(result, org = "default") {
   if (!result?.plan) return {};
   try {
-    return { files: planFiles({ plan: result.plan, summary: result.summary, assumptions: result.assumptions }) };
+    // In the words of the catalog the plan names (planVersion 0.5), as the command's are.
+    const { document: catalog } = catalogOfPlan(result.plan, org);
+    return { files: planFiles({ plan: result.plan, summary: result.summary, assumptions: result.assumptions }, { catalog: catalog || undefined }) };
   } catch (err) {
     return { filesError: err.message };
   }

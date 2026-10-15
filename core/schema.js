@@ -1,6 +1,9 @@
-// src/schema.js
-// The plan contract, as the API enforces it. planVersion 0.4 is what the interview
-// writes now. 0.2 and 0.3 plans still load: see upgradePlan below.
+// core/schema.js
+// The plan contract, as the API enforces it. planVersion 0.5 is the contract now: a plan
+// names the catalog it was written against, and its modules and need kinds are checked
+// against that catalog rather than a fixed list (PHASE4-PLAN Step 2). 0.2, 0.3 and 0.4
+// plans still load, read against the starter catalog: see upgradePlan below. The
+// interview still writes 0.4 until it reads the organization's catalog (Step 3).
 //
 // The change 0.4 makes is about honesty. Until seaLeye.run has ingested an
 // organization's Platform Library it does not know what is in it, so it cannot call a
@@ -9,13 +12,30 @@
 // out to need is recorded as a NEED: a sentence about the app, with the code that
 // shows it. A plan carrying needs is a draft.
 
-/** The four modules the executor deploys. There is no other kind. */
+/**
+ * The four modules seaLeye's own executor deploys, from templates/: the starter
+ * catalog's modules. Whether a module in an organization's catalog is buildable is the
+ * catalog's to say, with an executor for it (isBuildable in core/catalog.js).
+ */
 export const MODULE_IDS = [
   "static_site_edge",
   "http_api_serverless",
   "observability_basic",
   "config_basic"
 ];
+
+/**
+ * What the platform has an executor for, by the name a catalog module gives in
+ * `builds_with`, and which modules that executor builds. CloudFormation builds the four
+ * modules it has templates for. A Terraform executor joins in PHASE4-PLAN Step 9.
+ */
+export const EXECUTORS = { cloudformation: MODULE_IDS };
+
+/** The catalog a plan names when it was written against seaLeye's own four modules. */
+export const STARTER_VERSION = "starter";
+
+/** The contract this version writes and checks. Older plans are upgraded to it first. */
+export const PLAN_VERSION = "0.5";
 
 /**
  * The known kinds of need, so the same need is described the same way every run. They
@@ -73,30 +93,36 @@ const LEGACY_MODULE_NEEDS = {
 };
 
 /**
- * Any module id, buildable or from an older plan: the one lowercase_snake shape a plan
- * file has. core/plan-files.js checks every match against the four it may name.
+ * Module ids from plans before 0.4, which a plan file may never name: core/plan-files.js
+ * checks for them beside the catalog's own ids.
  */
-export const STRAY_MODULE_ID = new RegExp(`\\b(?:${[...MODULE_IDS, ...Object.keys(LEGACY_MODULE_NEEDS)].join("|")})\\b`);
+export const LEGACY_MODULE_IDS = Object.keys(LEGACY_MODULE_NEEDS);
 
-/** Is this a module this version of the platform builds? */
-export const isBuildable = id => MODULE_IDS.includes(id);
+/** Every plan before 0.4 was written against the four modules, so only they are kept. */
+const starterBuilds = id => MODULE_IDS.includes(id);
 
 /**
- * A plan as 0.4, whatever version it was written as.
+ * A plan as 0.5, whatever version it was written as.
  *
- * A 0.2 or 0.3 plan keeps its four buildable modules and loses the rest, each enabled
- * one becoming a need. A module that was disabled was never asked for, so it simply
- * goes. A plan already at 0.4 is returned untouched.
+ * Every plan before 0.5 was written against seaLeye's own four modules, so it names the
+ * starter catalog and nothing else about it changes. A 0.2 or 0.3 plan also keeps its
+ * four buildable modules and loses the rest, each enabled one becoming a need. A module
+ * that was disabled was never asked for, so it simply goes. A plan already at 0.5 is
+ * returned untouched: the catalog it names is the one it was written against. So is a
+ * plan of any other version, which the contract then refuses.
  */
 export function upgradePlan(plan) {
   if (!plan || typeof plan !== "object") return plan;
-  if (plan.planVersion === "0.4") return plan;
+  // Only the versions there were. Any other is left as it is, for the contract to refuse,
+  // rather than read as an old plan it never was.
+  if (!["0.2", "0.3", "0.4"].includes(plan.planVersion)) return plan;
+  if (plan.planVersion === "0.4") return { ...plan, planVersion: PLAN_VERSION, catalog: STARTER_VERSION };
 
   const modules = Array.isArray(plan.modules) ? plan.modules : [];
-  const kept = modules.filter(m => m && isBuildable(m.id));
+  const kept = modules.filter(m => m && starterBuilds(m.id));
 
   const carried = modules
-    .filter(m => m && !isBuildable(m.id) && m.enabled !== false && LEGACY_MODULE_NEEDS[m.id])
+    .filter(m => m && !starterBuilds(m.id) && m.enabled !== false && LEGACY_MODULE_NEEDS[m.id])
     .map(m => ({
       ...LEGACY_MODULE_NEEDS[m.id],
       evidence: [{ file: "deployme.yaml", shows: "from an earlier plan, written before seaLeye.run 2.17.0" }]
@@ -106,29 +132,34 @@ export function upgradePlan(plan) {
 
   return {
     ...plan,
-    planVersion: "0.4",
+    planVersion: PLAN_VERSION,
+    catalog: STARTER_VERSION,
     modules: kept,
     ...(needs.length ? { needs } : {}),
     status: needs.length ? "drafted" : "ready"
   };
 }
 
-// Words an unlisted need's line may not hold: a module of any kind, an address, or a
-// promise about when.
+// Words an unlisted need's line may not hold: an address, or a promise about when. A
+// module is the third: any id in the catalog the plan names, built or not, and the four.
 const UNLISTED_FORBIDDEN = [
-  [/\b(?:static_site_edge|http_api_serverless|observability_basic|config_basic)\b/i, "names a module"],
   [/https?:\/\/|www\./i, "holds an address"],
   [/\b(?:coming|soon|planned|roadmap|will be)\b/i, "makes a promise"]
 ];
 
+const escaped = text => String(text).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 /**
  * What is wrong with a plan's unlisted needs, as contract errors. The schema checks the
  * shape; this checks the sentence: in the form of the known kinds' lines ("a ..." or
- * "an ..."), and none of the words above.
+ * "an ..."), naming no module of `moduleIds` (the catalog's, and the four), and none of
+ * the words above.
  *
  * @returns {{code: string, message: string, path: string}[]}
  */
-export function unlistedNeedProblems(plan) {
+export function unlistedNeedProblems(plan, moduleIds = MODULE_IDS) {
+  const ids = [...new Set([...MODULE_IDS, ...moduleIds])];
+  const forbidden = [[new RegExp(`\\b(?:${ids.map(escaped).join("|")})\\b`, "i"), "names a module"], ...UNLISTED_FORBIDDEN];
   const problems = [];
   (plan?.needs || []).forEach((need, i) => {
     if (need?.kind !== UNLISTED_NEED) return;
@@ -137,7 +168,7 @@ export function unlistedNeedProblems(plan) {
     if (!/^(?:a|an) [a-z]/.test(line)) {
       problems.push({ code: "UNLISTED_NEED", path: where, message: `${where} must read like the known kinds' lines: "a ..." or "an ...", in lower case` });
     }
-    for (const [pattern, why] of UNLISTED_FORBIDDEN) {
+    for (const [pattern, why] of forbidden) {
       if (pattern.test(line)) problems.push({ code: "UNLISTED_NEED", path: where, message: `${where} ${why}; say what the app needs, in a few words` });
     }
   });
@@ -147,88 +178,119 @@ export function unlistedNeedProblems(plan) {
 /** A plan is a draft when the app needs something no module supports. */
 export const isDrafted = plan => (plan?.needs || []).length > 0;
 
-export const planSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["planVersion", "app", "profile", "modules", "outputs"],
-  properties: {
-    planVersion: { type: "string", enum: ["0.2", "0.3", "0.4"] },
-    app: {
-      type: "object",
-      additionalProperties: false,
-      required: ["name", "type"],
-      properties: {
-        name: { type: "string", minLength: 1 },
-        type: { type: "string", enum: ["static-site", "api"] }
-      }
-    },
-    profile: { type: "string", enum: [...PROFILES, ...Object.keys(LEGACY_PROFILES)] },
-    // Only the four. A plan cannot ask for a module the platform does not build,
-    // because naming one would be claiming knowledge of a library nobody has read.
-    modules: {
-      type: "array",
-      minItems: 1,
-      items: {
+/**
+ * The 0.5 contract for one catalog: its module ids are the modules the plan may name
+ * (those the catalog marks buildable and the platform has an executor for), its need
+ * kinds the known needs. core/catalog.js's schemaFor builds it from a catalog document.
+ */
+export function contractSchema({ moduleIds = MODULE_IDS, needKinds = NEED_KINDS } = {}) {
+  return contractShape({ versions: [PLAN_VERSION], moduleIds: [...moduleIds], needKinds: [...needKinds], catalogField: true });
+}
+
+/** The contract against the starter catalog: seaLeye's own four modules. */
+export const planSchema = contractSchema();
+
+/**
+ * The 0.4 contract, frozen. The interview still writes 0.4 against the starter catalog
+ * (its submit_plan tool, api/interview/schema.js), and the API reads what it writes as
+ * 0.5 against the starter, until PHASE4-PLAN Step 3 moves the interview to the
+ * organization's catalog. Kept exactly as it was, so the model sees no change.
+ */
+export const planSchema04 = contractShape({
+  versions: ["0.2", "0.3", "0.4"],
+  moduleIds: MODULE_IDS,
+  needKinds: NEED_KINDS,
+  catalogField: false
+});
+
+function contractShape({ versions, moduleIds, needKinds, catalogField }) {
+  return {
+    type: "object",
+    additionalProperties: false,
+    required: ["planVersion", "app", "profile", "modules", "outputs", ...(catalogField ? ["catalog"] : [])],
+    properties: {
+      planVersion: { type: "string", enum: versions },
+      // The catalog the plan was written against: "starter" for seaLeye's own four
+      // modules, or the version of one of the organization's own catalogs.
+      ...(catalogField ? { catalog: { oneOf: [{ type: "string", enum: [STARTER_VERSION] }, { type: "integer", minimum: 1 }] } } : {}),
+      app: {
         type: "object",
         additionalProperties: false,
-        required: ["id"],
+        required: ["name", "type"],
         properties: {
-          id: { type: "string", enum: MODULE_IDS },
-          enabled: { type: "boolean", default: true },
-          inputs: { type: "object", additionalProperties: true }
+          name: { type: "string", minLength: 1 },
+          type: { type: "string", enum: ["static-site", "api"] }
         }
-      }
-    },
-    // What the app needs that no module supports yet. Evidence is required and
-    // non-empty: a need without the code that shows it is a guess, and a guess is the
-    // thing this whole change exists to stop.
-    needs: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["kind", "line", "evidence"],
-        properties: {
-          kind: { type: "string", enum: [...NEED_KINDS, UNLISTED_NEED] },
-          // For a known kind, the catalog's line. For an unlisted need, a short phrase
-          // about the app in the same form ("a search index over its documents"): the
-          // kind of thing, never a product (the technology goes in the evidence), never
-          // a module, never a promise. Checked further in unlistedNeedProblems.
-          line: { type: "string", minLength: 1, maxLength: 90 },
-          evidence: {
-            type: "array",
-            minItems: 1,
-            items: {
-              type: "object",
-              additionalProperties: false,
-              required: ["file", "shows"],
-              properties: {
-                file: { type: "string", minLength: 1 },
-                // A short phrase, not a sentence: this sits in a narrow column beside
-                // the need, on a card and in a refusal, and a paragraph there wraps
-                // into something nobody reads.
-                shows: { type: "string", minLength: 1, maxLength: 70 }
+      },
+      profile: { type: "string", enum: [...PROFILES, ...Object.keys(LEGACY_PROFILES)] },
+      // Only what the platform builds from the plan's catalog. A plan cannot ask for a
+      // module the platform does not build, because naming one would be claiming
+      // knowledge of a library nobody has read, or a promise nobody can keep.
+      modules: {
+        type: "array",
+        minItems: 1,
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["id"],
+          properties: {
+            id: moduleIds.length ? { type: "string", enum: moduleIds } : { type: "string", not: {} },
+            enabled: { type: "boolean", default: true },
+            inputs: { type: "object", additionalProperties: true }
+          }
+        }
+      },
+      // What the app needs that no module supports yet. Evidence is required and
+      // non-empty: a need without the code that shows it is a guess, and a guess is the
+      // thing this whole change exists to stop.
+      needs: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["kind", "line", "evidence"],
+          properties: {
+            kind: { type: "string", enum: [...needKinds, UNLISTED_NEED] },
+            // For a known kind, the catalog's line. For an unlisted need, a short phrase
+            // about the app in the same form ("a search index over its documents"): the
+            // kind of thing, never a product (the technology goes in the evidence), never
+            // a module, never a promise. Checked further in unlistedNeedProblems.
+            line: { type: "string", minLength: 1, maxLength: 90 },
+            evidence: {
+              type: "array",
+              minItems: 1,
+              items: {
+                type: "object",
+                additionalProperties: false,
+                required: ["file", "shows"],
+                properties: {
+                  file: { type: "string", minLength: 1 },
+                  // A short phrase, not a sentence: this sits in a narrow column beside
+                  // the need, on a card and in a refusal, and a paragraph there wraps
+                  // into something nobody reads.
+                  shows: { type: "string", minLength: 1, maxLength: 70 }
+                }
               }
-            }
-          },
-          profile_expects: { type: "string", minLength: 1 }
+            },
+            profile_expects: { type: "string", minLength: 1 }
+          }
         }
-      }
-    },
-    status: { type: "string", enum: ["ready", "drafted"] },
-    outputs: {
-      type: "array",
-      items: {
-        type: "string",
-        enum: ["public_url", "logs", "metrics", "metrics_dashboard", "log_stream"]
-      }
-    },
-    execution: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        strategy: { type: "string", enum: ["pipeline", "direct"] }
+      },
+      status: { type: "string", enum: ["ready", "drafted"] },
+      outputs: {
+        type: "array",
+        items: {
+          type: "string",
+          enum: ["public_url", "logs", "metrics", "metrics_dashboard", "log_stream"]
+        }
+      },
+      execution: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          strategy: { type: "string", enum: ["pipeline", "direct"] }
+        }
       }
     }
-  }
-};
+  };
+}
