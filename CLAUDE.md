@@ -278,7 +278,9 @@ Keep existing endpoints and commands working; add, do not break.
   scanned before upload and again in the API with gitleaks) is sent and kept as a line
   saying why (`redactedLine`), so the rest of the file is read; a private key, or any
   value over several lines, sends its file empty, and read_file refuses it, naming the
-  line and the kind. package.json with one is not parsed for the folder's digest. LangSmith tracing stays off in the API (it would send file
+  line and the kind. package.json with one is not parsed for the folder's digest. Archives and files that are not text travel as names only too
+  (`isNotText` in `core/upload-rules.js`; the API empties any that arrive with contents,
+  `holdNotText`), and read_file refuses them, saying so. A deploy still carries them. LangSmith tracing stays off in the API (it would send file
   contents). submit_plan(plan, summary,
   assumptions) ends it.
 - Tracing (LangFuse, `core/tracing.js`) is on only when the API has LangFuse keys, and

@@ -2965,3 +2965,29 @@ discovery reads it: `npm run eval:discovery -- --library` now reads the clone th
 password's line is replaced with the rest of its file intact, and the variables file is
 held back as its name. GitHub's own archive of the library was read the same way and gave
 the same files, byte for byte, as the clone.
+
+## Archives and files that are not text travel as names
+
+Thu Oct 15, 2026, Greg, choosing the recommendation. Step 5's review found that neither
+scanner sees inside an archive: gitleaks does not open one unless told to, and the shared
+rules read compressed bytes. A library's snapshot already kept archives and files that
+are not text as names only. Interviews now do the same.
+
+- **What changes.** In an interview's upload, a file whose name is an archive's (`.zip`,
+  `.tgz`, `.jar` and the like, `ARCHIVE_NAME` in `core/upload-rules.js`) or whose contents
+  are not text travels as an empty file, as a `.env` does, after the shared rules have
+  scanned it, so a key in one is still reported. The walk returns them as `unread`, which
+  the command and the portal send with the upload.
+- **The API trusts none of it.** After its own scan it empties every archive and file that
+  is not text it finds (`holdNotText`), and takes the client's list only for files that
+  arrived empty, so a claim can never hide anything. `read_file` refuses each, saying it
+  is an archive or a file that is not text and only its name was sent.
+- **What the model sees.** The same listing as before, since `list_files` shows no sizes;
+  `read_file` already refused files that are not text, with other words. The prompt and
+  the plan tool are unchanged and still pinned. Of the sample apps only the static website
+  holds such a file (an image).
+- **A deploy is unchanged:** archives and images are part of the app and are packaged.
+
+*Why now:* a developer's folder can hold a fixture archive with a real credential in it,
+which today reaches the server unscanned, though never the model. Matching libraries
+costs half a day and closes it before discovery reads libraries in bulk.

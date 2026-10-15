@@ -25,7 +25,7 @@ import path from "node:path";
 
 import ignore from "ignore";
 
-import { looksBinary, onePerLine } from "../../core/scan.js";
+import { onePerLine } from "../../core/scan.js";
 import { collectUpload, rulesOf, treeFromPaths } from "../../core/upload-rules.js";
 import { collectFolder } from "../../core/upload.js";
 import { redactScanned, scanApp } from "../secret-scan.js";
@@ -33,13 +33,6 @@ import { githubReader, repoName } from "./github.js";
 import { untar } from "./tar.js";
 
 const RULES = rulesOf("discovery");
-
-// Files neither scanner can see into: an archive's contents are compressed, and gitleaks
-// does not open archives unless told to. A library's archives and other files that are
-// not text mean nothing to a worker reading modules, so they are kept as their names
-// only, as secret files are, rather than read unscanned.
-const ARCHIVE = /\.(zip|jar|war|ear|whl|tar|tgz|tbz2?|txz|gz|bz2|xz|zst|7z|rar|nupkg|apk|ipa)$/i;
-const unscannable = (rel, data) => ARCHIVE.test(rel) || looksBinary(data);
 
 /**
  * Read one repository at a commit (or at what `ref` names now, or its default branch).
@@ -96,7 +89,6 @@ async function settle({ repo, commit, via, folderName, walked, scratchBase }) {
   const remove = () => fs.rmSync(root, { recursive: true, force: true });
   try {
     fs.mkdirSync(dir);
-    const namesOnly = [];
     for (const [rel, data] of Object.entries(walked.entries)) {
       // gitleaks reads its ignore file from the folder it scans, so scanApp keeps it out
       // of gitleaks' copy; it means nothing to discovery, so it is left out altogether.
@@ -104,9 +96,9 @@ async function settle({ repo, commit, via, folderName, walked, scratchBase }) {
       const target = path.join(dir, ...rel.split("/"));
       if (!target.startsWith(dir + path.sep)) continue;
       fs.mkdirSync(path.dirname(target), { recursive: true });
-      const held = data.length > 0 && unscannable(rel, data);
-      if (held) namesOnly.push(rel);
-      fs.writeFileSync(target, held ? new Uint8Array(0) : data, { flag: "wx" });
+      // Archives and files that are not text arrive empty from the walk
+      // (core/upload-rules.js), as secret files do.
+      fs.writeFileSync(target, data, { flag: "wx" });
     }
     const scanned = await scanApp(dir, { library: true });
     const deeper = redactScanned(dir, scanned);
@@ -120,7 +112,7 @@ async function settle({ repo, commit, via, folderName, walked, scratchBase }) {
       files: walked.files,
       bytes: walked.bytes,
       secretFiles: walked.withheld,
-      unreadFiles: namesOnly,
+      unreadFiles: walked.unread,
       findings,
       gitleaks: scanned.gitleaks,
       remove

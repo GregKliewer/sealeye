@@ -25,6 +25,14 @@
 import { ALLOW_FILE, applyAllow, deployRefusalMessage, linesByFile, looksBinary, markWhole, onePerLine, parseAllowFile, redactLines, scanText, uniqueFindings } from "./scan.js";
 import { secretFileReason } from "./secrets.js";
 
+// Files neither scanner can see into: an archive's contents are compressed, and gitleaks
+// does not open archives unless told to; and a file that is not text says nothing an
+// interview or a discovery worker reads. Both travel as their names only, as a secret
+// file does, rather than with contents nobody scanned (DESIGN.md, "Archives and files
+// that are not text travel as names", Greg, Oct 15, 2026).
+export const ARCHIVE_NAME = /\.(zip|jar|war|ear|whl|tar|tgz|tbz2?|txz|gz|bz2|xz|zst|7z|rar|nupkg|apk|ipa)$/i;
+export const isNotText = (name, data) => ARCHIVE_NAME.test(String(name)) || (data && data.length > 0 && looksBinary(data));
+
 export const EXCLUDED_FOLDERS = new Set(["node_modules", ".git", ".github", ".do", ".sealeye", ".deployme"]);
 
 // An interview reads a few files of at most 20 KB each, so an app much bigger than this
@@ -48,6 +56,7 @@ const PURPOSES = {
     secrets: "names",
     maxBytes: MAX_UPLOAD_BYTES,
     maxFiles: MAX_UPLOAD_FILES,
+    notText: "names",
     readsAs: "an interview can read",
     leftOut: "node_modules, .git and what your .gitignore leaves out"
   },
@@ -75,6 +84,7 @@ const PURPOSES = {
     gitignore: true,
     secrets: "names",
     allowFile: false,
+    notText: "names",
     maxBytes: 50 * 1024 * 1024,
     maxFiles: 20000,
     subject: "The library",
@@ -123,8 +133,9 @@ export class SecretsFound extends UploadRefused {
  * @param {"interview"|"deploy"|"discovery"} [options.purpose]
  * @param {() => {add(text: string): object, test(path: string): {ignored: boolean, unignored: boolean}}} options.ignore
  *        a .gitignore matcher factory (the `ignore` package's default export)
- * @returns {Promise<{ entries: Record<string, Uint8Array>, files: number, bytes: number, withheld: string[], ignored: number, findings: object[], allowed: object[] }>}
- *          withheld lists the secret files sent as empty names; ignored counts what a
+ * @returns {Promise<{ entries: Record<string, Uint8Array>, files: number, bytes: number, withheld: string[], unread: string[], ignored: number, findings: object[], allowed: object[] }>}
+ *          withheld lists the secret files sent as empty names; unread the archives and
+ *          files that are not text, sent the same way; ignored counts what a
  *          .gitignore left out; findings are the values that look like secrets in what
  *          travels (an interview's files with one are sent empty; a deploy with one is
  *          refused with SecretsFound before this returns); allowed are the findings
@@ -135,6 +146,7 @@ export async function collectUpload(root, { purpose = "interview", ignore } = {}
   if (rules_.gitignore && typeof ignore !== "function") throw new Error("collectUpload needs a .gitignore matcher for an interview upload");
   const entries = {};
   const withheld = [];
+  const unread = [];
   const scanned = [];
   let files = 0;
   let bytes = 0;
@@ -209,6 +221,11 @@ export async function collectUpload(root, { purpose = "interview", ignore } = {}
       if (bytes > rules_.maxBytes) throw tooBig();
       entries[childRel] = data;
       scanned.push(...scanText(childRel, data));
+      // Scanned first, so a key in one is still reported; then sent as its name only.
+      if (rules_.notText === "names" && isNotText(child.name, data)) {
+        entries[childRel] = new Uint8Array(0);
+        unread.push(childRel);
+      }
     }
   };
 
@@ -237,12 +254,12 @@ export async function collectUpload(root, { purpose = "interview", ignore } = {}
 
   // An interview or a library: each flagged line is replaced by one that says why, or, for a value
   // over many lines or a file that is not text, the file travels as its name only.
-  const binaryFiles = [...new Set(found.map(f => f.file))].filter(file => looksBinary(entries[file]));
+  const binaryFiles = [...new Set(found.map(f => f.file))].filter(file => looksBinary(entries[file]) || unread.includes(file));
   const marked = markWhole(found, { binaryFiles });
   for (const file of new Set(marked.filter(f => f.whole).map(f => f.file))) entries[file] = new Uint8Array(0);
   for (const [file, kinds] of linesByFile(marked)) entries[file] = redactLines(entries[file], kinds);
 
-  return { entries, files, bytes, withheld, ignored, findings: marked, allowed };
+  return { entries, files, bytes, withheld, unread, ignored, findings: marked, allowed };
 }
 
 /**

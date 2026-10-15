@@ -96,7 +96,7 @@ export function NewEnvironment() {
       setRedeploy(live ? app : null);
 
       setBusy("Handing your app to the platform");
-      const started = await api.startInterview(folder.name, packed.zip, deployed, packed.findings);
+      const started = await api.startInterview(folder.name, packed.zip, deployed, packed.findings, packed.unread);
       setFound(started.findings || packed.findings);
       interviewId.current = started.interviewId;
       startedHere.current = true;

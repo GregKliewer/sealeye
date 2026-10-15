@@ -15,6 +15,7 @@ import { Command, MemorySaver } from "@langchain/langgraph";
 import { sealeyeHome, setting } from "../../core/config.js";
 import { ModelNotPriced, priceFor, runCap } from "../../core/model-prices.js";
 import { cleanFinding, isRedactedLine, onePerLine } from "../../core/scan.js";
+import { isNotText } from "../../core/upload-rules.js";
 import { unzipInto, UploadRefused } from "../../core/upload.js";
 import { redactScanned, scanApp } from "../secret-scan.js";
 import { promptVersionOf, traceRun, withoutTracing, flushScores } from "../../core/tracing.js";
@@ -143,8 +144,10 @@ export function createInterviewService({
    * @param {boolean} [options.trace]   false turns tracing off for this interview only
    * @param {object[]} [options.withheld] files sent empty because they look like they hold
    *                                     a secret (core/scan.js): read_file refuses them
+   * @param {string[]} [options.unread]  archives and files that are not text, sent as their
+   *                                     names only: read_file refuses them too
    */
-  function start({ appDir, ownsDir = false, scratchRoot, deployed = null, user, owner = null, caller = null, surface = "cli", model, trace = true, withheld = [] }) {
+  function start({ appDir, ownsDir = false, scratchRoot, deployed = null, user, owner = null, caller = null, surface = "cli", model, trace = true, withheld = [], unread = [] }) {
     // A run is capped by what it spends, so it never starts on a model seaLeye cannot
     // price: without a price there would be no cap at all (DESIGN.md, "A run's cap is
     // close, not exact"). Throws ModelNotPriced, or a sentence about SEALEYE_RUN_CAP.
@@ -187,6 +190,7 @@ export function createInterviewService({
       catalog: record.catalog,
       model: record.model,
       withheld,
+      unread,
       cap
     });
     return { ...summary(record), findings: withheld };
@@ -203,7 +207,7 @@ export function createInterviewService({
    * reason (`findings`, file, line and rule, as the client's scan found them). Throws
    * ScanFailed, and keeps nothing, when gitleaks is installed and could not finish.
    */
-  async function startFromUpload({ zip, app, findings = [], ...rest }) {
+  async function startFromUpload({ zip, app, findings = [], unread = [], ...rest }) {
     // Before anything is unpacked: a model with no price cannot start a run.
     const model = rest.model || setting("MODEL") || DEFAULT_MODEL;
     if (!priceFor(model)) throw new ModelNotPriced(model);
@@ -215,11 +219,16 @@ export function createInterviewService({
     const scratchRoot = fs.mkdtempSync(path.join(scratchBase, "int-"));
     const appDir = path.join(scratchRoot, app);
     let withheld;
+    let heldBack;
     try {
       unzipInto(zip, appDir);
       // Each flagged line becomes one that says why; a file with a value over many
       // lines, or that is not text, is emptied. Either way before the graph starts.
       const found = redactScanned(appDir, await scanApp(appDir));
+      // Archives and files that are not text are then kept as names, whatever the client
+      // sent (core/upload-rules.js). One the client already emptied is taken at its word
+      // only because it arrived empty, so the claim can never hide anything.
+      heldBack = holdNotText(appDir, unread);
       const inside = file => {
         const target = path.join(appDir, ...file.split("/"));
         return target.startsWith(appDir + path.sep) ? target : null;
@@ -241,7 +250,7 @@ export function createInterviewService({
       fs.rmSync(scratchRoot, { recursive: true, force: true });
       throw err;
     }
-    return start({ appDir, ownsDir: true, scratchRoot, withheld, ...rest });
+    return start({ appDir, ownsDir: true, scratchRoot, withheld, unread: heldBack, ...rest });
   }
 
   /**
@@ -576,3 +585,37 @@ function filesFor(result, org = "default") {
   }
 }
 
+
+/**
+ * Empty every archive and every file that is not text in an unpacked app folder, and
+ * list them with those the client says it sent empty for the same reason and that did
+ * arrive empty. Links are not followed: unzipInto writes none.
+ *
+ * @returns {string[]} paths inside the folder, "/"-separated
+ */
+export function holdNotText(appDir, claimed = []) {
+  const held = new Set();
+  const walk = (dir, rel) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const abs = path.join(dir, entry.name);
+      const childRel = rel ? `${rel}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) { walk(abs, childRel); continue; }
+      if (!entry.isFile()) continue;
+      const data = fs.readFileSync(abs);
+      if (data.length && isNotText(entry.name, data)) {
+        fs.writeFileSync(abs, "");
+        held.add(childRel);
+      }
+    }
+  };
+  walk(appDir, "");
+  for (const file of (Array.isArray(claimed) ? claimed : []).slice(0, 5000)) {
+    if (typeof file !== "string" || held.has(file)) continue;
+    const abs = path.join(appDir, ...file.split("/"));
+    if (!abs.startsWith(appDir + path.sep)) continue;
+    try {
+      if (fs.lstatSync(abs).isFile() && fs.statSync(abs).size === 0) held.add(file);
+    } catch {}
+  }
+  return [...held].sort();
+}

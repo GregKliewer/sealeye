@@ -1046,10 +1046,10 @@ app.get("/interviews", (req, res) => {
 });
 
 // POST /interviews: start an interview over an uploaded app folder.
-// Body: { app, zip (base64), deployed?, user?, trace? }. The zip is made by the CLI's
+// Body: { app, zip (base64), deployed?, user?, trace?, findings?, unread? }. The zip is made by the CLI's
 // zipFolder (core/upload.js): no dependencies, no git, secret files as names only.
 app.post("/interviews", async (req, res) => {
-  const { app: appName, zip, deployed, user, trace, findings } = req.body || {};
+  const { app: appName, zip, deployed, user, trace, findings, unread } = req.body || {};
 
   if (!interviews.ready()) {
     return res.status(503).json({
@@ -1065,6 +1065,7 @@ app.post("/interviews", async (req, res) => {
       zip: Buffer.from(zip, "base64"),
       app: appName,
       findings,
+      unread,
       deployed: deployed && typeof deployed === "object" ? upgradePlan(deployed) : null,
       // With a token, the person is the token's, not what the command line says.
       user: req.caller ? req.caller.email : (typeof user === "string" ? user : undefined),
