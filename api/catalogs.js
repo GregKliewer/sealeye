@@ -240,3 +240,24 @@ export async function makeLive({ org, version }) {
     };
   });
 }
+
+/**
+ * Change a draft's document in place, as a discovery run does when a late answer
+ * re-writes the entries it touches (DESIGN.md, "A discovery run never pauses"). Only a
+ * draft: an approved or live catalog is never changed, so a run whose draft was
+ * approved meanwhile keeps a new draft instead (addCatalog).
+ */
+export async function updateDraft({ org, version, document }) {
+  const problems = catalogProblems(document);
+  if (problems.length) throw fail(`not a catalog: ${problems.join("; ")}`, "CATALOG_INVALID", { problems });
+  return commit(org, list => {
+    const row = find(list, org, version);
+    if (row.status !== "draft") throw fail(`catalog ${version} is ${row.status}, not a draft`, "CATALOG_STATUS");
+    const changed = { ...row, document: structuredClone(document) };
+    return {
+      next: list.map(c => (c.version === row.version ? changed : c)),
+      sql: [[`UPDATE catalogs SET document = $3 WHERE org_id = $1 AND version = $2 AND status = 'draft'`, [org, row.version, JSON.stringify(document)]]],
+      result: { ...changed, document: undefined }
+    };
+  });
+}

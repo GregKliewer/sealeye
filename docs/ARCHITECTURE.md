@@ -167,6 +167,7 @@ flowchart LR
     server["<b>server.js</b><br/>Routes, auth, scoping<br/>by organization and team"]
     tokens["<b>tokens.js</b><br/>Tokens and portal sessions,<br/>stored as hashes"]
     interview["<b>interview/</b><br/>graph.js, model.js, tools.js,<br/>service.js, pgstore.js"]
+    discovery["<b>discovery/</b><br/>library, terraform, readers,<br/>draft, service, store"]
     validate["<b>validate.js, needs.js</b><br/>The plan contract,<br/>the needs ledger"]
     catalogs["<b>catalogs.js</b><br/>Each organization's catalog,<br/>or the starter"]
     executor["<b>executor/</b><br/>compose, package, uploads,<br/>settings, report, evidence, resume"]
@@ -181,6 +182,11 @@ flowchart LR
 
   server --> tokens
   server --> interview
+  server --> discovery
+  discovery --> scan
+  discovery --> catalogs
+  discovery --> store
+  discovery --> prompts
   server --> validate
   server --> catalogs
   validate --> catalogs
@@ -465,6 +471,25 @@ sequenceDiagram
   S->>S: docker compose up, then wait for /health
 ```
 
+**The discovery run.** Plain code reads the library and lists its modules; the readers
+run in parallel and never wait on a person; the supervisor writes the draft. A question
+goes out the moment a reader raises it, and an answer is used whenever it comes: before
+the entries are written it is simply read, after, it re-writes only what it touches.
+
+```mermaid
+flowchart LR
+  read["read: one commit per repository,<br/>scanned, flagged lines replaced"] --> plan["plain code: each module folder,<br/>its inputs from its variables"]
+  plan --> w1["worker per module<br/>(small route)"]
+  plan --> lib["library reader: README, pipeline<br/>(small route)"]
+  w1 --> sup["supervisor writes the draft<br/>(frontier route)"]
+  lib --> sup
+  w1 -. "question, with a guess" .-> q[("questions")]
+  lib -. "question" .-> q
+  sup -. "question" .-> q
+  q -. "answer, any time" .-> sup
+  sup --> draft[("draft catalog")]
+```
+
 ## 8. Data
 
 ### 8.1 Postgres
@@ -542,13 +567,33 @@ erDiagram
     jsonb event
   }
   INTERVIEWS ||--o{ INTERVIEW_EVENTS : "streams"
+  DISCOVERIES {
+    text id PK
+    text org_id
+    text status "running, finished, stopped or failed"
+    jsonb record "commits read, each module's finding, the draft's version, spend"
+    timestamptz created_at
+    timestamptz updated_at
+  }
+  DISCOVERY_QUESTIONS {
+    text id PK
+    text discovery_id FK
+    text org_id
+    jsonb question "the question, its evidence, the guess, the answer and who gave it"
+    timestamptz answered_at
+    timestamptz created_at
+  }
+  DISCOVERIES ||--o{ DISCOVERY_QUESTIONS : "asks"
 ```
 
 `DEPLOYMENTS` and `SETTING_CHANGES` are joined to people through `org_id`, `team_id`
 and the person's email, not by a foreign key, so a record outlives a revoked token.
 `CATALOGS` holds each organization's catalogs (PHASE4-PLAN Step 1), one live at most;
 an organization with none plans against the starter catalog,
-`prompts/module-catalog.yaml`, which is not a row.
+`prompts/module-catalog.yaml`, which is not a row. `DISCOVERIES` and
+`DISCOVERY_QUESTIONS` hold each discovery run and what it asked (PHASE4-PLAN Step 6): a
+finding is lines and evidence pointers (a file and what it shows), never a file's
+contents; the draft a run writes is a `CATALOGS` row.
 LangGraph's own checkpoint tables also live in `interview_state`.
 
 ### 8.2 Outside Postgres

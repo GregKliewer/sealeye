@@ -2991,3 +2991,81 @@ are not text as names only. Interviews now do the same.
 *Why now:* a developer's folder can hold a fixture archive with a real credential in it,
 which today reaches the server unscanned, though never the model. Matching libraries
 costs half a day and closes it before discovery reads libraries in bulk.
+
+## The discovery run
+
+Thu Oct 15, 2026, PHASE4-PLAN Step 6, part a (D5, D6, D7). How a run reads a library and
+writes a draft catalog, in the API. Greg chose the four below on Oct 15, each as
+recommended.
+
+- **Who may run it: an organization-wide token only.** Discovery writes an organization's
+  catalog and its questions are the platform team's to answer, so every `/discoveries`
+  endpoint answers 403 `ORG_WIDE_ONLY` to a team token. The repositories are the server's
+  to name (`SEALEYE_LIBRARY_REPOS`), never a request's, so a caller cannot point the
+  API's GitHub credential at anything else.
+- **A module's inputs are read by plain code, not a model.** `api/discovery/terraform.js`
+  reads each `variable` block: name, whether it has a default (so is optional), a plain
+  default, and the description. Exact where a model would guess, and the answer key
+  already checks it this way. The model only writes an input's line when its description
+  is missing or uses cloud terms. Code also decides what a module is (a folder with .tf
+  files of its own that is not an example or a test), its id (its folder's name), and
+  what builds it (`terraform`).
+- **A run cut off by a restart is stopped, not resumed.** The graph has no checkpointer;
+  on start the API marks any run left `running` as stopped, reason `restarted`, and it is
+  run again. Resuming would have cost about a day; with Step 6c reusing each unchanged
+  module's finding, running again costs little.
+- **A question offers choices, the guess first, and takes free text.** Two to four short
+  options; an answer is one of them or a sentence of the engineer's own.
+
+**How a run goes.** Read (Step 5), then plain code lists the modules and reads their
+inputs. A worker per module (`small` route) reads only its own folder, the library's
+README and `.github/`, and hands in a finding through `submit_finding`; a library reader
+reads the README and pipeline for the path to production and rules that span modules.
+They run four at a time, as LangGraph `Send`s. The supervisor (`frontier` route) then
+writes every entry's words in one call, settles what spans modules and may raise
+questions of its own (the overlap). Code puts the draft together (`api/discovery/draft.js`)
+with the starter's need kinds, profiles and patterns, keeps it as a `draft` catalog, and
+decides, not the model, which entries rest on an unanswered question (`open`).
+
+**Q19 as built.** A question is kept and sent on the run's events the moment it is
+raised. The supervisor reads every answer there is just before it writes. Any answer not
+yet in after that (it came later, or while the entries were being written) re-writes
+only the entries it touches, one pass at a time per run, in the same draft while it is a
+draft, or a new draft if it was approved meanwhile. Each question keeps who answered,
+when, and the draft version it went into.
+
+**Money.** Each worker has a cap and so does the run (`SEALEYE_DISCOVERY_WORKER_CAP`,
+`SEALEYE_DISCOVERY_RUN_CAP`; the plan's placeholders, a dollar and twenty, until a
+measured run sets them, D6). A worker at its cap hands in nothing and its module is kept
+as `not_read`, never offered; a run at its cap stops before the draft and writes nothing.
+Every call carries a token naming its worker (`worker:modules/postgres`, `supervisor`),
+so the gateway's record shows each one's spend.
+
+**Limits, for now.** One run at a time for an organization (409 `RUN_GOING`), so a run
+cannot be doubled by accident at up to its cap each; and one library repository a run
+(409 `ONE_LIBRARY`), since findings, questions and entries are keyed by module folder and
+two libraries can share one. Both can widen when 6c and admin onboarding need them.
+
+**A guess never goes live, as code.** Code, not the model, marks what rests on an open
+question: each entry a question touches (a model's loose way of naming a module, an id or
+a folder with a slash, is matched), and the catalog itself (`discovery.open`) for a
+question that touches no one module, such as one about the path to production. A module
+that was not read is `not_read` whatever the supervisor wrote, and deprecated from either
+reader or supervisor wins over available. Words a developer reads lose any em or en dash.
+An answer is marked used only when it is still the answer the pass read, so one changed
+mid-pass gets a pass of its own.
+
+**Reviewed independently** before the pull request. It found four defects, all fixed with
+tests: a late answer could save a stale copy of the run back over its finished state; a
+changed answer could be marked used without being applied; a module not read could come
+out available; and a stray link to the dependencies folder had been committed. Its
+should-fixes are in too: the catalog-level `open`, questions raised during a re-write,
+spend kept when a re-write fails, the two limits above, LangSmith switched off by the
+discovery service itself, and the eval finding the model key before it moves seaLeye's
+folder.
+
+**What is not here yet.** Traces: a run is not traced until Step 7 decides what a
+discovery trace holds, so every call is made with tracing off. The command and the
+portal page (6b), and reading only what changed (6c). `npm run eval:discovery -- --run
+--library <clone>` runs discovery for real, with no answers given, grades the draft and
+the questions it raised, and prints what each worker spent; it is how the caps get set.

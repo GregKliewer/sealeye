@@ -192,7 +192,8 @@ gateway's own span in that trace moved to Phase 4. Routes come with Step 8.*
   reads the organization's catalog, built Oct 15, 2026: Part A is done. Step 4, the
   made-up organization (Juniper Mutual, `sealeye-sample-platform`) and its answer key,
   built Oct 15, 2026. Step 5, reading the library and the named routes `small` and
-  `frontier`, built Oct 15, 2026.
+  `frontier`, built Oct 15, 2026. Step 6a, the discovery run in the API, built Oct 15,
+  2026.
 - LangFuse self-hosted in ca-central-1 (answers Q13; moved here from Phase 3 on Oct 13,
   2026), before the first run on an organization's real code (Greg, Oct 14, 2026:
   Phase 4's own runs read seaLeye's templates, a made-up organization and public

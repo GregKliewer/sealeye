@@ -50,7 +50,7 @@ export { ModelNotPriced, UploadRefused };
 // turns them off for this process. Anything but "true" leaves LangChain's tracer off.
 export const LANGCHAIN_TRACING_VARS = ["LANGSMITH_TRACING", "LANGSMITH_TRACING_V2", "LANGCHAIN_TRACING", "LANGCHAIN_TRACING_V2"];
 
-function switchOffLangSmith() {
+export function switchOffLangSmith() {
   for (const name of LANGCHAIN_TRACING_VARS) {
     if (process.env[name] !== undefined && process.env[name] !== "false" && setting("DEBUG")) {
       console.error(`  [debug] ${name} is set; LangSmith tracing is off for the interview, which never sends file contents out`);

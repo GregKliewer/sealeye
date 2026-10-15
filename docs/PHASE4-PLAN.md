@@ -173,6 +173,12 @@ graph it is the first node of (Step 6).
 
 ### Step 6. The swarm (D5, D6, D7)
 
+Part a, the run in the API, built Thu Oct 15, 2026 (DESIGN.md, "The discovery run"),
+with Greg's choices: an organization-wide token only, inputs read by code, a run cut off
+by a restart stopped not resumed, and questions as choices with the guess first. Still
+to come: 6b, `sealeye discover` and the Discovery page; 6c, only what changed is read
+again. The caps wait on Greg's measured run (`npm run eval:discovery -- --run`).
+
 - A LangGraph supervisor fans out one worker per module, in parallel, gathers their
   findings, and writes the catalog entries.
 - It never pauses for a person (D7, answering Q19). A worker that cannot settle
