@@ -269,13 +269,30 @@ export async function answerInterview({ apiBaseUrl, interviewId, answer }) {
  * @returns {Promise<object|null>} the event that ended the follow
  */
 export async function followInterview({ apiBaseUrl, interviewId, onEvent, after = 0 }) {
+  return followEvents({
+    apiBaseUrl,
+    route: `/interviews/${interviewId}/events`,
+    onEvent,
+    after,
+    ends: ["finished", "failed"],
+    gone: "The platform no longer has this interview. Run sealeye run again.",
+    broken: status => `The platform could not stream the interview (it answered ${status}). Run sealeye run again.`
+  });
+}
+
+/**
+ * Follow a stream of server-sent events from the platform, picking it up again where
+ * it left off when it drops, until an event of a type in `ends` arrives or the handler
+ * returns "stop". Resolves with that last event and the last seq seen.
+ */
+async function followEvents({ apiBaseUrl, route, onEvent, after = 0, ends, gone, broken, over = async () => true }) {
   let last = after;
   let drops = 0;
 
   while (true) {
     let res;
     try {
-      res = await fetch(`${apiBaseUrl}/interviews/${interviewId}/events`, {
+      res = await fetch(`${apiBaseUrl}${route}`, {
         headers: { accept: "text/event-stream", "last-event-id": String(last), ...authHeaders() }
       });
     } catch (err) {
@@ -285,19 +302,16 @@ export async function followInterview({ apiBaseUrl, interviewId, onEvent, after 
     }
 
     if (res.status === 401) throw new NotSignedInError(await res.json().catch(() => ({})));
-    if (res.status === 404) {
-      const gone = new Error("The platform no longer has this interview. Run sealeye run again.");
-      gone.userFacing = true;
-      throw gone;
+    if (res.status === 404) throw Object.assign(new Error(gone), { userFacing: true });
+    if (res.status === 403) {
+      const body = await res.json().catch(() => ({}));
+      throw Object.assign(new Error(body?.error?.message || broken(403)), { userFacing: true, code: body?.error?.code });
     }
-    if (!res.ok || !res.body) {
-      const err = new Error(`The platform could not stream the interview (it answered ${res.status}). Run sealeye run again.`);
-      err.userFacing = true;
-      throw err;
-    }
+    if (!res.ok || !res.body) throw Object.assign(new Error(broken(res.status)), { userFacing: true });
 
     const decoder = new TextDecoder();
     let buffer = "";
+    let ended = false;
     try {
       for await (const chunk of res.body) {
         buffer += decoder.decode(chunk, { stream: true });
@@ -319,20 +333,60 @@ export async function followInterview({ apiBaseUrl, interviewId, onEvent, after 
             // The handler's own failure is the caller's, not a dropped stream.
             throw Object.assign(err instanceof Error ? err : new Error(String(err)), { fromHandler: true });
           }
-          if (verdict === "stop" || event.type === "finished" || event.type === "failed") {
+          if (verdict === "stop" || ends.includes(event.type)) {
             try { await res.body.cancel(); } catch {}
             return { ...event, lastSeq: last };
           }
         }
       }
+      ended = true;
     } catch (err) {
       if (err?.fromHandler || err?.userFacing) throw err;
     }
-    // The stream ended without the interview ending: pick it up again, a little later
-    // each time, so a proxy that keeps closing it is not hammered.
+    // A stream the platform closed on purpose with nothing more to say (a run that was
+    // already over when it was asked): there is nothing to pick up again. A proxy or a
+    // restart can close it cleanly too, so `over` asks whether the run really is.
+    if (ended && ends.includes("closed") && await over()) return { type: "closed", lastSeq: last };
+    // The stream ended without the run ending: pick it up again, a little later each
+    // time, so a proxy that keeps closing it is not hammered.
     if (++drops > 5) throw new PlatformUnreachableError(apiBaseUrl, new Error("the event stream kept closing"));
     await new Promise(r => setTimeout(r, 250 * drops));
   }
+}
+
+// ---------------------------------------------------------------------------------
+// Discovery (PHASE4-PLAN Step 6): a run over the organization's platform library, and
+// the questions it asks. For an organization-wide token only; a refusal is the API's
+// own sentence.
+
+async function discoveryCall(apiBaseUrl, route, options) {
+  try {
+    return await platformFetch(apiBaseUrl, route, options);
+  } catch (err) {
+    const message = err.details?.error?.message;
+    if (message) throw Object.assign(new Error(message), { userFacing: true, code: err.details.error.code });
+    throw err;
+  }
+}
+
+export const startDiscovery = ({ apiBaseUrl }) => discoveryCall(apiBaseUrl, "/discoveries", asJson({}));
+export const listDiscoveries = ({ apiBaseUrl }) => discoveryCall(apiBaseUrl, "/discoveries", { method: "GET" }).then(r => r.discoveries);
+export const getDiscovery = ({ apiBaseUrl, id }) => discoveryCall(apiBaseUrl, `/discoveries/${encodeURIComponent(id)}`, { method: "GET" });
+export const answerDiscovery = ({ apiBaseUrl, id, question, answer }) =>
+  discoveryCall(apiBaseUrl, `/discoveries/${encodeURIComponent(id)}/answers`, asJson({ question, answer })).then(r => r.question);
+
+/** A run's events from `after`: every one so far, then each as it comes, until it ends. */
+export function followDiscovery({ apiBaseUrl, id, onEvent, after = 0 }) {
+  return followEvents({
+    apiBaseUrl,
+    route: `/discoveries/${encodeURIComponent(id)}/events`,
+    onEvent,
+    after,
+    ends: ["finished", "stopped", "failed", "closed"],
+    over: async () => (await getDiscovery({ apiBaseUrl, id }).catch(() => ({ status: "running" }))).status !== "running",
+    gone: "The platform has no such discovery run.",
+    broken: status => `The platform could not stream the discovery run (it answered ${status}).`
+  });
 }
 
 /**

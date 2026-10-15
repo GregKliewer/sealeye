@@ -20,7 +20,7 @@ const hash = t => createHash("sha256").update(t).digest("hex");
  *        `opt(name)`, `out(value)` (prints JSON, exits 0) and `fail(text)` (exits 254)
  * @param {object} [options.env]
  */
-export async function startApi({ tokens, records, aws, env: extra = {} }) {
+export async function startApi({ tokens, records, aws, env: extra = {}, files = {} }) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-day-two-"));
   const at = new Date().toISOString();
   fs.writeFileSync(path.join(home, "tokens.json"), JSON.stringify(tokens.map(t => ({
@@ -28,6 +28,8 @@ export async function startApi({ tokens, records, aws, env: extra = {} }) {
     ...(t.scope ? { scope: t.scope } : {}), createdAt: at, revokedAt: null, lastUsedAt: null
   }))));
   fs.writeFileSync(path.join(home, "deployments.json"), JSON.stringify(records));
+  // Anything else the API's home should hold when it starts (catalogs, discoveries).
+  for (const [name, content] of Object.entries(files)) fs.writeFileSync(path.join(home, name), typeof content === "string" ? content : JSON.stringify(content));
 
   const bin = path.join(home, "bin");
   const log = path.join(home, "aws.log");

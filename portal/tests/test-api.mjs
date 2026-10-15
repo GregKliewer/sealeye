@@ -139,6 +139,51 @@ case "$2" in
 esac
 `, { mode: 0o755 });
 
+// A finished discovery run for the Discovery page (PHASE4-PLAN Step 6b): one question
+// open, one answered, and the draft catalog it wrote. Starting a run here is refused in
+// words, since this API names no library.
+const starter = (await import("../../core/catalog.js")).starterCatalog();
+const draftModule = (id, source, extra = {}) => ({
+  id, source, availability: "available", builds_with: "terraform", role: "optional",
+  line: `What ${source} gives your app.`, inputs: { name: { required: true, line: "Your app's name." } }, ...extra
+});
+fs.writeFileSync(path.join(home, "catalogs.json"), JSON.stringify([{
+  org: "default", version: 1, status: "draft", createdBy: "lead@example.com", createdAt: ago(3600_000), approvedBy: null, approvedAt: null,
+  document: {
+    catalogVersion: "discovery-dsc_0000000000000001",
+    discovery: { run: "dsc_0000000000000001", library: [{ repo: "northwind/platform-library", commit: "5e63aa5".padEnd(40, "0") }] },
+    modules: [
+      draftModule("cache_valkey", "modules/cache-valkey", { open: ["q_open000001"] }),
+      draftModule("cache_redis", "modules/cache-redis", { availability: "deprecated" }),
+      draftModule("postgres", "modules/postgres", { guidance: "Below staging; from staging up, postgres_cluster." })
+    ],
+    need_kinds: starter.need_kinds, profiles: starter.profiles
+  }
+}]));
+const runModules = ["modules/cache-redis", "modules/cache-valkey", "modules/postgres"].map(source => ({
+  source, id: source.split("/").pop().replace(/-/g, "_"), repo: 0, hash: "0", status: "read",
+  inputs: { name: { required: true, line: "Your app's name." } }, finding: { line: `What ${source} gives your app.`, availability: "available", rules: [] }, failed: null
+}));
+fs.writeFileSync(path.join(home, "discoveries.json"), JSON.stringify({
+  runs: [{
+    id: "dsc_0000000000000001", org: "default", orgName: "Northwind Payments", status: "finished", startedBy: "lead@example.com",
+    caller: { email: "lead@example.com", org: "default", team: "default" }, surface: "cli",
+    repos: [{ repo: "northwind/platform-library", commit: "5e63aa5".padEnd(40, "0"), via: "app" }],
+    modules: runModules, library: { stages: ["dev", "prod"], rules: [] }, cap: { worker: 0.1, run: 3 },
+    spend: { supervisor: { cost: 0.12 } }, catalogVersion: 1, createdAt: ago(3600_000), finishedAt: ago(3500_000)
+  }],
+  questions: [
+    { id: "q_open000001", seq: 1, discovery: "dsc_0000000000000001", org: "default", kind: "deprecated",
+      question: "Does cache-valkey replace cache-redis for new apps?", options: ["Yes, for new apps", "Not yet, only the trial teams"], guess: "Yes, for new apps",
+      touches: ["modules/cache-valkey", "modules/cache-redis"], evidence: [{ file: "modules/cache-redis/README.md", line: 3, shows: "says there is no cache for new apps until a replacement" }],
+      raisedBy: "supervisor", answer: null, createdAt: ago(3550_000) },
+    { id: "q_done000001", seq: 2, discovery: "dsc_0000000000000001", org: "default", kind: "other",
+      question: "Which database is for perf?", options: ["postgres-cluster", "postgres"], guess: "postgres-cluster",
+      touches: ["modules/postgres"], evidence: [{ file: "README.md", shows: "perf is built from staging" }],
+      raisedBy: "supervisor", answer: "postgres-cluster", answeredBy: "lead@example.com", answeredAt: ago(3000_000), usedAt: ago(2990_000), usedIn: 1, createdAt: ago(3540_000) }
+  ]
+}));
+
 // A stand-in for the model, so the New environment page can hold a whole interview: it
 // lists the folder, reads a file, asks one question and submits a plan. An app with a
 // worker.js gets a drafted plan instead, without a question. Which turn it is comes from
@@ -159,6 +204,15 @@ const model = http.createServer((req, res) => {
   req.on("data", d => (body += d));
   req.on("end", () => {
     const sent = JSON.parse(body || "{}");
+    // Discovery's supervisor, writing again the entries an answer touched.
+    if ((sent.tools || []).some(t => t.name === "write_catalog")) {
+      const opening = String(sent.messages?.[0]?.content || "");
+      const sources = (opening.match(/Write the entries for these modules: (.+)\./)?.[1] || "").split(", ").filter(Boolean);
+      const entries = sources.map(source => ({ source, line: `What ${source} gives your app.`, when: "When the app needs it.", signals: [], role: "optional", availability: "available", guidance: "As answered.", open: [] }));
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ id: `msg_${Date.now()}`, type: "message", role: "assistant", model: "claude-sonnet-5", usage: { input_tokens: 10, output_tokens: 10 }, stop_reason: "tool_use", content: [toolUse("w1", "write_catalog", { entries, questions: [] })] }));
+      return;
+    }
     // An app that would read forever, each reply costing $0.40: the run's cap stops it.
     if (body.includes("looping-api")) {
       res.writeHead(200, { "content-type": "application/json" });
