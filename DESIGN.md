@@ -3069,3 +3069,32 @@ discovery trace holds, so every call is made with tracing off. The command and t
 portal page (6b), and reading only what changed (6c). `npm run eval:discovery -- --run
 --library <clone>` runs discovery for real, with no answers given, grades the draft and
 the questions it raised, and prints what each worker spent; it is how the caps get set.
+
+## What the first measured run changed
+
+Thu Oct 15, 2026, Greg's first real discovery run on Juniper Mutual
+(`npm run eval:discovery -- --run`): every module right, the deprecated cache refused,
+the overlap asked; 119 seconds and US$0.18 in all, the supervisor US$0.14 of it and no
+worker more than half a cent. Three changes, each Greg's choice as recommended.
+
+- **The caps (PHASE4-PLAN D6):** ten cents a worker and three dollars a run, about twenty
+  and fifteen times what this run spent, so a module with many files or a library
+  several times Juniper's size still fits. It is the supervisor's one call that grows
+  with the library; past that, the large-catalog item owed after Step 7 applies.
+- **A rule a reader found always reaches its entry.** The README-only rule (alarms from
+  staging up go to `oncall-pager`) was found by its worker and lost in the supervisor's
+  re-wording. Now code carries every rule the readers found (the module's own, and the
+  library reader's that apply to it) into the entry as `rules`, each with where it was
+  found, and adds to the guidance, in the reader's words, any the supervisor's does not
+  already say. The supervisor is also told to keep a rule's own names.
+- **Fewer, better questions.** The run asked 17 for 13 modules, about half of which
+  would change nothing in the catalog: whether a rule is enforced or only reviewed,
+  tidying an example, a placeholder pipeline step, an unmentioned language. The prompts
+  now ask only when the answer changes an entry, and say plainly what never to ask.
+  The worker's, the library reader's and the supervisor's prompts changed, so the run is
+  measured again before and after.
+
+**Noticed, for Step 7's self-test.** Some of the words a developer would read came out
+with cloud terms ("log group") despite the prompt. The self-test that gates a catalog
+going live should check developer-facing words, as the interview's are checked, rather
+than trust the prompt.
