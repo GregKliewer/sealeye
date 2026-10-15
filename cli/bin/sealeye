@@ -49,6 +49,7 @@ import { evidenceSummary } from "../../core/evidence-summary.js";
 import { noReportWords, planOrigin } from "../../core/plan-report-words.js";
 import { RETENTION_CHOICES, retentionOf, withRetention } from "../../core/retention.js";
 import { commandFor, wordsFor } from "../../core/operations.js";
+import { discover } from "../discover.js";
 
 // Statuses that are history rather than something you can still open: one was torn
 // down, the other was never built because the platform said so.
@@ -146,6 +147,7 @@ Usage:
   ${product.command} online [app | deploymentId] [--print] [--json] [--api <url>]
   ${product.command} doctor [--json] [--api <url>]
   ${product.command} catalog [--json] [--api <url>]
+  ${product.command} discover [answers|status] [<run>] [--json] [--api <url>]
   ${product.command} login [--api <url>]
   ${product.command} whoami [--json] [--api <url>]
   ${product.command} logout
@@ -1055,6 +1057,13 @@ async function main() {
     console.log(c.accent(`✓ Signed in as ${me.name} (${me.email}), ${seesInWords(me)}`));
     say(`Your token is kept in ${file.replace(os.homedir(), "~")}, readable by you alone.`);
     return;
+  }
+
+  // Discovery (PHASE4-PLAN Step 6b): read the organization's platform library into a
+  // draft catalog, and answer its questions as they come. For a platform engineer, with
+  // an organization-wide token; the API refuses anyone else in its own words.
+  if (command === "discover") {
+    return discover({ apiBaseUrl, args: process.argv.slice(3).filter(a => !a.startsWith("--") && a !== getArg("--api")), say, json: jsonOut });
   }
 
   // What the platform can build, and the needs it cannot yet, as the portal's Catalog

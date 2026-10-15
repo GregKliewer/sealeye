@@ -39,6 +39,7 @@ export const OPERATIONS = Object.freeze([
   { id: "evidence", command: "evidence", aliases: [], label: "Evidence", target: "app" },
   { id: "plan", command: "plan", aliases: [], label: "Plan and report", target: "app" },
   { id: "catalog", command: "catalog", aliases: [], label: "Catalog" },
+  { id: "discover", command: "discover", aliases: [], label: "Discovery" },
   { id: "needs", command: "needs", aliases: [], label: "Needs" },
   { id: "costs", command: "costs", aliases: [], label: "Costs" },
   { id: "team", command: "team", aliases: [], label: "Team" },
