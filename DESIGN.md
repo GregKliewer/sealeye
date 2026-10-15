@@ -2631,3 +2631,54 @@ written here.
   `builds_with` is never in the prompt). The API reads what it writes as 0.5 against
   the starter and hands the clients that. Step 3 moves the interview to 0.5 and the
   organization's live catalog, with the eval run before and after.
+
+## The interview reads the organization's catalog
+
+Thu Oct 15, 2026, PHASE4-PLAN Step 3. Greg chose the whole job now (option 1 of three)
+over plumbing only, with the large-catalog half moved to after Step 7.
+
+- **The interview starts with the organization's live catalog and keeps it.** The
+  service notes `{ org, version }` when an interview starts; it is part of the
+  interview's saved state, so every turn, and a run resumed after a restart or after
+  another catalog went live, plans against the catalog it began with.
+- **The prompt is the same for every catalog except where it speaks of the modules.**
+  `prompts/interview-system.md` has a `{{name}}` in each such place: how many modules
+  there are, the one way of running an app, the list of module ids, where the catalog
+  comes from, the sections on each module, the settings question, and an example in the
+  redeploy rule. The submit_plan tool's description of the plan is one too. These are the
+  catalog's passages (`interviewPassages` in `core/catalog.js`):
+  - **The starter's** are `prompts/interview-starter.yaml`, cut from the prompt by line,
+    word for word. The starter's prompt and tool are byte for byte what the eval graded
+    on Oct 15, 2026, and `test/interview-catalog.test.js` pins both by their ids, so any
+    change to them fails a test until the eval has been run again.
+  - **An organization's catalog** may carry its own (`interview:` in its document), as
+    discovery will write them; and each module may have `guidance`.
+  - **A catalog without one gets a passage written from its own modules and rules**
+    (`rules.core_modules`, `rules.exactly_one_core`). A passage of a catalog's own that
+    names a module it does not build is set aside for the written one, so a catalog that
+    began as a copy of the starter cannot tell the interview about a module it dropped.
+- **The interview never hears of a module the catalog does not build.** The catalog
+  section of the prompt lists only buildable modules and their patterns, and the tool's
+  module ids are the catalog's buildable ones.
+- **The model never names a catalog; the platform does.** The tool keeps the 0.4 shape
+  with the catalog's modules and need kinds (`interviewContract`, which for the starter
+  is `planSchema04`). The graph stamps the plan 0.5 with the interview's catalog
+  (`stampCatalog`) before checking it, so a model cannot plan against a catalog it was
+  not given. Against the starter an older plan still reads as it always did.
+- **A deployed plan is shown to the model in the shape it writes**
+  (`asTheModelWritesIt`): plans deployed since Step 2 are 0.5 and name a catalog, which
+  the model's tool does not have; shown as they are, it could copy them back and have
+  its plan refused. Found while building this step, before Step 2 was released.
+- **The starter's passages stay on the server.** Like the prompt they belong to, they
+  are not in the command's package (`test/package-contents.test.js`).
+- **The prompt's id in a trace is of the prompt as the model read it**
+  (`promptVersionOf`), with the catalog's version beside it. It was the template file's
+  hash, which no longer says what the model read. So the eval's prompt id moves once,
+  from `ba7017345af5` (the file) to `d3ab331a0a17` (the same text, filled in).
+- **A very large catalog waits.** Summarising a catalog too large for the prompt, at a
+  size measured rather than guessed, needs a large catalog to measure, and there is
+  none until public module libraries are read after Step 7. It moves there (PHASE4-PLAN,
+  "Owed after this plan").
+- **No organization's catalog goes live before this step** (DESIGN.md, "A plan names its
+  catalog"): it is now shipped, and the rule is met. Whether the interview plans well
+  from an organization's catalog is Step 8's to show, against the made-up organization.

@@ -28,8 +28,9 @@ import { Annotation, END, interrupt, START, StateGraph } from "@langchain/langgr
 import { unsupportedNeeds } from "../../core/catalog.js";
 import { addSpend, priceUsage, spendingLimitWords } from "../../core/model-prices.js";
 import { scoreTrace, traceEvent, traceStep, traceTool } from "../../core/tracing.js";
-import { checkPlan } from "../validate.js";
-import { upgradePlan } from "../../core/schema.js";
+import { catalogOfPlan, checkPlan } from "../validate.js";
+import { PLAN_VERSION, STARTER_VERSION, upgradePlan } from "../../core/schema.js";
+import { starterCatalog } from "../../core/catalog.js";
 import {
   createWithOneRetry,
   debugTurn,
@@ -43,7 +44,7 @@ import {
   toolRecord,
   turnEndedIn
 } from "./model.js";
-import { submitPlanTool, splitSubmission } from "./schema.js";
+import { submitPlanToolFor, splitSubmission } from "./schema.js";
 import { folderDigest, listFilesTool, readFileTool, runTool } from "./tools.js";
 
 const MAX_QUESTIONS = 4;       // the interview rule
@@ -58,6 +59,11 @@ export const InterviewState = Annotation.Root({
   // What the interview was started with.
   appDir: replace(() => null),
   deployed: replace(() => null),
+  // Which catalog it plans against: { org, version }, the organization's live one when
+  // it started (PHASE4-PLAN Step 3). Kept here, so a run resumed after a restart, or
+  // after another catalog went live, plans against the one it began with. An
+  // interview saved before Oct 15, 2026 has none, and began with the starter.
+  catalog: replace(() => null),
   model: replace(() => null),
   // { traceId, spanId } of the first stretch, so later stretches join its trace.
   trace: replace(() => null),
@@ -85,6 +91,31 @@ export const InterviewState = Annotation.Root({
   result: replace(() => null),
   approved: replace(() => null)
 });
+
+/** The organization an interview's catalog belongs to: "default" on a laptop API. */
+const catalogOrg = ref => ref?.org || "default";
+
+/**
+ * The document of an interview's catalog: the one it started with, or the starter for an
+ * interview saved before it kept one. Null when the organization no longer has it.
+ */
+export function interviewCatalog(ref) {
+  if (!ref || ref.version === STARTER_VERSION || ref.version === undefined) return starterCatalog();
+  return catalogOfPlan({ catalog: ref.version }, catalogOrg(ref)).document || null;
+}
+
+/**
+ * The model's plan, stamped with the interview's catalog: 0.5, naming the catalog. The
+ * model writes the 0.4 shape and never a catalog, so it cannot plan against one it was
+ * not given. Against the starter, an older plan reads as it always did (upgradePlan).
+ */
+export function stampCatalog(plan, ref) {
+  if (!plan || typeof plan !== "object") return plan;
+  const version = ref?.version ?? STARTER_VERSION;
+  const { catalog: _ignored, ...written } = plan;
+  if (version === STARTER_VERSION) return { ...upgradePlan(written), catalog: STARTER_VERSION };
+  return { ...written, planVersion: PLAN_VERSION, catalog: version };
+}
 
 /**
  * Build the graph. `runtimeFor(interviewId)` returns what a node needs that is not
@@ -136,7 +167,14 @@ export function buildInterviewGraph({ runtimeFor, checkpointer }) {
     // The system prompt and the tool schemas are the same several thousand tokens on
     // every turn, and a run is a dozen turns. One cache breakpoint on the system block
     // covers the tools too, since they sit in front of it.
-    const system = [{ type: "text", text: loadSystemPrompt(), cache_control: { type: "ephemeral" } }];
+    const catalog = interviewCatalog(state.catalog);
+    if (!catalog) {
+      return finish(state, {
+        status: "stopped",
+        message: `The catalog this interview started with is no longer one your organization has. Run ${COMMAND} run again.`
+      });
+    }
+    const system = [{ type: "text", text: loadSystemPrompt(catalog), cache_control: { type: "ephemeral" } }];
     const startedAt = Date.now();
 
     let response;
@@ -147,7 +185,7 @@ export function buildInterviewGraph({ runtimeFor, checkpointer }) {
           model: state.model,
           max_tokens: MAX_TOKENS,
           system,
-          tools: [listFilesTool, readFileTool, submitPlanTool],
+          tools: [listFilesTool, readFileTool, submitPlanToolFor(catalog)],
           messages: state.messages,
           ...(supportsTemperature(state.model) ? { temperature: 0.2 } : {})
         },
@@ -230,11 +268,13 @@ export function buildInterviewGraph({ runtimeFor, checkpointer }) {
 
     for (const use of uses) {
       if (use.name === "submit_plan") {
-        const submission = splitSubmission(use.input);
+        // The model writes the plan; the platform says which catalog it is against.
+        const split = splitSubmission(use.input);
+        const submission = { ...split, plan: stampCatalog(split.plan, state.catalog) };
 
         emit({ type: "step", line: "Checking the plan against the seaLeye.run plan contract" });
         const checked = await traceStep("plan checked", async step => {
-          const outcome = checkPlan(submission.plan);
+          const outcome = checkPlan(submission.plan, { org: catalogOrg(state.catalog) });
           step.set({
             valid: outcome.valid,
             errorCount: outcome.errors.length,
@@ -245,9 +285,7 @@ export function buildInterviewGraph({ runtimeFor, checkpointer }) {
         });
 
         if (checked.valid) {
-          // As the contract reads it: 0.5, naming the catalog the interview was given,
-          // which is the starter until PHASE4-PLAN Step 3. The model still writes 0.4.
-          return finish({ ...state, validationRetries }, { status: "submitted", ...submission, plan: upgradePlan(submission.plan) }, "approve");
+          return finish({ ...state, validationRetries }, { status: "submitted", ...submission }, "approve");
         }
 
         if (validationRetries >= MAX_VALIDATION_RETRIES) {

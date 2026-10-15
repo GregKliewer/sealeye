@@ -17,11 +17,12 @@ import { ModelNotPriced, priceFor, runCap } from "../../core/model-prices.js";
 import { cleanFinding, isRedactedLine, linesByFile, looksBinary, markWhole, onePerLine, redactLines } from "../../core/scan.js";
 import { unzipInto, UploadRefused } from "../../core/upload.js";
 import { scanApp } from "../secret-scan.js";
-import { promptVersion, traceRun, withoutTracing, flushScores } from "../../core/tracing.js";
-import { buildInterviewGraph, MAX_TURNS } from "./graph.js";
+import { promptVersionOf, traceRun, withoutTracing, flushScores } from "../../core/tracing.js";
+import { liveCatalog } from "../catalogs.js";
+import { buildInterviewGraph, interviewCatalog, MAX_TURNS } from "./graph.js";
 import { planFiles } from "../../core/plan-files.js";
 import { catalogOfPlan } from "../validate.js";
-import { DEFAULT_MODEL, modelClient, modelCredential } from "./model.js";
+import { DEFAULT_MODEL, loadSystemPrompt, modelClient, modelCredential } from "./model.js";
 import { claimsFor, signerFromSettings, withCallerToken } from "../gateway-token.js";
 
 // Everything about an interview is gone a day after it starts, finished or not: its
@@ -160,6 +161,7 @@ export function createInterviewService({
       user,
       owner,
       caller: caller ? { email: caller.email, org: caller.org, team: caller.team } : null,
+      catalog: { org: caller?.org || "default", version: liveCatalog(caller?.org || "default").version },
       surface: surface === "portal" ? "portal" : "cli",
       trace,
       mode: deployed ? "re-run" : "first run",
@@ -180,6 +182,9 @@ export function createInterviewService({
     stretch(record, null, {
       appDir,
       deployed,
+      // The organization's live catalog now (PHASE4-PLAN Step 3), kept in the interview's
+      // state so every turn, and a resumed run, plans against this one.
+      catalog: record.catalog,
       model: record.model,
       withheld,
       cap
@@ -286,9 +291,13 @@ export function createInterviewService({
         throw new Error("the platform restarted before this interview had saved its place");
       }
       const continueFrom = saved?.values?.trace || null;
+      // Which prompt this run reads: its catalog's, as the graph fills it in.
+      const catalogRef = saved?.values?.catalog || input?.catalog || record.catalog || null;
+      const catalogDoc = interviewCatalog(catalogRef);
+      const promptSha = catalogDoc ? promptVersionOf(loadSystemPrompt(catalogDoc)) : "unknown";
 
       return traceRun(
-        { app: record.app, mode: record.mode, model: record.model, promptSha: promptVersion(), user: record.user, continueFrom },
+        { app: record.app, mode: record.mode, model: record.model, promptSha, catalog: String(catalogRef?.version ?? "starter"), user: record.user, continueFrom },
         async run => {
           const begin = resume === RESTART
             ? null
