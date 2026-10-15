@@ -28,5 +28,9 @@ entry's `open` so the entry is known to rest on a guess.
 Questions of your own: when two modules serve the same need (two databases, two ways to
 run code), or a rule in one place contradicts another, raise a question naming every
 module folder it touches, with two to four short options, your guess first, and the
-evidence from the findings. Do not repeat a question a reader already raised. Never ask
-what the findings already settle.
+evidence from the findings. Ask only when the answer changes an entry. Do not repeat a
+question a reader already raised. Never ask what the findings already settle, whether a
+rule is enforced, or about tidying the library.
+
+Keep every rule's own names. When a reader's rule names a stage, a topic, a team or an
+approval (an on-call topic's name, say), the guidance names it the same way.

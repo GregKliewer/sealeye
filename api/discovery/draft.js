@@ -37,17 +37,47 @@ function availabilityOf(module, written, finding) {
   return "available";
 }
 
+const loose = t => String(t || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+/**
+ * Every rule a reader found for a module: its own worker's, and the library reader's
+ * that apply to it (by folder, id, or "all"). Each keeps where it was found.
+ */
+export function rulesFor(module, finding, library) {
+  const names = new Set([module.source, module.id, module.source.split("/").pop()]);
+  const applies = r => (r.applies_to || []).some(a => a === "all" || names.has(String(a).trim().replace(/^\.\/+/, "").replace(/\/+$/, "")));
+  return [...(finding?.rules || []), ...(library?.rules || []).filter(applies)]
+    .filter(r => r && typeof r.rule === "string" && r.rule.trim())
+    .map(r => ({
+      rule: r.rule.trim(),
+      ...(r.stages && r.stages !== "all" ? { stages: String(r.stages) } : {}),
+      ...(r.evidence?.file ? { evidence: { file: String(r.evidence.file), ...(Number.isInteger(r.evidence.line) ? { line: r.evidence.line } : {}) } } : {})
+    }));
+}
+
+/**
+ * The planner's guidance: the supervisor's, then every rule a reader found that it does
+ * not already say, in the reader's words. Whether a rule the library states reaches the
+ * catalog never rests on how the supervisor chose to word an entry (Greg, Oct 15, 2026,
+ * after the first measured run lost Juniper's on-call rule that way).
+ */
+function guidanceFor(written, finding, rules) {
+  const own = written?.guidance || (finding?.stages && finding.stages !== "all" ? `For ${finding.stages}.` : "");
+  const missing = rules.filter(r => !loose(own).includes(loose(r.rule)));
+  const added = missing.map(r => `${r.rule.replace(/[.\s]+$/, "")}${r.stages ? ` (${r.stages})` : ""}.`);
+  return [own.trim(), ...added].filter(Boolean).join(" ") || undefined;
+}
+
 /** An entry from what code read and what the model wrote of it. */
-function entryFor(module, written, finding, questions) {
+function entryFor(module, written, finding, questions, library) {
   const words = written || finding || {};
   const inputLines = { ...(finding?.input_lines || {}), ...(written?.input_lines || {}) };
   const inputs = Object.fromEntries(Object.entries(module.inputs).map(([name, v]) => {
     const line = plain(inputLines[name] || v.line);
     return [name, { required: v.required, ...("default" in v ? { default: v.default } : {}), ...(line ? { line } : {}) }];
   }));
-  const guidance = written?.guidance
-    || [finding?.stages && finding.stages !== "all" ? `For ${finding.stages}.` : "", ...(finding?.rules || []).map(r => r.rule)].filter(Boolean).join(" ")
-    || undefined;
+  const rules = rulesFor(module, finding, library);
+  const guidance = guidanceFor(written, finding, rules);
   const entry = {
     id: module.id,
     source: module.source,
@@ -58,7 +88,9 @@ function entryFor(module, written, finding, questions) {
     ...(words.when ? { when: plain(words.when) } : {}),
     ...(Array.isArray(words.signals) && words.signals.length ? { signals: words.signals.map(plain) } : {}),
     inputs,
-    ...(guidance ? { guidance } : {})
+    ...(guidance ? { guidance } : {}),
+    // Each rule as found, with where, for whoever approves the catalog (Step 7).
+    ...(rules.length ? { rules } : {})
   };
   const open = openFor(module.source, questions);
   if (open.length) entry.open = open;
@@ -87,7 +119,7 @@ export function draftCatalog({ run, modules, library, entries, questions }) {
       ...(library ? { path_to_production: { stages: library.stages || [], aside: library.aside || [], gates: library.gates || [] } } : {}),
       ...(openForCatalog(questions).length ? { open: openForCatalog(questions) } : {})
     },
-    modules: modules.map(m => entryFor(m, bySource.get(m.source), m.finding, questions)),
+    modules: modules.map(m => entryFor(m, bySource.get(m.source), m.finding, questions, library)),
     need_kinds: starter.need_kinds,
     profiles: starter.profiles,
     ...(starter.legacy_profiles ? { legacy_profiles: starter.legacy_profiles } : {}),
@@ -97,7 +129,7 @@ export function draftCatalog({ run, modules, library, entries, questions }) {
 }
 
 /** The same draft with some entries written again (a late answer), the rest as they were. */
-export function rewriteEntries(document, { modules, entries, questions }) {
+export function rewriteEntries(document, { modules, entries, questions, library = null }) {
   const bySource = new Map((entries || []).map(e => [e.source, e]));
   const moduleBySource = new Map(modules.map(m => [m.source, m]));
   const { open: _was, ...discovery } = document.discovery || {};
@@ -108,7 +140,7 @@ export function rewriteEntries(document, { modules, entries, questions }) {
     modules: document.modules.map(old => {
       const m = moduleBySource.get(old.source);
       if (!m) return old;
-      if (bySource.has(old.source)) return entryFor(m, bySource.get(old.source), m.finding, questions);
+      if (bySource.has(old.source)) return entryFor(m, bySource.get(old.source), m.finding, questions, library);
       // Untouched words, but which questions it rests on can still change.
       const open = openFor(old.source, questions);
       const { open: _gone, ...rest } = old;
