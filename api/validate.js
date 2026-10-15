@@ -25,11 +25,17 @@ function validatorFor(catalog) {
   return compiled.get(key);
 }
 
+/**
+ * The schema's errors as contract errors. Where the contract fixes the values a field may
+ * take, they come with the error (`allowed`), because for module ids and need kinds they
+ * are the plan's catalog's, and the words a client shows must name those.
+ */
 export function formatAjvErrors(errors = []) {
   return (errors || []).map(e => ({
     code: "SCHEMA_ERROR",
     message: `${e.instancePath || "/"} ${e.message}`,
-    path: e.instancePath || "/"
+    path: e.instancePath || "/",
+    ...(Array.isArray(e.params?.allowedValues) ? { allowed: e.params.allowedValues.map(String) } : {})
   }));
 }
 
