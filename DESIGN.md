@@ -1470,6 +1470,8 @@ portal's Costs page and `GET /costs?since=7d|30d`. The name is ROADMAP's.
 - **Greg turns them on once.** AWS counts a tag in billing only after it is activated
   in the Billing console (Cost allocation tags), and a key appears there only after a
   resource carries it, up to a day later. Until then costs answer with none.
+  The steps are in deploy/README.md, "Once: count costs by app" (added Oct 15, 2026,
+  after the page sat empty for days because the step lived only here).
 - **Read by tag, from Cost Explorer.** By `sealeye:app`, filtered to the caller's team
   (an organization-wide token sees every team, by both tags), summed over the window, a
   day at a time. Cost Explorer answers from us-east-1, about a day behind, and charges

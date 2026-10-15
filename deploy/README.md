@@ -435,6 +435,40 @@ tab, add a repository variable `SEALEYE_CI_ROLE_ARN` with the value the second c
 printed. It is not a secret; the role only accepts this repository's main branch.
 Until it is set, the image step is skipped and the tests still run.
 
+## Once: count costs by app
+
+The portal's Costs page and `sealeye costs` read billing by two tags every environment
+carries from its first deploy on or after Oct 12, 2026: `sealeye:app` and
+`sealeye:team` (DESIGN.md, "Costs come from tags, a day behind"). AWS keeps no cost by
+a tag until that tag is activated for billing, and until then Costs says "No costs
+carry seaLeye's tags yet" forever. Activation is once per account. Run these as someone
+who may manage billing (in an AWS Organization, the management account):
+
+```bash
+aws ce list-cost-allocation-tags --region us-east-1 --tag-keys sealeye:app sealeye:team
+```
+
+- Both keys listed as `"Status": "Inactive"`: activate them (next command).
+- Both `"Active"`: nothing to do here; see "Costs stay empty" under "When something is wrong".
+- Nothing listed: billing has not seen the keys on any resource yet. Redeploy one
+  environment, wait a day, and check again. Until then the next command fails.
+
+```bash
+aws ce update-cost-allocation-tags-status --region us-east-1 \
+  --cost-allocation-tags-status TagKey=sealeye:app,Status=Active TagKey=sealeye:team,Status=Active
+```
+
+Success is an empty `Errors` list; the first command now shows both as `"Active"`.
+Activation counts from that moment on. To count the days before it as well (once a
+day at most, up to a year back):
+
+```bash
+aws ce start-cost-allocation-tag-backfill --region us-east-1 --backfill-from 2026-10-01T00:00:00Z
+```
+
+Costs then show about a day later; the API also keeps each answer for an hour. Pilot
+apps mostly fit in AWS's free tier, so an app listed at $0.00 is working.
+
 ## Every release
 
 Merge to main, wait for the run on GitHub to go green, then on your Mac, on main and up
@@ -581,6 +615,18 @@ image, open a shell on the server (below) and:
 ```bash
 cd /opt/sealeye && sudo docker compose exec api gitleaks version
 ```
+
+Costs stay empty ("No costs carry seaLeye's tags yet") although apps are deployed: the
+API read billing and found nothing by seaLeye's tags. An error would say so instead.
+In order: the tags are not activated ("Once: count costs by app"); the environments
+have not been deployed since Oct 12, 2026, so they carry no tags (this lists what does):
+
+```bash
+aws resourcegroupstaggingapi get-resources --region ca-central-1 \
+  --tag-filters Key=sealeye:app --query 'ResourceTagMappingList[].ResourceARN'
+```
+
+or activation was less than a day ago, plus the hour the API keeps an answer.
 
 The API's last lines, or a restart:
 
