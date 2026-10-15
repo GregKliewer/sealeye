@@ -14,6 +14,7 @@
 #   deploy/server.sh gateway-logs        the model gateway's last 40 lines, never a key
 #   deploy/server.sh gateway-calls [run|email] [n]   the record of model calls, 90 days of it
 #   deploy/server.sh settings-sources    live environments still taking settings from a developer's .env
+#   deploy/server.sh library-check       read each named platform library as discovery will, and say what was read
 set -euo pipefail
 
 REGION="${AWS_REGION:-ca-central-1}"
@@ -112,6 +113,8 @@ case "${1:-}" in
       "set -euo pipefail; cd /opt/sealeye; docker compose restart api >/dev/null; for i in \$(seq 1 30); do sleep 2; [ \"\$(docker compose ps --format '{{.Health}}' api)\" = healthy ] && { echo 'The API restarted and is answering.'; exit 0; }; done; echo 'The API restarted but is not answering yet; see deploy/server.sh logs.'; exit 1" ;;
   settings-sources)
     run_on_server "seaLeye settings sources" "cd /opt/sealeye && docker compose exec -T api node deploy/with-settings.mjs scripts/settings-sources.js" ;;
+  library-check)
+    run_on_server "seaLeye library check" "cd /opt/sealeye && docker compose exec -T api node deploy/with-settings.mjs scripts/library-check.js" ;;
   logs)
     run_on_server "seaLeye logs" "cd /opt/sealeye && docker compose logs --tail 100 api" ;;
   gateway-restart)
@@ -129,5 +132,5 @@ case "${1:-}" in
     [[ "$LIMIT" =~ ^[0-9]{1,5}$ ]] || { echo "The number of calls must be a whole number."; exit 1; }
     run_on_server "seaLeye gateway calls" "cd /opt/sealeye && bash gateway.sh calls '${WHO}' ${LIMIT}" ;;
   *)
-    sed -n '2,16p' "$0"; exit 1 ;;
+    sed -n '2,17p' "$0"; exit 1 ;;
 esac
