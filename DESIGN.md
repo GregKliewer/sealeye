@@ -2612,8 +2612,20 @@ written here.
   draw a plan from it: the modules the platform builds, the need kinds, the profiles
   and their patterns. A module nothing builds is left out, and so is what a pattern
   says about it, because seaLeye never names a module it cannot build (principle 2), not
-  even in JSON a command prints. The command draws its card and writes DEPLOYMENT_PLAN.md
-  from it; the interview's plan files on the API come from the same catalog.
+  even in JSON a command prints. What builds a module (`builds_with`) is left out too:
+  it is the platform's to know, and its name is an AWS term. Each module sent carries
+  `buildable: true` instead, which a stored catalog may never carry itself
+  (`catalogProblems`). The command draws its card and writes DEPLOYMENT_PLAN.md from it;
+  the interview's plan files on the API come from the same catalog.
+- **A plan's checksum is of the plan as sent.** A 0.4 sealeye.yaml is read as 0.5, but
+  the record's `planSha256` is of what the command sent, so it matches the file.
+- **No catalog goes live before Step 3.** The interview still plans against the
+  starter. If an organization's live catalog dropped a starter module, every plan the
+  interview wrote that used it would be refused with CATALOG_CHANGED, and running
+  `sealeye run` again would write the same plan. So the first catalog goes live only
+  after Step 3 moves the interview to the live catalog. Nothing can make one live from
+  a request until Step 7, so this holds today by construction; it is written down so it
+  still holds then. (Found by the independent review of this step.)
 - **The interview is unchanged.** Its `submit_plan` tool keeps the 0.4 contract exactly
   (`planSchema04`), and its prompt is byte for byte what it was (a test keeps both so;
   `builds_with` is never in the prompt). The API reads what it writes as 0.5 against

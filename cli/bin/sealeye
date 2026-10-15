@@ -1691,6 +1691,15 @@ async function runDeploy({ apiBaseUrl, backend, plan, appPath, requestedBy: who,
       return null;
     }
 
+    // The plan was written against a catalog that was since replaced, and the catalog
+    // now live no longer builds something it uses. Nothing was deployed.
+    if (refusal?.code === "CATALOG_CHANGED") {
+      wait.stop();
+      console.error(c.fail(refusal.message));
+      process.exitCode = 1;
+      return null;
+    }
+
     // The platform's own scan found what looks like a secret (core/scan.js and
     // gitleaks): nothing was deployed, and its words say what to do.
     if (refusal?.code === "SECRETS_FOUND") {

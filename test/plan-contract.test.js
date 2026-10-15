@@ -20,7 +20,7 @@ import { checkPlan } from "../api/validate.js";
 import { submitPlanInputSchema } from "../api/interview/schema.js";
 import { loadSystemPrompt } from "../api/interview/model.js";
 import {
-  buildableModules, buildableView, catalogForPrompt, isBuildable, schemaFor, starterCatalog
+  buildableModules, buildableView, catalogForPrompt, catalogProblems, isBuildable, schemaFor, starterCatalog
 } from "../core/catalog.js";
 import { renderPlanMarkdown } from "../core/plan-files.js";
 import { EXECUTORS, MODULE_IDS, PLAN_VERSION, planSchema, planSchema04, upgradePlan } from "../core/schema.js";
@@ -206,5 +206,49 @@ test("the card and DEPLOYMENT_PLAN.md read the same from the API's document as f
     const submission = { plan, summary: "An app.", assumptions: ["one"] };
     assert.equal(renderPlanMarkdown(submission, { catalog: view, date }), renderPlanMarkdown(submission, { catalog: starterCatalog(), date }), file);
     assert.equal(decisionCard(plan, { catalog: view, width: 80 }), decisionCard(plan, { catalog: starterCatalog(), width: 80 }), file);
+  }
+});
+
+test("what builds a module is the platform's to know, and a strange name never crashes the check", () => {
+  const doc = starterCatalog();
+  assert.doesNotMatch(JSON.stringify(buildableView(doc)), /builds_with|cloudformation/i, "never sent to a client: it is an AWS term");
+  for (const name of ["toString", "constructor", "__proto__", "hasOwnProperty"]) {
+    const odd = starterCatalog();
+    odd.modules[0].builds_with = name;
+    assert.equal(isBuildable(odd.modules[0].id, odd), false, name);
+    assert.doesNotThrow(() => schemaFor(odd), name);
+  }
+  const notAName = starterCatalog();
+  notAName.modules[0].builds_with = "Cloud Formation!";
+  assert.deepEqual(catalogProblems(notAName), [`module ${notAName.modules[0].id}: builds_with is a lowercase name`]);
+  const later = starterCatalog();
+  later.modules[0].builds_with = "terraform";
+  assert.deepEqual(catalogProblems(later), [], "an executor the platform has not built yet is not a mistake");
+  const claims = starterCatalog();
+  claims.modules[0].buildable = true;
+  assert.deepEqual(catalogProblems(claims), [`module ${claims.modules[0].id}: whether it is buildable is the platform's to say, not the catalog's`]);
+  const view = buildableView(starterCatalog());
+  assert.ok(view.modules.every(m => m.buildable === true && isBuildable(m.id, view)), "a client reads the view as the platform built it");
+});
+
+test("sealeye deploy says CATALOG_CHANGED in the platform's words, as the portal does", async () => {
+  const message = "This plan was written against an earlier version of your organization's catalog, and the catalog no longer builds everything it uses. Serves your files. Run sealeye run again to plan against the catalog as it is now. Nothing was deployed.";
+  const api = await fakeApi(url => (url === "/deployments"
+    ? [409, { error: { code: "CATALOG_CHANGED", message, details: { noLongerBuilt: ["Serves your files."] } } }]
+    : [200, { valid: true, errors: [], status: "ready", needs: [], deployments: [], settings: [] }]));
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-catalog-changed-"));
+  const app = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-catalog-changed-app-"));
+  fs.writeFileSync(path.join(app, "index.html"), "<p>hi</p>");
+  const file = path.join(app, "sealeye.yaml");
+  fs.copyFileSync(path.join(root, "plans", "static-plan.yaml"), file);
+  try {
+    const env = { ...process.env, HOME: home, SEALEYE_HOME: path.join(home, ".sealeye"), NO_COLOR: "1", SEALEYE_TOKEN: "" };
+    const out = await promisify(execFile)(process.execPath, ["cli/bin/sealeye", "deploy", "--file", file, "--app", app, "--api", api.url], { cwd: root, env })
+      .then(r => ({ code: 0, text: r.stdout + r.stderr }), e => ({ code: e.code, text: `${e.stdout}${e.stderr}` }));
+    assert.equal(out.code, 1, out.text);
+    assert.ok(out.text.includes(message), out.text);
+    assert.doesNotMatch(out.text, /noLongerBuilt|"code"/, "the platform's sentence, never its JSON");
+  } finally {
+    api.close();
   }
 });

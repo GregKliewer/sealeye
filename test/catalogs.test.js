@@ -300,6 +300,7 @@ test("GET /catalog?version= serves the catalog a plan names, and only what the p
   assert.ok(!one.body.document.modules.some(m => m.id === "acme_queue"));
   assert.ok(!("acme_queue" in one.body.document.patterns.dev.modules), "nor anything a pattern says about it");
   assert.ok(!JSON.stringify(one.body).includes("acme_queue"));
+  assert.doesNotMatch(JSON.stringify(one.body), /builds_with|cloudformation|terraform/i, "what builds a module is the platform's to know");
   assert.equal(one.body.document.modules.find(m => m.id === "http_api_serverless").line, "Runs your API on acme's own serverless platform.");
 
   const starter = await call("/catalog?version=starter", theirs);

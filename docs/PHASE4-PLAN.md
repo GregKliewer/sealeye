@@ -155,6 +155,11 @@ byte for byte; its plan is read as 0.5 against the starter until Step 3.
 
 ### Step 7. Self-test, then live
 
+Not before Step 3 has shipped: until the interview plans against the live catalog, a
+live catalog that drops a starter module would refuse every plan the interview writes
+that uses it (CATALOG_CHANGED), and running it again would not help (DESIGN.md, "A plan
+names its catalog").
+
 - The made-up organization's answer key, as a LangFuse dataset, graded on every change
   to discovery: entries right, must-refuse cases refused, hard cases caught.
 - Must-refuse plans: for each catalog, plans that must be refused, and are. A catalog

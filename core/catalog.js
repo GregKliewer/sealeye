@@ -91,6 +91,11 @@ export function catalogProblems(doc) {
   if (Array.isArray(doc.modules)) {
     for (const m of doc.modules) {
       if (m && text(m.id) && m.builds_with !== undefined && !text(m.builds_with)) problems.push(`module ${m.id}: builds_with names what builds it`);
+      if (m && text(m.id) && m.buildable !== undefined) problems.push(`module ${m.id}: whether it is buildable is the platform's to say, not the catalog's`);
+      // An executor the platform may not have yet (Terraform, until PHASE4-PLAN Step 9)
+      // is fine: the module is simply not buildable. Only a name that could never be
+      // one is a mistake in the document.
+      else if (m && text(m.id) && typeof m.builds_with === "string" && !/^[a-z][a-z0-9_-]*$/.test(m.builds_with)) problems.push(`module ${m.id}: builds_with is a lowercase name`);
     }
   }
 
@@ -113,7 +118,11 @@ export function moduleEntry(id, catalog = loadCatalog()) {
  */
 export function isBuildable(id, catalog = loadCatalog()) {
   const m = moduleEntry(id, catalog);
-  return Boolean(m && m.availability === "available" && (EXECUTORS[m.builds_with] || []).includes(m.id));
+  if (!m || m.availability !== "available") return false;
+  // The view the API sends a client (buildableView) has already asked, and says so.
+  if (m.buildable === true) return true;
+  const builds = typeof m.builds_with === "string" && Object.hasOwn(EXECUTORS, m.builds_with) ? EXECUTORS[m.builds_with] : [];
+  return builds.includes(m.id);
 }
 
 /** The modules a plan against this catalog may name, in the catalog's order. */
@@ -136,7 +145,8 @@ export function schemaFor(catalog = loadCatalog()) {
  * A catalog as the clients read it (GET /catalog): what the platform builds, the need
  * kinds, the profiles and their patterns. A module the platform cannot build is left
  * out, and so is anything a pattern says about one, because seaLeye never names a
- * module it cannot build (principle 2), not even in a document a command prints.
+ * module it cannot build (principle 2), not even in a document a command prints. What
+ * builds a module (`builds_with`) is left out too: the platform's to know.
  */
 export function buildableView(catalog = loadCatalog()) {
   const modules = buildableModules(catalog);
@@ -149,7 +159,9 @@ export function buildableView(catalog = loadCatalog()) {
   );
   return {
     ...(catalog.catalogVersion !== undefined ? { catalogVersion: catalog.catalogVersion } : {}),
-    modules,
+    // What builds a module is the platform's to know, and its name is an AWS term; the
+    // client is told only that the platform builds it.
+    modules: modules.map(({ builds_with, ...m }) => ({ ...m, buildable: true })),
     need_kinds: catalog.need_kinds || [],
     profiles: catalog.profiles || [],
     patterns

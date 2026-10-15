@@ -207,7 +207,7 @@ const planCatalogRef = (req, plan) => {
 const catalogChanged = lines => ({
   error: {
     code: "CATALOG_CHANGED",
-    message: `This plan was written against an earlier version of your organization's catalog, and the catalog no longer builds ${lines.join("; ")}. Run sealeye run again to plan against the catalog as it is now. Nothing was deployed.`,
+    message: `This plan was written against an earlier version of your organization's catalog, and the catalog no longer builds everything it uses. ${lines.map(l => (/[.!?]$/.test(l) ? l : `${l}.`)).join(" ")} Run sealeye run again to plan against the catalog as it is now. Nothing was deployed.`,
     details: { noLongerBuilt: lines }
   }
 });
@@ -418,7 +418,8 @@ async function deployAgain(req, res) {
     surface: req.surface || "cli",
     ...(requestedBy ? { requestedBy } : {}),
     origin,
-    planSha256: crypto.createHash("sha256").update(JSON.stringify(plan), "utf8").digest("hex"),
+    // Of the plan as given, or as the deployment it repeats keeps it.
+    planSha256: crypto.createHash("sha256").update(JSON.stringify(given ? req.body.plan : source.plan), "utf8").digest("hex"),
     // The code: the earlier deployment's artifact, as it is in S3, and its checksum.
     artifactKey: source.artifactKey,
     artifactSha256: source.artifactSha256 ?? null,
@@ -461,7 +462,9 @@ async function deployNew(req, res) {
     ? { user: req.caller.email, name: req.caller.name, host: typeof claimed?.host === "string" ? claimed.host : null, verified: "token" }
     : claimed;
   const origin = req.body?.origin && typeof req.body.origin === "object" ? req.body.origin : undefined;
-  const planSha256 = plan ? crypto.createHash("sha256").update(JSON.stringify(plan), "utf8").digest("hex") : undefined;
+  // Of the plan as it was sent, so the evidence's checksum matches the file it came from
+  // (a 0.4 sealeye.yaml is read as 0.5, and that reading is not what was sent).
+  const planSha256 = plan ? crypto.createHash("sha256").update(JSON.stringify(req.body.plan), "utf8").digest("hex") : undefined;
   const provenance = {
     ...(req.caller ? { orgId: req.caller.org, teamId: req.caller.team, tokenId: req.caller.tokenId } : {}),
     surface: req.surface || "cli",
