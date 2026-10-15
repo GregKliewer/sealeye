@@ -9,13 +9,18 @@
 //                                                           a clone of the library
 //   npm run eval:discovery -- --smoke                       seaLeye's own templates/,
 //                                                           whose answer is the starter
+//   npm run eval:discovery -- --run --library <path> [--out <file>]
+//                                                           run discovery for real on the
+//                                                           clone and grade its draft
 //
-// Discovery itself is Step 6. Until then the answer key is graded against itself (it
-// must pass its own grading), and `--library` checks what can be checked today: that the
-// key still matches the library, and that seaLeye's scanner stops the planted secret
-// before any model could read it. Recording a run in LangFuse is Step 7's.
+// Without --run the answer key is graded against itself (it must pass its own grading),
+// and `--library` checks the key still matches the library, and that seaLeye's scanner
+// stops the planted secret before any model could read it. With --run, discovery runs
+// with the real model and no answers given: the draft and the questions it raised are
+// graded, and what each worker spent is shown, to set the caps (PHASE4-PLAN D6).
+// Recording a run in LangFuse, and a second run with scripted answers, are Step 7's.
 //
-// Needs no model and no keys. Deploys nothing.
+// Without --run, needs no model and no keys. Deploys nothing either way.
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -77,7 +82,7 @@ function matchModules(keyModules, candidateModules) {
  * @returns {{ modules: object[], extra: string[], problems: string[], hardCases: object[],
  *   pending: object[], correct: boolean }}
  */
-export function gradeCatalog(candidate, key) {
+export function gradeCatalog(candidate, key, { questions = null } = {}) {
   const keyModules = key.catalog.modules || [];
   const { pairs, extra } = matchModules(keyModules, candidate?.modules || []);
 
@@ -140,7 +145,15 @@ export function gradeCatalog(candidate, key) {
       ok: both.every(m => m && saysStage(m)),
       why: both.some(m => !m) ? "not both in the catalog" : both.every(saysStage) ? "both there, each saying its stages" : "a database's guidance does not say which stages it is for"
     });
-    pending.push({ case: "overlap", waits: "PHASE4-PLAN Step 6 and Q20", what: hc.overlap.rule });
+    // A run's questions, when given (Step 6): the overlap is caught when a question
+    // touches every module in it. How a plan names a module per stage is still Q20's.
+    if (Array.isArray(questions)) {
+      const asked = questions.find(q => (hc.overlap.modules || []).every(s => (q.touches || []).includes(s)));
+      hardCases.push({ case: "overlap asked", ok: Boolean(asked), why: asked ? `asked: ${asked.question}` : "no question touches both" });
+      pending.push({ case: "overlap", waits: "Q20 (a module per stage in a plan)", what: hc.overlap.rule });
+    } else {
+      pending.push({ case: "overlap", waits: "PHASE4-PLAN Step 6 and Q20", what: hc.overlap.rule });
+    }
   }
   if (key.gaps?.length) pending.push({ case: "gaps", waits: "PHASE4-PLAN Step 10, the gap report", what: key.gaps.join(", ") });
   if (key.stages) pending.push({ case: "stages", waits: "Phase 5", what: (key.stages.path || []).join(", ") });
@@ -262,7 +275,79 @@ function argValue(args, name) {
   return i === -1 ? null : args[i + 1] || null;
 }
 
+/**
+ * Run discovery for real on a clone of the library (PHASE4-PLAN Step 6): the real model,
+ * through the gateway when this machine is set for one, with no answers given, so the
+ * questions it raises and the guesses it makes are what is graded. Keeps nothing in this
+ * machine's seaLeye folder: the run's draft is written to `out`.
+ */
+async function runDiscovery(libraryDir, key, out) {
+  const os = await import("node:os");
+  // The model key is found first, where this machine keeps it (the repo's .env or
+  // ~/.sealeye/config), before seaLeye's folder moves to a scratch one for the run.
+  const { modelCredential, resolveApiKey } = await import("../api/interview/model.js");
+  resolveApiKey();
+  if (!modelCredential()) throw new Error("--run needs a model key: ANTHROPIC_API_KEY in the environment, the repo's .env or ~/.sealeye/config");
+  process.env.SEALEYE_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-eval-discovery-"));
+  delete process.env.DATABASE_URL;
+  const { openCatalogs, catalogAt } = await import("../api/catalogs.js");
+  const { createDiscoveryService } = await import("../api/discovery/service.js");
+  const { readLibraryFolder } = await import("../api/discovery/library.js");
+  await openCatalogs();
+  const service = createDiscoveryService({ readLibrary: async () => readLibraryFolder(libraryDir, { repo: key.library }) });
+  const [owner, repo] = key.library.split("/");
+  const caller = { email: "eval@sealeye", org: "eval", team: "platform", scope: "org" };
+  const started = Date.now();
+  const { discoveryId } = await service.start({ caller, repos: [{ owner, repo }] });
+  service.subscribe(discoveryId, 0, e => {
+    if (!e) return;
+    if (e.type === "read") console.log(`  read     ${e.source}`);
+    if (e.type === "not_read") console.log(`  NOT READ ${e.source}: ${e.why}`);
+    if (e.type === "question") console.log(`  asked    ${e.question.question} (guess: ${e.question.guess})`);
+    if (e.type === "writing") console.log("  writing the catalog");
+  });
+  await service.settled(discoveryId);
+  const run = service.record(discoveryId);
+  const questions = service.questions(discoveryId);
+  const spend = Object.entries(run.spend || {}).map(([w, v]) => [w, v?.cost || 0]).sort((a, b) => b[1] - a[1]);
+  const total = spend.reduce((t, [, c]) => t + c, 0);
+  console.log(`
+The run: ${run.status}${run.reason ? ` (${run.reason})` : ""}, ${Math.round((Date.now() - started) / 1000)} s, US$${total.toFixed(4)} in all`);
+  for (const [w, c] of spend) console.log(`  US$${c.toFixed(4)}  ${w}`);
+  if (!run.catalogVersion) return { graded: null, run };
+  const draft = catalogAt(run.org, run.catalogVersion);
+  fs.mkdirSync(path.dirname(out), { recursive: true });
+  fs.writeFileSync(out, YAML.stringify({ ...draft, questions }));
+  console.log(`
+The draft, with its questions: ${out}`);
+  return { graded: gradeCatalog(draft, key, { questions }), run };
+}
+
 async function main(args) {
+  if (args.includes("--run")) {
+    const library = argValue(args, "--library");
+    if (!library) {
+      console.error("--run reads a clone of the library: add --library <path>");
+      process.exitCode = 1;
+      return;
+    }
+    const key = loadAnswerKey();
+    const out = path.resolve(argValue(args, "--out") || path.join("eval-results", `discovery-${new Date().toISOString().replace(/[:.]/g, "-")}.yaml`));
+    console.log(`
+Discovery on Juniper Mutual (${path.resolve(library)}), no answers given:\n`);
+    const { graded } = await runDiscovery(path.resolve(library), key, out);
+    if (!graded) {
+      console.log("\nNo draft to grade.");
+      process.exitCode = 1;
+      return;
+    }
+    console.log("");
+    for (const line of gradeLines(graded)) console.log(line);
+    console.log(`\n${graded.correct ? "As expected." : "Not as expected."}`);
+    process.exitCode = graded.correct ? 0 : 1;
+    return;
+  }
+
   if (args.includes("--smoke")) {
     // seaLeye's own templates/: the starter catalog is their answer. Discovery's own
     // reading of them is Step 6; until then the starter is graded against itself.
