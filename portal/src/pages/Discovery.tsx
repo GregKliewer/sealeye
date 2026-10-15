@@ -10,8 +10,8 @@ import { orgWide, useLoad, useSession } from "../session";
 import { ago, when } from "../model";
 import { PageTitle, Problem } from "../Layout";
 import { CommandHint } from "../Command";
-import { label } from "../../../core/operations.js";
-import { choicesFor, discoveryEventLine, discoveryStateWords, isOpen, SOMETHING_ELSE, ANSWER_LIMIT } from "../../../core/discovery-words.js";
+import { commandLine, label } from "../../../core/operations.js";
+import { choicesFor, discoveryEventLine, discoveryStateWords, isOpen, modulesDone, nextProgress, progressWords, SOMETHING_ELSE, ANSWER_LIMIT, TAKE_YOUR_TIME } from "../../../core/discovery-words.js";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -32,6 +32,9 @@ function Discovery() {
   const [run, setRun] = useState<DiscoveryRun | null>(null);
   const [draft, setDraft] = useState<DraftCatalog | null>(null);
   const [lines, setLines] = useState<string[]>([]);
+  // How far the run has got, from its events: a module's own status says "reading" until
+  // every reader is done, so it cannot say this while the run goes.
+  const [progress, setProgress] = useState(() => nextProgress(null, null));
   const [problem, setProblem] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const [tick, setTick] = useState(0);
@@ -53,7 +56,9 @@ function Discovery() {
   useEffect(() => {
     if (!latestId || !running) return;
     setLines([]);
+    setProgress(nextProgress(null, null));
     return api.discoveryEvents(latestId, e => {
+      setProgress((p: ReturnType<typeof nextProgress>) => nextProgress(p, e));
       const line = e.type === "reading" ? null : discoveryEventLine(e);
       if (line) setLines(prev => [...prev, line]);
       if (MOVES.has(e.type)) setTick(t => t + 1);
@@ -101,19 +106,25 @@ function Discovery() {
             </div>
             <p className="mt-2 text-sm text-dim">
               {run.repos.map(r => `${r.repo}${r.commit ? ` at ${r.commit.slice(0, 7)}` : ""}`).join(", ")}
-              {run.modules.length ? `; ${run.modules.filter(m => m.status !== "not_read").length} of ${run.modules.length} modules read` : ""}
+              {!running && run.modules.length ? `; ${modulesDone(run) - run.modules.filter(m => m.status === "not_read").length} of ${run.modules.length} modules read` : ""}
             </p>
+            {running ? <p className="mt-2 text-sm" data-testid="run-progress">{progressWords(progress)}</p> : null}
             {run.message && run.status !== "finished" ? <p className="mt-2 text-sm text-amber">{run.message}</p> : null}
             {lines.length ? (
               <ul className="mt-3 space-y-0.5 font-mono text-xs text-dim" data-testid="run-lines">
-                {lines.map((l, i) => <li key={i}>{l}</li>)}
+                {lines.slice(-6).map((l, i) => <li key={i}>{l}</li>)}
               </ul>
             ) : null}
           </CardContent>
         </Card>
       ) : null}
 
-      {open.length ? <h2 className="mb-3 text-lg font-semibold">Waiting on an answer</h2> : null}
+      {open.length ? (
+        <div className="mb-3">
+          <h2 className="text-lg font-semibold">Waiting on an answer: {open.length}</h2>
+          <p className="text-sm text-dim" data-testid="take-your-time">{TAKE_YOUR_TIME} Answer here or with <span className="font-mono">{commandLine("discover", null, ["answers"])}</span>, now or after the run.</p>
+        </div>
+      ) : null}
       <div className="space-y-4">
         {open.map(q => <QuestionCard key={q.id} runId={run!.discoveryId} q={q} onAnswered={() => setTick(t => t + 1)} />)}
       </div>
