@@ -528,6 +528,22 @@ test("a question asked again in nearly the same words is dropped, even naming on
   assert.deepEqual(onCache.map(q => q.question), ["Is the cache still offered to anyone?"]);
 });
 
+test("a question asked again after it was answered is dropped: the answer stands (Greg's run, Oct 15)", async () => {
+  let release;
+  const hold = new Promise(r => (release = r));
+  const model = scripted({ repeat: true, hold });
+  const service = createDiscoveryService({ client: model.client, readLibrary: readFolder(library()) });
+  const { discoveryId } = await service.start({ caller, repos: [{ owner: "acme", repo: "platform" }] });
+  for (let i = 0; i < 300 && !model.calls.some(c => c.tools.includes("write_catalog")); i++) await new Promise(r => setTimeout(r, 10));
+  const q = service.questions(discoveryId).find(x => x.kind === "deprecated");
+  await service.answer({ id: discoveryId, questionId: q.id, answer: "No", by: "lead@acme.test" });
+  release();
+  await service.settled(discoveryId);
+  const onCache = service.questions(discoveryId).filter(x => x.touches.includes("modules/cache"));
+  assert.deepEqual(onCache.map(x => x.question), ["Is the cache still offered to anyone?", "Should the cache's own README name what replaces it?"]);
+  assert.equal(onCache.find(x => x.kind === "deprecated").answer, "No");
+});
+
 test("the supervisor is bounded by the run's cap, not a reader's, so a late answer is written after a costly first draft", async () => {
   const { createBudget, SpendingLimit } = await import("../api/discovery/readers.js");
   const budget = createBudget({ workerCap: 0.1, runCap: 3, spend: { supervisor: { cost: 0.15 }, "worker:modules/db": { cost: 0.1 } } });

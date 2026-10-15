@@ -3161,3 +3161,32 @@ Thu Oct 15, 2026, PHASE4-PLAN Step 6b. Greg chose both as recommended.
   writes the whole catalog and again for each late answer, only at the run's three
   dollars. A re-write that cannot be done now says so on the run's events and in the
   API's log, and the answer waits for the next pass instead of being lost.
+
+## A question on the screen does not hold up what the screen says
+
+Thu Oct 15, 2026, after Greg's first real run of `sealeye discover`. What he saw:
+
+- **The run looked paused at its first question.** It was not, but the command read the
+  run's events one at a time and waited on the answer before reading the next, so
+  nothing moved on the screen. Now questions are asked from a queue apart from the
+  stream. Under the choices, dim lines say what the run is doing ("Still going in the
+  background: 4 of 6 modules read", then writing, then finished), how many more questions
+  wait after this one, and "Take your time: the run does not wait on you, and every
+  question is kept." They are drawn again as the run moves. Lines the run would have
+  printed meanwhile are held and printed, under "While you were answering:", once the
+  questions are done, so the picker is never drawn over. When the run ends with a
+  question still on the screen, the question stays, and the run's end is said after it.
+  The open count at the end is read from the platform then, not from the event.
+- **The same questions came back after he answered them, in the terminal and on the
+  page.** Code dropped a question the supervisor asked again only when the first was
+  still open, so one asked again while rewriting the draft after an answer went out new.
+  Now an answered question counts too: its answer settles it.
+- **Progress is counted from events, on both surfaces.** A module's own status says
+  "reading" until every reader is done, so the page said all of them were read from the
+  start. `nextProgress` and `progressWords` in `core/discovery-words.js` count from the
+  run's events for both. The page shows the line on the run card, the last few lines of
+  the run, how many questions wait, and the same "Take your time" words, with where else
+  to answer them.
+
+Keys that arrive together (typed fast, or pasted) are each taken; a frame is drawn in one
+write.

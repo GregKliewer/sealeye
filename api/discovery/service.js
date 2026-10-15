@@ -175,16 +175,17 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
   }
 
   /**
-   * Whether a question asks again what an open one already asks: it touches nothing the
+   * Whether a question asks again what one already asked does: it touches nothing the
    * other does not (both touching no module counts), and it is the same kind (other than
    * "other") or mostly the same words; or it shares a module with the other and is in
-   * nearly the same words, even if it names one more (the third measured run).
+   * nearly the same words, even if it names one more (the third measured run). Answered
+   * questions count too: the answer settles it, and asking again after someone answered
+   * put the same question in front of them twice (Greg's run, Oct 15, 2026).
    */
   function repeats(q, existing) {
     const words = t => new Set(String(t).toLowerCase().match(/[a-z0-9]+/g)?.filter(w => w.length > 3) || []);
     const mine = words(q.question);
     return existing.some(e => {
-      if (e.answer !== null && e.answer !== undefined) return false;
       const theirs = words(e.question);
       const shared = [...mine].filter(w => theirs.has(w)).length;
       const overlap = shared / Math.max(1, new Set([...mine, ...theirs]).size);

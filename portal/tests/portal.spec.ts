@@ -679,6 +679,9 @@ test("Discovery shows the run, its open question, and the draft resting on it; a
   await expect(q).toContainText("Does cache-valkey replace cache-redis for new apps?");
   await expect(q).toContainText("the run's guess");
   await expect(q).toContainText("modules/cache-redis/README.md:3");
+  await expect(page.getByTestId("take-your-time")).toContainText("the run does not wait on you, and every question is kept");
+  await expect(page.getByTestId("take-your-time")).toContainText("sealeye discover answers");
+  await expect(page.getByTestId("run-progress")).toHaveCount(0);
   await expect(page.getByTestId("draft-module")).toHaveCount(3);
   await expect(page.getByTestId("rests-on-question")).toHaveCount(1);
   await expect(page.getByTestId("answered-question")).toContainText("postgres-cluster");
