@@ -3190,3 +3190,32 @@ Thu Oct 15, 2026, after Greg's first real run of `sealeye discover`. What he saw
 
 Keys that arrive together (typed fast, or pasted) are each taken; a frame is drawn in one
 write.
+
+## The discovery window
+
+Thu Oct 15, 2026, after Greg's second run. He did not like a line under each question
+telling him to take his time, and asked instead for "a small, multi-line window at the
+top of the run for scrolling updates about progress while queuing questions in a longer
+window underneath", like a docker build's; and for something on both surfaces that shows
+the run is working through the long waits between its events.
+
+- **The terminal draws a region whole** (`cli/discover-screen.js`). At the top: a spinner,
+  what the run is doing ("Reading modules/a and modules/b", "Writing the draft catalog")
+  and how long that has taken; the run's last four lines; and a line of totals (modules
+  read, questions waiting, time so far). Under it, the question being answered. It is
+  drawn again every spinner frame, in one write, so the clock moves through a model call
+  that sends nothing for a minute. Answered questions, a module that could not be read
+  and the run's end go up into the scrollback and stay. Once the run is over the window
+  stops: a tick, and how long it took. One's own words are typed in the region too, so
+  the window keeps moving while someone types. The "take your time" line is gone.
+- **What the run is doing, and since when, is shared** (`activityWords`, `elapsedWords`,
+  `progressSummary`, `nextProgress` in `core/discovery-words.js`). The page times a step
+  from the event's own time, so a page opened part way through agrees with the terminal.
+- **The page looks again every five seconds** while no run is being followed and the
+  page is in view. A run is followed by its events while it goes, but a page left open
+  on a finished run never heard of a new one started from the command line, or of a
+  late answer written into the draft. Five seconds is often enough to feel live and
+  rare enough to cost nothing; an organization-wide event stream would replace it if
+  more pages need the same.
+- **The run card shows a turning ring**, what the run is doing and for how long, and the
+  totals, while the run goes.

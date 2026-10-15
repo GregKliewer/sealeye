@@ -3,138 +3,79 @@
 // platform library, follow it, and answer each question it raises as it arrives
 // (Greg, Oct 15, 2026: inline, never holding the run up). The run never waits on the
 // engineer: a question skipped stays on the draft, for `sealeye discover answers` or the
-// portal's Discovery page, which say the same things (core/discovery-words.js). While a
-// question is on the screen the run keeps going, and the lines under it say so: what
-// the run is doing, how many more questions are waiting, and that there is no hurry
-// (Greg, Oct 15, 2026, after his first run looked paused at its first question).
+// portal's Discovery page, which say the same things (core/discovery-words.js).
+//
+// In a terminal the run is a small window at the top, moving as the run goes, with the
+// question being answered under it (cli/discover-screen.js; Greg, Oct 15, 2026). Without
+// one, each line is printed as it comes and the questions are listed with their guesses.
 //
 //   sealeye discover               start a run and follow it, answering as it goes
 //   sealeye discover answers [id]  the open questions of the latest run, or of run id
 //   sealeye discover status [id]   the latest run, or run id
-import readline from "node:readline/promises";
-
-import { answer, c, spinner, step, stopSpinner, typed, typing } from "./brand.js";
+import { c, spinnerFrame, step } from "./brand.js";
 import { answerDiscovery, followDiscovery, getDiscovery, listDiscoveries, startDiscovery } from "./client.js";
-import { ANSWER_LIMIT, choicesFor, discoveryEventLine, discoveryStateWords, isOpen, LATER, modulesDone, moreWaitingWords, nextProgress, progressWords, SOMETHING_ELSE, TAKE_YOUR_TIME } from "../core/discovery-words.js";
+import { createScreen, fitText, pick, stopped, typeLine } from "./discover-screen.js";
+import {
+  activityWords, ANSWER_LIMIT, choicesFor, discoveryEventLine, discoveryStateWords, elapsedWords, isOpen, LATER,
+  modulesDone, nextProgress, progressSummary, SOMETHING_ELSE
+} from "../core/discovery-words.js";
 
-/** Ctrl+C at a question: the run goes on without this terminal. */
-const stopped = () => Object.assign(new Error("Stopped. The run goes on: sealeye discover answers, or the Discovery page on seaLeye.online, for its questions."), { interrupted: true, userFacing: true });
+export { pick } from "./discover-screen.js";
 
-/** Words of one's own, up to the limit the API keeps. Ctrl+C stops, as in the picker. */
-async function ownWords() {
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  try {
-    while (true) {
-      const own = await new Promise((resolve, reject) => {
-        rl.once("SIGINT", () => reject(stopped()));
-        rl.question(typing()).then(resolve, reject);
-      });
-      process.stdout.write(typed());
-      const words = own.trim();
-      if (words.length <= ANSWER_LIMIT) return words || null;
-      console.log(c.dim(`  That is longer than an answer is kept. A sentence or two, under ${ANSWER_LIMIT} characters.`));
-    }
-  } finally {
-    rl.close();
-  }
-}
+/** How many of the run's lines the window keeps on the screen. */
+const WINDOW_LINES = 4;
+
+/** Whether this terminal can be drawn on and typed in. */
+const liveTerminal = json => Boolean(process.stdin.isTTY && process.stdout.isTTY) && process.env.TERM !== "dumb" && !json;
 
 /** Send one answer. One the platform would not take is said, and the run is still followed. */
-async function send({ apiBaseUrl, id, q, reply }) {
+async function send({ apiBaseUrl, id, q, reply, print }) {
   try {
     await answerDiscovery({ apiBaseUrl, id, question: q.id, answer: reply });
-    console.log(c.ok(`Answered: ${reply}`));
+    print(c.ok(`Answered: ${reply}`));
     return true;
   } catch (err) {
     if (!err.userFacing && !err.details) throw err;
-    console.log(c.fail(`Not answered: ${err.message}`));
+    print(c.fail(`Not answered: ${err.message}`));
     return false;
   }
 }
 
-// What a line takes on the screen once colours are left out and it wraps.
-const visible = text => String(text).replace(/\x1b\[[0-9;]*[A-Za-z]/g, "");
-const rowsOf = (line, columns) => Math.max(1, Math.ceil(visible(line).length / Math.max(20, columns || 80)));
-
-/**
- * Pick one of `choices` with the arrow keys and Enter; the first is chosen to start.
- * `footer` gives dim lines drawn under the choices; while the picker is open,
- * `live.redraw()` draws them again, so the run's progress shows as it goes. Once
- * chosen, the choices give way to the one picked.
- */
-export function pick(choices, { input = process.stdin, output = process.stdout, footer = () => [], live = null } = {}) {
-  return new Promise((resolve, reject) => {
-    let at = 0;
-    let drawn = 0;
-    // Each frame goes out in one write, so a terminal never shows half of one.
-    const up = () => (drawn ? `\x1b[${drawn}A\x1b[J` : "");
-    const draw = () => {
-      const lines = [
-        ...choices.map((choice, i) => (i === at ? `${c.prompt("›")} ${answer(choice)}` : `  ${c.fg(choice)}`)),
-        ...footer().filter(Boolean).map(line => c.dim(`  ${line}`))
-      ];
-      output.write(up() + lines.map(line => `\x1b[2K${line}\n`).join(""));
-      drawn = lines.reduce((n, line) => n + rowsOf(line, output.columns), 0);
-    };
-    const done = (value, err) => {
-      if (live) live.redraw = null;
-      input.setRawMode(false);
-      input.pause();
-      input.removeListener("data", onData);
-      output.write(up() + (value !== null ? `${c.prompt("›")} ${answer(value)}\n` : ""));
-      drawn = 0;
-      err ? reject(err) : resolve(value);
-    };
-    // Keys typed fast or pasted arrive together: each is taken in turn.
-    const onData = chunk => {
-      let moved = false;
-      for (const key of String(chunk).match(/\u001b\[[A-D]|[\s\S]/g) || []) {
-        if (key === "\u0003") return done(null, stopped());
-        if (key === "\r" || key === "\n") return done(choices[at]);
-        if (key === "\u001b[A" || key === "k") at = (at - 1 + choices.length) % choices.length;
-        else if (key === "\u001b[B" || key === "j") at = (at + 1) % choices.length;
-        else if (/^[1-9]$/.test(key) && Number(key) <= choices.length) at = Number(key) - 1;
-        else continue;
-        moved = true;
-      }
-      if (moved) draw();
-    };
-    input.setRawMode(true);
-    input.setEncoding("utf8");
-    input.resume();
-    input.on("data", onData);
-    if (live) live.redraw = draw;
-    draw();
-  });
-}
-
-/** One question shown, with what raised it, and answered: a choice, words of one's own, or later. */
-async function askQuestion(q, { label = "", footer, live } = {}) {
-  console.log("");
-  console.log(`${c.prompt("?")} ${q.question}${label ? c.dim(`  ${label}`) : ""}`);
-  for (const e of q.evidence || []) console.log(step(`${e.file}${e.line ? `:${e.line}` : ""}: ${e.shows}`));
-  if (q.touches?.length) console.log(step(`touches ${q.touches.join(", ")}`));
-  console.log(c.dim("  The first choice is the run's guess. Arrow keys and Enter."));
-  const choice = await pick([...choicesFor(q), SOMETHING_ELSE, LATER], { footer, live });
+/** One question asked in the region: a choice, words of one's own, or later. */
+async function askQuestion(q, { screen, label = "" }) {
+  const header = [
+    "",
+    `${c.prompt("?")} ${q.question}${label ? c.dim(`  ${label}`) : ""}`,
+    ...(q.evidence || []).map(e => step(`${e.file}${e.line ? `:${e.line}` : ""}: ${e.shows}`)),
+    ...(q.touches?.length ? [step(`touches ${q.touches.join(", ")}`)] : []),
+    c.dim("  The first choice is the run's guess. Arrow keys and Enter.")
+  ];
+  const choice = await pick([...choicesFor(q), SOMETHING_ELSE, LATER], { screen, header });
   if (choice === LATER) {
-    console.log(c.dim("  Left for later. The draft rests on the guess until it is answered."));
+    screen.commit([c.dim("  Left for later. The draft rests on the guess until it is answered.")], []);
     return null;
   }
   if (choice !== SOMETHING_ELSE) return choice;
-  return ownWords();
+  return typeLine({ screen, limit: ANSWER_LIMIT });
 }
 
 /** Answer the open questions of one run, one at a time. */
-async function answerOpen({ apiBaseUrl, run, say }) {
+async function answerOpen({ apiBaseUrl, run, say, json }) {
   const open = (run.questions || []).filter(isOpen);
   if (!open.length) return say("No questions are waiting on an answer.");
-  if (!process.stdin.isTTY) {
+  if (!liveTerminal(json)) {
     for (const q of open) console.log(`${c.prompt("?")} ${q.question}  ${c.dim(`(guess: ${q.guess})`)}`);
     return say("Answering needs a terminal. Run this yourself, or answer on seaLeye.online's Discovery page.");
   }
-  for (const [i, q] of open.entries()) {
-    const reply = await askQuestion(q, { label: `${i + 1} of ${open.length}` });
-    if (reply !== null) await send({ apiBaseUrl, id: run.discoveryId, q, reply });
+  const screen = createScreen({ animate: false }).start();
+  const print = line => screen.commit([line]);
+  try {
+    for (const [i, q] of open.entries()) {
+      const reply = await askQuestion(q, { screen, label: `${i + 1} of ${open.length}` });
+      if (reply !== null) await send({ apiBaseUrl, id: run.discoveryId, q, reply, print });
+    }
+  } finally {
+    screen.close();
   }
 }
 
@@ -188,7 +129,7 @@ async function discoverCommand({ apiBaseUrl, args, say, json = false }) {
     if (!run) return say("No discovery run yet. sealeye discover starts one.");
     console.log("");
     console.log(`${c.accent(run.discoveryId)}  ${discoveryStateWords(run)}`);
-    return answerOpen({ apiBaseUrl, run, say });
+    return answerOpen({ apiBaseUrl, run, say, json });
   }
 
   if (sub) throw Object.assign(new Error(`sealeye discover takes answers or status, not ${sub}.`), { userFacing: true });
@@ -207,33 +148,69 @@ async function discoverCommand({ apiBaseUrl, args, say, json = false }) {
     say("A discovery run is already going for your organization. Following that one.");
   }
 
-  const interactive = Boolean(process.stdin.isTTY) && !json;
-  let waiting = null;
-  const wait = label => {
-    waiting?.stop();
-    waiting = spinner(label);
-  };
-  const quiet = () => {
-    waiting?.stop();
-    waiting = null;
-  };
+  if (json) {
+    await followDiscovery({ apiBaseUrl, id: run.discoveryId, onEvent: event => console.log(JSON.stringify(event)) });
+    return;
+  }
+  if (!liveTerminal(json)) return followPlain({ apiBaseUrl, run, say });
+  return followLive({ apiBaseUrl, run, say });
+}
 
-  // What the run is doing, kept up from its events so a question on the screen can say
-  // it under the choices while the run goes on.
+/** No terminal to draw on: each line as it comes, and the questions listed for later. */
+async function followPlain({ apiBaseUrl, run, say }) {
+  const end = await followDiscovery({
+    apiBaseUrl,
+    id: run.discoveryId,
+    onEvent: event => {
+      if (event.type === "question") return console.log(`${c.prompt("?")} ${event.question.question}  ${c.dim(`(guess: ${event.question.guess})`)}`);
+      if (["finished", "stopped", "failed", "reading"].includes(event.type)) return;
+      const line = discoveryEventLine(event);
+      if (line) console.log(event.type === "not_read" ? c.fail(line) : step(line));
+    }
+  });
+  return finish({ apiBaseUrl, run, end, say, print: line => console.log(line) });
+}
+
+/** A terminal: the window at the top, and each question under it as it comes. */
+async function followLive({ apiBaseUrl, run, say }) {
   let progress = nextProgress(null, null);
-  const spinnerLabel = () => (progress.writing ? "Writing the draft catalog" : progress.modules ? `Reading: ${progress.read} of ${progress.modules} modules read` : "Reading your platform library");
-
-  // Questions are asked one at a time from a queue, apart from the stream, so the run's
-  // events keep coming while one is on the screen. What they would have printed waits
-  // until the questions are done, so the picker is never drawn over.
+  let doingSince = Date.now();
+  const startedAt = Date.now();
+  let overAt = null;
+  const recent = [];
   const queue = [];
-  const held = [];
-  const live = { redraw: null };
-  let asking = null;
-  const footer = () => [progressWords(progress), moreWaitingWords(queue.length), TAKE_YOUR_TIME];
+  let current = null;
+
+  const screen = createScreen({
+    top: () => {
+      const width = screen.columns() - 6;
+      const now = Date.now();
+      const lines = recent.slice(-WINDOW_LINES);
+      while (lines.length < WINDOW_LINES) lines.unshift("");
+      const waiting = queue.length + (current ? 1 : 0);
+      // Once the run is over nothing moves: a tick, and how long it took.
+      const status = progress.over
+        ? `  ${c.accent("✓")} ${c.fg(activityWords(progress))}`
+        : `  ${c.accent(spinnerFrame(now))} ${c.fg(fitText(activityWords(progress), width - 10))}  ${c.dim(elapsedWords(now - doingSince))}`;
+      const took = progress.over ? `took ${elapsedWords(overAt - startedAt)}` : `${elapsedWords(now - startedAt)} so far`;
+      return [
+        status,
+        ...lines.map(line => c.dim(`  │ ${fitText(line, width)}`)),
+        c.dim(`  └ ${fitText(`${progressSummary(progress, waiting)}  ·  ${took}`, width)}`)
+      ];
+    }
+  });
+  const print = line => screen.commit([line]);
+
+  // Ctrl+C with no question open: the window comes off cleanly before the command ends.
+  const onInterrupt = () => {
+    screen.close();
+    say(stopped().message);
+    process.exit(130);
+  };
+  process.once("SIGINT", onInterrupt);
   const bail = err => {
-    quiet();
-    console.log("");
+    screen.close();
     if (err?.interrupted) {
       say(err.message);
       process.exit(130);
@@ -241,93 +218,82 @@ async function discoverCommand({ apiBaseUrl, args, say, json = false }) {
     console.error(c.fail(err?.userFacing ? err.message : err?.stack || String(err)));
     process.exit(1);
   };
+
+  // Questions are asked one at a time from a queue, apart from the stream, so the
+  // window keeps moving while one is on the screen.
+  let asking = null;
   const askAll = async () => {
     while (queue.length) {
       const q = queue.shift();
       // Answered already, by someone else or on the page: nothing to ask.
       const fresh = (await getDiscovery({ apiBaseUrl, id: run.discoveryId }).catch(() => null))?.questions?.find(x => x.id === q.id);
       if (fresh && !isOpen(fresh)) continue;
-      const reply = await askQuestion(fresh || q, { footer, live });
-      if (reply !== null) await send({ apiBaseUrl, id: run.discoveryId, q, reply });
+      current = q;
+      const reply = await askQuestion(fresh || q, { screen });
+      current = null;
+      if (reply !== null) await send({ apiBaseUrl, id: run.discoveryId, q, reply, print });
     }
-    if (held.length) console.log(c.dim("\n  While you were answering:"));
-    for (const line of held.splice(0)) console.log(line);
   };
   const enqueue = q => {
     queue.push(q);
-    if (asking) return live.redraw?.();
-    quiet();
+    if (asking) return;
     asking = askAll().then(() => {
       asking = null;
-      if (queue.length) return enqueue(queue.shift());
-      if (!progress.over) wait(spinnerLabel());
+      if (queue.length) enqueue(queue.shift());
     }, bail);
   };
-  const show = line => {
-    if (asking) {
-      held.push(line);
-      return live.redraw?.();
-    }
-    quiet();
-    console.log(line);
-    if (!progress.over) wait(spinnerLabel());
-  };
 
-  wait(spinnerLabel());
+  screen.start();
+  let end;
   try {
-    const end = await followDiscovery({
+    end = await followDiscovery({
       apiBaseUrl,
       id: run.discoveryId,
-      onEvent: async event => {
-        if (json) return console.log(JSON.stringify(event));
+      onEvent: event => {
+        const before = progress.doing;
         progress = nextProgress(progress, event);
-
-        if (event.type === "question") {
-          if (!interactive) {
-            quiet();
-            console.log(`${c.prompt("?")} ${event.question.question}  ${c.dim(`(guess: ${event.question.guess})`)}`);
-            return wait(spinnerLabel());
-          }
-          return enqueue(event.question);
-        }
-        if (event.type === "answered") return;   // ours was said already; another's shows on the run
-        // Four modules are read at once: which ones is the spinner's to say, not a line each.
-        if (event.type === "reading") {
-          if (asking) return live.redraw?.();
-          return waiting ? waiting.label(spinnerLabel(), { keepCount: true }) : wait(spinnerLabel());
-        }
-        // The run's end is said once the questions on the screen are done.
-        if (["finished", "stopped", "failed"].includes(event.type)) return live.redraw?.();
+        if (progress.doing !== before) doingSince = Date.now();
+        if (progress.over && !overAt) overAt = Date.now();
+        if (event.type === "question") return enqueue(event.question);
+        if (["finished", "stopped", "failed", "reading"].includes(event.type)) return;
         const line = discoveryEventLine(event);
-        if (!line) return live.redraw?.();
-        show(event.type === "not_read" ? c.fail(line) : step(line));
+        if (!line) return;
+        recent.push(line);
+        if (recent.length > 50) recent.shift();
+        // A module that could not be read stays in the scrollback, not only in the window.
+        if (event.type === "not_read") print(c.fail(line));
       }
     });
     // The questions still on the screen are answered, or left, before the run's end is said.
-    if (asking) {
-      live.redraw?.();
-      await asking;
-    }
-    quiet();
-    if (json) return;
-    if (end.type === "finished") {
-      // Counted now, after the questions on the screen: some may have been answered since.
-      const now = await getDiscovery({ apiBaseUrl, id: run.discoveryId }).catch(() => null);
-      const open = now ? (now.questions || []).filter(isOpen).length : end.open;
-      console.log("");
-      console.log(c.ok(discoveryEventLine({ ...end, open })));
-      if (open) say(`${open === 1 ? "One question is" : `${open} questions are`} still open, kept for you: sealeye discover answers, or the Discovery page on seaLeye.online.`);
-      say("Nothing goes live from here: a platform engineer approves a catalog after its self-test.");
-    } else if (end.type === "closed") {
-      const now = await getDiscovery({ apiBaseUrl, id: run.discoveryId });
-      console.log("");
-      printRun(now, say);
-    } else {
-      console.log(c.fail(discoveryEventLine(end)));
-      process.exitCode = 1;
-    }
-  } finally {
-    quiet();
-    stopSpinner();
+    while (asking) await asking;
+  } catch (err) {
+    process.removeListener("SIGINT", onInterrupt);
+    screen.close();
+    throw err;
+  }
+  process.removeListener("SIGINT", onInterrupt);
+  screen.close();
+  return finish({ apiBaseUrl, run, end, say, print: line => console.log(line) });
+}
+
+/** The run's end, said once: the draft, what is still open, and what comes next. */
+async function finish({ apiBaseUrl, run, end, say, print }) {
+  if (end.type === "finished") {
+    // Counted now, after the questions on the screen: some may have been answered since.
+    const now = await getDiscovery({ apiBaseUrl, id: run.discoveryId }).catch(() => null);
+    const open = now ? (now.questions || []).filter(isOpen).length : end.open;
+    const notRead = (now?.modules || []).filter(m => m.status === "not_read").length;
+    print("");
+    if (now?.modules?.length) print(step(`${now.modules.length - notRead} of ${now.modules.length} modules read`));
+    print(c.ok(discoveryEventLine({ ...end, open })));
+    if (open) say(`${open === 1 ? "One question is" : `${open} questions are`} still open, kept for you: sealeye discover answers, or the Discovery page on seaLeye.online.`);
+    say("Nothing goes live from here: a platform engineer approves a catalog after its self-test.");
+  } else if (end.type === "closed") {
+    const now = await getDiscovery({ apiBaseUrl, id: run.discoveryId });
+    print("");
+    printRun(now, say);
+  } else {
+    print(c.fail(discoveryEventLine(end)));
+    process.exitCode = 1;
   }
 }

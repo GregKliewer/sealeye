@@ -27,7 +27,7 @@ Two surfaces, one product: **seaLeye.run** is the `sealeye` command, and
 ```
 cli/        the sealeye command: bin/sealeye, client.js (talks to the API), interview/
             (follow.js streams the interview; render.js), discover.js (a discovery run,
-            its questions answered as they come), doctor.js,
+            its questions answered as they come; discover-screen.js draws its window), doctor.js,
             store-offer.js (moving .env values into the store),
             brand.js (the only place terminal colours live)
 api/        the API: server.js, store.js, db.js, migrations/, catalogs.js (each organization's

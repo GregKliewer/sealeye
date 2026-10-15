@@ -11,7 +11,7 @@ import { ago, when } from "../model";
 import { PageTitle, Problem } from "../Layout";
 import { CommandHint } from "../Command";
 import { commandLine, label } from "../../../core/operations.js";
-import { choicesFor, discoveryEventLine, discoveryStateWords, isOpen, modulesDone, nextProgress, progressWords, SOMETHING_ELSE, ANSWER_LIMIT, TAKE_YOUR_TIME } from "../../../core/discovery-words.js";
+import { choicesFor, discoveryEventLine, discoveryStateWords, isOpen, activityWords, elapsedWords, modulesDone, nextProgress, progressSummary, SOMETHING_ELSE, ANSWER_LIMIT } from "../../../core/discovery-words.js";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -23,6 +23,11 @@ export function DiscoveryPage() {
   if (person && !orgWide(person)) return <Navigate to="/" replace />;
   return <Discovery />;
 }
+
+const LOOK_AGAIN_MS = 5000;
+
+/** Milliseconds since an event's time, never less than none. */
+const since = (at: string | null | undefined, now: number) => (at ? Math.max(0, now - Date.parse(at)) : 0);
 
 const MOVES = new Set(["question", "answered", "answers_used", "draft", "finished", "stopped", "failed", "not_read", "read"]);
 
@@ -53,12 +58,35 @@ function Discovery() {
 
   // A run that is going is followed as it goes.
   const running = run?.status === "running";
+
+  // Otherwise the page looks again every few seconds while it is in view, so a run
+  // started, or a question answered, from the command line shows without a refresh.
+  useEffect(() => {
+    if (running) return;
+    const timer = setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      runs.reload();
+      setTick(t => t + 1);
+    }, LOOK_AGAIN_MS);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [running]);
+
+  // A clock for the run card while the run goes, so how long a step has taken moves.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!running) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [running]);
   useEffect(() => {
     if (!latestId || !running) return;
     setLines([]);
     setProgress(nextProgress(null, null));
     return api.discoveryEvents(latestId, e => {
-      setProgress((p: ReturnType<typeof nextProgress>) => nextProgress(p, e));
+      // The platform stamps each event; one that is not is timed from when it came.
+      const stamped = e.at ? e : { ...e, at: new Date().toISOString() };
+      setProgress((p: ReturnType<typeof nextProgress>) => nextProgress(p, stamped));
       const line = e.type === "reading" ? null : discoveryEventLine(e);
       if (line) setLines(prev => [...prev, line]);
       if (MOVES.has(e.type)) setTick(t => t + 1);
@@ -108,7 +136,16 @@ function Discovery() {
               {run.repos.map(r => `${r.repo}${r.commit ? ` at ${r.commit.slice(0, 7)}` : ""}`).join(", ")}
               {!running && run.modules.length ? `; ${modulesDone(run) - run.modules.filter(m => m.status === "not_read").length} of ${run.modules.length} modules read` : ""}
             </p>
-            {running ? <p className="mt-2 text-sm" data-testid="run-progress">{progressWords(progress)}</p> : null}
+            {running ? (
+              <div className="mt-3" data-testid="run-progress">
+                <div className="flex items-center gap-2 text-sm">
+                  <span aria-hidden="true" className="sealeye-spin inline-block size-3.5 rounded-full border-2 border-phosphor border-t-transparent" />
+                  <span>{activityWords(progress)}</span>
+                  <span className="text-xs text-dim">{elapsedWords(since(progress.since, now))}</span>
+                </div>
+                <p className="mt-1 text-xs text-dim">{progressSummary(progress, open.length)} · {elapsedWords(since(run.createdAt, now))} so far</p>
+              </div>
+            ) : null}
             {run.message && run.status !== "finished" ? <p className="mt-2 text-sm text-amber">{run.message}</p> : null}
             {lines.length ? (
               <ul className="mt-3 space-y-0.5 font-mono text-xs text-dim" data-testid="run-lines">
@@ -122,7 +159,7 @@ function Discovery() {
       {open.length ? (
         <div className="mb-3">
           <h2 className="text-lg font-semibold">Waiting on an answer: {open.length}</h2>
-          <p className="text-sm text-dim" data-testid="take-your-time">{TAKE_YOUR_TIME} Answer here or with <span className="font-mono">{commandLine("discover", null, ["answers"])}</span>, now or after the run.</p>
+          <p className="text-sm text-dim" data-testid="answer-anytime">The run carries on while these wait. Answer here or with <span className="font-mono">{commandLine("discover", null, ["answers"])}</span>, now or after it finishes.</p>
         </div>
       ) : null}
       <div className="space-y-4">

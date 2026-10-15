@@ -65,6 +65,10 @@ const FRAMES = ["\u280b", "\u2819", "\u2839", "\u2838", "\u283c", "\u2834", "\u2
 const FRAME_MS = 80;             // about twelve frames a second
 const COUNTER_AFTER_MS = 3000;   // a short wait shows no count, a long one always does
 
+/** The spinner's frame at a moment, for a screen drawn whole (`sealeye discover`'s window). */
+export const spinnerFrame = (ms = Date.now()) => FRAMES[Math.floor(ms / FRAME_MS) % FRAMES.length];
+export const SPINNER_MS = FRAME_MS;
+
 // True when there is a live terminal to animate on. A pipe, a file, a transcript and
 // --json output must never receive a frame.
 export const animations = () => Boolean(enabled) && !process.argv.includes("--json");

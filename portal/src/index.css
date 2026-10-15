@@ -26,6 +26,10 @@ body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
 .sealeye-sweep { animation: sealeye-sweep 1.8s ease-in-out infinite; }
 @keyframes sealeye-breathe { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
 .sealeye-breathe { animation: sealeye-breathe 1.6s ease-in-out infinite; }
+/* A run that is working: a ring turning, so a long wait never looks like a stop. */
+@keyframes sealeye-spin { to { transform: rotate(360deg); } }
+.sealeye-spin { animation: sealeye-spin .9s linear infinite; }
 @media (prefers-reduced-motion: reduce) {
   .sealeye-sweep, .sealeye-breathe { animation: none; }
+  .sealeye-spin { animation: sealeye-breathe 1.6s ease-in-out infinite; }
 }
