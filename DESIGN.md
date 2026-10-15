@@ -2887,3 +2887,81 @@ when, so the graded eval runs twice: once with no answers, graded on the questio
 raised and the guesses made, and once with answers a script gives at fixed points, so
 both results repeat. Juniper Mutual's overlap is graded on its question once Step 6
 gives a question its shape; how a plan names a module per stage is still Q20.
+
+## Reading the library
+
+Thu Oct 15, 2026, PHASE4-PLAN Step 5 (D3, D5). How discovery's first node reads a
+platform library before any model sees it. Greg chose each of the four below.
+
+- **One commit, read-only, from GitHub's API.** Each repository is read at a full commit:
+  the one a ref names now, or the default branch's. GitHub's archive of that commit is
+  fetched (`api/discovery/github.js`) and read in memory (`api/discovery/tar.js`): regular
+  files only, nothing that climbs out, the size capped before it is inflated. The API's
+  image gains no `git`, and the run records the commit it read. The model never
+  chooses what is read.
+- **Two ways in, both built** (Greg: "do (a) and (b)"). A GitHub App the organization
+  installs on its library repositories (`SEALEYE_GITHUB_APP_ID`, `SEALEYE_GITHUB_APP_KEY`):
+  each read asks for an hour's token narrowed to the one repository and to reading its
+  contents. Or a fine-grained personal token, read-only on the named repositories
+  (`SEALEYE_GITHUB_READ_TOKEN`), the pilot's way in until an app is installed. When both
+  are set the app is used. Either way the credential goes to GitHub's API and nowhere
+  else: the archive's download link carries its own short-lived permission and is
+  fetched without it, and only from `codeload.github.com`. An app's token is revoked as
+  soon as the archive is read, rather than left live for its hour. No credential is
+  logged, kept on a record or put in an error, and an answer from GitHub that is not
+  what was expected is refused in words, never quoted.
+  - *Why both:* the token is an hour of setup and lets the pilot read Juniper Mutual now;
+    the app is how an organization grants seaLeye its library without lending a person's
+    token, and is what a customer will be asked to install. Building it now costs about a
+    day and a half that admin onboarding would otherwise carry.
+- **The upload's rules, with a purpose of its own.** The library is walked by
+  `core/upload-rules.js`, purpose `discovery`: `.gitignore` followed, secret files
+  (Terraform variables and state, keys, `.env`) as empty names, every file scanned with
+  the shared rules. It differs from an interview in two ways: `.github` is read, since a
+  library's pipeline is how an app reaches production (Juniper's path to production is
+  there), and the caps are larger (50 MB, 20,000 files).
+- **Flagged lines replaced, not files held back** (Greg, choosing against the
+  recommendation). After the walk the snapshot is scanned again with gitleaks
+  (`scanApp(dir, { library: true })`, `.github` included) and handled as an interview's
+  upload is (`redactScanned`, shared with the interview): each line with a value that
+  looks like a secret becomes a line that says why, and a value over several lines, or
+  a file that is not text, leaves its file empty. A worker can still read the rest of a
+  module's example. Archives (a `.zip`, a `.tgz`) and other files that are not text are
+  kept as their names only: neither scanner sees inside them, and they mean nothing to a
+  worker reading modules. A library's `.gitleaksignore` is left out of the snapshot. The plan's "done when" now says no value the scanner finds reaches a
+  model, rather than no file.
+- **A library's `.sealeye-allow` is not read** (Greg, agreeing). It is a developer's
+  word about their own app; a library's findings are the platform team's to fix, not to
+  wave through, so nothing in a library can let a value past.
+- **The repositories are named in a setting** (Greg, agreeing): `SEALEYE_LIBRARY_REPOS`,
+  `owner/repo` or `owner/repo@ref`, separated by commas, until admin onboarding names them
+  (PHASE4-PLAN, "Owed"). `deploy/server.sh library-check` reads each as the run will and
+  prints the commit, the counts, the secret files held back and each finding's file, line
+  and rule; no model is called and nothing is kept.
+- **Named routes in the gateway:** `small` (`claude-haiku-5-5`) and `frontier`
+  (`claude-sonnet-5`), both on the Anthropic route (D5), named in `deploy/gateway.yaml`
+  and `api/model-routes.js`, which `test/gateway-config.test.js` keeps the same. A caller
+  asks for a route by name through the gateway, and for the model itself when calling
+  Anthropic directly; a call is priced by its route's model. The interview is unchanged
+  and still goes by its own model's name. Checked against agentgateway v1.6.0 itself, run
+  locally against the spike's stand-in model: each route reached the stand-in as its
+  model, the interview's model still passed, an unknown route was refused, and the log
+  named the worker and the model and held no prompt. The `worker` claim already on
+  every call's token (`claimsFor`) is how each discovery worker's spend will show in
+  `gateway-calls`.
+
+**Reviewed independently** before the pull request. Nothing had to be fixed for safety;
+the review's should-fixes are in: archives and binaries as names only, the
+`.gitleaksignore` left out, the app's token revoked, a file whose path runs into another
+file skipped rather than moved (`treeFromPaths`, which the portal uses too), a tar's pax
+size honoured and an old GNU header's times never read as a folder, GitHub's answers
+parsed without quoting them, a slashed branch kept as written, and the download host
+pinned.
+
+**What it does not do yet.** Nothing calls a model: the graph that reads the snapshot is
+Step 6, and it removes each snapshot when its run ends. Juniper Mutual is checked as
+discovery reads it: `npm run eval:discovery -- --library` now reads the clone through
+`readLibraryFolder` and checks every module folder and the pipeline are read, the planted
+password's line is replaced with the rest of its file intact, and the variables file is
+held back as its name. GitHub's own archive of the library was read the same way and gave
+the same files, byte for byte, as the clone.

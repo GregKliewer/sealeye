@@ -14,9 +14,9 @@ import { Command, MemorySaver } from "@langchain/langgraph";
 
 import { sealeyeHome, setting } from "../../core/config.js";
 import { ModelNotPriced, priceFor, runCap } from "../../core/model-prices.js";
-import { cleanFinding, isRedactedLine, linesByFile, looksBinary, markWhole, onePerLine, redactLines } from "../../core/scan.js";
+import { cleanFinding, isRedactedLine, onePerLine } from "../../core/scan.js";
 import { unzipInto, UploadRefused } from "../../core/upload.js";
-import { scanApp } from "../secret-scan.js";
+import { redactScanned, scanApp } from "../secret-scan.js";
 import { promptVersionOf, traceRun, withoutTracing, flushScores } from "../../core/tracing.js";
 import { liveCatalog } from "../catalogs.js";
 import { buildInterviewGraph, interviewCatalog, isStarterRef, MAX_TURNS } from "./graph.js";
@@ -217,29 +217,13 @@ export function createInterviewService({
     let withheld;
     try {
       unzipInto(zip, appDir);
-      const scanned = await scanApp(appDir);
+      // Each flagged line becomes one that says why; a file with a value over many
+      // lines, or that is not text, is emptied. Either way before the graph starts.
+      const found = redactScanned(appDir, await scanApp(appDir));
       const inside = file => {
         const target = path.join(appDir, ...file.split("/"));
         return target.startsWith(appDir + path.sep) ? target : null;
       };
-      const binaryFiles = [...new Set(scanned.found.map(f => f.file))].filter(file => {
-        try {
-          return looksBinary(fs.readFileSync(inside(file)));
-        } catch {
-          return false;
-        }
-      });
-      const found = markWhole(scanned.found, { wholeFiles: scanned.wholeFiles, binaryFiles });
-      // Each flagged line becomes one that says why; a file with a value over many
-      // lines, or that is not text, is emptied. Either way before the graph starts.
-      for (const file of new Set(found.filter(f => f.whole).map(f => f.file))) {
-        const target = inside(file);
-        if (target) fs.writeFileSync(target, "");
-      }
-      for (const [file, kinds] of linesByFile(found)) {
-        const target = inside(file);
-        if (target) fs.writeFileSync(target, redactLines(new Uint8Array(fs.readFileSync(target)), kinds));
-      }
       // What the client says it held back counts only where the file arrived with that
       // line already replaced, or empty: it explains what is missing, and can never
       // hide anything that arrived with contents.

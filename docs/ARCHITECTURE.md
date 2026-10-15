@@ -68,6 +68,7 @@ flowchart TB
   anthropic["<b>Anthropic</b><br/>[External system]<br/>The model behind the interview"]
   langfuse["<b>LangFuse</b><br/>[External system]<br/>Interview traces and scores<br/>(optional)"]
   github["<b>GitHub</b><br/>[External system]<br/>Source, tests, image builds"]
+  library["<b>The organization's platform library</b><br/>[External system, on GitHub]<br/>Its Terraform modules and pipeline"]
 
   dev -- "sealeye run, or the portal" --> sealeye
   admin -- "tokens, releases" --> sealeye
@@ -76,13 +77,14 @@ flowchart TB
   sealeye -- "model calls" --> anthropic
   sealeye -. "traces, no file contents" .-> langfuse
   github -- "tested image" --> sealeye
+  sealeye -- "reads one commit, read-only<br/>(discovery)" --> library
 
   classDef person fill:#08427b,stroke:#052e56,color:#fff
   classDef system fill:#1168bd,stroke:#0b4884,color:#fff
   classDef external fill:#999,stroke:#6b6b6b,color:#fff
   class dev,admin,control person
   class sealeye system
-  class aws,anthropic,langfuse,github external
+  class aws,anthropic,langfuse,github,library external
 ```
 
 ## 4. Containers (C4 level 2)
@@ -119,6 +121,7 @@ flowchart TB
 
   anthropic["<b>Anthropic API</b>"]
   langfuse["<b>LangFuse</b>"]
+  libgh["<b>Platform library on GitHub</b>"]
 
   dev --> cli
   dev --> portal
@@ -135,6 +138,7 @@ flowchart TB
   api -- "model calls, the API's key<br/>and a token it signs per call" --> gw
   gw -- "model calls, the model key" --> anthropic
   api -. "traces" .-> langfuse
+  api -- "one commit as an archive,<br/>GitHub App or read-only token" --> libgh
 
   classDef person fill:#08427b,stroke:#052e56,color:#fff
   classDef container fill:#438dd5,stroke:#2e6295,color:#fff
@@ -143,7 +147,7 @@ flowchart TB
   class dev person
   class cli,portal,caddy,api,gw container
   class pg store
-  class cfn,s3a,ssm,envs,cw,anthropic,langfuse external
+  class cfn,s3a,ssm,envs,cw,anthropic,langfuse,libgh external
 ```
 
 | Container | Code | Talks to | Notes |
@@ -608,6 +612,7 @@ flowchart LR
 |---|---|
 | The developer's folder to the API | Two uploads, one walk (`core/upload-rules.js`). For the interview: what `.gitignore` leaves out stays behind, and secret files (`core/secrets.js`) travel as empty names. For the deploy: no `node_modules`, `.git`, `.github` or `.do`, and no secret file at all. Every file that travels is scanned for values that look like secrets (`core/scan.js`): for an interview, each such line travels as a line that says why (a private key, over many lines, sends its file as an empty name), and a deploy with one is refused, unless `.sealeye-allow` names the line. |
 | What arrives at the API | Scanned again, because the client cannot be trusted: the shared rules and gitleaks (`api/secret-scan.js`), always with seaLeye's own configuration, so nothing in the folder can switch it off. An interview's flagged lines are replaced, or a file with a private key emptied, before the graph starts; a deploy with one is refused (`SECRETS_FOUND`) and nothing is kept. If gitleaks is installed and cannot finish, neither goes ahead (`SCAN_FAILED`). |
+| A platform library to discovery | One commit of each named repository, fetched read-only from GitHub's API (`api/discovery/`) with a GitHub App's token narrowed to that repository and to reading it, or a read-only personal token; the credential goes to GitHub's API and nowhere else. Walked by the same rules as an upload (purpose `discovery`: `.github` is read, `.gitignore` followed, secret files as empty names), then scanned with the shared rules and gitleaks; each flagged line is replaced, a private key's file emptied, before any worker reads it. Archives and files that are not text, which neither scanner sees into, are kept as names only. A library's `.sealeye-allow` is not read and its `.gitleaksignore` is left out. An app's token is revoked once the archive is read. |
 | The model reading the app | `list_files` and `read_file` are read-only, inside the copy and capped in size. `read_file` refuses secret files and files with a finding, and says which line and what kind; `list_files` shows only their names. LangSmith tracing stays off. |
 | Callers to the API | One token per person, stored only as a hash, issued on the administrator's machine. The portal trades it for an HttpOnly, `SameSite=Strict`, `__Host-` cookie; changes also need `x-sealeye-portal: 1`. An API with a database cannot run with auth off. |
 | Team to team | A record is its team's; an organization-wide token sees every team's; nobody sees another organization's. Each team's environments have names of their own. |

@@ -166,3 +166,21 @@ test("the record of calls is read as the gateway's own user, never asks for cont
   assert.match(read("Dockerfile"), /\bsqlite3\b/, "the API's image carries sqlite3 to read it with");
   assert.match(read("deploy/server.sh"), /gateway-calls\)/);
 });
+
+test("the named routes are the gateway's and the API's alike, each to a priced model", async () => {
+  const { ROUTES, requestModel, routePrice } = await import("../api/model-routes.js");
+  const models = gateway.llm.models;
+  const named = Object.fromEntries(models.filter(m => !m.name.includes("*")).map(m => [m.name, m.params.model]));
+  assert.deepEqual(named, { ...ROUTES }, "deploy/gateway.yaml and api/model-routes.js name the same routes and models");
+  for (const route of Object.keys(ROUTES)) {
+    const m = models.find(x => x.name === route);
+    assert.equal(m.provider, "anthropic", `${route} is on the Anthropic route for now (D5)`);
+    assert.equal(m.params.apiKey, "$ANTHROPIC_API_KEY");
+    assert.ok(routePrice(route), `${route} is priced`);
+  }
+  // Named routes come before the catch-all, which still carries the interview's own model.
+  assert.equal(models.at(-1).name, "claude-*");
+  assert.equal(requestModel("small", { gatewayKey: "k" }), "small", "through the gateway, the route's name");
+  assert.equal(requestModel("small", "sk-ant-direct"), "claude-haiku-5-5", "directly, the model");
+  assert.throws(() => requestModel("medium", null), /no model route called medium/);
+});

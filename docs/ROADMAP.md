@@ -180,8 +180,9 @@ gateway's own span in that trace moved to Phase 4. Routes come with Step 8.*
   and settles anything ambiguous with a platform engineer without ever waiting for one:
   questions go out as the run goes and stay on the draft with a guess, an answer is
   taken live or later, and a guess never goes live (Q19, answered Oct 15, 2026).
-- Its first node is the secret scanner built in Phase 3: a file with a finding never
-  reaches a model.
+- Its first node is the secret scanner built in Phase 3: no value it finds reaches a
+  model. Each flagged line is replaced by one that says why, as in an interview, and the
+  rest of the file is read (Greg, Oct 15, 2026).
 - Spend: small models read, the frontier model writes the usage rules; hard caps per run
   and per worker; only modules changed since the last run are read again.
 - Where it runs: a new account opened for the prospect or customer, and the run is paid
@@ -190,7 +191,8 @@ gateway's own span in that trace moved to Phase 4. Routes come with Step 8.*
   plans name their catalog (planVersion 0.5), built Oct 15, 2026. Step 3, the interview
   reads the organization's catalog, built Oct 15, 2026: Part A is done. Step 4, the
   made-up organization (Juniper Mutual, `sealeye-sample-platform`) and its answer key,
-  built Oct 15, 2026.
+  built Oct 15, 2026. Step 5, reading the library and the named routes `small` and
+  `frontier`, built Oct 15, 2026.
 - LangFuse self-hosted in ca-central-1 (answers Q13; moved here from Phase 3 on Oct 13,
   2026), before the first run on an organization's real code (Greg, Oct 14, 2026:
   Phase 4's own runs read seaLeye's templates, a made-up organization and public
@@ -214,8 +216,9 @@ gateway's own span in that trace moved to Phase 4. Routes come with Step 8.*
   build, taken from the needs ledger, with how often and by which teams. Read-only, from
   what discovery and the ledger already hold. Gaps come from demand first; a generic
   best-practice checklist only breaks ties.
-- How the swarm reads the library: plain code, a read-only clone at a named commit
-  (PHASE4-PLAN D3, Oct 14, 2026). A run settles what it cannot decide alone without
+- How the swarm reads the library: plain code, one named commit read-only
+  (PHASE4-PLAN D3, Oct 14, 2026), fetched with a GitHub App or a read-only token
+  (Oct 15, 2026). A run settles what it cannot decide alone without
   pausing (PHASE4-PLAN D7, Oct 15, 2026).
 - How discovery is tested without a customer (decided Oct 13, 2026), cheapest first:
   - seaLeye's own four building blocks in `templates/`, whose right catalog entries are

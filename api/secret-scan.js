@@ -19,7 +19,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { ALLOW_FILE, applyAllow, cleanFinding, onePerLine, parseAllowFile, uniqueFindings } from "../core/scan.js";
+import { ALLOW_FILE, applyAllow, cleanFinding, linesByFile, looksBinary, markWhole, onePerLine, parseAllowFile, redactLines, uniqueFindings } from "../core/scan.js";
 import { isLeftOutOfDeploy, UploadRefused } from "../core/upload-rules.js";
 
 const CONFIG = path.join(import.meta.dirname, "gitleaks.toml");
@@ -68,6 +68,9 @@ function run(binary, args, cwd) {
 // since gitleaks reads it from the folder it scans whatever it is told (found in
 // review), and is scanned by the shared rules from where it is instead.
 const SKIP_FOLDERS = new Set(["node_modules", ".git", ".github", ".do"]);
+// A platform library's snapshot holds only what discovery reads (core/upload-rules.js,
+// purpose "discovery"), its pipeline under .github included, so all of it is scanned.
+const LIBRARY_SKIP_FOLDERS = new Set([".git"]);
 const MAX_COPY_BYTES = 100 * 1024 * 1024;
 const MAX_COPY_FILES = 20000;
 
@@ -76,7 +79,7 @@ const MAX_COPY_FILES = 20000;
  * what a link points at), each real folder once, so a loop of links ends. The copy is
  * the API's own, in a folder of a random name, so nothing in the app can name it.
  */
-function scanCopy(dir, dest) {
+function scanCopy(dir, dest, { skipFolders = SKIP_FOLDERS, library = false } = {}) {
   const seen = new Set();
   const root = fs.realpathSync(path.resolve(dir));
   const extra = [];
@@ -98,7 +101,7 @@ function scanCopy(dir, dest) {
       }
       // What packaging leaves out is left out first, so a .env or a node_modules that is
       // a link elsewhere (a monorepo's, say) is no reason to refuse.
-      if (stat.isDirectory() ? SKIP_FOLDERS.has(name) : (!stat.isFile() || isLeftOutOfDeploy(name))) continue;
+      if (stat.isDirectory() ? skipFolders.has(name) : (!stat.isFile() || isLeftOutOfDeploy(name))) continue;
       // A link out of the app folder would package whatever it points at on this
       // machine, a file of the API's own say: refused rather than read.
       const target = fs.realpathSync(from);
@@ -116,7 +119,9 @@ function scanCopy(dir, dest) {
       files++;
       bytes += stat.size;
       if (files > MAX_COPY_FILES || bytes > MAX_COPY_BYTES) {
-        throw new UploadRefused(`your folder is more than ${MAX_COPY_FILES} files or ${MAX_COPY_BYTES / 1024 / 1024} MB, leaving out node_modules, .git and secret files, which is more than the platform can package`);
+        throw new UploadRefused(library
+          ? `the library is more than ${MAX_COPY_FILES} files or ${MAX_COPY_BYTES / 1024 / 1024} MB, which is more than discovery reads`
+          : `your folder is more than ${MAX_COPY_FILES} files or ${MAX_COPY_BYTES / 1024 / 1024} MB, leaving out node_modules, .git and secret files, which is more than the platform can package`);
       }
       fs.copyFileSync(from, path.join(out, name));
     }
@@ -205,24 +210,28 @@ export async function gitleaksFindings(dir, { binary = gitleaksPath() } = {}) {
  * gitleaks over the copy, then .sealeye-allow. Nothing is skipped for size and nothing
  * for .gitignore: the API does not trust what the client chose to send.
  *
+ * A platform library (`library: true`, PHASE4-PLAN Step 5) is scanned whole, .github
+ * included, and its .sealeye-allow, if it has one, is not read: a library's findings
+ * are the platform team's to fix (Greg, Oct 15, 2026).
+ *
  * @returns {Promise<{ found: object[], allowed: object[], wholeFiles: string[], gitleaks: "ran"|"not installed" }>}
  *          one finding per file and line (core/scan.js onePerLine); wholeFiles are files
  *          where gitleaks found a value over several lines
  * @throws ScanFailed when gitleaks is installed and could not finish
  * @throws UploadRefused when the folder is more than the platform can package
  */
-export async function scanApp(dir, { binary } = {}) {
+export async function scanApp(dir, { binary, library = false } = {}) {
   const work = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-scan-"));
   const copy = path.join(work, "app");
   try {
-    const extra = scanCopy(dir, copy);
+    const extra = scanCopy(dir, copy, library ? { skipFolders: LIBRARY_SKIP_FOLDERS, library } : {});
     const [shared, deeper] = await Promise.all([
       sharedFindings(copy, extra),
       gitleaksFindings(copy, binary === undefined ? {} : { binary })
     ]);
 
     let allowEntries = [];
-    try {
+    if (!library) try {
       allowEntries = parseAllowFile(fs.readFileSync(path.join(copy, ALLOW_FILE), "utf8")).entries;
     } catch {}
 
@@ -234,4 +243,38 @@ export async function scanApp(dir, { binary } = {}) {
   } finally {
     fs.rmSync(work, { recursive: true, force: true });
   }
+}
+
+/**
+ * Apply a scan to the folder it was made of, so no model call can carry what it found:
+ * each flagged line becomes one that says why (core/scan.js redactLines); a file with a
+ * value over many lines, or that is not text, is emptied. Used for an interview's upload
+ * and for a library's snapshot, before anything reads either.
+ *
+ * @param {string} dir      the folder scanApp scanned
+ * @param {{ found: object[], wholeFiles: string[] }} scanned  what scanApp returned
+ * @returns {object[]} the findings, each marked `whole` when its file was emptied
+ */
+export function redactScanned(dir, scanned) {
+  const inside = file => {
+    const target = path.join(dir, ...file.split("/"));
+    return target.startsWith(dir + path.sep) ? target : null;
+  };
+  const binaryFiles = [...new Set(scanned.found.map(f => f.file))].filter(file => {
+    try {
+      return looksBinary(fs.readFileSync(inside(file)));
+    } catch {
+      return false;
+    }
+  });
+  const found = markWhole(scanned.found, { wholeFiles: scanned.wholeFiles, binaryFiles });
+  for (const file of new Set(found.filter(f => f.whole).map(f => f.file))) {
+    const target = inside(file);
+    if (target) fs.writeFileSync(target, "");
+  }
+  for (const [file, kinds] of linesByFile(found)) {
+    const target = inside(file);
+    if (target) fs.writeFileSync(target, redactLines(new Uint8Array(fs.readFileSync(target)), kinds));
+  }
+  return found;
 }

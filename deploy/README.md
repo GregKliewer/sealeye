@@ -469,6 +469,69 @@ aws ce start-cost-allocation-tag-backfill --region us-east-1 --backfill-from 202
 Costs then show about a day later; the API also keeps each answer for an hour. Pilot
 apps mostly fit in AWS's free tier, so an app listed at $0.00 is working.
 
+## Once: reading a platform library (discovery)
+
+Discovery reads each repository named in `SEALEYE_LIBRARY_REPOS`, one commit at a time,
+read-only, from GitHub's API (DESIGN.md, "Reading the library"). It needs a way in: a
+GitHub App (the way an organization's own library is read), or a fine-grained token
+(the pilot's way, quickest to set up). When both are set the app is used. Either can be
+set up first; the API reads the settings when it starts.
+
+**The repositories.** Owner/repo, optionally `@` and a branch, tag or commit; several
+separated by commas:
+
+```bash
+aws ssm put-parameter --region ca-central-1 --name /sealeye/SEALEYE_LIBRARY_REPOS --type String --overwrite \
+  --value "GregKliewer/sealeye-sample-platform" >/dev/null && echo saved
+```
+
+**A read-only token.** On GitHub: Settings, Developer settings, Personal access tokens,
+Fine-grained tokens, Generate new token. Resource owner: you. Repository access: Only
+select repositories, the library repositories and nothing else. Repository permissions:
+Contents, Read-only (Metadata, Read-only, comes with it). Nothing else. An expiry of 90
+days. Copy the token, then paste it at the prompt (it is not shown):
+
+```bash
+printf "SEALEYE_GITHUB_READ_TOKEN: "; stty -echo; read -r v; stty echo; echo
+aws ssm put-parameter --region ca-central-1 --name /sealeye/SEALEYE_GITHUB_READ_TOKEN --type SecureString --overwrite --value "$v" >/dev/null && echo saved; unset v
+```
+
+**A GitHub App.** On GitHub: Settings, Developer settings, GitHub Apps, New GitHub App.
+Name it, for example `seaLeye discovery (yourname)`. Homepage: https://sealeye.run.
+Untick Webhook, Active. Repository permissions: Contents, Read-only (Metadata, Read-only,
+comes with it); nothing else. Where can it be installed: Only on this account. Create it,
+then:
+
+1. Note the **App ID** at the top of its page.
+2. Under Private keys, **Generate a private key**. A `.pem` file downloads.
+3. Install App (left menu), on your account, **Only select repositories**: the library
+   repositories.
+
+Then, from the repo root, with the App ID and the downloaded file's path:
+
+```bash
+aws ssm put-parameter --region ca-central-1 --name /sealeye/SEALEYE_GITHUB_APP_ID --type String --overwrite \
+  --value "<the App ID>" >/dev/null && echo saved
+aws ssm put-parameter --region ca-central-1 --name /sealeye/SEALEYE_GITHUB_APP_KEY --type SecureString --overwrite \
+  --value "file://<path to the downloaded .pem>" >/dev/null && echo saved
+```
+
+Delete the `.pem` from your Downloads once it is saved: Parameter Store holds the only
+copy, and GitHub can issue another.
+
+**Check it.** After `deploy/server.sh restart` (or a release), read each library as the
+run will. It calls no model and keeps nothing:
+
+```bash
+deploy/server.sh library-check
+```
+
+Success looks like this for Juniper Mutual: its full commit and "read with the GitHub App"
+(or "read-only token"), 71 files, gitleaks ran, the variables file
+`modules/postgres/examples/restore-from-snapshot/terraform.tfvars` held back, and one
+line replaced, `modules/postgres/examples/restore-from-snapshot/main.tf:11
+(assigned-secret)`.
+
 ## Every release
 
 Merge to main, wait for the run on GitHub to go green, then on your Mac, on main and up

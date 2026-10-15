@@ -63,6 +63,23 @@ const PURPOSES = {
     maxFiles: 20000,
     readsAs: "the platform can package",
     leftOut: "node_modules, .git and secret files"
+  },
+  // A platform library, read by discovery in the API (PHASE4-PLAN Step 5). Read as an
+  // interview reads an app (.gitignore followed, secret files as names, a flagged line
+  // replaced by one that says why), with two differences: the pipeline under .github
+  // is read, since how an app reaches production is part of what discovery learns, and
+  // no .sealeye-allow is honoured, since a library's findings are the platform team's
+  // to fix, not to wave through (Greg, Oct 15, 2026).
+  discovery: {
+    excludedFolders: new Set(["node_modules", ".git", ".do", ".sealeye", ".deployme"]),
+    gitignore: true,
+    secrets: "names",
+    allowFile: false,
+    maxBytes: 50 * 1024 * 1024,
+    maxFiles: 20000,
+    subject: "The library",
+    readsAs: "discovery reads",
+    leftOut: "node_modules, .git and what its .gitignore leaves out"
   }
 };
 
@@ -103,7 +120,7 @@ export class SecretsFound extends UploadRefused {
  *
  * @param {object} root                      the folder's own node
  * @param {object} options
- * @param {"interview"|"deploy"} [options.purpose]
+ * @param {"interview"|"deploy"|"discovery"} [options.purpose]
  * @param {() => {add(text: string): object, test(path: string): {ignored: boolean, unignored: boolean}}} options.ignore
  *        a .gitignore matcher factory (the `ignore` package's default export)
  * @returns {Promise<{ entries: Record<string, Uint8Array>, files: number, bytes: number, withheld: string[], ignored: number, findings: object[], allowed: object[] }>}
@@ -141,7 +158,7 @@ export async function collectUpload(root, { purpose = "interview", ignore } = {}
   const countFile = () => {
     files++;
     if (files > rules_.maxFiles) {
-      throw new UploadRefused(`Your folder has more than ${rules_.maxFiles} files, leaving out ${rules_.leftOut}, which is more than ${rules_.readsAs}.`);
+      throw new UploadRefused(`${rules_.subject || "Your folder"} has more than ${rules_.maxFiles} files, leaving out ${rules_.leftOut}, which is more than ${rules_.readsAs}.`);
     }
   };
 
@@ -196,14 +213,15 @@ export async function collectUpload(root, { purpose = "interview", ignore } = {}
   };
 
   function tooBig() {
-    return new UploadRefused(`Your folder is bigger than ${rules_.maxBytes / 1024 / 1024} MB, leaving out ${rules_.leftOut}, which is more than ${rules_.readsAs}.`);
+    return new UploadRefused(`${rules_.subject || "Your folder"} is bigger than ${rules_.maxBytes / 1024 / 1024} MB, leaving out ${rules_.leftOut}, which is more than ${rules_.readsAs}.`);
   }
 
   await walk(root, "", []);
 
-  // The allow file is the developer's word, read from the folder's top level only.
+  // The allow file is the developer's word, read from the folder's top level only, and
+  // never a library's (see discovery above).
   let allowEntries = [];
-  const allowNode = (await root.children()).find(c => c.kind === "file" && c.name === ALLOW_FILE);
+  const allowNode = rules_.allowFile === false ? null : (await root.children()).find(c => c.kind === "file" && c.name === ALLOW_FILE);
   if (allowNode) {
     try {
       allowEntries = parseAllowFile(String(await allowNode.text())).entries;
@@ -217,7 +235,7 @@ export async function collectUpload(root, { purpose = "interview", ignore } = {}
 
   if (found.length && purpose === "deploy") throw new SecretsFound(found, { allowed });
 
-  // An interview: each flagged line is replaced by one that says why, or, for a value
+  // An interview or a library: each flagged line is replaced by one that says why, or, for a value
   // over many lines or a file that is not text, the file travels as its name only.
   const binaryFiles = [...new Set(found.map(f => f.file))].filter(file => looksBinary(entries[file]));
   const marked = markWhole(found, { binaryFiles });
@@ -237,7 +255,7 @@ export async function collectUpload(root, { purpose = "interview", ignore } = {}
  */
 export function treeFromPaths(rootName, files) {
   const root = { name: rootName, kind: "dir", map: new Map() };
-  for (const file of files) {
+  each: for (const file of files) {
     const parts = String(file.path).split("/").filter(p => p && p !== ".");
     if (!parts.length || parts.includes("..")) continue;
     let dir = root;
@@ -247,7 +265,9 @@ export function treeFromPaths(rootName, files) {
         next = { name: part, kind: "dir", map: new Map() };
         dir.map.set(part, next);
       }
-      if (next.kind !== "dir") break;
+      // A path that runs into a file ("x" and "x/y.tf") is skipped, never put somewhere
+      // else: where a file sits decides which .gitignore rules apply to it.
+      if (next.kind !== "dir") continue each;
       dir = next;
     }
     const name = parts[parts.length - 1];
