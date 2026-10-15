@@ -117,37 +117,51 @@ test("the picker: arrow keys move, Enter chooses, Ctrl+C stops", async () => {
   await assert.rejects(chosen, err => err.interrupted && err.userFacing && /sealeye discover answers/.test(err.message));
 });
 
-test("the picker draws the run's progress under the choices, and again as it moves", async () => {
-  const { pick } = await import("../cli/discover.js");
+test("the window above a question moves on its own, and what is done with stays above it", async () => {
+  const { createScreen, pick, typeLine } = await import("../cli/discover-screen.js");
   const input = new PassThrough();
   input.setRawMode = () => {};
   let written = "";
   const output = { write: t => { written += t; }, columns: 80 };
   let read = 1;
-  const live = {};
-  const chosen = pick(["Yes", "No"], { input, output, live, footer: () => [`${read} of 3 modules read.`, null, "Take your time."] });
-  assert.match(written, /1 of 3 modules read\./);
+  const screen = createScreen({ output, animate: false, top: () => [`${read} of 3 modules read`] }).start();
+  const chosen = pick(["Yes", "No"], { input, screen, header: ["? Is it offered?"] });
+  assert.match(written, /1 of 3 modules read[\s\S]*Is it offered\?[\s\S]*Yes/, "the window, then the question under it");
   read = 2;
-  live.redraw();
-  assert.match(written, /2 of 3 modules read\./, "drawn again while the question is open");
+  screen.render();
+  assert.match(written.slice(written.lastIndexOf("1 of 3")), /2 of 3 modules read/, "drawn again while the question is open");
   input.write("\r");
   assert.equal(await chosen, "Yes");
-  assert.equal(live.redraw, null, "nothing draws over the screen once it is answered");
+  // Words of one's own are typed under the window too: backspace, and nothing past the limit.
+  const own = typeLine({ input, screen, limit: 5 });
+  input.write("abcx\u007fdefgh\r");
+  assert.equal(await own, "abcde");
+  written = "";
+  screen.close(["done"]);
+  assert.match(written, /done/);
+  assert.match(written, /\x1b\[\d+A/, "the window is taken off the screen it was drawn on");
 });
 
 test("both surfaces count a run's progress from its events, not a module's own status", async () => {
-  const { nextProgress, progressWords, moreWaitingWords, modulesDone } = await import("../core/discovery-words.js");
+  const { nextProgress, activityWords, elapsedWords, progressSummary, modulesDone } = await import("../core/discovery-words.js");
   let p = nextProgress(null, null);
-  assert.equal(progressWords(p), "Still going in the background: reading your platform library.");
-  for (const e of [{ type: "modules", modules: [{}, {}, {}] }, { type: "read", source: "." }, { type: "read", source: "modules/a" }, { type: "not_read", source: "modules/b", why: "x" }]) p = nextProgress(p, e);
-  assert.equal(progressWords(p), "Still going in the background: 2 of 3 modules read.", "the library's own README is not a module");
-  p = nextProgress(p, { type: "writing" });
-  assert.match(progressWords(p), /writing the draft catalog/);
+  assert.equal(activityWords(p), "Reading your platform library");
+  p = nextProgress(p, { type: "modules", modules: [{}, {}, {}], at: "2026-10-15T20:00:00Z" });
+  p = nextProgress(p, { type: "reading", source: "modules/a", at: "2026-10-15T20:00:01Z" });
+  p = nextProgress(p, { type: "reading", source: "modules/b", at: "2026-10-15T20:00:01Z" });
+  assert.equal(activityWords(p), "Reading modules/a and modules/b");
+  assert.equal(p.since, "2026-10-15T20:00:01Z", "how long, from when the step began");
+  for (const e of [{ type: "read", source: "." }, { type: "read", source: "modules/a" }, { type: "not_read", source: "modules/b", why: "x" }]) p = nextProgress(p, e);
+  assert.equal(progressSummary(p, 2), "2 of 3 modules read, 2 questions waiting for you", "the library's own README is not a module");
+  p = nextProgress(p, { type: "writing", at: "2026-10-15T20:01:00Z" });
+  assert.equal(activityWords(p), "Writing the draft catalog");
+  assert.equal(p.since, "2026-10-15T20:01:00Z");
+  p = nextProgress(p, { type: "draft", catalog: { version: 1 } });
+  assert.equal(activityWords(p), "Finishing the draft catalog", "not reading anything once the draft is written");
   p = nextProgress(p, { type: "finished" });
-  assert.match(progressWords(p), /finished\. What you leave is kept/);
-  assert.equal(moreWaitingWords(0), null);
-  assert.equal(moreWaitingWords(1), "One more question is waiting after this one.");
-  assert.equal(moreWaitingWords(3), "3 more questions are waiting after this one.");
+  assert.equal(activityWords(p), "The run has finished");
+  assert.equal(progressSummary(p, 0), "2 of 3 modules read");
+  assert.deepEqual([elapsedWords(8200), elapsedWords(125000), elapsedWords(3720000)], ["8s", "2m 05s", "1h 02m"]);
   assert.equal(modulesDone({ modules: [{ status: "reading" }, { status: "read" }, { status: "not_read" }] }), 2, "a module still being read is not done");
 });
 
