@@ -3132,3 +3132,32 @@ ambiguity spans both (`with` in the key); the supervisor is told that when one m
 deprecated and another of the same kind exists, and nothing says whether it is the
 replacement, it asks, naming both; and a question that shares a module with an open one
 in nearly the same words is dropped even when it names one more.
+
+## Discovery on both surfaces
+
+Thu Oct 15, 2026, PHASE4-PLAN Step 6b. Greg chose both as recommended.
+
+- **`sealeye discover` asks each question as it arrives.** It starts a run (or follows
+  the one already going: one a run at a time) and streams it as `sealeye run` streams an
+  interview. A question is shown with what raised it and the modules it touches, and
+  answered with the arrow keys: the run's guess first, then the other choices, "Something
+  else" for words of one's own, and "Answer later". The run never waits: while the
+  engineer decides, it carries on, and an answer is used whenever it comes. Without a
+  terminal, questions are listed with their guesses and left on the draft.
+  `sealeye discover answers [run]` answers a run's open questions later, and `sealeye
+  discover status [run]` says what a run read, what it spent and what is open.
+- **The Discovery page is shown only to an organization-wide token.** Its link is not in
+  a team token's navigation and its address sends one home: the API refuses anyone else,
+  and the portal shows nothing it cannot do. It starts a run, follows one that is going,
+  shows each open question as a card with its evidence and choices, the answered ones
+  with who answered, when, and whether the answer is in the draft yet, and the draft
+  catalog itself, each entry that rests on an open question marked.
+- **Both say the same things** (`core/discovery-words.js`): a line for each thing a run
+  does, a run's state in words, and the two choices every question adds.
+- **Found while building it: the supervisor was held to a reader's cap.** The ten-cent
+  cap per worker applied to the supervisor as well, whose first write costs about
+  fourteen cents, so every answer that came after the draft was written would have been
+  refused. A reader (`worker:...`) stops at the cap per worker; the supervisor, which
+  writes the whole catalog and again for each late answer, only at the run's three
+  dollars. A re-write that cannot be done now says so on the run's events and in the
+  API's log, and the answer waits for the next pass instead of being lost.

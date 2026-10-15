@@ -179,7 +179,16 @@ Part a, the run in the API, built Thu Oct 15, 2026 (DESIGN.md, "The discovery ru
 with Greg's choices: an organization-wide token only, inputs read by code, a run cut off
 by a restart stopped not resumed, and questions as choices with the guess first. Still
 to come: 6b, `sealeye discover` and the Discovery page; 6c, only what changed is read
-again. The caps wait on Greg's measured run (`npm run eval:discovery -- --run`).
+again. The caps were set from Greg's measured runs (D6).
+
+Part b built Thu Oct 15, 2026 (DESIGN.md, "Discovery on both surfaces"): `sealeye
+discover` asks each question as it arrives, `discover answers` and `discover status`
+for later; the Discovery page, shown only to an organization-wide token, does the same.
+Part a and b are released together, as parity asks.
+
+Owed to Step 7, from the measured runs: questions that are the same issue in different
+words (three about the caches in the fourth run) are not yet merged; the supervisor
+should, when it sees the readers' questions.
 
 - A LangGraph supervisor fans out one worker per module, in parallel, gathers their
   findings, and writes the catalog entries.

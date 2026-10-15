@@ -26,7 +26,8 @@ Two surfaces, one product: **seaLeye.run** is the `sealeye` command, and
 
 ```
 cli/        the sealeye command: bin/sealeye, client.js (talks to the API), interview/
-            (follow.js streams the interview; render.js), doctor.js,
+            (follow.js streams the interview; render.js), discover.js (a discovery run,
+            its questions answered as they come), doctor.js,
             store-offer.js (moving .env values into the store),
             brand.js (the only place terminal colours live)
 api/        the API: server.js, store.js, db.js, migrations/, catalogs.js (each organization's
@@ -52,10 +53,12 @@ core/       what cli/ and api/ must agree on: schema.js (the plan contract), cat
             command and the portal both say), retention.js (how long logs are kept), setting-names.js,
             environments.js (what an environment's key is: one row in `sealeye
             list`, one page in the portal, the page `sealeye online <app>` opens),
-            operations.js (every operation's command, aliases and portal label).
+            operations.js (every operation's command, aliases and portal label),
+            discovery-words.js (what both surfaces say about a discovery run).
             secrets.js, scan.js, upload-rules.js, plan-words.js, evidence-summary.js,
-            plan-report-words.js, retention.js, setting-names.js, environments.js and
-            operations.js run in a browser, so the portal imports them too
+            plan-report-words.js, retention.js, setting-names.js, environments.js,
+            operations.js and discovery-words.js run in a browser, so the portal
+            imports them too
 prompts/    system prompt and the starter's passages for it (interview-starter.yaml), plan
             contract, plan, report and evidence templates, catalog
 templates/  one CloudFormation template per buildable module, plus run.sh and
@@ -351,7 +354,8 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
 - seaLeye.online (`portal/`) has Environments, New environment (the interview, from a
   folder chosen in the browser), Control (state, deploy again, tear down,
   pause, settings, configure, history, plan and report, performance, logs, evidence), Validate (check a plan, and deploy a ready one with the
-  code the platform has), Catalog (modules and the needs ledger), Costs, Team and Health. Integrations is
+  code the platform has), Catalog (modules and the needs ledger), Costs, Team, Health,
+  and Discovery, shown only to an organization-wide token. Integrations is
   drawn in the archived mock-up only (Phase 5); the portal shows nothing it cannot do.
 
 ## Working here
