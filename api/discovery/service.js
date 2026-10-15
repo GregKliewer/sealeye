@@ -176,18 +176,22 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
   /**
    * Whether a question asks again what an open one already asks: it touches nothing the
    * other does not (both touching no module counts), and it is the same kind (other than
-   * "other") or mostly the same words.
+   * "other") or mostly the same words; or it shares a module with the other and is in
+   * nearly the same words, even if it names one more (the third measured run).
    */
   function repeats(q, existing) {
     const words = t => new Set(String(t).toLowerCase().match(/[a-z0-9]+/g)?.filter(w => w.length > 3) || []);
     const mine = words(q.question);
     return existing.some(e => {
       if (e.answer !== null && e.answer !== undefined) return false;
-      const covered = q.touches.length ? q.touches.every(t => (e.touches || []).includes(t)) : !(e.touches || []).length;
-      if (!covered) return false;
       const theirs = words(e.question);
       const shared = [...mine].filter(w => theirs.has(w)).length;
       const overlap = shared / Math.max(1, new Set([...mine, ...theirs]).size);
+      const covered = q.touches.length ? q.touches.every(t => (e.touches || []).includes(t)) : !(e.touches || []).length;
+      // Asked about the same module in mostly the same words, even naming one more.
+      const sharesOne = q.touches.some(t => (e.touches || []).includes(t));
+      if (sharesOne && overlap >= 0.6) return true;
+      if (!covered) return false;
       // "other" is a catch-all, so only the words can say two of those are the same.
       return (e.kind === q.kind && q.kind !== "other") || overlap >= 0.4;
     });

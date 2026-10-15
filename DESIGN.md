@@ -3123,3 +3123,12 @@ a question its shape.
   questions and, in the second run, asked one again in its own words. A question it
   raises is dropped when it touches nothing an open question does not and is the same
   kind (other than "other") or mostly the same words. The prompt still says not to.
+
+**Tightened after the third measured run** (Greg, Oct 15). It passed, but the module
+left unclear passed on an unrelated question (whether cache-valkey adds backups from
+staging up), not on its standing, and one question was still asked twice. The unclear
+module now counts only when a question touches it and cache-redis together, since the
+ambiguity spans both (`with` in the key); the supervisor is told that when one module is
+deprecated and another of the same kind exists, and nothing says whether it is the
+replacement, it asks, naming both; and a question that shares a module with an open one
+in nearly the same words is dropped even when it names one more.

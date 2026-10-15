@@ -167,13 +167,15 @@ export function gradeCatalog(candidate, key, { questions = null } = {}) {
   if (hc.ambiguous) {
     const m = bySource.get(hc.ambiguous.module);
     if (Array.isArray(questions)) {
-      const asked = questions.find(q => (q.touches || []).includes(hc.ambiguous.module));
+      // About what is unclear: touching the module, and the one it is unclear beside.
+      const about = [hc.ambiguous.module, ...(hc.ambiguous.with ? [hc.ambiguous.with] : [])];
+      const asked = questions.find(q => about.every(s => (q.touches || []).includes(s)));
       const unanswered = asked && (asked.answer === null || asked.answer === undefined);
       const rests = Boolean(asked) && (!unanswered || (m?.open || []).includes(asked.id));
       hardCases.push({
         case: "unclear module asked",
         ok: Boolean(m) && Boolean(asked) && rests,
-        why: !m ? "not in the catalog" : !asked ? `no question touches ${hc.ambiguous.module}` : !rests ? "asked, but its entry does not rest on the question" : `asked: ${asked.question}`
+        why: !m ? "not in the catalog" : !asked ? `no question touches ${about.join(" and ")}` : !rests ? "asked, but its entry does not rest on the question" : `asked: ${asked.question}`
       });
     } else {
       pending.push({ case: "unclear module asked", waits: "a run's questions (--run)", what: hc.ambiguous.module });
