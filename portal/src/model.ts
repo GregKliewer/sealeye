@@ -30,11 +30,19 @@ export function publicUrl(dep: DeploymentSummary): string | null {
   return dep.outputs?.ApiUrl || dep.outputs?.WebsiteUrl || null;
 }
 
+/** Being torn down now: its address may still answer for a moment, but not for long. */
+export function goingAway(env: Environment): boolean {
+  return env.deploys.some(d => d.status === "destroying" && !d.interrupted);
+}
+
 /**
  * Where an environment answers: its latest deployment's address, or while a change is
  * under way, the address the last successful one still answers at.
  */
 export function addressOf(env: Environment): string | null {
+  // Torn down, it answers nowhere. Its record keeps the address it had, for the
+  // evidence and the history, but the environment no longer has one.
+  if (env.latest.status === "destroyed") return null;
   return publicUrl(env.latest) ||
     (IN_FLIGHT.has(env.latest.status) ? env.deploys.filter(d => d.status === "succeeded").map(publicUrl).find(Boolean) || null : null);
 }
