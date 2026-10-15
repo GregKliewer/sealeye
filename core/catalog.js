@@ -15,7 +15,7 @@ import path from "node:path";
 import YAML from "yaml";
 
 import { repoRoot, loadUserConfig } from "./config.js";
-import { EXECUTORS, STARTER_VERSION, contractSchema, normalizeProfile } from "./schema.js";
+import { EXECUTORS, LEGACY_MODULE_IDS, MODULE_IDS, STARTER_VERSION, contractSchema, normalizeProfile } from "./schema.js";
 
 /**
  * The organization the developer belongs to, for the messages that name one. From
@@ -53,6 +53,18 @@ export function starterCatalog() {
  */
 export function loadCatalog() {
   return starterCatalog();
+}
+
+/** A {{name}} other than {{org}}, which only the prompt itself may hold. */
+const otherPlaceholder = text => /\{\{(?!org\}\})[^}]*\}\}/.test(String(text));
+
+/** A test for text naming any module a document could mean: its own, the four, an old plan's. */
+function moduleNamer(doc) {
+  const ids = [...new Set([
+    ...MODULE_IDS, ...LEGACY_MODULE_IDS,
+    ...(Array.isArray(doc?.modules) ? doc.modules.map(m => m?.id).filter(id => typeof id === "string" && /^[a-z][a-z0-9_]*$/.test(id)) : [])
+  ])];
+  return text => ids.find(id => new RegExp(`\\b${id}\\b`).test(String(text ?? ""))) || null;
 }
 
 /**
@@ -99,11 +111,60 @@ export function catalogProblems(doc) {
     }
   }
 
+  if (Array.isArray(doc.modules)) {
+    for (const m of doc.modules) {
+      if (m && text(m.id) && m.guidance !== undefined && !text(m.guidance)) problems.push(`module ${m.id}: guidance is text`);
+      else if (m && text(m.id) && text(m.guidance) && otherPlaceholder(m.guidance)) problems.push(`module ${m.id}: guidance may hold {{org}} and no other {{name}}`);
+    }
+  }
+  if (doc.interview !== undefined) {
+    if (!doc.interview || typeof doc.interview !== "object" || Array.isArray(doc.interview)) problems.push("interview is a set of named passages");
+    else {
+      for (const [key, value] of Object.entries(doc.interview)) {
+        if (!INTERVIEW_PASSAGES.includes(key)) problems.push(`interview.${key} is not a passage the interview has`);
+        else if (typeof value !== "string") problems.push(`interview.${key} is text`);
+        else if (otherPlaceholder(value)) problems.push(`interview.${key} may hold {{org}} and no other {{name}}`);
+      }
+    }
+  }
+
+  // What a need and a pattern say is about the app and the environment, never a module:
+  // a module named there would reach the interview and the developer whether it is
+  // built or not.
+  const anyModule = moduleNamer(doc);
+  if (Array.isArray(doc.need_kinds)) {
+    for (const n of doc.need_kinds) {
+      if (!n || !text(n.key)) continue;
+      const said = [n.line, ...Object.values(n.profile_expects || {})].map(String).find(anyModule);
+      if (said) problems.push(`need kind ${n.key} names a module (${anyModule(said)}); a need says what the app needs`);
+    }
+  }
+  if (doc.patterns && typeof doc.patterns === "object" && !Array.isArray(doc.patterns)) {
+    for (const [profile, block] of Object.entries(doc.patterns)) {
+      if (block && anyModule(block.line)) problems.push(`patterns.${profile} names a module (${anyModule(block.line)}) in its line`);
+    }
+  }
+
   if (doc.profiles !== undefined && !Array.isArray(doc.profiles)) problems.push("profiles is a list");
   if (doc.patterns !== undefined && (typeof doc.patterns !== "object" || doc.patterns === null || Array.isArray(doc.patterns))) {
     problems.push("patterns is a set of named profiles");
   }
   return problems;
+}
+
+/**
+ * A test for text that names a module this catalog does not build: one of the starter's
+ * four, an id from a plan before 0.4, or one of the catalog's own, that it does not
+ * build. Returns the id named, or null. Ids are lowercase letters, digits and
+ * underscores (catalogProblems), so a word boundary is exact: `http_api` is not found
+ * inside `http_api_serverless`. An id no catalog has ever had cannot be known, and is
+ * not caught here.
+ */
+export function namesUnbuilt(catalog = loadCatalog()) {
+  const built = new Set(buildableModules(catalog).map(m => m.id));
+  const unbuilt = [...new Set([...MODULE_IDS, ...LEGACY_MODULE_IDS, ...catalogModuleIds(catalog)])].filter(id => !built.has(id));
+  const patterns = unbuilt.map(id => [id, new RegExp(`\\b${id}\\b`)]);
+  return text => patterns.find(([, re]) => re.test(String(text)))?.[0] || null;
 }
 
 export function moduleEntry(id, catalog = loadCatalog()) {
@@ -161,7 +222,7 @@ export function buildableView(catalog = loadCatalog()) {
     ...(catalog.catalogVersion !== undefined ? { catalogVersion: catalog.catalogVersion } : {}),
     // What builds a module is the platform's to know, and its name is an AWS term; the
     // client is told only that the platform builds it.
-    modules: modules.map(({ builds_with, ...m }) => ({ ...m, buildable: true })),
+    modules: modules.map(({ builds_with, guidance, ...m }) => ({ ...m, buildable: true })),
     need_kinds: catalog.need_kinds || [],
     profiles: catalog.profiles || [],
     patterns
@@ -234,8 +295,11 @@ const oneLine = text => firstSentence(String(text || "").replace(/\s+/g, " ").tr
  */
 export function catalogForPrompt(catalog = loadCatalog()) {
   const lines = ["### Modules seaLeye.run builds", ""];
+  // Only what the platform builds: the interview never hears of a module it cannot.
+  const built = buildableModules(catalog);
+  const builtIds = new Set(built.map(m => m.id));
 
-  for (const m of catalog.modules || []) {
+  for (const m of built) {
     const inputs = Object.entries(m.inputs || {})
       .map(([name, spec]) => `${name} (${JSON.stringify(spec?.default ?? null)})`)
       .join(", ");
@@ -275,12 +339,18 @@ export function catalogForPrompt(catalog = loadCatalog()) {
   for (const [id, block] of Object.entries(catalog.patterns || {})) {
     lines.push(`**${id}**: ${String(block.line).replace(/\s+/g, " ").trim()}`);
     for (const [moduleId, text] of Object.entries(block.modules || {})) {
+      if (!builtIds.has(moduleId)) continue;
       lines.push(`- ${moduleId}: ${String(text).replace(/\s+/g, " ").trim()}`);
     }
     lines.push("");
   }
 
-  return lines.join("\n").trim();
+  // The last guard of principle 2: a line naming a module the catalog does not build
+  // (a pattern's line, a need's, a module's own words) is left out. Each line here
+  // stands alone, so dropping one leaves the rest readable; catalogProblems refuses a
+  // catalog whose need and pattern lines name a module at all.
+  const names = namesUnbuilt(catalog);
+  return lines.filter(line => !names(line)).join("\n").trim();
 }
 
 /** The patterns a profile applies to the modules a plan enables, for the card. */
@@ -294,4 +364,104 @@ export function patternsFor(plan, catalog = loadCatalog()) {
   return Object.entries(block.modules || {})
     .filter(([id]) => enabled.has(id))
     .map(([id, text]) => ({ id, line: String(text).replace(/\s+/g, " ").trim() }));
+}
+
+// ---------------------------------------------------------------------------
+// How the interview talks about a catalog's modules (PHASE4-PLAN Step 3)
+// ---------------------------------------------------------------------------
+//
+// prompts/interview-system.md is the same for every catalog, except where it speaks of
+// the modules themselves: how many there are, the one way of running an app, the
+// sections on each module, a question that decides one of them. Those passages are the
+// catalog's. The starter's are prompts/interview-starter.yaml, word for word as the
+// interview was evaluated; an organization's catalog may carry its own (`interview:`);
+// a catalog without one gets passages written from its own modules and rules, so the
+// interview never hears of a module the catalog does not have.
+
+/**
+ * The starter catalog's passages, word for word as the interview was evaluated. Read by
+ * the API only: the file is not in the command's package.
+ */
+export function starterPassages() {
+  return YAML.parse(fs.readFileSync(path.join(repoRoot, "prompts", "interview-starter.yaml"), "utf8"));
+}
+
+/** The passages a catalog may carry, each a {{name}} in the prompt, and the tool's. */
+export const INTERVIEW_PASSAGES = [
+  "plan_description", "redeploy_example", "rule_one_way", "modules_intro",
+  "catalog_source", "module_guidance", "settings_question"
+];
+
+const NUMBER_WORDS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];
+
+/** "four", or the digits past twelve. */
+export const numberWord = n => NUMBER_WORDS[n] || String(n);
+
+/** `a`, `b` and `c`. */
+const idList = ids => {
+  const quoted = ids.map(id => `\`${id}\``);
+  return quoted.length < 2 ? quoted.join("") : `${quoted.slice(0, -1).join(", ")} and ${quoted.at(-1)}`;
+};
+
+/** The catalog's core modules the platform builds, when it says exactly one runs the app. */
+function oneWayOfRunning(catalog) {
+  const rules = catalog.rules || {};
+  const built = new Set(buildableModules(catalog).map(m => m.id));
+  const core = (Array.isArray(rules.core_modules) ? rules.core_modules : []).filter(id => built.has(id));
+  return rules.exactly_one_core === true && core.length >= 2 ? core : null;
+}
+
+/**
+ * Every passage the interview's prompt and tool take from a catalog: the catalog's own
+ * where it has them, and otherwise written from its modules and rules.
+ *
+ * @returns {Record<string, string>} keyed by INTERVIEW_PASSAGES, and module_count
+ */
+export function interviewPassages(catalog = loadCatalog(), { starter = false } = {}) {
+  // The starter's passages live beside the prompt, on the server only
+  // (prompts/interview-starter.yaml); an organization's catalog carries its own. Whether
+  // this is the starter is the caller's to say, from the catalog it was given (its
+  // version), never guessed from the document: a copy of the starter is not the starter.
+  const own = catalog.interview && typeof catalog.interview === "object"
+    ? catalog.interview
+    : starter ? starterPassages() : {};
+  const names = namesUnbuilt(catalog);
+  const modules = buildableModules(catalog);
+  const ids = modules.map(m => m.id);
+  const core = oneWayOfRunning(catalog);
+
+  const written = {
+    plan_description:
+      "The deployment plan. Modules are only ever the ones the catalog lists: never name a " +
+      "module seaLeye.run cannot build." +
+      (core ? ` Exactly one of ${core.join(" and ")} enabled.` : "") +
+      " Anything else the app needs goes in needs, each with the code that shows it. status " +
+      "is drafted when needs is not empty, ready when it is.",
+    redeploy_example: "\"your app now reads DB_HOST and API_KEY from its environment, and the plan now says so\"",
+    rule_one_way: core
+      ? `One way of running the app, never two. Exactly one of ${idList(core)} is enabled. An app that none of them can run takes a need for what it is, and leaves them all disabled.`
+      : "One way of running the app, never two.",
+    modules_intro:
+      `seaLeye.run builds ${numberWord(ids.length)} module${ids.length === 1 ? "" : "s"} here and no others: ${idList(ids)}. ` +
+      "Those are the only module ids that exist. Never write any other id into a plan, a summary or an assumption, and never invent one.",
+    catalog_source: "The whole catalog, {{org}}'s own, which is the one place the modules and the need kinds are defined:",
+    module_guidance: modules
+      .filter(m => typeof m.guidance === "string" && m.guidance.trim() && !names(m.guidance))
+      .map(m => `### ${m.id}\n${m.guidance.trim()}`)
+      .join("\n\n"),
+    settings_question: ""
+  };
+
+  // A passage of the catalog's own that names a module it does not build is set aside
+  // for the written one: a catalog that began as a copy of the starter keeps the
+  // starter's words about modules it may have dropped (principle 2).
+
+  const passages = { module_count: numberWord(ids.length) };
+  // Where the catalog comes from is the starter's to say only of itself: an
+  // organization's catalog that began as its copy is not prompts/module-catalog.yaml.
+  for (const key of INTERVIEW_PASSAGES) {
+    const usable = typeof own[key] === "string" && !names(own[key]) && (key !== "catalog_source" || starter);
+    passages[key] = usable ? own[key] : written[key];
+  }
+  return passages;
 }

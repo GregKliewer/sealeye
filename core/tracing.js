@@ -217,7 +217,16 @@ function safeToolName(name) {
   return TOOL_NAMES.has(name) ? name : "unknown_tool";
 }
 
-/** A short, stable id for a prompt file's content: which prompt a run used. */
+/**
+ * A short, stable id for a prompt as the model reads it: which prompt a run used. Since
+ * PHASE4-PLAN Step 3 the interview's prompt is filled in from its catalog, so the id is
+ * of the text the model was given, not of the template file.
+ */
+export function promptVersionOf(text) {
+  return crypto.createHash("sha256").update(String(text), "utf8").digest("hex").slice(0, 12);
+}
+
+/** A short, stable id for a prompt file's content (the template, before it is filled in). */
 export function promptVersion(file = path.join(repoRoot, "prompts", "interview-system.md")) {
   try {
     return crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex").slice(0, 12);
@@ -336,7 +345,7 @@ export function currentTraceId() {
  * `fn(run)` gets a handle: `run.set({ status, questions })` records the outcome, and
  * `run.traceId` is the trace's id (undefined when tracing is off).
  */
-export function traceRun({ app, mode, model, promptSha, user, continueFrom }, fn) {
+export function traceRun({ app, mode, model, promptSha, catalog, user, continueFrom }, fn) {
   const noop = { set() {}, traceId: undefined, spanId: undefined };
   if (!live()) return fn(noop);
 
@@ -351,7 +360,8 @@ export function traceRun({ app, mode, model, promptSha, user, continueFrom }, fn
   const outcome = {};
   return guarded(wrapped =>
     startActiveObservation(parent ? "interview resumed" : "sealeye run", async span => {
-      span.update({ metadata: eventAttributes({ app, mode, model, promptSha }) });
+      // catalog: which catalog the interview planned against ("starter", or a version).
+      span.update({ metadata: eventAttributes({ app, mode, model, promptSha, ...(catalog ? { catalog } : {}) }) });
       const handle = {
         traceId: currentTraceId(),
         spanId: span.id,

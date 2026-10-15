@@ -111,6 +111,17 @@ byte for byte; its plan is read as 0.5 against the starter until Step 3.
 
 ### Step 3. The interview reads the organization's catalog
 
+Built Thu Oct 15, 2026 (DESIGN.md, "The interview reads the organization's catalog"):
+the first bullet below, and more than it said. The prompt named the starter's four
+modules in several places, so those passages became the catalog's
+(`interviewPassages`; the starter's in `prompts/interview-starter.yaml`, word for word),
+the plan tool is built from the catalog, the platform stamps the plan with the
+interview's catalog, and the interview keeps the catalog it started with. The starter's
+prompt and tool are byte for byte the ones the eval graded that morning. The second
+bullet, a catalog too large for the prompt, moved to "Owed after this plan" (Greg, Thu
+Oct 15): its size is to be measured, and there is no large catalog to measure until
+public module libraries are read after Step 7. Part A is done.
+
 - The system prompt is built from the live catalog per interview, not once at start.
   The eval runs against the starter catalog and must not move.
 - A catalog too large for the prompt is summarised per module (its line, when, signals),
@@ -220,6 +231,7 @@ request.
 
 | Item | Bring it forward when |
 |---|---|
+| **A catalog too large for the interview's prompt** (from Step 3) | With public module libraries at scale, after Step 7: measure where the interview's plans or its cost start to suffer, then summarise each module (its line, when, signals) past that size, with the full entry read by a tool on demand. |
 | **LangFuse in Canada** (D1) | Before the first run on an organization's real code, or any pilot that wants traces on real code. The gateway's span in the trace (once Phase 3 Step 6b) comes with it. |
 | **A new account per customer, and a paid run** (D2) | The first customer run. |
 | **The Bedrock route** (Phase 3 Step 8) | When the account has model access; then an organization's code can stay in its own account. |
