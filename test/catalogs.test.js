@@ -82,6 +82,12 @@ const LIFECYCLE = `
   await approveCatalog({ org: "acme", version: v2.version, by: "pat@example.com" });
   await makeLive({ org: "acme", version: v2.version });
   out.v2 = liveCatalog("acme");
+  // A gate that refuses changes nothing; a retired catalog goes back, and then forward.
+  out.gated = await makeLive({ org: "acme", version: v1.version, by: "lee@example.com", gate: () => { throw Object.assign(new Error("no"), { code: "GATED" }); } }).catch(e => e.code);
+  out.afterGate = liveCatalog("acme").version;
+  await makeLive({ org: "acme", version: v1.version, by: "lee@example.com" });
+  out.back = catalogsOf("acme").map(c => [c.version, c.status, c.madeLiveBy]);
+  await makeLive({ org: "acme", version: v2.version, by: "pat@example.com" });
   out.list = catalogsOf("acme").map(c => [c.version, c.status, c.approvedBy]);
   out.other = liveCatalog("other").source;
   out.invalid = await addCatalog({ org: "acme", document: { modules: [] } }).catch(e => [e.code, e.problems]);
@@ -109,6 +115,9 @@ function checkLifecycle(out, doc) {
   assert.deepEqual(out.v1.document, doc);
   assert.equal(out.v2.version, 2);
   assert.equal(out.v2.document.catalogVersion, "two");
+  assert.equal(out.gated, "GATED");
+  assert.equal(out.afterGate, 2, "a refused change leaves the live catalog as it was");
+  assert.deepEqual(out.back, [[1, "live", "lee@example.com"], [2, "retired", null]], "a retired catalog goes live again, with who made it so");
   assert.deepEqual(out.list, [[1, "retired", "pat@example.com"], [2, "live", "pat@example.com"]], "one live catalog: the one it replaced is retired");
   assert.equal(out.other, "starter", "one organization's catalog is never another's");
   assert.equal(out.invalid[0], "CATALOG_INVALID");

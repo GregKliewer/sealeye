@@ -39,7 +39,10 @@ import { databaseUrl, closeDb } from "./db.js";
 import { startTracing } from "../core/tracing.js";
 import { authMode, callerFor, callerForSession, endSession, SESSION_COOKIE, SESSION_HOURS, startSession } from "./tokens.js";
 import { buildableView, needKinds, orgName } from "../core/catalog.js";
-import { catalogAt, liveCatalog, openCatalogs } from "./catalogs.js";
+import { approveCatalog, catalogAt, catalogsOf, liveCatalog, makeLive, openCatalogs } from "./catalogs.js";
+import { selfTest } from "./self-test.js";
+import { environmentsDropped } from "./catalog-use.js";
+import { selfTestSummary } from "../core/discovery-words.js";
 
 const app = express();
 
@@ -331,6 +334,11 @@ async function deployAgain(req, res) {
     const gone = noLongerBuilt(plan, callerOrg(req));
     if (gone.length) return res.status(409).json(catalogChanged(gone));
   }
+  // A deploy reads its app's settings from the store, kept by team and not yet by
+  // organization, so outside the default organization it would read another's: refused
+  // there, once the catalog has had its say, until the organization is in the store's
+  // path (the review, Oct 16, 2026). A drafted plan is saved before this.
+  if (callerOrg(req) !== "default") return notForThisOrganization(res, "Deploys");
 
   // One change at a time: the environment this goes to must not be changing now.
   {
@@ -390,6 +398,9 @@ async function deployAgain(req, res) {
   {
     const busy = changeUnderWay(naming.stackName);
     if (busy) return res.status(409).json(busyRefusal(busy));
+    // And the catalog, which may have been made live while this waited.
+    const gone = noLongerBuilt(plan, callerOrg(req));
+    if (gone.length) return res.status(409).json(catalogChanged(gone));
   }
   const record = putDeployment({
     deploymentId,
@@ -595,6 +606,11 @@ async function deployNew(req, res) {
     const gone = noLongerBuilt(plan, callerOrg(req));
     if (gone.length) return res.status(409).json(catalogChanged(gone));
   }
+  // A deploy reads its app's settings from the store, kept by team and not yet by
+  // organization, so outside the default organization it would read another's: refused
+  // there, once the catalog has had its say, until the organization is in the store's
+  // path (the review, Oct 16, 2026). A drafted plan is saved before this.
+  if (callerOrg(req) !== "default") return notForThisOrganization(res, "Deploys");
 
   // An uploaded copy is unpacked now, so a bad upload is a 400 and never a queued
   // deployment that fails later.
@@ -640,6 +656,14 @@ async function deployNew(req, res) {
     if (busy) {
       if (uploaded) removeUpload(deploymentId);
       return res.status(409).json(busyRefusal(busy));
+    }
+    // A catalog made live while the scan ran is checked again here, where nothing waits
+    // before the record is written, so a deploy cannot slip past the guard against
+    // making live a catalog that drops what an environment uses (the review, Oct 16).
+    const gone = noLongerBuilt(plan, callerOrg(req));
+    if (gone.length) {
+      if (uploaded) removeUpload(deploymentId);
+      return res.status(409).json(catalogChanged(gone));
     }
   }
 
@@ -953,6 +977,7 @@ app.get("/deployments/:deploymentId/performance", async (req, res) => {
 // GET /costs?since=7d|30d — what each of your team's apps has cost (api/costs.js),
 // by the cost allocation tags; an organization-wide token sees every team's. Step 20.
 app.get("/costs", async (req, res) => {
+  if (callerOrg(req) !== "default") return notForThisOrganization(res, "Costs");
   const { status, body } = await readCosts(req.caller, { window: typeof req.query.since === "string" ? req.query.since : "30d" });
   return res.status(status).json(body);
 });
@@ -1304,6 +1329,133 @@ for (const signal of ["SIGTERM", "SIGINT"]) {
   });
 }
 
+// An organization's catalogs, and making one live (PHASE4-PLAN Step 7; DESIGN.md, "A
+// catalog goes live through a self-test, approved and made live apart"). A platform
+// engineer's, as discovery is: an organization-wide token only. A catalog is approved,
+// then made live, and the self-test runs at each, on the catalog as it is when the
+// change's turn comes. A retired catalog may go live again.
+const catalogVersionOf = raw => (/^[1-9][0-9]{0,8}$/.test(String(raw)) ? Number(raw) : null);
+const catalogNotFound = res => res.status(404).json({ error: { code: "CATALOG_NOT_FOUND", message: "Your organization has no catalog of that version." } });
+
+/** A question's words, from the run that wrote the catalog. */
+const questionTextFor = document => id => {
+  const runId = document?.discovery?.run;
+  if (!runId || !discoveries) return null;
+  return (discoveries.questions(runId) || []).find(q => q.id === id)?.question || null;
+};
+
+const runSelfTest = (org, row) => selfTest({ document: row.document, version: row.version, questionText: questionTextFor(row.document) });
+
+/** What a list of catalogs says of each: never its document. */
+function catalogSummary(org, row, liveVersion) {
+  const doc = catalogAt(org, row.version) || {};
+  const modules = Array.isArray(doc.modules) ? doc.modules : [];
+  return {
+    ...row,
+    live: row.version === liveVersion,
+    discovery: doc.discovery?.run || null,
+    library: doc.discovery?.library || [],
+    modules: modules.length,
+    open: modules.filter(m => Array.isArray(m?.open) && m.open.length).length + (Array.isArray(doc.discovery?.open) ? doc.discovery.open.length : 0)
+  };
+}
+
+const selfTestFailed = (verb, result) => ({
+  error: {
+    code: "SELF_TEST_FAILED",
+    message: `Catalog ${result.version} cannot be ${verb}. ${selfTestSummary(result)}`,
+    details: { selfTest: result }
+  }
+});
+
+// GET /catalogs: the organization's catalogs, newest first, and which is live.
+app.get("/catalogs", (req, res) => {
+  if (!mayDiscover(req.caller)) return discoveryForbidden(res);
+  const org = callerOrg(req);
+  const live = liveCatalog(org);
+  return res.status(200).json({
+    live: { version: live.version, source: live.source },
+    catalogs: catalogsOf(org).map(row => catalogSummary(org, row, live.version)).reverse()
+  });
+});
+
+// GET /catalogs/{version}/self-test: the self-test, run now. Plain code; nothing spent.
+app.get("/catalogs/:version/self-test", (req, res) => {
+  if (!mayDiscover(req.caller)) return discoveryForbidden(res);
+  const org = callerOrg(req);
+  const version = catalogVersionOf(req.params.version);
+  const row = version && catalogsOf(org).find(c => c.version === version);
+  if (!row) return catalogNotFound(res);
+  return res.status(200).json({ selfTest: runSelfTest(org, { ...row, document: catalogAt(org, version) }) });
+});
+
+/** Answer a refused catalog change in the API's words. */
+function catalogChangeRefused(res, err) {
+  if (err.code === "CATALOG_NOT_FOUND") return catalogNotFound(res);
+  if (err.code === "CATALOG_STATUS") return res.status(409).json({ error: { code: "CATALOG_STATUS", message: err.message.replace(/^catalog/, "Catalog") } });
+  if (err.code === "SELF_TEST_FAILED") return res.status(422).json(err.body);
+  if (err.code === "CATALOG_IN_USE") return res.status(409).json(err.body);
+  throw err;
+}
+
+// POST /catalogs/{version}/approve: a draft that passes its self-test is approved, with
+// who approved it. Body: {}.
+app.post("/catalogs/:version/approve", async (req, res) => {
+  if (!mayDiscover(req.caller)) return discoveryForbidden(res);
+  const org = callerOrg(req);
+  const version = catalogVersionOf(req.params.version);
+  if (!version) return catalogNotFound(res);
+  try {
+    let tested = null;
+    const approved = await approveCatalog({
+      org, version, by: req.caller?.email || "someone, with sign-in off",
+      gate: row => {
+        tested = runSelfTest(org, row);
+        if (!tested.passed) throw Object.assign(new Error("self-test failed"), { code: "SELF_TEST_FAILED", body: selfTestFailed("approved", tested) });
+      }
+    });
+    return res.status(200).json({ catalog: approved, selfTest: tested });
+  } catch (err) {
+    return catalogChangeRefused(res, err);
+  }
+});
+
+// POST /catalogs/{version}/live: an approved catalog, or a retired one going back, is
+// made the organization's live one when it passes its self-test again and no
+// environment runs on a module it would not build. The live one it replaces is retired.
+app.post("/catalogs/:version/live", async (req, res) => {
+  if (!mayDiscover(req.caller)) return discoveryForbidden(res);
+  const org = callerOrg(req);
+  const version = catalogVersionOf(req.params.version);
+  if (!version) return catalogNotFound(res);
+  try {
+    let tested = null;
+    const made = await makeLive({
+      org, version, by: req.caller?.email || "someone, with sign-in off",
+      gate: row => {
+        tested = runSelfTest(org, row);
+        if (!tested.passed) throw Object.assign(new Error("self-test failed"), { code: "SELF_TEST_FAILED", body: selfTestFailed("made live", tested) });
+        const environments = environmentsDropped({ org, document: row.document, records: listDeployments() });
+        if (environments.length) {
+          throw Object.assign(new Error("in use"), {
+            code: "CATALOG_IN_USE",
+            body: {
+              error: {
+                code: "CATALOG_IN_USE",
+                message: `Catalog ${version} cannot be made live: it does not build what ${environments.length === 1 ? "an environment runs" : `${environments.length} environments run`}. ${environments.map(e => `${e.app || e.environment} (team ${e.team}) uses ${e.modules.join(", ")}.`).join(" ")} Tear ${environments.length === 1 ? "it" : "them"} down first, or keep a catalog that builds ${environments.length === 1 ? "it" : "them"}.`,
+                details: { environments }
+              }
+            }
+          });
+        }
+      }
+    });
+    return res.status(200).json({ catalog: made, selfTest: tested });
+  } catch (err) {
+    return catalogChangeRefused(res, err);
+  }
+});
+
 // An app's settings in the organization's store (PHASE2-PLAN Step 8, D3). A team's app
 // keeps them in its own folder, /sealeye-apps/<team>/<app>/, so a team reaches only its
 // own; an organization-wide token may name another team with ?team=. Values go in and
@@ -1318,11 +1470,19 @@ function settingsScope(req) {
   if (!asked || asked === req.caller.team) return { org, team: req.caller.team, app };
   return req.caller.scope === "org" ? { org, team: asked, app } : null;
 }
+// The store keeps an app's settings by team (/sealeye-apps/<team>/<app>/), and costs are
+// tagged by team and app, neither yet by organization. So with a second organization on
+// the server (juniper, PHASE4-PLAN Step 7) one could reach another's settings or see its
+// costs: both stay the default organization's until the organization is in the path and
+// the tags.
+const notForThisOrganization = (res, what) =>
+  res.status(409).json({ error: { code: "NOT_FOR_THIS_ORGANIZATION", message: `${what} are not available to your organization yet: the platform keeps them by team, and not yet by organization.` } });
 const noSuchApp = res => res.status(404).json({ error: { code: "NOT_FOUND", message: "No app of that name that you can see." } });
 
 // GET /apps/{app}/settings: the settings its latest plan asks for and the ones stored,
 // each with whether it is set and who last changed it.
 app.get("/apps/:app/settings", async (req, res) => {
+  if (callerOrg(req) !== "default") return notForThisOrganization(res, "App settings");
   const scope = settingsScope(req);
   if (!scope) return noSuchApp(res);
   const folder = storeFolder(scope);
@@ -1351,6 +1511,7 @@ app.get("/apps/:app/settings", async (req, res) => {
 
 // PUT /apps/{app}/settings/{name} { value }: store one, encrypted, replacing any before.
 app.put("/apps/:app/settings/:name", async (req, res) => {
+  if (callerOrg(req) !== "default") return notForThisOrganization(res, "App settings");
   const scope = settingsScope(req);
   if (!scope) return noSuchApp(res);
   const name = req.params.name;
@@ -1371,6 +1532,7 @@ app.put("/apps/:app/settings/:name", async (req, res) => {
 
 // DELETE /apps/{app}/settings/{name}: remove one.
 app.delete("/apps/:app/settings/:name", async (req, res) => {
+  if (callerOrg(req) !== "default") return notForThisOrganization(res, "App settings");
   const scope = settingsScope(req);
   if (!scope) return noSuchApp(res);
   const name = req.params.name;

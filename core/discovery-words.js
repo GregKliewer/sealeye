@@ -38,6 +38,12 @@ export function discoveryEventLine(event) {
       return `Draft catalog ${event.catalog?.version} written${event.open ? `, resting on ${plural(event.open, "question", "questions")} not yet answered` : ""}`;
     case "answered":
       return `Answer taken: ${event.question?.answer}`;
+    case "plain_words":
+      return `Writing ${plural((event.sources || []).length, "entry", "entries")} again in plain words: ${(event.sources || []).join(", ")}`;
+    case "plain_words_not_done":
+      return `Could not write ${(event.sources || []).join(", ")} again in plain words: ${event.why}. The self-test will say what to change.`;
+    case "merged":
+      return `${plural((event.questions || []).length, "question", "questions")} merged into one that asks the same thing`;
     case "answers_used":
       return `Answers written into draft catalog ${event.catalog?.version}`;
     case "answer_not_used":
@@ -143,3 +149,57 @@ export function choicesFor(q) {
   const ordered = q.guess && options.includes(q.guess) ? [q.guess, ...options.filter(o => o !== q.guess)] : options;
   return ordered;
 }
+
+/**
+ * What each check of the self-test is called on both surfaces (PHASE4-PLAN Step 7). The
+ * API sends each check's id and its problems in words; this is its title.
+ */
+export const SELF_TEST_CHECKS = Object.freeze({
+  shape: "The catalog is well formed",
+  questions: "No question about the whole catalog is waiting",
+  refused: "Plans using what it must not build are refused",
+  accepted: "Plans using what it builds are accepted",
+  words: "Nothing a developer reads uses a word they never should"
+});
+
+/** A self-test's result in one line. */
+export function selfTestSummary(result) {
+  if (!result) return "";
+  const failed = (result.checks || []).filter(c => !c.passed);
+  const problems = failed.reduce((n, c) => n + (c.problems || []).length, 0);
+  return failed.length
+    ? `The self-test found ${plural(problems, "problem", "problems")} in catalog ${result.version}.`
+    : `Catalog ${result.version} passed its self-test.`;
+}
+
+/** A catalog's status in words, the same on both surfaces. */
+export function catalogStatusWords(status) {
+  return { draft: "Draft", approved: "Approved, not live", live: "Live", retired: "Retired" }[status] || String(status || "");
+}
+
+/**
+ * What can be done with a catalog of this status next: approve a draft, make an approved
+ * or retired one live. Null for the live one.
+ */
+export function nextCatalogStep(status) {
+  return status === "draft" ? "approve" : status === "approved" || status === "retired" ? "live" : null;
+}
+
+/** One catalog in a list: where it came from, how big, what rests on a question. */
+export function catalogSummaryWords(c) {
+  const parts = [];
+  if (c.discovery) parts.push(`from run ${c.discovery}`);
+  if (typeof c.modules === "number") parts.push(plural(c.modules, "module", "modules"));
+  if (c.open) parts.push(`${c.open} resting on a question`);
+  if (c.approvedBy && c.status !== "draft") parts.push(`approved by ${c.approvedBy}`);
+  if (c.madeLiveBy && (c.status === "live" || c.status === "retired")) parts.push(`made live by ${c.madeLiveBy}`);
+  return parts.join(" · ");
+}
+
+/** What an entry resting on an open question means, now that a catalog can go live without it. */
+export const RESTS_ON_QUESTION =
+  "Until it is answered, the modules it touches are never built, even in a live catalog. An answer writes a new draft.";
+
+/** What approving and making live say once done. */
+export const approvedWords = v => `Catalog ${v} is approved. Nothing changes for developers until it is made live.`;
+export const madeLiveWords = v => `Catalog ${v} is live: your organization's developers plan against it now.`;

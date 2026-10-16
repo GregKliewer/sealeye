@@ -35,7 +35,9 @@ import { loadEnv, loadUserConfig, repoRoot, setting } from "./config.js";
 
 const REDACTED = "[value redacted]";     // the wording the evidence files use
 const MAX_EVENT_STRING = 2000;
-const TOOL_NAMES = new Set(["list_files", "read_file", "submit_plan"]);
+// The interview's tools, and discovery's (PHASE4-PLAN Step 7): a name outside the list is
+// recorded as unknown_tool, since a model could otherwise put words in a span's name.
+const TOOL_NAMES = new Set(["list_files", "read_file", "submit_plan", "submit_finding", "submit_library", "write_catalog"]);
 
 let provider = null;
 
@@ -494,6 +496,73 @@ export async function traceExperimentItem({ experimentId, runName, description, 
   });
 }
 
+// ---------------------------------------------------------------------------------
+// Discovery (PHASE4-PLAN Step 7; DESIGN.md, "A catalog goes live through a self-test,
+// approved and made live apart"): the shape of a run, never its content. A discovery
+// run reads a platform team's library, so unlike the interview's, no model reply is
+// recorded at all, not even its text: only which tools it called, on which paths, and
+// what it cost. A question is recorded as its kind and who raised it, never its words.
+
+/** What the model did in one discovery turn: its tool calls by name and path, never its words or a tool's input. */
+export function discoveryTurnShape(response) {
+  return (response?.content || []).map(block => {
+    if (block.type === "text") return { type: "text", chars: (block.text || "").length };
+    if (block.type === "tool_use") {
+      const shape = { type: "tool_use", name: safeToolName(block.name) };
+      if (typeof block.input?.path === "string") shape.path = block.input.path;
+      return shape;
+    }
+    return { type: String(block.type) };
+  });
+}
+
+/**
+ * The root of one discovery run, or of the late answers written into its draft
+ * (`kind: "answers"`). The session is the organization, so its runs line up.
+ * `fn(run)` gets a handle: `run.set(fields)` records the outcome, cleaned as an event's.
+ */
+export function traceDiscovery({ runId, org, repo, commit, user, kind = "run" }, fn) {
+  const noop = { set() {}, traceId: undefined };
+  if (!live()) return fn(noop);
+  const name = kind === "answers" ? "sealeye discover answers" : "sealeye discover";
+  const outcome = {};
+  return guarded(wrapped =>
+    startActiveObservation(name, async span => {
+      span.update({ metadata: eventAttributes({ run: runId, repo, commit }) });
+      const handle = {
+        traceId: currentTraceId(),
+        set(fields) {
+          Object.assign(outcome, eventAttributes(fields));
+          quietly(() => span.update({ output: outcome }));
+        }
+      };
+      return propagateAttributes(
+        { traceName: name, sessionId: safeId(org), ...(user ? { userId: safeId(user) } : {}), tags: ["discovery"] },
+        () => wrapped(span, handle)
+      );
+    }, { asType: "agent" }), fn, noop);
+}
+
+/**
+ * One discovery model call, as a generation: the conversation's shape in, the tool calls'
+ * names and paths out, and the tokens. Never a prompt, a file or a reply.
+ */
+export function traceDiscoveryCall({ worker, turn, model, messages }, fn) {
+  if (!live()) return fn();
+  const meta = { worker: safeId(worker), turn };
+  return guarded(wrapped =>
+    startActiveObservation(`${safeId(worker)} turn ${Number(turn) + 1}`, async generation => {
+      generation.update({ model, input: conversationShape(messages), metadata: meta });
+      const response = await wrapped(generation, undefined);
+      quietly(() => generation.update({
+        output: discoveryTurnShape(response),
+        usageDetails: usageDetails(response?.usage),
+        metadata: { ...meta, stopReason: response?.stop_reason }
+      }));
+      return response;
+    }, { asType: "generation" }), () => fn(), undefined);
+}
+
 /** One list_files or read_file call: its path and size, never its contents. */
 export function traceTool(fields) {
   if (!live()) return;
@@ -538,7 +607,13 @@ const SCORES = {
   // compare a run's plan with what the sample app is known to need.
   outcome_correct: "BOOLEAN",
   modules_correct: "BOOLEAN",
-  needs_correct: "BOOLEAN"
+  needs_correct: "BOOLEAN",
+  // Only discovery's graded runs (scripts/eval-discovery.js, PHASE4-PLAN Step 7) post
+  // these: a draft against Juniper Mutual's answer key.
+  catalog_correct: "BOOLEAN",
+  hard_cases_caught: "NUMERIC",
+  self_test_passed: "BOOLEAN",
+  must_refuse_refused: "BOOLEAN"
 };
 
 // Scores are sent one request each to LangFuse's public scores endpoint, with a hard

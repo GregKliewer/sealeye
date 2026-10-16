@@ -364,12 +364,19 @@ async function discoveryCall(apiBaseUrl, route, options) {
     return await platformFetch(apiBaseUrl, route, options);
   } catch (err) {
     const message = err.details?.error?.message;
-    if (message) throw Object.assign(new Error(message), { userFacing: true, code: err.details.error.code });
+    if (message) throw Object.assign(new Error(message), { userFacing: true, code: err.details.error.code, more: err.details.error.details });
     throw err;
   }
 }
 
 export const startDiscovery = ({ apiBaseUrl }) => discoveryCall(apiBaseUrl, "/discoveries", asJson({}));
+
+// An organization's catalogs, the self-test, approving and making live (PHASE4-PLAN Step 7).
+export const listCatalogs = ({ apiBaseUrl }) => discoveryCall(apiBaseUrl, "/catalogs", { method: "GET" });
+export const catalogSelfTest = ({ apiBaseUrl, version }) =>
+  discoveryCall(apiBaseUrl, `/catalogs/${encodeURIComponent(version)}/self-test`, { method: "GET" }).then(r => r.selfTest);
+export const approveCatalogVersion = ({ apiBaseUrl, version }) => discoveryCall(apiBaseUrl, `/catalogs/${encodeURIComponent(version)}/approve`, asJson({}));
+export const makeCatalogLive = ({ apiBaseUrl, version }) => discoveryCall(apiBaseUrl, `/catalogs/${encodeURIComponent(version)}/live`, asJson({}));
 export const listDiscoveries = ({ apiBaseUrl }) => discoveryCall(apiBaseUrl, "/discoveries", { method: "GET" }).then(r => r.discoveries);
 export const getDiscovery = ({ apiBaseUrl, id }) => discoveryCall(apiBaseUrl, `/discoveries/${encodeURIComponent(id)}`, { method: "GET" });
 export const answerDiscovery = ({ apiBaseUrl, id, question, answer }) =>
@@ -406,7 +413,7 @@ async function settingsCall(apiBaseUrl, route, options) {
     return await platformFetch(apiBaseUrl, route, options);
   } catch (err) {
     const message = err.details?.error?.message;
-    if (message) throw Object.assign(new Error(message), { userFacing: true, code: err.details.error.code });
+    if (message) throw Object.assign(new Error(message), { userFacing: true, code: err.details.error.code, more: err.details.error.details });
     throw err;
   }
 }

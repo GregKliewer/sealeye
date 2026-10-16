@@ -18,6 +18,7 @@ import { addSpend, priceUsage } from "../../core/model-prices.js";
 import { createWithOneRetry } from "../interview/model.js";
 import { listFiles, readFile, ToolRefusal } from "../interview/tools.js";
 import { routeModel } from "../model-routes.js";
+import { traceDiscoveryCall, traceStep, traceTool } from "../../core/tracing.js";
 
 const PROMPTS = path.join(import.meta.dirname, "..", "..", "prompts");
 const MAX_READER_TURNS = 14;
@@ -156,7 +157,20 @@ export const writeCatalogTool = {
           }
         }
       },
-      questions: { type: "array", items: { $ref: "#/$defs/question" } }
+      questions: { type: "array", items: { $ref: "#/$defs/question" } },
+      merges: {
+        type: "array",
+        description: "Questions so far that ask the same thing in different words: the one to keep, and the ids it covers.",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["keep", "merged"],
+          properties: {
+            keep: { type: "string", description: "The id of the question to keep: the clearest." },
+            merged: { type: "array", items: { type: "string" }, description: "The ids of the questions it covers." }
+          }
+        }
+      }
     }
   }
 };
@@ -184,6 +198,19 @@ export function mayRead(scope, rel) {
 }
 
 function runFileTool(snapshot, scope, use) {
+  const result = fileToolResult(snapshot, scope, use);
+  // Traced as its path and size, never its contents (core/tracing.js).
+  traceTool({
+    name: use.name,
+    path: String(use.input?.path ?? "."),
+    ...(use.name === "read_file" && !result.isError ? { bytes: Buffer.byteLength(result.content) } : {}),
+    ...(use.name === "list_files" && !result.isError ? { entries: String(result.content).split("\n").filter(Boolean).length } : {}),
+    ...(result.isError ? { refused: "yes" } : {})
+  });
+  return result;
+}
+
+function fileToolResult(snapshot, scope, use) {
   const p = String(use.input?.path ?? ".");
   try {
     if (use.name === "list_files") return { content: listFiles(snapshot.dir, p), isError: false };
@@ -198,6 +225,12 @@ function runFileTool(snapshot, scope, use) {
     return { content: `could not run ${use.name}: ${err.message}`, isError: true };
   }
 }
+
+/** What a worker spent, for its span: dollars and tokens, never what it read. */
+const spentBy = (budget, worker) => {
+  const w = budget.spend()[worker] || {};
+  return { cost: Number((w.cost || 0).toFixed(6)), inputTokens: w.input || 0, outputTokens: w.output || 0 };
+};
 
 /**
  * A budget shared by a run's readers: each worker's spend, and the run's; a reader
@@ -229,7 +262,21 @@ export function createBudget({ workerCap, runCap, spend = {} }) {
  * One reader's conversation: read with the file tools until it calls `finalTool`, or
  * runs out of turns or money. Returns the final tool's input, or throws.
  */
-async function readUntil({ clientFor, route, credentialIsGateway, worker, system, opening, tools, finalTool, snapshot, scope, budget, onStep = () => {} }) {
+function readUntil(options) {
+  const { worker, budget } = options;
+  return traceStep(worker, async step => {
+    try {
+      const found = await readUntilTraced(options);
+      step.set({ worker, handedIn: true, ...spentBy(budget, worker) });
+      return found;
+    } catch (err) {
+      step.set({ worker, handedIn: false, why: err instanceof SpendingLimit ? "spending_limit" : "error", ...spentBy(budget, worker) });
+      throw err;
+    }
+  });
+}
+
+async function readUntilTraced({ clientFor, route, credentialIsGateway, worker, system, opening, tools, finalTool, snapshot, scope, budget, onStep = () => {} }) {
   const model = routeModel(route);
   const requestModel = credentialIsGateway ? route : model;
   const client = clientFor(worker);
@@ -237,7 +284,7 @@ async function readUntil({ clientFor, route, credentialIsGateway, worker, system
   for (let turn = 0; turn < MAX_READER_TURNS; turn++) {
     budget.check(worker);
     const last = turn === MAX_READER_TURNS - 1;
-    const response = await createWithOneRetry(
+    const response = await traceDiscoveryCall({ worker, turn, model, messages }, () => createWithOneRetry(
       client,
       {
         model: requestModel,
@@ -249,8 +296,9 @@ async function readUntil({ clientFor, route, credentialIsGateway, worker, system
         messages
       },
       onStep,
-      turn
-    );
+      turn,
+      { traceAs: "discovery" }
+    ));
     budget.charge(worker, model, response.usage || {});
     messages.push({ role: "assistant", content: response.content });
     const uses = (response.content || []).filter(b => b.type === "tool_use");
@@ -308,7 +356,21 @@ export function readLibraryLevel({ snapshot, org, modules, ...common }) {
  * touched), from the findings and the questions so far, on the frontier route. One call;
  * a reply with no write_catalog is asked once more.
  */
-export async function superviseEntries({ clientFor, credentialIsGateway, budget, org, modules, library, questions, sources, onStep = () => {} }) {
+export function superviseEntries(options) {
+  const { budget, sources } = options;
+  return traceStep("supervisor", async step => {
+    try {
+      const written = await superviseTraced(options);
+      step.set({ worker: "supervisor", entries: sources.length, questions: (written.questions || []).length, ...spentBy(budget, "supervisor") });
+      return written;
+    } catch (err) {
+      step.set({ worker: "supervisor", why: err instanceof SpendingLimit ? "spending_limit" : "error", ...spentBy(budget, "supervisor") });
+      throw err;
+    }
+  });
+}
+
+async function superviseTraced({ clientFor, credentialIsGateway, budget, org, modules, library, questions, sources, plainWords = null, onStep = () => {} }) {
   const model = routeModel("frontier");
   const client = clientFor("supervisor");
   const findings = modules.map(m => ({
@@ -329,6 +391,13 @@ export async function superviseEntries({ clientFor, credentialIsGateway, budget,
   const opening = [
     `Write the entries for these modules: ${sources.join(", ")}.`,
     "",
+    // Once, when the draft's words failed the check a catalog must pass to be approved
+    // (Greg, Oct 16, 2026): the same entries, the same meaning, in plain words.
+    ...(plainWords ? [
+      "These entries were written with words a developer never reads. Write each again with the same meaning in plain words, saying what it does for the developer's app, and give a plain line in input_lines for every input named here:",
+      ...plainWords.map(line => `- ${line}`),
+      ""
+    ] : []),
     "What the readers found, each module:",
     JSON.stringify(findings, null, 1),
     "",
@@ -341,7 +410,7 @@ export async function superviseEntries({ clientFor, credentialIsGateway, budget,
   const messages = [{ role: "user", content: opening }];
   for (let turn = 0; turn < 2; turn++) {
     budget.check("supervisor");
-    const response = await createWithOneRetry(
+    const response = await traceDiscoveryCall({ worker: "supervisor", turn, model, messages }, () => createWithOneRetry(
       client,
       {
         model: credentialIsGateway ? "frontier" : model,
@@ -352,8 +421,9 @@ export async function superviseEntries({ clientFor, credentialIsGateway, budget,
         messages
       },
       onStep,
-      turn
-    );
+      turn,
+      { traceAs: "discovery" }
+    ));
     budget.charge("supervisor", model, response.usage || {});
     const use = (response.content || []).find(b => b.type === "tool_use" && b.name === writeCatalogTool.name);
     if (use) return use.input;

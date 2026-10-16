@@ -208,6 +208,11 @@ should, when it sees the readers' questions.
 
 ### Step 7. Self-test, then live
 
+Built Fri Oct 16, 2026 (DESIGN.md, "A catalog goes live through a self-test, approved
+and made live apart"). Still to be done on Greg's Mac, where the model key is: the
+measured run before and after the supervisor's prompt change (merges), with `npm run
+eval:discovery -- --run --library <clone>`, which now runs both passes and records them.
+
 Not before Step 3 has shipped: until the interview plans against the live catalog, a
 live catalog that drops a starter module would refuse every plan the interview writes
 that uses it (CATALOG_CHANGED), and running it again would not help (DESIGN.md, "A plan
@@ -219,6 +224,16 @@ names its catalog").
   guesses made), once with answers a script gives at fixed points.
 - Must-refuse plans: for each catalog, plans that must be refused, and are. A catalog
   goes live only when they pass and a platform engineer approves it.
+
+Greg's choices, Fri Oct 16, 2026 (DESIGN.md, "A catalog goes live through a self-test,
+approved and made live apart"): any organization-wide token approves; approving and
+making live are two steps, the self-test at each, and a retired catalog may go live
+again; the self-test is code only; an open question makes its entry unbuildable rather
+than holding up approval; the words a developer reads block; a second organization,
+`juniper`, with a guard against making live a catalog that drops a module an
+environment runs on; traces of shape only; the supervisor merges questions that ask the
+same thing. About four and a half to five and a half days, with an independent review
+before the pull request.
 
 ## Part C: building from the organization's modules
 
@@ -280,4 +295,5 @@ request.
 | **A new account per customer, and a paid run** (D2) | The first customer run. |
 | **The Bedrock route** (Phase 3 Step 8) | When the account has model access; then an organization's code can stay in its own account. |
 | **Admin onboarding** (identity provider, repositories, which automation is strategic) | With Phase 5's Cognito sign-in, since both need an organization's administrator. Until then the platform team names repositories in a setting. |
+| **The discovery screens' rough edges** (Greg, Oct 16) | Right after Step 7, as a step of its own, once approving and making live are on both surfaces: one pass over the whole flow. |
 | **Public module libraries at scale** | After Step 7, for cost caps and scale; no answer key, checked by hand. |

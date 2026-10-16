@@ -599,6 +599,7 @@ Issue one from your Mac, then send it to the person privately:
 deploy/server.sh token add ana@example.com "Ana Pereira"            # team "default"
 deploy/server.sh token add ana@example.com "Ana Pereira" payments   # or a team
 deploy/server.sh token add you@example.com "Your Name" --org-wide   # sees every team
+deploy/server.sh token add you@example.com "Your Name" --org-wide --org juniper   # in another organization
 deploy/server.sh token list                                          # never shows tokens
 deploy/server.sh token revoke ana@example.com                        # stops working at once
 ```
@@ -609,6 +610,15 @@ sees every team's, which is what the administrator's own token should be. The ne
 ledger lists every app in the organization, but the lines of code that show an app's
 needs only to its own team and to organization-wide tokens (DESIGN.md, "Each team sees
 its own environments").
+
+`--org` issues a token in an organization other than `default`. Each organization has
+its own catalogs, environments and discovery runs, and sees none of another's. The
+pilot has a second one, `juniper`, so a catalog discovered from Juniper Mutual's library
+(the made-up organization) can be approved and made live without changing what anyone
+in `default` plans against (PHASE4-PLAN Step 7). To act as it, use that token:
+`SEALEYE_TOKEN=<its token> sealeye catalog versions`, or sign in with it on the portal.
+The library discovery reads is still the server's one setting (`SEALEYE_LIBRARY_REPOS`)
+for every organization, until admin onboarding names one each.
 
 The token is made on your Mac and shown once, there. The server is sent only its hash,
 so it is in no log, no command history and no Session Manager record, and a copy of the

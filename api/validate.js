@@ -10,7 +10,7 @@ import addFormats from "ajv-formats";
 
 import { STARTER_VERSION, unlistedNeedProblems, upgradePlan } from "../core/schema.js";
 import { catalogModuleIds, firstSentence, isBuildable, moduleEntry, schemaFor } from "../core/catalog.js";
-import { catalogsOf, catalogAt, liveCatalog } from "./catalogs.js";
+import { catalogGoingLive, catalogsOf, catalogAt, liveCatalog } from "./catalogs.js";
 
 const ajv = new Ajv({ allErrors: true });
 addFormats(ajv);
@@ -79,8 +79,15 @@ export function checkUpgraded(plan, { org = "default" } = {}) {
   // the starter's shape, as any other field is.
   const known = plan && typeof plan === "object" && isVersion(plan.catalog) ? catalogOfPlan(plan, org) : null;
   if (known?.error) return { valid: false, errors: [known.error] };
-  const catalog = known?.document || catalogAt(org, STARTER_VERSION);
+  return checkAgainst(plan, known?.document || catalogAt(org, STARTER_VERSION));
+}
 
+/**
+ * The same check against a catalog document, whatever its status: the self-test asks it
+ * of a draft or an approved catalog before any plan may name one (api/self-test.js), and
+ * must get the answer a developer's plan would get once it is live.
+ */
+export function checkAgainst(plan, catalog) {
   const validate = validatorFor(catalog);
   const ok = validate(plan);
   const errors = ok ? unlistedNeedProblems(plan, catalogModuleIds(catalog)) : formatAjvErrors(validate.errors);
@@ -98,10 +105,12 @@ export function checkUpgraded(plan, { org = "default" } = {}) {
 export function noLongerBuilt(plan, org = "default") {
   const live = liveCatalog(org);
   const named = plan?.catalog ?? STARTER_VERSION;
-  if (named === live.version) return [];
+  // A catalog being made live this moment counts as live already (catalogGoingLive).
+  const next = catalogGoingLive(org);
+  if (named === live.version && !next) return [];
   const then = catalogOfPlan(plan, org).document || live.document;
   return (plan?.modules || [])
-    .filter(m => m && m.enabled !== false && !isBuildable(m.id, live.document))
+    .filter(m => m && m.enabled !== false && (!isBuildable(m.id, live.document) || (next && !isBuildable(m.id, next))))
     .map(m => firstSentence(moduleEntry(m.id, then)?.short_line || moduleEntry(m.id, then)?.line || "a module this plan uses"));
 }
 

@@ -488,6 +488,10 @@ flowchart LR
   sup -. "question" .-> q
   q -. "answer, any time" .-> sup
   sup --> draft[("draft catalog")]
+  draft --> test["self-test: plain code<br/>(api/self-test.js)"]
+  test --> approve["approved, by an<br/>organization-wide token"]
+  approve --> test2["self-test again,<br/>and no environment dropped"]
+  test2 --> live[("live catalog")]
 ```
 
 ## 8. Data
@@ -554,6 +558,8 @@ erDiagram
     timestamptz created_at
     text approved_by
     timestamptz approved_at
+    text made_live_by
+    timestamptz made_live_at
   }
   INTERVIEWS {
     text interview_id PK "schema interview_state"
@@ -590,7 +596,9 @@ erDiagram
 and the person's email, not by a foreign key, so a record outlives a revoked token.
 `CATALOGS` holds each organization's catalogs (PHASE4-PLAN Step 1), one live at most;
 an organization with none plans against the starter catalog,
-`prompts/module-catalog.yaml`, which is not a row. `DISCOVERIES` and
+`prompts/module-catalog.yaml`, which is not a row. A draft goes live in two steps, the
+self-test at each (Step 7): approved, by whom and when, then made live, by whom and
+when; a retired catalog may go live again. `DISCOVERIES` and
 `DISCOVERY_QUESTIONS` hold each discovery run and what it asked (PHASE4-PLAN Step 6): a
 finding is lines and evidence pointers (a file and what it shows), never a file's
 contents; the draft a run writes is a `CATALOGS` row.

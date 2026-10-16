@@ -50,6 +50,7 @@ import { noReportWords, planOrigin } from "../../core/plan-report-words.js";
 import { RETENTION_CHOICES, retentionOf, withRetention } from "../../core/retention.js";
 import { commandFor, wordsFor } from "../../core/operations.js";
 import { discover } from "../discover.js";
+import { catalogs } from "../catalogs.js";
 
 // Statuses that are history rather than something you can still open: one was torn
 // down, the other was never built because the platform said so.
@@ -147,6 +148,8 @@ Usage:
   ${product.command} online [app | deploymentId] [--print] [--json] [--api <url>]
   ${product.command} doctor [--json] [--api <url>]
   ${product.command} catalog [--json] [--api <url>]
+  ${product.command} catalog versions|test [<number>] [--json] [--api <url>]
+  ${product.command} catalog approve|live <number> [--json] [--api <url>]
   ${product.command} discover [answers|status] [<run>] [--json] [--api <url>]
   ${product.command} login [--api <url>]
   ${product.command} whoami [--json] [--api <url>]
@@ -1069,6 +1072,10 @@ async function main() {
   // What the platform can build, and the needs it cannot yet, as the portal's Catalog
   // page shows them.
   if (command === "catalog") {
+    // A platform engineer's: the organization's catalogs, the self-test, approving and
+    // making live (PHASE4-PLAN Step 7).
+    const words = process.argv.slice(3).filter(a => !a.startsWith("--") && a !== getArg("--api"));
+    if (words.length) return catalogs({ apiBaseUrl, sub: words[0], args: words.slice(1), say, json: jsonOut });
     const catalog = await getCatalog({ apiBaseUrl });
     if (jsonOut) {
       console.log(JSON.stringify(catalog, null, 2));

@@ -704,3 +704,33 @@ test("starting a run with no library named says so in words", async ({ page }) =
   await page.getByTestId("start-discovery").click();
   await expect(page.getByRole("alert")).toContainText("No platform library is named for discovery yet");
 });
+
+// Approving and making live (PHASE4-PLAN Step 7), as `sealeye catalog` does. The sample
+// draft builds nothing yet (Terraform modules), and the sample environments run on the
+// starter's, so making it live is refused, naming them, and nothing changes.
+test("Catalogs: the self-test, approving a draft, and making live refused while environments use the starter", async ({ page }) => {
+  await signInOrgWide(page);
+  await page.goto("/discovery");
+  const card = page.getByTestId("catalogs");
+  await expect(card.getByTestId("live-catalog")).toContainText("starter catalog");
+  await expect(card.getByTestId("catalog-row")).toHaveCount(1);
+  await expect(card.getByTestId("catalog-row")).toContainText("Draft");
+  await expect(card.getByTestId("command-hint")).toContainText("sealeye catalog versions");
+
+  await card.getByRole("button", { name: "Self-test" }).click();
+  await expect(card.getByTestId("self-test-summary")).toHaveText("Catalog 1 passed its self-test.");
+  await expect(card.getByTestId("self-test-check")).toHaveCount(5);
+  await expect(card.getByTestId("self-test")).toContainText("postgres: nothing the platform has builds it yet");
+  await expect(card.getByTestId("self-test")).toContainText("It builds nothing yet");
+
+  await card.getByTestId("catalog-approve").click();
+  await expect(card.getByTestId("catalog-done")).toHaveText("Catalog 1 is approved. Nothing changes for developers until it is made live.");
+  await expect(card.getByTestId("catalog-row")).toContainText("Approved, not live");
+  await expect(card.getByTestId("catalog-row")).toContainText("approved by lead@example.com");
+
+  await card.getByTestId("catalog-live").click();
+  await expect(card.getByTestId("confirm-live")).toContainText("Every developer in your organization plans against it from now on");
+  await card.getByTestId("confirm-live-yes").click();
+  await expect(page.getByRole("alert")).toContainText("Catalog 1 cannot be made live: it does not build what");
+  await expect(card.getByTestId("live-catalog")).toContainText("starter catalog");
+});

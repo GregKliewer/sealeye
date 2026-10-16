@@ -567,3 +567,123 @@ test("the supervisor is bounded by the run's cap, not a reader's, so a late answ
   const full = createBudget({ workerCap: 0.1, runCap: 3, spend: { supervisor: { cost: 3 } } });
   assert.throws(() => full.check("supervisor"), err => err.scope === "run");
 });
+
+test("questions the supervisor says ask the same thing are merged: one kept, touching what each did, with who asked each", async () => {
+  const model = scripted({ libraryQuestion: true });
+  const create = model.client.messages.create;
+  const writes = () => model.calls.filter(c => c.tools.includes("write_catalog")).length;
+  model.client.messages.create = async params => {
+    const reply = await create(params);
+    const tools = params.tools.map(t => t.name);
+    const opening = text(params.messages[0].content);
+    // The db's reader asks about the cache too, in its own words.
+    if (tools.includes("submit_finding") && /Your module is modules\/db\./.test(opening) && reply.content[0].name === "submit_finding") {
+      reply.content[0].input.questions = [{ kind: "deprecated", question: "Can new apps still put the cache in front of the db?", options: ["No", "Yes"], guess: "No", touches: ["modules/cache"], evidence: [{ file: "modules/cache/README.md", shows: "deprecated" }] }];
+    }
+    if (!tools.includes("write_catalog")) return reply;
+    const asked = JSON.parse(opening.slice(opening.indexOf("Questions so far, with any answers:") + 35));
+    const cacheQ = asked.find(q => q.question.startsWith("Is the cache"));
+    if (writes() === 1) {
+      // Merge the db reader's cache question into the cache's own: allowed. And the
+      // library-wide question into the cache's: refused, a guess about the whole
+      // catalog would go out of sight.
+      const dbQ = asked.find(q => q.question.startsWith("Can new apps"));
+      const perf = asked.find(q => q.question.startsWith("Does perf"));
+      reply.content[0].input.merges = [{ keep: cacheQ.id, merged: [dbQ.id, perf.id, "q_not_this_runs"] }];
+    } else {
+      // Once the cache's question is answered: the overlap, unanswered, merged into it is refused.
+      const overlap = asked.find(q => q.kind === "overlap");
+      reply.content[0].input.merges = [{ keep: cacheQ.id, merged: [overlap.id] }];
+    }
+    return reply;
+  };
+  const service = createDiscoveryService({ client: model.client, readLibrary: readFolder(library()) });
+  const events = [];
+  const started = await service.start({ caller, repos: [{ owner: "acme", repo: "platform" }] });
+  service.subscribe(started.discoveryId, 0, e => e && events.push(e));
+  await service.settled(started.discoveryId);
+
+  const questions = service.questions(started.discoveryId);
+  assert.ok(!questions.some(q => q.question.startsWith("Can new apps")), "the merged one is not asked again");
+  assert.ok(questions.some(q => q.question.startsWith("Does perf")), "the library-wide one is not merged into a module's");
+  const kept = questions.find(q => q.question.startsWith("Is the cache"));
+  assert.deepEqual(kept.merged, [{ question: "Can new apps still put the cache in front of the db?", raisedBy: "worker:modules/db" }]);
+  assert.deepEqual(kept.touches, ["modules/cache", "modules/db"]);
+  const merged = events.find(e => e.type === "merged");
+  assert.equal(merged.questions.length, 1);
+
+  // The draft rests on the one kept, and the catalog still on the library-wide one.
+  const run = service.get(started.discoveryId);
+  const draft = catalogAt("acme", run.catalog.version);
+  assert.equal(draft.discovery.open.length, 1);
+  assert.ok(draft.modules.find(m => m.id === "cache").open.includes(kept.id));
+  assert.ok(draft.modules.find(m => m.id === "db").open.includes(kept.id));
+
+  // An answer to the merged question, still on someone's screen, answers the one kept.
+  const answered = await service.answer({ id: started.discoveryId, questionId: merged.questions[0], answer: "No", by: "lee@acme.test" });
+  assert.equal(answered.id, kept.id);
+  await service.settled(started.discoveryId);
+  const after = service.questions(started.discoveryId);
+  assert.equal(after.find(q => q.id === kept.id).answer, "No");
+  // The rewrite's merge of the unanswered overlap into the answered one was refused:
+  // a merge never closes a question nobody answered.
+  const overlap = after.find(q => q.kind === "overlap");
+  assert.ok(overlap && overlap.answer === null, "the overlap is still open");
+  const latest = catalogAt("acme", service.get(started.discoveryId).catalog.version);
+  assert.ok(latest.modules.find(m => m.id === "db_cluster").open.includes(overlap.id));
+});
+
+
+test("entries in words a developer never reads are written again once, in plain words, before the draft is kept", async () => {
+  const model = scripted();
+  const create = model.client.messages.create;
+  const fixes = [];
+  model.client.messages.create = async params => {
+    const reply = await create(params);
+    if (!params.tools.some(t => t.name === "write_catalog")) return reply;
+    const opening = text(params.messages[0].content);
+    const input = reply.content[0].input;
+    if (opening.includes("words a developer never reads")) {
+      fixes.push(opening.slice(0, opening.indexOf("What the readers found")));
+      for (const e of input.entries) if (e.source === "modules/db") Object.assign(e, { line: "A relational database for your app.", input_lines: { name: "Your app's name." } });
+    } else {
+      for (const e of input.entries) if (e.source === "modules/db") e.line = "A database on RDS in a private subnet.";
+      for (const e of input.entries) if (e.source === "modules/db-cluster") e.line = "The database from staging up.";
+    }
+    return reply;
+  };
+  const service = createDiscoveryService({ client: model.client, readLibrary: readFolder(library()) });
+  const events = [];
+  const started = await service.start({ caller, repos: [{ owner: "acme", repo: "platform" }] });
+  service.subscribe(started.discoveryId, 0, e => e && events.push(e));
+  await service.settled(started.discoveryId);
+
+  assert.equal(fixes.length, 1, "one fix-up call");
+  assert.match(fixes[0], /Write the entries for these modules: modules\/db\./, "only the entries that need it");
+  assert.match(fixes[0], /- modules\/db: line uses RDS/);
+  assert.match(fixes[0], /- modules\/db: line uses subnet/);
+  assert.deepEqual(events.find(e => e.type === "plain_words").sources, ["modules/db"]);
+  const draft = catalogAt("acme", service.get(started.discoveryId).catalog.version);
+  assert.equal(draft.modules.find(m => m.id === "db").line, "A relational database for your app.");
+  const { developerWordProblems } = await import("../core/developer-words.js");
+  assert.deepEqual(developerWordProblems({ ...draft, modules: draft.modules.filter(m => m.availability === "available") }), []);
+});
+
+test("a fix-up that cannot be made keeps the draft as it was, and says so", async () => {
+  const model = scripted();
+  const create = model.client.messages.create;
+  model.client.messages.create = async params => {
+    if (params.tools.some(t => t.name === "write_catalog") && text(params.messages[0].content).includes("words a developer never reads")) throw Object.assign(new Error("bad request"), { status: 400 });
+    const reply = await create(params);
+    if (params.tools.some(t => t.name === "write_catalog")) for (const e of reply.content[0].input.entries) if (e.source === "modules/db") e.line = "Runs on Lambda.";
+    return reply;
+  };
+  const service = createDiscoveryService({ client: model.client, readLibrary: readFolder(library()) });
+  const events = [];
+  const started = await service.start({ caller, repos: [{ owner: "acme", repo: "platform" }] });
+  service.subscribe(started.discoveryId, 0, e => e && events.push(e));
+  await service.settled(started.discoveryId);
+  assert.equal(service.get(started.discoveryId).status, "finished");
+  assert.ok(events.some(e => e.type === "plain_words_not_done"));
+  assert.equal(catalogAt("acme", service.get(started.discoveryId).catalog.version).modules.find(m => m.id === "db").line, "Runs on Lambda.");
+});

@@ -146,3 +146,78 @@ test("with a run's questions: the unclear module must be asked, and its entry re
   bySource(guessed, "modules/cache-valkey").open = ["q_1"];
   assert.equal(gradeCatalog(guessed, key, { questions: [q] }).correct, true);
 });
+
+test("the answer key's own catalog passes the self-test a draft must pass to be approved", async () => {
+  const { selfTest } = await import("../api/self-test.js");
+  const result = selfTest({ document: key.catalog, version: 1 });
+  assert.equal(result.passed, true, JSON.stringify(result.checks.filter(c => !c.passed)));
+  assert.equal(result.refused.find(r => r.id === "cache_redis").why, "the library has deprecated it");
+});
+
+test("graded twice: no answers, then the key's answers at fixed points; each pass as the key expects", { skip: !process.env.SEALEYE_SAMPLE_PLATFORM && "set SEALEYE_SAMPLE_PLATFORM to a clone of the library" }, async () => {
+  process.env.SEALEYE_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-eval-twice-"));
+  delete process.env.DATABASE_URL;
+  const { openCatalogs } = await import("../api/catalogs.js");
+  const { runDiscovery, scriptedAnswer } = await import("../scripts/eval-discovery.js");
+  await openCatalogs();
+  const words = new Map(key.catalog.modules.map(m => [m.source, m]));
+  const usage = { input_tokens: 1000, output_tokens: 200 };
+  const entryFor = (source, asked) => {
+    const k = words.get(source);
+    // The unclear cache is offered as the answer says, once it has one.
+    const valkey = asked.find(q => (q.touches || []).includes("modules/cache-valkey"));
+    const availability = k.availability === "available" ? "available" : "deprecated";
+    return { source, line: k.line, when: k.when || "", signals: k.signals || [], role: k.role || "optional", availability: source === "modules/cache-valkey" && valkey?.answer?.startsWith("No") ? "deprecated" : availability, guidance: k.guidance || "", open: [] };
+  };
+  // A model with the key's words that asks what a careful engineer asks: the unclear
+  // cache (the supervisor, naming both), and one question of a reader's own.
+  const client = {
+    messages: {
+      create: async params => {
+        const tools = params.tools.map(t => t.name);
+        const opening = typeof params.messages[0].content === "string" ? params.messages[0].content : JSON.stringify(params.messages[0].content);
+        if (tools.includes("submit_finding")) {
+          const source = opening.match(/Your module is (\S+)\./)[1];
+          const k = words.get(source);
+          const questions = source === "modules/work-queue"
+            ? [{ kind: "other", question: "Are failed messages kept in every stage?", options: ["Yes", "Only from staging up"], guess: "Yes", evidence: [{ file: "modules/work-queue/README.md", shows: "a dead-letter queue" }] }]
+            : [];
+          // No input lines of its own: the library's variable descriptions stand, and
+          // some say "subnet" or "Terraform", so the fix-up has to put them right.
+          return { content: [{ type: "tool_use", id: "f", name: "submit_finding", input: { line: k.line, when: k.when || "", signals: k.signals || [], role: k.role || "optional", availability: k.availability === "available" ? "available" : "deprecated", stages: "all", rules: [], questions } }], usage };
+        }
+        if (tools.includes("submit_library")) return { content: [{ type: "tool_use", id: "l", name: "submit_library", input: { stages: ["dev", "sit", "uat", "staging", "prod"], rules: [], questions: [] } }], usage };
+        const sources = opening.match(/Write the entries for these modules: (.+)\./)[1].split(", ");
+        const asked = JSON.parse(opening.slice(opening.indexOf("Questions so far, with any answers:") + 35));
+        const first = sources.length > 2;
+        const questions = first
+          ? [{ kind: "deprecated", question: "Is cache-valkey the replacement for cache-redis for new apps?", options: ["No, not yet", "Yes"], guess: "No, not yet", touches: ["modules/cache-valkey", "modules/cache-redis"], evidence: [{ file: "modules/cache-redis/README.md", shows: "no cache for new apps until replaced" }] }]
+          : [];
+        // Asked to write entries again in plain words: the key's own lines for every input.
+        const plain = opening.includes("words a developer never reads");
+        if (plain) fixUps += 1;
+        const entries = sources.map(s => ({
+          ...entryFor(s, asked),
+          ...(plain ? { input_lines: Object.fromEntries(Object.entries(words.get(s).inputs || {}).filter(([, v]) => v?.line).map(([n, v]) => [n, v.line])) } : {})
+        }));
+        return { content: [{ type: "tool_use", id: "w", name: "write_catalog", input: { entries, questions: plain ? [] : questions } }], usage };
+      }
+    }
+  };
+  let fixUps = 0;
+  const out = dir => path.join(fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-eval-out-")), `${dir}.yaml`);
+
+  const none = await runDiscovery(process.env.SEALEYE_SAMPLE_PLATFORM, key, out("none"), { client });
+  assert.ok(none.graded.correct, gradeLines(none.graded).join("\n"));
+  assert.equal(fixUps, 1, "the library's own descriptions were written again once, and then the self-test passed");
+  assert.deepEqual(none.graded.hardCases.filter(h => h.case.startsWith("must refuse") || h.case === "self-test").map(h => [h.case, h.ok]),
+    [["self-test", true], ["must refuse: deprecated", true], ["must refuse: resting on a question", true]]);
+
+  const scripted = await runDiscovery(process.env.SEALEYE_SAMPLE_PLATFORM, key, out("scripted"), { client, scripted: true });
+  assert.ok(scripted.graded.correct, gradeLines(scripted.graded).join("\n"));
+  const answered = Object.fromEntries(scripted.questions.map(q => [q.question, q.answer]));
+  assert.equal(answered["Is cache-valkey the replacement for cache-redis for new apps?"], key.answers.ambiguous.answer, "answered as it went out");
+  assert.equal(answered["Are failed messages kept in every stage?"], "Yes", "answered with its guess, after the draft");
+  assert.ok(scripted.graded.hardCases.some(h => h.case === "answers written in" && h.ok));
+  assert.equal(scriptedAnswer({ touches: ["modules/postgres"], guess: "A" }, key, "as_asked"), null, "only the unclear one is answered as it goes out");
+});

@@ -18,12 +18,13 @@ import path from "node:path";
 import { Annotation, END, Send, START, StateGraph } from "@langchain/langgraph";
 
 import { setting } from "../../core/config.js";
-import { withoutTracing } from "../../core/tracing.js";
+import { traceDiscovery, traceEvent } from "../../core/tracing.js";
 import { addCatalog, catalogAt, catalogsOf, updateDraft } from "../catalogs.js";
 import { claimsFor, signerFromSettings, withCallerToken } from "../gateway-token.js";
 import { modelClient, modelCredential } from "../interview/model.js";
 import { switchOffLangSmith } from "../interview/service.js";
 import { draftCatalog, rewriteEntries } from "./draft.js";
+import { developerWordProblems } from "../../core/developer-words.js";
 import { libraryRepos, repoName } from "./github.js";
 import { readLibrary as readFromGitHub } from "./library.js";
 import { ANSWER_LIMIT } from "../../core/discovery-words.js";
@@ -37,6 +38,7 @@ import { idFor, listModules, moduleHash, moduleInputs } from "./terraform.js";
 export const DEFAULT_WORKER_CAP = 0.1;
 export const DEFAULT_RUN_CAP = 3;
 const MAX_PARALLEL = 4;
+const QUESTION_KINDS = ["overlap", "deprecated", "contradiction", "other"];
 
 const capSetting = (name, fallback) => {
   const v = setting(name);
@@ -154,14 +156,15 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
       const touches = [...new Set([...(touchesDefault ? [touchesDefault] : []), ...(Array.isArray(q.touches) ? q.touches : [])].map(t => sourceFor(run, t)).filter(Boolean))];
       // The supervisor sees the readers' questions and may ask one again in its own
       // words; the prompt says not to, and code makes sure (Greg, Oct 15, 2026).
-      if (!touchesDefault && repeats({ kind: q.kind || "other", question: String(q.question || ""), touches }, store.questionsOf(run.id))) continue;
+      if (!touchesDefault && repeats({ kind: QUESTION_KINDS.includes(q.kind) ? q.kind : "other", question: String(q.question || ""), touches }, store.questionsOf(run.id))) continue;
       const options = (q.options || []).map(String).slice(0, 4);
       const question = {
         id: `q_${crypto.randomBytes(6).toString("hex")}`,
         seq: ++s.qseq,
         discovery: run.id,
         org: run.org,
-        kind: q.kind || "other",
+        // One of the schema's kinds, whatever the model wrote: the kind reaches the trace.
+        kind: QUESTION_KINDS.includes(q.kind) ? q.kind : "other",
         question: String(q.question || "").slice(0, 600),
         options,
         guess: options.includes(q.guess) ? q.guess : options[0],
@@ -172,6 +175,8 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
         createdAt: new Date(now()).toISOString()
       };
       await store.saveQuestion(question);
+      // Its kind and who raised it, never its words (DESIGN.md, Step 7's traces).
+      traceEvent("question", { kind: question.kind, raisedBy: question.raisedBy, touches: touches.length });
       emit(run.id, { type: "question", question: publicQuestion(question) });
       out.push(question);
     }
@@ -206,8 +211,63 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
   const publicQuestion = q => ({
     id: q.id, kind: q.kind, question: q.question, options: q.options, guess: q.guess, touches: q.touches,
     evidence: q.evidence, answer: q.answer ?? null, answeredBy: q.answeredBy || null, answeredAt: q.answeredAt || null,
-    usedAt: q.usedAt || null
+    usedAt: q.usedAt || null,
+    // The questions merged into this one, each as it was asked and by whom.
+    ...(q.merged?.length ? { merged: q.merged.map(m => ({ question: m.question, raisedBy: m.raisedBy })) } : {})
   });
+
+  /**
+   * A run's questions, less those merged into another: one issue is one question, kept
+   * once, wherever it was asked. A merged question keeps its own record, saying which it
+   * was merged into.
+   */
+  const asked = id => store.questionsOf(id).filter(q => !q.mergedInto);
+
+  /**
+   * Merge the questions the supervisor says ask the same thing (Greg, Oct 16, 2026: three
+   * about the caches in one run). Code checks and applies each: both must be this run's
+   * and not merged already, and two different answers are never merged. The one kept
+   * touches every module either did, takes an answer only the other had, and keeps who
+   * asked each.
+   */
+  async function applyMerges(run, merges) {
+    const all = new Map(store.questionsOf(run.id).map(q => [q.id, q]));
+    const done = [];
+    for (const m of Array.isArray(merges) ? merges : []) {
+      let keep = all.get(String(m?.keep || ""));
+      if (!keep || keep.mergedInto) continue;
+      for (const id of new Set((Array.isArray(m.merged) ? m.merged : []).map(String))) {
+        const other = all.get(id);
+        if (!other || other.id === keep.id || other.mergedInto) continue;
+        // Never closes a question nobody answered: one with no answer goes only into
+        // another with none, and two answers that differ are never merged.
+        if (other.answer == null && keep.answer != null) continue;
+        if (other.answer != null && keep.answer != null && other.answer !== keep.answer) continue;
+        // A question about the whole catalog holds up its approval; one about modules
+        // holds back only those. Merging across the two would move a guess out of sight.
+        if (!(other.touches || []).length !== !(keep.touches || []).length) continue;
+        if (other.answer != null && keep.answer == null) {
+          keep = { ...keep, answer: other.answer, answeredBy: other.answeredBy || null, answeredAt: other.answeredAt || null, usedAt: null, usedIn: null };
+        }
+        keep = {
+          ...keep,
+          touches: [...new Set([...(keep.touches || []), ...(other.touches || [])])],
+          merged: [...(keep.merged || []), { id: other.id, question: other.question, raisedBy: other.raisedBy, kind: other.kind }, ...(other.merged || [])]
+        };
+        const gone = { ...other, mergedInto: keep.id };
+        await store.saveQuestion(gone);
+        all.set(gone.id, gone);
+        done.push(gone.id);
+      }
+      await store.saveQuestion(keep);
+      all.set(keep.id, keep);
+    }
+    if (done.length) {
+      traceEvent("questions merged", { merged: done.length });
+      emit(run.id, { type: "merged", questions: done, into: [...new Set(done.map(id => all.get(id).mergedInto))] });
+    }
+    return done;
+  }
 
   function graphFor(run) {
     const s = state(run.id);
@@ -257,11 +317,46 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
     return graph.compile();
   }
 
+  /**
+   * Once, before a draft is kept: the entries among `sources` whose words a developer
+   * must never read (the self-test's word check, core/developer-words.js) go back to the
+   * supervisor to be written again in plain words, and the new ones replace them. A
+   * library's own descriptions, a variable's above all, are written in the cloud's terms,
+   * and a draft holding them cannot be approved (Greg, Oct 16, 2026). If the call cannot
+   * be made, the entries stay as they were and the self-test says what to fix.
+   *
+   * @param {(entries: object[]) => object} build  the draft as it would be with these entries
+   * @returns {Promise<object[]>} the entries, some written again
+   */
+  async function inPlainWords(run, entries, sources, build) {
+    const doc = build(entries);
+    const sourceOf = new Map((doc.modules || []).map(m => [m.id, m.source]));
+    const offered = { ...doc, modules: (doc.modules || []).filter(m => m.availability === "available" && sources.includes(m.source)) };
+    const problems = developerWordProblems(offered).filter(p => p.module && sourceOf.has(p.module));
+    if (!problems.length) return entries;
+    const again = [...new Set(problems.map(p => sourceOf.get(p.module)))];
+    const lines = problems.map(p => `${sourceOf.get(p.module)}: ${p.where.slice(p.where.indexOf(": ") + 2)} uses ${p.term}`);
+    emit(run.id, { type: "plain_words", sources: again });
+    const s = state(run.id);
+    try {
+      const written = await superviseEntries({
+        clientFor: clientFor(run), credentialIsGateway: viaGateway(), budget: s.budget, org: run.orgName,
+        modules: run.modules, library: run.library, questions: asked(run.id), sources: again, plainWords: lines
+      });
+      const fresh = new Map((written.entries || []).filter(e => again.includes(e.source)).map(e => [e.source, e]));
+      traceEvent("plain words", { entries: fresh.size, words: problems.length });
+      return entries.map(e => fresh.get(e.source) || e).concat([...fresh.values()].filter(e => !entries.some(x => x.source === e.source)));
+    } catch (err) {
+      emit(run.id, { type: "plain_words_not_done", sources: again, why: err instanceof SpendingLimit ? "the run reached its spending limit" : "seaLeye could not write them again" });
+      return entries;
+    }
+  }
+
   /** The supervisor writes every entry, using every answer there is now, then the draft is kept. */
   async function writeAll(run) {
     const s = state(run.id);
     emit(run.id, { type: "writing" });
-    const before = store.questionsOf(run.id);
+    const before = asked(run.id);
     const written = await superviseEntries({
       clientFor: clientFor(run),
       credentialIsGateway: viaGateway(),
@@ -273,8 +368,11 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
       sources: run.modules.map(m => m.source)
     });
     await raise(run, written.questions, null);
-    const questions = store.questionsOf(run.id);
-    const document = draftCatalog({ run, modules: run.modules, library: run.library, entries: written.entries, questions });
+    await applyMerges(run, written.merges);
+    const entries = await inPlainWords(run, written.entries || [], run.modules.map(m => m.source),
+      list => draftCatalog({ run, modules: run.modules, library: run.library, entries: list, questions: asked(run.id) }));
+    const questions = asked(run.id);
+    const document = draftCatalog({ run, modules: run.modules, library: run.library, entries, questions });
     const kept = await addCatalog({ org: run.org, document, by: run.startedBy });
     run.catalogVersion = kept.version;
     run.spend = s.budget.spend();
@@ -308,20 +406,34 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
     s.writing = s.writing.then(async () => {
       const run = runOf(id);
       if (!run?.catalogVersion) return;
-      const pending = store.questionsOf(id).filter(q => q.answer != null && !q.usedAt);
+      let pending = asked(id).filter(q => q.answer != null && !q.usedAt);
       if (!pending.length) return;
       const sources = [...new Set(pending.flatMap(q => q.touches))];
       let entries = [];
       if (sources.length) {
         s.budget = s.budget || createBudget({ workerCap: capSetting("DISCOVERY_WORKER_CAP", DEFAULT_WORKER_CAP), runCap: capSetting("DISCOVERY_RUN_CAP", DEFAULT_RUN_CAP), spend: run.spend });
         try {
-          const written = await withoutTracing(() => superviseEntries({
-            clientFor: clientFor(run), credentialIsGateway: viaGateway(), budget: s.budget, org: run.orgName,
-            modules: run.modules, library: run.library, questions: store.questionsOf(id), sources
-          }));
+          const written = await traceDiscovery({ runId: id, org: run.org, repo: run.repos?.[0]?.repo, commit: run.repos?.[0]?.commit, user: run.startedBy, kind: "answers" }, async trace => {
+            const out = await superviseEntries({
+              clientFor: clientFor(run), credentialIsGateway: viaGateway(), budget: s.budget, org: run.orgName,
+              modules: run.modules, library: run.library, questions: asked(id), sources
+            });
+            trace.set({ answers: pending.length, entries: sources.length });
+            return out;
+          });
           // Questions it raises now go out too, and entries resting on them say so.
           await raise(run, written.questions, null);
+          await applyMerges(run, written.merges);
           entries = written.entries.filter(e => sources.includes(e.source));
+          {
+            const base = catalogAt(run.org, run.catalogVersion);
+            entries = await inPlainWords(run, entries, sources,
+              list => rewriteEntries(structuredClone(base), { modules: run.modules, entries: list, questions: asked(id), library: run.library }));
+          }
+          // An answer a merge carried onto modules this pass did not write waits for the
+          // next one, so no module is marked done without being written (the review).
+          const now = new Map(asked(id).map(q => [q.id, q]));
+          pending = pending.map(q => now.get(q.id)).filter(q => q && q.answer != null && (q.touches || []).every(t => sources.includes(t)));
         } catch (err) {
           run.spend = s.budget.spend();
           run.answerProblem = err instanceof SpendingLimit ? "the run reached its spending limit" : "seaLeye could not write the entries again";
@@ -332,10 +444,19 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
       }
       let version = run.catalogVersion;
       const current = catalogAt(run.org, version);
-      const document = rewriteEntries(structuredClone(current), { modules: run.modules, entries, questions: store.questionsOf(id), library: run.library });
+      const document = rewriteEntries(structuredClone(current), { modules: run.modules, entries, questions: asked(id), library: run.library });
       const status = catalogsOf(run.org).find(c => c.version === version)?.status;
-      if (status === "draft") await updateDraft({ org: run.org, version, document });
-      else version = (await addCatalog({ org: run.org, document, by: run.startedBy })).version;
+      // Approved meanwhile (between reading its status and writing it): a new draft, as
+      // for one approved earlier, so the answer is not left stuck (the review).
+      const asNew = async () => (await addCatalog({ org: run.org, document, by: run.startedBy })).version;
+      if (status === "draft") {
+        try {
+          await updateDraft({ org: run.org, version, document });
+        } catch (err) {
+          if (err.code !== "CATALOG_STATUS") throw err;
+          version = await asNew();
+        }
+      } else version = await asNew();
       await markUsed(pending, version);
       run.catalogVersion = version;
       run.spend = s.budget ? s.budget.spend() : run.spend;
@@ -343,7 +464,7 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
       await save(id);
       emit(id, { type: "answers_used", questions: pending.map(q => q.id), sources, catalog: { version } });
       // An answer that changed while this pass ran is still pending: one more pass.
-      if (store.questionsOf(id).some(q => q.answer != null && !q.usedAt)) useAnswers(id);
+      if (asked(id).some(q => q.answer != null && !q.usedAt)) useAnswers(id);
     }).catch(err => {
       // Kept, never lost: the answers stay pending and the next pass uses them. Said on
       // the run's events and in the API's log, which holds no content of the library.
@@ -424,12 +545,20 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
       await save(run.id);
       emit(run.id, { type: "modules", modules: modules.map(m => m.source) });
 
-      await withoutTracing(() => graphFor(run).invoke({ modules }, { maxConcurrency: MAX_PARALLEL, recursionLimit: 50 }));
+      // Traced as its shape only: workers, files by path and size, tokens and cost, and
+      // questions by kind; never a file, a prompt or a reply (core/tracing.js).
+      await traceDiscovery({ runId: run.id, org: run.org, repo: run.repos[0]?.repo, commit: run.repos[0]?.commit, user: run.startedBy }, async trace => {
+        try {
+          await graphFor(run).invoke({ modules }, { maxConcurrency: MAX_PARALLEL, recursionLimit: 50 });
+        } finally {
+          trace.set(runOutcome(run, s));
+        }
+      });
       run.status = "finished";
       run.finishedAt = new Date(now()).toISOString();
       run.spend = s.budget.spend();
       await save(run.id);
-      emit(run.id, { type: "finished", catalog: { version: run.catalogVersion }, open: store.questionsOf(run.id).filter(q => q.answer == null).length });
+      emit(run.id, { type: "finished", catalog: { version: run.catalogVersion }, open: asked(run.id).filter(q => q.answer == null).length });
       // Any answer that came while the entries were being written.
       await useAnswers(run.id);
     } catch (err) {
@@ -453,12 +582,32 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
     }
   }
 
+  /** What a run's trace says of it at the end: counts and money, never words. */
+  function runOutcome(run, s) {
+    const questions = asked(run.id);
+    const byKind = {};
+    for (const q of questions) byKind[`questions_${String(q.kind).replace(/[^a-z_]/g, "")}`] = (byKind[`questions_${String(q.kind).replace(/[^a-z_]/g, "")}`] || 0) + 1;
+    return {
+      modules: (run.modules || []).length,
+      notRead: (run.modules || []).filter(m => m.status === "not_read").length,
+      questions: questions.length,
+      open: questions.filter(q => q.answer == null).length,
+      ...byKind,
+      catalog: run.catalogVersion || 0,
+      spent: Number(Object.values(s.budget?.spend() || {}).reduce((t, w) => t + (w?.cost || 0), 0).toFixed(4))
+    };
+  }
+
   /** Answer a question, during the run or after it. */
   async function answer({ id, questionId, answer: text, by = null }) {
     const run = store.getRun(id);
     if (!run) throw new DiscoveryNotFound(id);
-    const q = store.getQuestion(questionId);
+    let q = store.getQuestion(questionId);
     if (!q || q.discovery !== id) throw new QuestionNotFound(questionId);
+    // A question merged into another (one still on someone's screen): the answer is the
+    // one it was merged into's.
+    for (let hops = 0; q?.mergedInto && hops < 10; hops++) q = store.getQuestion(q.mergedInto);
+    if (!q) throw new QuestionNotFound(questionId);
     const value = String(text ?? "").trim();
     if (!value || value.length > ANSWER_LIMIT) throw Object.assign(new Error("an answer is one of the options, or a sentence of your own"), { code: "BAD_ANSWER" });
     const saved = await store.saveQuestion({ ...q, answer: value, answeredBy: by, answeredAt: new Date(now()).toISOString(), usedAt: null, usedIn: null });
@@ -501,7 +650,7 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
     subscribe,
     get: id => summary(store.getRun(id)),
     list: org => store.runsOf(org).map(summary),
-    questions: id => store.questionsOf(id).map(publicQuestion),
+    questions: id => asked(id).map(publicQuestion),
     record: id => store.getRun(id),
     /** For tests: resolves when the run, and any answers it is using, are done. */
     settled: async id => {

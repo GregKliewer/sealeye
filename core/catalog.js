@@ -181,6 +181,9 @@ export function moduleEntry(id, catalog = loadCatalog()) {
 export function isBuildable(id, catalog = loadCatalog()) {
   const m = moduleEntry(id, catalog);
   if (!m || m.availability !== "available") return false;
+  // An entry resting on a question nobody has answered yet is never built: its guess
+  // never goes live (Greg, Oct 16, 2026: the catalog may still be approved without it).
+  if (Array.isArray(m.open) && m.open.length) return false;
   // The view the API sends a client (buildableView) has already asked, and says so.
   if (m.buildable === true) return true;
   const builds = typeof m.builds_with === "string" && Object.hasOwn(EXECUTORS, m.builds_with) ? EXECUTORS[m.builds_with] : [];

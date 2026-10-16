@@ -3252,3 +3252,96 @@ the draft was written was being written into it.
 
 An answer still never starts a new run: it rewrites only the entries it touches, in
 the same draft, for one planner call against the run's own limit.
+
+## A catalog goes live through a self-test, approved and made live apart
+
+Fri Oct 16, 2026, Greg, PHASE4-PLAN Step 7. How a draft catalog becomes the one an
+organization plans and refuses against. Each as recommended, except where it says.
+
+- **Who approves: any organization-wide token**, and the catalog keeps who and when.
+  That the approver must not be whoever started the run waits for Cognito groups (Q16),
+  where a bank will want it.
+- **Approving and making live are two steps.** Approving says the words are right; making
+  live says now. The self-test runs at both, since what the platform builds can change
+  between them. A retired catalog can go live again once its self-test passes: the way
+  back from a bad catalog.
+- **The self-test is code: no model, seconds, nothing spent** (`api/self-test.js`). It
+  checks the catalog's shape; writes, from the catalog, a plan for each module that must
+  be refused (deprecated, not read, resting on an open question, or nothing the platform
+  has builds it) and sends each through the same check `POST /plans/validate` makes; a
+  plan for each buildable module must pass it; and the words a developer reads must hold
+  no cloud term. Planning sample apps with the model is Step 8's eval, not the gate's.
+- **An open question does not hold up approval** (Greg chose the alternative). An entry
+  resting on one is never buildable, whatever its availability says (`isBuildable` in
+  `core/catalog.js`), so the catalog can be approved and made live without its guess;
+  the answer, when it comes, writes a new draft. A question that touches no module (the
+  path to production) has no entry to switch off, so it does hold up approval until it
+  is answered: otherwise its guess would go live.
+- **The words a developer reads block, not warn** (Greg). Product names of the cloud
+  (`core/developer-words.js`), and sizes and counts, in each module's line, short line,
+  when, skip line and inputs' lines, the need kinds', the profiles' and the patterns',
+  for every module the catalog offers, built yet or not: one waiting only for an
+  executor is built the day there is one, with no self-test between. Not checked: a
+  module's guidance, which is the planner's and keeps the library's own terms on
+  purpose (the supervisor is told to keep a rule's names), its signals, which describe
+  code, and a rule's own words, which are for whoever approves.
+- **A second organization, `juniper`, on the server.** A catalog discovered from Juniper
+  Mutual's library builds nothing until the Terraform executor (Step 9), and every
+  token today is in `default`, so making it live there would refuse every developer's
+  plan. Tokens already carry an organization; `deploy/server.sh token add --org juniper`
+  issues one. And a guard: making a catalog live is refused (409 `CATALOG_IN_USE`) while
+  any environment of that organization runs on a module the new catalog would not
+  build, naming each. Found while adding it: an app's settings are kept in the store by
+  team (`/sealeye-apps/<team>/<app>/`) and costs are tagged by team and app, neither by
+  organization, so a second organization could reach the first's. Both answer 409
+  `NOT_FOR_THIS_ORGANIZATION` to any organization but `default` until the organization
+  is in the path and the tags. The library discovery reads is still the server's one
+  setting for every organization, until admin onboarding names one each.
+- **Traces hold the shape, never the content**, as the interview's do: for each worker
+  its module, the files it read by path and size, tokens and cost; how many questions
+  of which kind. No file contents, no prompt, no reply.
+- **The supervisor merges questions that ask the same thing** (`merges` in
+  write_catalog: the one to keep and the ids it covers); code checks and applies it. Both
+  must be the run's and not merged already, and two different answers are never merged.
+  The one kept touches every module either did, takes an answer only the other had, and
+  lists each merged question as it was asked and by whom; a merged question keeps its
+  record, saying which it went into, and an answer to it answers the one kept. The
+  supervisor's prompt changed, so the run is measured before and after.
+- **The rough edges of the discovery screens** are a step of their own after this one,
+  once approving and making live are on them too.
+
+**Reviewed independently** before the pull request. It found five defects, all fixed
+with tests where a test could reach them:
+- A merge could close a question nobody had answered. An unanswered question merged
+  into an answered one left the open list, so its guess went into the catalog. A merge
+  now never closes a question that has no answer. It never crosses between a question
+  about the whole catalog and one about modules. An answer it carries onto modules the
+  pass did not write waits for the next pass.
+- The guard missed an environment whose tear-down had failed. The executor marks that
+  record failed, but its stack is still standing. The guard now counts every
+  environment that has not been torn down, whatever its status.
+- A deploy could slip past the guard while its code was being scanned. The catalog is
+  now checked again where nothing waits before the record is written. While a catalog
+  is being made live, a deploy is checked against it too (`catalogGoingLive`).
+- A deploy outside `default` would read `default`'s stored settings, since the store
+  keeps them by team only. Deploys answer 409 `NOT_FOR_THIS_ORGANIZATION` there too. A
+  drafted plan is still saved, so the needs ledger counts it.
+- The eval's LangFuse output held every question's words and answers. It now holds
+  counts and yes-or-no only.
+
+Two should-fixes are in as well. A question's kind is one of the schema's, so a model's
+own word for it never reaches a trace. An answer whose draft is approved while the
+answer is being written in goes into a new draft instead of being stuck.
+
+`sealeye catalog approve` now names its catalog, as `live` does, so what is approved is
+the catalog that was tested.
+
+**Words put right once, before the draft is kept** (Greg, Oct 16, 2026, choosing it after
+the grader blocked a draft of the real library on its own variable descriptions: five
+say "subnet", one "Terraform"). Before a draft is kept, and before an answer's rewrite
+is written in, code runs the word check over the entries it is about to keep. Each that
+fails goes back to the supervisor once, told which words in which places, to be written
+again with the same meaning in plain words, with a plain line for each input named. The
+new entries replace the old. Once only: if the call cannot be made, or the words still
+fail, the entries stay as they are and the self-test says what to change. It costs one
+frontier call for just those entries, against the run's cap, and only when it is needed.

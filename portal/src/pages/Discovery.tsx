@@ -2,16 +2,18 @@
 // the questions it raises, as `sealeye discover` does (PHASE4-PLAN Step 6b). A platform
 // engineer's page: only an organization-wide token sees it (Greg, Oct 15, 2026), since
 // the API refuses anyone else and the portal shows nothing it cannot do. The run never
-// waits on an answer; one given now is used whenever it comes. Nothing goes live here.
+// waits on an answer; one given now is used whenever it comes. Its Catalogs card runs
+// the self-test, approves a draft and makes a catalog live, as `sealeye catalog` does
+// (PHASE4-PLAN Step 7).
 import { useEffect, useState } from "react";
 import { Navigate } from "react-router";
-import { api, ApiError, type DiscoveryQuestion, type DiscoveryRun, type DraftCatalog } from "../api";
+import { api, ApiError, type CatalogSummary, type DiscoveryQuestion, type DiscoveryRun, type DraftCatalog, type SelfTest } from "../api";
 import { orgWide, useLoad, useSession } from "../session";
 import { ago, when } from "../model";
 import { PageTitle, Problem } from "../Layout";
 import { CommandHint } from "../Command";
 import { commandLine, label } from "../../../core/operations.js";
-import { choicesFor, discoveryEventLine, discoveryStateWords, isOpen, activityWords, answerStateWords, elapsedWords, modulesDone, nextProgress, progressSummary, SOMETHING_ELSE, ANSWER_LIMIT } from "../../../core/discovery-words.js";
+import { choicesFor, discoveryEventLine, discoveryStateWords, isOpen, activityWords, answerStateWords, elapsedWords, modulesDone, nextProgress, progressSummary, SOMETHING_ELSE, ANSWER_LIMIT, approvedWords, catalogStatusWords, catalogSummaryWords, madeLiveWords, nextCatalogStep, RESTS_ON_QUESTION, selfTestSummary } from "../../../core/discovery-words.js";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -30,7 +32,7 @@ const LOOK_AGAIN_WRITING_MS = 1500;
 /** Milliseconds since an event's time, never less than none. */
 const since = (at: string | null | undefined, now: number) => (at ? Math.max(0, now - Date.parse(at)) : 0);
 
-const MOVES = new Set(["question", "answered", "answers_used", "draft", "finished", "stopped", "failed", "not_read", "read"]);
+const MOVES = new Set(["question", "answered", "answers_used", "merged", "draft", "finished", "stopped", "failed", "not_read", "read"]);
 
 function Discovery() {
   const runs = useLoad(api.discoveries);
@@ -119,7 +121,7 @@ function Discovery() {
     <>
       <PageTitle
         title={label("discover")}
-        sub="Read your platform library into a draft catalog. The run never waits on you: answer its questions as they come, or later. Nothing goes live from here."
+        sub="Read your platform library into a draft catalog, and answer its questions as they come, or later: the run never waits on you. A catalog goes live only after its self-test, once approved and made live below."
         action={<div className="text-right">
           <Button onClick={start} disabled={starting || running} data-testid="start-discovery">{running ? "A run is going" : "Start a run"}</Button>
           <CommandHint op="discover" className="mt-2 justify-end" />
@@ -171,6 +173,8 @@ function Discovery() {
       </div>
 
       {draft ? <DraftTable draft={draft} version={run?.catalog?.version} questions={questions} /> : null}
+
+      <CatalogsCard tick={tick} />
 
       {answered.length ? (
         <Card className="mt-8">
@@ -229,6 +233,7 @@ function QuestionCard({ runId, q, onAnswered }: { runId: string; q: DiscoveryQue
       <CardContent>
         <p className="font-medium">{q.question}</p>
         {q.touches.length ? <p className="mt-1 text-xs text-dim">Touches {q.touches.join(", ")}</p> : null}
+        {q.merged?.length ? <p className="mt-1 text-xs text-dim" data-testid="also-asked">Also asked as: {q.merged.map(m => `"${m.question}"`).join("; ")}</p> : null}
         <ul className="mt-2 space-y-0.5 text-xs text-dim">
           {q.evidence.map((e, i) => <li key={i}><span className="font-mono">{e.file}{e.line ? `:${e.line}` : ""}</span>: {e.shows}</li>)}
         </ul>
@@ -246,7 +251,7 @@ function QuestionCard({ runId, q, onAnswered }: { runId: string; q: DiscoveryQue
         ) : null}
         <div className="mt-3 flex items-center gap-3">
           <Button size="sm" onClick={send} disabled={busy || !reply}>Answer</Button>
-          <span className="text-xs text-dim">Until it is answered, the draft rests on the guess.</span>
+          <span className="text-xs text-dim">{RESTS_ON_QUESTION}</span>
         </div>
         {error ? <div className="mt-2"><Problem message={error} /></div> : null}
       </CardContent>
@@ -262,7 +267,7 @@ function DraftTable({ draft, version, questions }: { draft: DraftCatalog; versio
       <CardHeader><CardTitle>Draft catalog {version}</CardTitle></CardHeader>
       <CardContent>
         <p className="mb-3 text-sm text-dim">
-          What the run wrote, as it stands with the answers so far. A draft goes live only after its self-test and a platform engineer's approval.
+          What the run wrote, as it stands with the answers so far. A draft goes live only after its self-test, once a platform engineer approves it and makes it live.
           {catalogOpen.length ? " The catalog as a whole rests on a question not yet answered." : ""}
         </p>
         <Table>
@@ -278,7 +283,7 @@ function DraftTable({ draft, version, questions }: { draft: DraftCatalog; versio
                   <TableCell className="font-mono text-xs text-dim">{m.source}</TableCell>
                   <TableCell>
                     <Badge tone={m.availability === "available" ? "phosphor" : "amber"}>{m.availability === "available" ? "Offered" : m.availability === "deprecated" ? "Deprecated" : "Not read"}</Badge>
-                    {resting.length ? <Badge tone="amber" className="ml-2" data-testid="rests-on-question">rests on a question</Badge> : null}
+                    {resting.length ? <Badge tone="amber" className="ml-2" data-testid="rests-on-question" title={RESTS_ON_QUESTION}>never built until answered</Badge> : null}
                   </TableCell>
                   <TableCell className="text-sm text-dim">{m.line}</TableCell>
                 </TableRow>
@@ -288,5 +293,126 @@ function DraftTable({ draft, version, questions }: { draft: DraftCatalog; versio
         </Table>
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * The organization's catalogs: which is live, each one's status, its self-test, and the
+ * next step for each: approve a draft, make an approved or retired one live.
+ */
+function CatalogsCard({ tick }: { tick: number }) {
+  const [list, setList] = useState<{ live: { version: number | "starter"; source: string }; catalogs: CatalogSummary[] } | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  const [mine, setMine] = useState(0);
+  const [shown, setShown] = useState<{ version: number; result: SelfTest; message?: string; done?: string } | null>(null);
+  const [busy, setBusy] = useState<number | null>(null);
+  // Making a catalog live changes what every developer plans against: asked once more.
+  const [confirming, setConfirming] = useState<number | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    api.catalogs().then(l => live && setList(l)).catch(err => live && setProblem(err instanceof ApiError ? err.message : String(err)));
+    return () => { live = false; };
+  }, [tick, mine]);
+
+  async function act(version: number, step: "test" | "approve" | "live") {
+    setConfirming(null);
+    setShown(null);
+    setBusy(version);
+    setProblem(null);
+    try {
+      if (step === "test") setShown({ version, result: await api.catalogSelfTest(version) });
+      else {
+        const done = step === "approve" ? await api.approveCatalog(version) : await api.makeCatalogLive(version);
+        setShown({ version, result: done.selfTest, done: step === "approve" ? approvedWords(version) : madeLiveWords(version) });
+      }
+    } catch (err) {
+      const result = err instanceof ApiError ? (err.details as { selfTest?: SelfTest } | undefined)?.selfTest : undefined;
+      if (result) setShown({ version, result, message: (err as Error).message });
+      else setProblem(err instanceof ApiError ? err.message : String(err));
+    } finally {
+      setBusy(null);
+      setMine(n => n + 1);
+    }
+  }
+
+  if (!list) return problem ? <div className="mt-8"><Problem message={problem} /></div> : null;
+  return (
+    <Card className="mt-8" data-testid="catalogs">
+      <CardHeader><CardTitle>{label("catalogs")}</CardTitle></CardHeader>
+      <CardContent>
+        <p className="mb-3 text-sm text-dim" data-testid="live-catalog">
+          {list.live.source === "starter"
+            ? "Your organization plans against the starter catalog: seaLeye's own modules. None of its own is live."
+            : `Your organization plans against catalog ${list.live.version}.`}
+        </p>
+        {problem ? <div className="mb-3"><Problem message={problem} /></div> : null}
+        {list.catalogs.length ? (
+          <Table>
+            <TableHeader>
+              <TableRow><TableHead>Catalog</TableHead><TableHead>Status</TableHead><TableHead>About it</TableHead><TableHead className="text-right">Next</TableHead></TableRow>
+            </TableHeader>
+            <TableBody>
+              {list.catalogs.map(x => {
+                const next = nextCatalogStep(x.status);
+                return (
+                  <TableRow key={x.version} data-testid="catalog-row">
+                    <TableCell className="font-mono">{x.version}</TableCell>
+                    <TableCell><Badge tone={x.status === "live" ? "phosphor" : x.status === "draft" ? "amber" : "neutral"}>{catalogStatusWords(x.status)}</Badge></TableCell>
+                    <TableCell className="text-sm text-dim">{catalogSummaryWords(x)}</TableCell>
+                    <TableCell className="text-right whitespace-nowrap">
+                      <Button size="sm" variant="ghost" onClick={() => act(x.version, "test")} disabled={busy !== null}>{label("catalog-test")}</Button>
+                      {next ? (
+                        <Button size="sm" className="ml-2" onClick={() => (next === "live" ? setConfirming(x.version) : act(x.version, next))} disabled={busy !== null} data-testid={`catalog-${next}`}>
+                          {next === "approve" ? label("catalog-approve") : label("catalog-live")}
+                        </Button>
+                      ) : null}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        ) : <p className="text-sm text-dim">No catalog of its own yet: a discovery run writes a draft.</p>}
+        {confirming !== null ? (
+          <div className="mt-4 rounded-md border border-rule bg-ground p-4 text-sm" role="alertdialog" aria-label={`Make catalog ${confirming} live`} data-testid="confirm-live">
+            <p>Make catalog {confirming} live? Every developer in your organization plans against it from now on, and the live one is retired. Its self-test runs again first.</p>
+            <div className="mt-3 flex gap-2">
+              <Button size="sm" onClick={() => act(confirming, "live")} data-testid="confirm-live-yes">{label("catalog-live")}</Button>
+              <Button size="sm" variant="ghost" onClick={() => setConfirming(null)}>Cancel</Button>
+            </div>
+          </div>
+        ) : null}
+        {shown ? <SelfTestResult {...shown} /> : null}
+        <CommandHint op="catalogs" className="mt-3" />
+      </CardContent>
+    </Card>
+  );
+}
+
+function SelfTestResult({ version, result, message, done }: { version: number; result: SelfTest; message?: string; done?: string }) {
+  return (
+    <div className="mt-4 rounded-md border border-rule p-4" data-testid="self-test">
+      <p className={result.passed ? "text-phosphor" : "text-amber"} data-testid="self-test-summary">{message || selfTestSummary(result)}</p>
+      <ul className="mt-2 space-y-1 text-sm">
+        {result.checks.map(check => (
+          <li key={check.id} data-testid="self-test-check">
+            <span className={check.passed ? "text-phosphor" : "text-amber"} aria-hidden="true">{check.passed ? "\u2713" : "\u2717"}</span>{" "}
+            <span className="sr-only">{check.passed ? "Passed:" : "Failed:"}</span>{check.title}
+            {check.problems.length ? (
+              <ul className="ml-5 mt-1 space-y-0.5 text-xs text-amber">{check.problems.map((p, i) => <li key={i}>{p}</li>)}</ul>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+      {result.refused.length ? (
+        <div className="mt-3 text-sm">
+          <p>Never built from catalog {version}:</p>
+          <ul className="mt-1 space-y-0.5 text-xs text-dim">{result.refused.map(r => <li key={r.id}><span className="font-mono">{r.id}</span>: {r.why}</li>)}</ul>
+        </div>
+      ) : null}
+      {result.notes.map((n, i) => <p key={i} className="mt-3 text-sm text-dim">{n}</p>)}
+      {done ? <p className="mt-3 text-sm text-phosphor" data-testid="catalog-done">{done}</p> : null}
+    </div>
   );
 }

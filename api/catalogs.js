@@ -6,9 +6,10 @@
 //
 // A catalog is a draft when it is written, approved when a platform engineer says so,
 // live when it is the one the API plans and refuses against, and retired when another
-// replaced it. One live catalog per organization. Nothing makes a catalog live from a
-// request yet: discovery writes drafts, and the self-test that must pass before one goes
-// live (Step 7) comes before any endpoint or command that does.
+// replaced it. One live catalog per organization. Approving and making live each take a
+// gate, which the API makes the self-test (api/self-test.js, PHASE4-PLAN Step 7): it is
+// run on the catalog as it is when the change's turn comes, so a draft re-written by a
+// late answer meanwhile is the one tested.
 //
 // Postgres when the API has a database, a file beside a laptop API otherwise, as for
 // tokens. Read from memory, loaded once by openCatalogs() and written through, as the
@@ -36,7 +37,9 @@ const rowOf = r => ({
   createdBy: r.created_by ?? r.createdBy ?? null,
   createdAt: new Date(r.created_at ?? r.createdAt).toISOString(),
   approvedBy: r.approved_by ?? r.approvedBy ?? null,
-  approvedAt: (r.approved_at ?? r.approvedAt) ? new Date(r.approved_at ?? r.approvedAt).toISOString() : null
+  approvedAt: (r.approved_at ?? r.approvedAt) ? new Date(r.approved_at ?? r.approvedAt).toISOString() : null,
+  madeLiveBy: r.made_live_by ?? r.madeLiveBy ?? null,
+  madeLiveAt: (r.made_live_at ?? r.madeLiveAt) ? new Date(r.made_live_at ?? r.madeLiveAt).toISOString() : null
 });
 
 function index(rows) {
@@ -202,12 +205,16 @@ function find(list, org, version) {
   return row;
 }
 
-/** A platform engineer approves a draft. */
-export async function approveCatalog({ org, version, by }) {
+/**
+ * A platform engineer approves a draft. `gate(row)` runs on the catalog as it is when
+ * this change's turn comes, and throws to refuse it.
+ */
+export async function approveCatalog({ org, version, by, gate = () => {} }) {
   if (!by) throw fail("an approval names who approved", "CATALOG_APPROVER");
   return commit(org, list => {
     const row = find(list, org, version);
     if (row.status !== "draft") throw fail(`catalog ${version} is ${row.status}, not a draft`, "CATALOG_STATUS");
+    gate(row);
     const approved = { ...row, status: "approved", approvedBy: by, approvedAt: new Date().toISOString() };
     return {
       next: list.map(c => (c.version === row.version ? approved : c)),
@@ -221,25 +228,40 @@ export async function approveCatalog({ org, version, by }) {
 }
 
 /**
- * An approved catalog becomes the organization's live one, and the one it replaces is
- * retired, together. Not reachable from any request: Step 7 puts the self-test in front.
+ * An approved catalog, or a retired one going back, becomes the organization's live one,
+ * and the one it replaces is retired, together. `gate(row, list)` runs first, on the
+ * catalogs as they are when this change's turn comes, and throws to refuse it: the API
+ * makes it the self-test and the guard for environments in use (PHASE4-PLAN Step 7).
  */
-export async function makeLive({ org, version }) {
-  return commit(org, list => {
+export async function makeLive({ org, version, by = null, gate = () => {} }) {
+  const turn = commit(org, list => {
     const row = find(list, org, version);
-    if (row.status !== "approved") throw fail(`catalog ${version} is ${row.status}; only an approved catalog goes live`, "CATALOG_STATUS");
+    if (row.status !== "approved" && row.status !== "retired") {
+      throw fail(`catalog ${version} is ${row.status}; only an approved or retired catalog goes live`, "CATALOG_STATUS");
+    }
+    gate(row, list);
+    // From here until it is written, a deploy is checked against this catalog as well as
+    // the live one (`goingLive`), so none can be queued on a module it drops while the
+    // database is being written.
+    goingLive.set(org, row.document);
+    const at = new Date().toISOString();
     return {
       next: list.map(c =>
-        c.version === row.version ? { ...c, status: "live" } : c.status === "live" ? { ...c, status: "retired" } : c
+        c.version === row.version ? { ...c, status: "live", madeLiveBy: by, madeLiveAt: at } : c.status === "live" ? { ...c, status: "retired" } : c
       ),
       sql: [
         [`UPDATE catalogs SET status = 'retired' WHERE org_id = $1 AND status = 'live'`, [org]],
-        [`UPDATE catalogs SET status = 'live' WHERE org_id = $1 AND version = $2`, [org, row.version]]
+        [`UPDATE catalogs SET status = 'live', made_live_by = $3, made_live_at = $4 WHERE org_id = $1 AND version = $2`, [org, row.version, by, at]]
       ],
-      result: { org, version: row.version, status: "live" }
+      result: { org, version: row.version, status: "live", madeLiveBy: by, madeLiveAt: at }
     };
   });
+  return turn.finally(() => goingLive.delete(org));
 }
+
+/** A catalog being made live for an organization right now, or null. */
+const goingLive = new Map();
+export const catalogGoingLive = org => goingLive.get(org) || null;
 
 /**
  * Change a draft's document in place, as a discovery run does when a late answer

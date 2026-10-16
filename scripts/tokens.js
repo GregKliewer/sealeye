@@ -41,7 +41,7 @@ export async function main(argv) {
   if (command === "add-hash") {
     const holder = JSON.parse(Buffer.from(String(args[0] || ""), "base64").toString("utf8"));
     const added = await addToken(holder);
-    console.log(`Issued ${added.tokenId} to ${added.name} (${added.email}), team ${added.team}. It sees ${sees(added)}.`);
+    console.log(`Issued ${added.tokenId} to ${added.name} (${added.email}), ${added.org !== "default" ? `${added.org}, ` : ""}team ${added.team}. It sees ${sees(added)}.`);
     return;
   }
 
@@ -56,12 +56,13 @@ export async function main(argv) {
     if (!rows.length) return console.log("No tokens issued yet.");
     for (const t of rows) {
       const state = t.revokedAt ? `revoked ${t.revokedAt.slice(0, 10)}` : t.lastUsedAt ? `last used ${t.lastUsedAt.slice(0, 16).replace("T", " ")} UTC` : "not used yet";
-      console.log(`${t.tokenId}  ${t.name} (${t.email})  team ${t.team}${t.scope === "org" ? " (sees every team)" : ""}  issued ${String(t.createdAt).slice(0, 10)}  ${state}`);
+      const where = `${t.org && t.org !== "default" ? `${t.org}, ` : ""}team ${t.team}`;
+      console.log(`${t.tokenId}  ${t.name} (${t.email})  ${where}${t.scope === "org" ? " (sees every team)" : ""}  issued ${String(t.createdAt).slice(0, 10)}  ${state}`);
     }
     return;
   }
 
-  throw new Error("usage: tokens.js add <email> <name> [--team <team>] [--org-wide] | revoke <email | tok_...> | list");
+  throw new Error("usage: tokens.js add <email> <name> [--team <team>] [--org <org>] [--org-wide] | revoke <email | tok_...> | list");
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {

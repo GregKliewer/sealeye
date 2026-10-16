@@ -194,7 +194,9 @@ gateway's own span in that trace moved to Phase 4. Routes come with Step 8.*
   built Oct 15, 2026. Step 5, reading the library and the named routes `small` and
   `frontier`, built Oct 15, 2026. Step 6a, the discovery run in the API, and 6b, `sealeye discover` and the
   Discovery page, built Oct 15,
-  2026.
+  2026. Step 7, the self-test, approving and making live on both surfaces, a second
+  organization (`juniper`), discovery's traces, merged questions and the eval graded
+  twice, built Oct 16, 2026.
 - LangFuse self-hosted in ca-central-1 (answers Q13; moved here from Phase 3 on Oct 13,
   2026), before the first run on an organization's real code (Greg, Oct 14, 2026:
   Phase 4's own runs read seaLeye's templates, a made-up organization and public
@@ -318,6 +320,7 @@ and does nothing real. A blank is not started.
 | Health check | `sealeye doctor` | `GET /health`, `GET /whoami` | built | built (Health) | 2 |
 | Catalog | `sealeye catalog` | `GET /catalog` | built | built | 1 |
 | Discovery (organization-wide token only) | `sealeye discover`, `discover answers`, `discover status` | `POST /discoveries`, `GET /discoveries/{id}`, `/events`, `/catalog`, `/answers` | built | built (Discovery) | 4 |
+| Catalogs: self-test, approve, make live (organization-wide token only) | `sealeye catalog versions`, `catalog test`, `catalog approve`, `catalog live` | `GET /catalogs`, `GET /catalogs/{v}/self-test`, `POST /catalogs/{v}/approve`, `POST /catalogs/{v}/live` | built | built (Catalogs, on the Discovery page) | 4 |
 | Pause and resume | `sealeye pause`, `resume` | `GET /deployments/{id}/paused`, `POST .../pause`, `.../resume` | built | built (Pause, in Control) | 2 |
 | Configure | `sealeye config` (and `sealeye settings`) | `POST /deployments` (`fromDeployment` with the plan changed); the settings endpoints | built | built (Configure and Settings, in Control) | 2 |
 | Logs | `sealeye logs` | `GET /deployments/{id}/logs` | built | built (Logs, in Control) | 2 |
