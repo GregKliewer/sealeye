@@ -122,6 +122,18 @@ export function progressSummary(p, waiting = 0) {
 /** Modules whose readers are done, from a run as the API gives it. */
 export const modulesDone = run => (run?.modules || []).filter(m => m.status === "read" || m.status === "not_read").length;
 
+/**
+ * Where an answered question's answer stands, from the question and its run as the API
+ * gives them: in the draft, being written in now, or not yet and why. `moving` is true
+ * while a rewrite is going, for a surface to show something turning.
+ */
+export function answerStateWords(q, run) {
+  if (q.usedAt) return { words: "in the draft", moving: false };
+  if (run?.rewriting) return { words: "being written into the draft", moving: true };
+  if (run?.answerProblem) return { words: `not written into the draft yet: ${run.answerProblem}. The answer is kept.`, moving: false };
+  return { words: "waiting to be written into the draft", moving: false };
+}
+
 /** Whether a question still waits on an answer. */
 export const isOpen = q => q.answer === null || q.answer === undefined;
 

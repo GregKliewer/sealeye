@@ -177,6 +177,15 @@ test("both surfaces count a run's progress from its events, not a module's own s
   assert.equal(modulesDone({ modules: [{ status: "reading" }, { status: "read" }, { status: "not_read" }] }), 2, "a module still being read is not done");
 });
 
+test("both surfaces say where an answer stands: in the draft, being written in, or why not", async () => {
+  const { answerStateWords } = await import("../core/discovery-words.js");
+  const q = { answer: "No", usedAt: null };
+  assert.deepEqual(answerStateWords({ ...q, usedAt: "2026-10-15T20:00:00Z" }, { rewriting: true }), { words: "in the draft", moving: false });
+  assert.deepEqual(answerStateWords(q, { rewriting: true }), { words: "being written into the draft", moving: true });
+  assert.match(answerStateWords(q, { answerProblem: "the run reached its spending limit" }).words, /^not written into the draft yet: the run reached its spending limit\. The answer is kept\.$/);
+  assert.equal(answerStateWords(q, {}).words, "waiting to be written into the draft");
+});
+
 test("both surfaces say the same things about a run", () => {
   assert.deepEqual(choicesFor({ options: ["a", "b", "c"], guess: "b" }), ["b", "a", "c"]);
   assert.equal(discoveryStateWords({ status: "stopped", reason: "spending_limit" }), "Stopped at its spending limit");
