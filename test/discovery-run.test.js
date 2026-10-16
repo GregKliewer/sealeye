@@ -53,7 +53,7 @@ const text = c => (typeof c === "string" ? c : JSON.stringify(c));
  * supervisor's first call waits on; `holdWorker` one the db-cluster worker waits on
  * before it hands in, so a test can answer a question at either moment.
  */
-function scripted({ hold = null, holdWorker = null, deprecated = ["modules/cache"], libraryQuestion = false, looseTouches = false, rewriteQuestion = false, repeat = false, repeatWider = false } = {}) {
+function scripted({ hold = null, holdWorker = null, deprecated = ["modules/cache"], libraryQuestion = false, looseTouches = false, rewriteQuestion = false, repeat = false, repeatWider = false, repeatLonger = false } = {}) {
   const calls = [];
   const seen = { results: [] };
   const create = async params => {
@@ -110,13 +110,16 @@ function scripted({ hold = null, holdWorker = null, deprecated = ["modules/cache
       const wider = repeatWider && first
         ? [{ kind: "other", question: "Is the cache still offered to anyone at all?", options: ["No", "Yes"], guess: "No", touches: ["modules/cache", "modules/db"], evidence: [{ file: "modules/cache/README.md", shows: "deprecated" }] }]
         : [];
+      const longer = repeatLonger && first
+        ? [{ kind: "other", question: "Is the cache module offered to anyone now, or should apps have moved off it to something newer by this point?", options: ["No", "Yes"], guess: "No", touches: ["modules/cache", "modules/db"], evidence: [{ file: "modules/cache/README.md", shows: "deprecated" }] }]
+        : [];
       const repeated = repeat && first
         ? [
             { kind: "deprecated", question: "Is the cache module still offered to any apps at all?", options: ["No", "Yes"], guess: "No", touches: ["modules/cache"], evidence: [{ file: "modules/cache/README.md", shows: "deprecated" }] },
             { kind: "other", question: "Should the cache's own README name what replaces it?", options: ["Yes", "No"], guess: "Yes", touches: ["modules/cache"], evidence: [{ file: "modules/cache/README.md", shows: "no replacement named" }] }
           ]
         : [];
-      const questions = [...wider, ...repeated, ...(first
+      const questions = [...wider, ...longer, ...repeated, ...(first
         ? [{ kind: "overlap", question: "Which database is for which stage?", options: ["db below staging, db-cluster from staging up", "Either at any stage"], guess: "db below staging, db-cluster from staging up", touches: looseTouches ? ["db", "modules/db-cluster/"] : ["modules/db", "modules/db-cluster"], evidence: [{ file: "modules/db/README.md", shows: "says dev only" }] }]
         : rewriteQuestion
           ? [{ kind: "other", question: "Is the cluster's backup rule for prod only?", options: ["Yes", "No"], guess: "Yes", touches: ["modules/db-cluster"], evidence: [{ file: "modules/db-cluster/README.md", shows: "says staging up" }] }]
@@ -535,6 +538,16 @@ test("a question asked again in nearly the same words is not asked twice: naming
   assert.ok(draft.modules.find(m => m.id === "db").open.includes(onCache[0].id), "and the db's entry rests on it");
 });
 
+test("a question asked again in many more words, naming one more module, widens the first (Greg's run, Oct 16)", async () => {
+  const model = scripted({ repeatLonger: true });
+  const service = createDiscoveryService({ client: model.client, readLibrary: readFolder(library()) });
+  const { discoveryId } = await service.start({ caller, repos: [{ owner: "acme", repo: "platform" }] });
+  await service.settled(discoveryId);
+  const onCache = service.questions(discoveryId).filter(q => q.touches.includes("modules/cache"));
+  assert.deepEqual(onCache.map(q => q.question), ["Is the cache still offered to anyone?"]);
+  assert.deepEqual(onCache[0].touches, ["modules/cache", "modules/db"]);
+});
+
 test("a question asked again after it was answered is dropped: the answer stands (Greg's run, Oct 15)", async () => {
   let release;
   const hold = new Promise(r => (release = r));
@@ -654,7 +667,7 @@ test("entries in words a developer never reads are written again once, in plain 
       fixes.push(opening.slice(0, opening.indexOf("What the readers found")));
       for (const e of input.entries) if (e.source === "modules/db") Object.assign(e, { line: "A relational database for your app.", input_lines: { name: "Your app's name." } });
     } else {
-      for (const e of input.entries) if (e.source === "modules/db") e.line = "A database on RDS in a private subnet.";
+      for (const e of input.entries) if (e.source === "modules/db") e.line = "A database on RDS behind a security group.";
       for (const e of input.entries) if (e.source === "modules/db-cluster") e.line = "The database from staging up.";
     }
     return reply;
@@ -668,8 +681,8 @@ test("entries in words a developer never reads are written again once, in plain 
   assert.equal(fixes.length, 1, "one fix-up call");
   assert.match(fixes[0], /Write the entries for these modules: modules\/db\./, "only the entries that need it");
   assert.match(fixes[0], /- modules\/db: line uses RDS/);
-  assert.match(fixes[0], /- modules\/db: line uses subnet/);
-  assert.match(fixes[0], /Do not use these words anywhere in what you write again, not even where a module's own name has them: RDS, subnet\./);
+  assert.match(fixes[0], /- modules\/db: line uses security group/);
+  assert.match(fixes[0], /Do not use these words anywhere in what you write again, not even where a module's own name has them: RDS, security group\./);
   assert.deepEqual(events.find(e => e.type === "plain_words").sources, ["modules/db"]);
   const draft = catalogAt("acme", service.get(started.discoveryId).catalog.version);
   assert.equal(draft.modules.find(m => m.id === "db").line, "A relational database for your app.");
@@ -720,7 +733,7 @@ test("an input's line still unplain after the fix-up is left out, the input kept
   await service.settled(discoveryId);
   const db = catalogAt("acme", service.get(discoveryId).catalog.version).modules.find(m => m.id === "db");
   assert.deepEqual(db.inputs.name, { required: true });
-  assert.ok(model.calls.some(c => c.opening.includes('modules/db: input name uses VPC (now: "The name of the app\'s VPC."); write input_lines.name')), "the fix-up showed the words to replace");
+  assert.ok(model.calls.some(c => c.opening.includes('modules/db: input name uses "VPC"; write "Virtual Private Cloud (VPC)" in its place (now: "The name of the app\'s VPC."); write input_lines.name')), "the fix-up showed the words to replace, and what to write");
 });
 
 test("a person's edit to a draft's words is kept when a late answer re-writes the entry", async () => {
