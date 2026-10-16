@@ -19,12 +19,13 @@ import { Annotation, END, Send, START, StateGraph } from "@langchain/langgraph";
 
 import { setting } from "../../core/config.js";
 import { traceDiscovery, traceEvent } from "../../core/tracing.js";
-import { addCatalog, catalogAt, catalogsOf, updateDraft } from "../catalogs.js";
+import { addCatalog, catalogAt, catalogsOf, changeDraft } from "../catalogs.js";
 import { claimsFor, signerFromSettings, withCallerToken } from "../gateway-token.js";
 import { modelClient, modelCredential } from "../interview/model.js";
 import { switchOffLangSmith } from "../interview/service.js";
 import { draftCatalog, rewriteEntries, withoutUnplainInputLines } from "./draft.js";
 import { developerTexts, developerWordProblems } from "../../core/developer-words.js";
+import { fieldForPlace } from "../../core/catalog-edits.js";
 import { libraryRepos, repoName } from "./github.js";
 import { readLibrary as readFromGitHub } from "./library.js";
 import { ANSWER_LIMIT } from "../../core/discovery-words.js";
@@ -351,7 +352,11 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
     // any still unplain out (withoutUnplainInputLines), so it asks again only about a
     // module's own words: each late answer would otherwise pay for the inputs again
     // (Greg's run, Oct 16: four fix-ups in one pass).
-    const problems = developerWordProblems(offered).filter(p => p.module && sourceOf.has(p.module) && (inputs || !/: input /.test(p.where)));
+    // A field a person wrote is theirs: never sent back to the model (keepEdits would set
+    // the model's words aside anyway), and the self-test tells them what is left.
+    const editedBy = new Map((doc.modules || []).map(m => [m.id, m.edited || {}]));
+    const problems = developerWordProblems(offered).filter(p => p.module && sourceOf.has(p.module) && (inputs || !/: input /.test(p.where))
+      && !editedBy.get(p.module)?.[fieldForPlace(p.where.slice(p.where.indexOf(": ") + 2))]);
     if (!problems.length) return entries;
     const again = [...new Set(problems.map(p => sourceOf.get(p.module)))];
     // Each place with what it says now, so the model sees the words to replace: an
@@ -477,7 +482,9 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
       const asNew = async () => (await addCatalog({ org: run.org, document, by: run.startedBy })).version;
       if (status === "draft") {
         try {
-          await updateDraft({ org: run.org, version, document });
+          // Re-written on the draft as it is when this write's turn comes, so an edit a
+          // person made to its words meanwhile is kept, not written over (keepEdits).
+          await changeDraft({ org: run.org, version, change: latest => withoutUnplainInputLines(rewriteEntries(latest, { modules: run.modules, entries, questions: asked(id), library: run.library })) });
         } catch (err) {
           if (err.code !== "CATALOG_STATUS") throw err;
           version = await asNew();

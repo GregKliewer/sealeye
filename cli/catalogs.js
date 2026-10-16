@@ -6,10 +6,14 @@
 //
 //   sealeye catalog versions      every catalog, and which is live
 //   sealeye catalog test [v]      the self-test, run now (the newest draft without v)
+//   sealeye catalog edit <v> <module> [<field> [words]]
+//                                 a draft entry's words: shown, or changed (asked for
+//                                 in a terminal when no words are given)
 //   sealeye catalog approve <v>   approve a draft that passes
 //   sealeye catalog live <v>      make an approved or retired catalog live
 import { c, step } from "./brand.js";
-import { approveCatalogVersion, catalogSelfTest, listCatalogs, makeCatalogLive } from "./client.js";
+import { approveCatalogVersion, catalogSelfTest, editCatalog, getCatalogVersion, listCatalogs, makeCatalogLive } from "./client.js";
+import { editableFieldsOf, fieldOf } from "../core/catalog-edits.js";
 import { commandLine } from "../core/operations.js";
 import {
   approvedWords, catalogStatusWords, catalogSummaryWords, madeLiveWords, nextCatalogStep, selfTestSummary
@@ -128,5 +132,50 @@ export async function catalogs({ apiBaseUrl, sub, args, say, json = false }) {
     return;
   }
 
-  throw userError(`sealeye catalog takes versions, test, approve or live, not ${sub}.`);
+  if (sub === "edit") {
+    const [, module, field, ...rest] = args;
+    if (asked === undefined || !module) throw userError(`Name the catalog and the module: ${commandLine("catalog-edit", null, ["<number>", "<module>", "[<field>", "[words]]"])}.`);
+    const version = await versionFor({ apiBaseUrl, asked, verb: "edit" });
+    const { document } = await getCatalogVersion({ apiBaseUrl, version });
+    const entry = (document?.modules || []).find(m => m.id === module);
+    if (!entry) throw userError(`Catalog ${version} has no module ${module}. ${commandLine("catalog-test", null, [String(version)])} lists what it holds.`);
+    if (!field) {
+      // What can be changed, and its words now.
+      console.log("");
+      say(`${module} in catalog ${version}. Change one with ${commandLine("catalog-edit", null, [String(version), module, "<field>", "<words>"])}.`);
+      console.log("");
+      for (const f of editableFieldsOf(entry)) {
+        const mark = entry.edited?.[f.field] ? c.dim(`  (edited by ${entry.edited[f.field].by})`) : "";
+        console.log(`  ${c.accent(f.field.padEnd(20))} ${c.dim(f.label.padEnd(26))} ${f.text || c.dim("(none)")}${mark}`);
+      }
+      return;
+    }
+    const where = fieldOf(field);
+    if (!where) throw userError(`${field} is not something whose words can be changed: line, short-line, when, skip-line, guidance, or input:<name>.`);
+    // --clear empties a field (not a line, which a module must have), as an empty box does on the page.
+    const clearing = process.argv.includes("--clear");
+    let text = clearing ? "" : rest.join(" ");
+    if (!text && !clearing) {
+      if (!process.stdin.isTTY) throw userError("Give the new words after the field, or run this in a terminal to be asked for them.");
+      const now = editableFieldsOf(entry).find(f => f.field === where.field)?.text || "";
+      const readline = await import("node:readline/promises");
+      const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+      try {
+        const answer = rl.question(`${c.prompt("?")} ${module}, ${where.label}: `);
+        rl.write(now);
+        text = (await answer).trim();
+      } finally {
+        rl.close();
+      }
+    }
+    const done = await editCatalog({ apiBaseUrl, version, module, field: where.field, text });
+    if (json) return console.log(JSON.stringify(done, null, 2));
+    console.log("");
+    console.log(c.ok(clearing ? `${module}: ${where.label} is cleared` : `${module}: ${where.label} is now: ${text.replace(/\s+/g, " ").trim()}`));
+    printSelfTest(done.selfTest, say);
+    if (done.selfTest.passed) say(`${nextLine("draft", version)} approves it.`);
+    return;
+  }
+
+  throw userError(`sealeye catalog takes versions, test, edit, approve or live, not ${sub}.`);
 }

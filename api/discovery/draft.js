@@ -10,6 +10,7 @@
 // else of the starter's, since its modules and rules are seaLeye's own four.
 import { starterCatalog } from "../../core/catalog.js";
 import { forbiddenWord } from "../../core/developer-words.js";
+import { keepEdits } from "../../core/catalog-edits.js";
 
 const unanswered = q => q.answer === undefined || q.answer === null;
 
@@ -146,7 +147,8 @@ export function rewriteEntries(document, { modules, entries, questions, library 
         // give none, rather than going back to the library's own description.
         const written = bySource.get(old.source);
         const kept = Object.fromEntries(Object.entries(old.inputs || {}).filter(([name, spec]) => spec?.line && spec.line !== m.inputs?.[name]?.line).map(([name, spec]) => [name, spec.line]));
-        return entryFor(m, { ...written, input_lines: { ...kept, ...(written.input_lines || {}) } }, m.finding, questions, library);
+        // And what a person wrote of it (sealeye catalog edit) is never written over.
+        return keepEdits(old, entryFor(m, { ...written, input_lines: { ...kept, ...(written.input_lines || {}) } }, m.finding, questions, library));
       }
       // Untouched words, but which questions it rests on can still change.
       const open = openFor(old.source, questions);
@@ -171,7 +173,8 @@ export function withoutUnplainInputLines(document) {
       if (!m || m.availability !== "available" || !m.inputs) return m;
       let changed = false;
       const inputs = Object.fromEntries(Object.entries(m.inputs).map(([name, spec]) => {
-        if (spec && typeof spec.line === "string" && forbiddenWord(spec.line)) {
+        // A line a person wrote stays as they wrote it: the self-test tells them.
+        if (spec && typeof spec.line === "string" && forbiddenWord(spec.line) && !m.edited?.[`input:${name}`]) {
           changed = true;
           const { line: _gone, ...rest } = spec;
           return [name, rest];

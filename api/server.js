@@ -39,7 +39,8 @@ import { databaseUrl, closeDb } from "./db.js";
 import { startTracing } from "../core/tracing.js";
 import { authMode, callerFor, callerForSession, endSession, SESSION_COOKIE, SESSION_HOURS, startSession } from "./tokens.js";
 import { buildableView, needKinds, orgName } from "../core/catalog.js";
-import { approveCatalog, catalogAt, catalogsOf, liveCatalog, makeLive, openCatalogs } from "./catalogs.js";
+import { approveCatalog, catalogAt, catalogsOf, changeDraft, liveCatalog, makeLive, openCatalogs } from "./catalogs.js";
+import { applyEdit } from "../core/catalog-edits.js";
 import { selfTest } from "./self-test.js";
 import { environmentsDropped } from "./catalog-use.js";
 import { selfTestSummary } from "../core/discovery-words.js";
@@ -1379,6 +1380,18 @@ app.get("/catalogs", (req, res) => {
   });
 });
 
+// GET /catalogs/{version}: one of the organization's catalogs, with its document, for
+// whoever reviews it before approving (its words, what rests on a question, what a
+// person edited). A platform engineer's, as the list is.
+app.get("/catalogs/:version", (req, res) => {
+  if (!mayDiscover(req.caller)) return discoveryForbidden(res);
+  const org = callerOrg(req);
+  const version = catalogVersionOf(req.params.version);
+  const row = version && catalogsOf(org).find(c => c.version === version);
+  if (!row) return catalogNotFound(res);
+  return res.status(200).json({ catalog: row, document: catalogAt(org, version) });
+});
+
 // GET /catalogs/{version}/self-test: the self-test, run now. Plain code; nothing spent.
 app.get("/catalogs/:version/self-test", (req, res) => {
   if (!mayDiscover(req.caller)) return discoveryForbidden(res);
@@ -1393,10 +1406,35 @@ app.get("/catalogs/:version/self-test", (req, res) => {
 function catalogChangeRefused(res, err) {
   if (err.code === "CATALOG_NOT_FOUND") return catalogNotFound(res);
   if (err.code === "CATALOG_STATUS") return res.status(409).json({ error: { code: "CATALOG_STATUS", message: err.message.replace(/^catalog/, "Catalog") } });
+  if (err.code === "CATALOG_INVALID") return res.status(400).json({ error: { code: "CATALOG_INVALID", message: err.message } });
   if (err.code === "SELF_TEST_FAILED") return res.status(422).json(err.body);
   if (err.code === "CATALOG_IN_USE") return res.status(409).json(err.body);
   throw err;
 }
+
+// POST /catalogs/{version}/edits: { module, field, text }. A platform engineer changes the
+// words of one entry of a draft, before approving it: what a developer reads, or the
+// planner's guidance, never ids, inputs or availability (core/catalog-edits.js). Kept on
+// the entry with who and when, so an answer's rewrite never writes over it. Answered with
+// the self-test, run again on the draft as it now is.
+app.post("/catalogs/:version/edits", async (req, res) => {
+  if (!mayDiscover(req.caller)) return discoveryForbidden(res);
+  const org = callerOrg(req);
+  const version = catalogVersionOf(req.params.version);
+  if (!version) return catalogNotFound(res);
+  const { module, field, text } = req.body || {};
+  if (typeof module !== "string" || typeof field !== "string" || typeof text !== "string") {
+    return res.status(400).json({ error: { code: "BAD_EDIT", message: "An edit names the module, the field and its new words." } });
+  }
+  try {
+    await changeDraft({ org, version, change: doc => applyEdit(doc, { module, field, text, by: req.caller?.email || "someone, with sign-in off", at: new Date().toISOString() }) });
+  } catch (err) {
+    if (err.code === "BAD_EDIT") return res.status(400).json({ error: { code: "BAD_EDIT", message: `${err.message}.` } });
+    return catalogChangeRefused(res, err);
+  }
+  const row = catalogsOf(org).find(c => c.version === version);
+  return res.status(200).json({ catalog: row, selfTest: runSelfTest(org, { ...row, document: catalogAt(org, version) }) });
+});
 
 // POST /catalogs/{version}/approve: a draft that passes its self-test is approved, with
 // who approved it. Body: {}.

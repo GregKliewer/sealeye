@@ -377,6 +377,9 @@ export const catalogSelfTest = ({ apiBaseUrl, version }) =>
   discoveryCall(apiBaseUrl, `/catalogs/${encodeURIComponent(version)}/self-test`, { method: "GET" }).then(r => r.selfTest);
 export const approveCatalogVersion = ({ apiBaseUrl, version }) => discoveryCall(apiBaseUrl, `/catalogs/${encodeURIComponent(version)}/approve`, asJson({}));
 export const makeCatalogLive = ({ apiBaseUrl, version }) => discoveryCall(apiBaseUrl, `/catalogs/${encodeURIComponent(version)}/live`, asJson({}));
+export const getCatalogVersion = ({ apiBaseUrl, version }) => discoveryCall(apiBaseUrl, `/catalogs/${encodeURIComponent(version)}`, { method: "GET" });
+export const editCatalog = ({ apiBaseUrl, version, module, field, text }) =>
+  discoveryCall(apiBaseUrl, `/catalogs/${encodeURIComponent(version)}/edits`, asJson({ module, field, text }));
 export const listDiscoveries = ({ apiBaseUrl }) => discoveryCall(apiBaseUrl, "/discoveries", { method: "GET" }).then(r => r.discoveries);
 export const getDiscovery = ({ apiBaseUrl, id }) => discoveryCall(apiBaseUrl, `/discoveries/${encodeURIComponent(id)}`, { method: "GET" });
 export const answerDiscovery = ({ apiBaseUrl, id, question, answer }) =>

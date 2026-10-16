@@ -722,3 +722,21 @@ test("an input's line still unplain after the fix-up is left out, the input kept
   assert.deepEqual(db.inputs.name, { required: true });
   assert.ok(model.calls.some(c => c.opening.includes('modules/db: input name uses VPC (now: "The name of the app\'s VPC."); write input_lines.name')), "the fix-up showed the words to replace");
 });
+
+test("a person's edit to a draft's words is kept when a late answer re-writes the entry", async () => {
+  const { changeDraft } = await import("../api/catalogs.js");
+  const { applyEdit } = await import("../core/catalog-edits.js");
+  const model = scripted();
+  const service = createDiscoveryService({ client: model.client, readLibrary: readFolder(library()) });
+  const { discoveryId } = await service.start({ caller, repos: [{ owner: "acme", repo: "platform" }] });
+  await service.settled(discoveryId);
+  const version = service.get(discoveryId).catalog.version;
+  await changeDraft({ org: "acme", version, change: doc => applyEdit(doc, { module: "db", field: "line", text: "Our own words for the db.", by: "lee@acme.test", at: "2026-10-16T15:00:00Z" }) });
+  const overlap = service.questions(discoveryId).find(q => q.kind === "overlap");
+  await service.answer({ id: discoveryId, questionId: overlap.id, answer: "db below staging, db-cluster from staging up", by: "lee@acme.test" });
+  await service.settled(discoveryId);
+  const db = catalogAt("acme", service.get(discoveryId).catalog.version).modules.find(m => m.id === "db");
+  assert.equal(db.line, "Our own words for the db.");
+  assert.match(db.guidance, /Below staging only \(db below staging/, "while the rest of the entry took the answer");
+  assert.equal(db.edited.line.by, "lee@acme.test");
+});

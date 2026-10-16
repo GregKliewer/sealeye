@@ -5,14 +5,15 @@
 // waits on an answer; one given now is used whenever it comes. Its Catalogs card runs
 // the self-test, approves a draft and makes a catalog live, as `sealeye catalog` does
 // (PHASE4-PLAN Step 7).
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Navigate } from "react-router";
-import { api, ApiError, type CatalogSummary, type DiscoveryQuestion, type DiscoveryRun, type DraftCatalog, type SelfTest } from "../api";
+import { api, ApiError, type CatalogSummary, type DiscoveryQuestion, type DiscoveryRun, type DraftCatalog, type DraftModule, type SelfTest } from "../api";
 import { orgWide, useLoad, useSession } from "../session";
 import { ago, when } from "../model";
 import { PageTitle, Problem } from "../Layout";
 import { CommandHint } from "../Command";
 import { commandLine, label } from "../../../core/operations.js";
+import { editableFieldsOf, EDIT_LIMIT } from "../../../core/catalog-edits.js";
 import { choicesFor, discoveryEventLine, discoveryStateWords, isOpen, activityWords, answerStateWords, elapsedWords, modulesDone, nextProgress, progressSummary, SOMETHING_ELSE, ANSWER_LIMIT, approvedWords, catalogStatusWords, catalogSummaryWords, madeLiveWords, nextCatalogStep, RESTS_ON_QUESTION, selfTestSummary } from "../../../core/discovery-words.js";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -172,7 +173,7 @@ function Discovery() {
         {open.map(q => <QuestionCard key={q.id} runId={run!.discoveryId} q={q} onAnswered={() => setTick(t => t + 1)} />)}
       </div>
 
-      {draft ? <DraftTable draft={draft} version={run?.catalog?.version} questions={questions} /> : null}
+      {draft ? <DraftTable draft={draft} version={run?.catalog?.version} questions={questions} tick={tick} onChanged={() => setTick(t => t + 1)} /> : null}
 
       <CatalogsCard tick={tick} />
 
@@ -259,9 +260,18 @@ function QuestionCard({ runId, q, onAnswered }: { runId: string; q: DiscoveryQue
   );
 }
 
-function DraftTable({ draft, version, questions }: { draft: DraftCatalog; version?: number; questions: DiscoveryQuestion[] }) {
+function DraftTable({ draft, version, questions, tick, onChanged }: { draft: DraftCatalog; version?: number; questions: DiscoveryQuestion[]; tick: number; onChanged: () => void }) {
   const openIds = new Set(questions.filter(isOpen).map(q => q.id));
   const catalogOpen = (draft.discovery?.open || []).filter(id => openIds.has(id));
+  // Only a draft's words can be changed: once approved, a catalog is as it was tested.
+  const [status, setStatus] = useState<string | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    api.catalogs().then(l => live && setStatus(l.catalogs.find(c => c.version === version)?.status || null)).catch(() => {});
+    return () => { live = false; };
+  }, [version, tick]);
+  const editable = status === "draft" && typeof version === "number";
   return (
     <Card className="mt-8" data-testid="draft">
       <CardHeader><CardTitle>Draft catalog {version}</CardTitle></CardHeader>
@@ -272,21 +282,33 @@ function DraftTable({ draft, version, questions }: { draft: DraftCatalog; versio
         </p>
         <Table>
           <TableHeader>
-            <TableRow><TableHead>Module</TableHead><TableHead>Folder</TableHead><TableHead>Offered</TableHead><TableHead>What it gives an app</TableHead></TableRow>
+            <TableRow><TableHead>Module</TableHead><TableHead>Folder</TableHead><TableHead>Offered</TableHead><TableHead>What it gives an app</TableHead>{editable ? <TableHead><span className="sr-only">{label("catalog-edit")}</span></TableHead> : null}</TableRow>
           </TableHeader>
           <TableBody>
             {draft.modules.map(m => {
               const resting = (m.open || []).filter(id => openIds.has(id));
               return (
-                <TableRow key={m.id} data-testid="draft-module">
+                <Fragment key={m.id}>
+                <TableRow data-testid="draft-module">
                   <TableCell className="font-mono">{m.id}</TableCell>
                   <TableCell className="font-mono text-xs text-dim">{m.source}</TableCell>
                   <TableCell>
                     <Badge tone={m.availability === "available" ? "phosphor" : "amber"}>{m.availability === "available" ? "Offered" : m.availability === "deprecated" ? "Deprecated" : "Not read"}</Badge>
                     {resting.length ? <Badge tone="amber" className="ml-2" data-testid="rests-on-question" title={RESTS_ON_QUESTION}>never built until answered</Badge> : null}
                   </TableCell>
-                  <TableCell className="text-sm text-dim">{m.line}</TableCell>
+                  <TableCell className="text-sm text-dim">{m.line}{m.edited ? <Badge tone="neutral" className="ml-2">edited</Badge> : null}</TableCell>
+                  {editable ? (
+                    <TableCell className="text-right">
+                      <Button size="sm" variant="ghost" onClick={() => setEditing(editing === m.id ? null : m.id)} data-testid="edit-words" className="whitespace-nowrap">{editing === m.id ? "Close" : label("catalog-edit")}</Button>
+                    </TableCell>
+                  ) : null}
                 </TableRow>
+                {editable && editing === m.id ? (
+                  <TableRow data-testid="edit-panel">
+                    <TableCell colSpan={5}><EditWords key={JSON.stringify(editableFieldsOf(m))} version={version!} module={m} onChanged={onChanged} /></TableCell>
+                  </TableRow>
+                ) : null}
+                </Fragment>
               );
             })}
           </TableBody>
@@ -413,6 +435,52 @@ function SelfTestResult({ version, result, message, done }: { version: number; r
       ) : null}
       {result.notes.map((n, i) => <p key={i} className="mt-3 text-sm text-dim">{n}</p>)}
       {done ? <p className="mt-3 text-sm text-phosphor" data-testid="catalog-done">{done}</p> : null}
+    </div>
+  );
+}
+
+/**
+ * A draft entry's words, each in a box to change, as `sealeye catalog edit` changes them.
+ * Words only; the self-test runs again on each save and says what is left.
+ */
+function EditWords({ version, module, onChanged }: { version: number; module: DraftModule; onChanged: () => void }) {
+  const fields = editableFieldsOf(module) as { field: string; label: string; text: string }[];
+  const [texts, setTexts] = useState<Record<string, string>>(() => Object.fromEntries(fields.map(f => [f.field, f.text])));
+  const [busy, setBusy] = useState<string | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  const [result, setResult] = useState<SelfTest | null>(null);
+
+  async function save(field: string) {
+    setBusy(field);
+    setProblem(null);
+    try {
+      const done = await api.editCatalog(version, module.id, field, texts[field] || "");
+      setResult(done.selfTest);
+      onChanged();
+    } catch (err) {
+      setProblem(err instanceof ApiError ? err.message : String(err));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className="space-y-3 py-2" data-testid="edit-words-panel">
+      <p className="text-xs text-dim">Words only: what {module.id} is, when to use it, and what its inputs are for. Its id, inputs and whether it is offered stay as the library says.</p>
+      {fields.map(f => (
+        <div key={f.field}>
+          <label className="text-xs text-dim" htmlFor={`edit-${module.id}-${f.field}`}>{f.label}{module.edited?.[f.field] ? ` · edited by ${module.edited[f.field].by}` : ""}</label>
+          <div className="mt-1 flex items-start gap-2">
+            <textarea id={`edit-${module.id}-${f.field}`} rows={2} maxLength={EDIT_LIMIT} value={texts[f.field] ?? ""}
+              onChange={e => setTexts(t => ({ ...t, [f.field]: e.target.value }))}
+              className="min-w-0 flex-1 rounded-md border border-rule bg-surface px-3 py-2 text-sm" />
+            <Button size="sm" onClick={() => save(f.field)} disabled={busy !== null || (texts[f.field] ?? "") === f.text}>Save</Button>
+          </div>
+        </div>
+      ))}
+      {problem ? <Problem message={problem} /> : null}
+      {result ? <SelfTestResult version={version} result={result} /> : null}
+      <CommandHint op="catalog-edit" flags={[String(version), module.id]} />
     </div>
   );
 }
