@@ -77,6 +77,40 @@ Step 8), because it needs its own eval cases. Either way it changes principle 8,
 is a DESIGN.md decision when it is made. It blocks nothing yet: until then, a draft's
 words can be edited before approval (`sealeye catalog edit`).
 
+### Q22. How does a platform engineer see what blocks approval, and fix it, in the command line?
+
+Raised Oct 16, 2026, by Greg, after putting Juniper Mutual's catalog 1 right by hand:
+the path works, but it is a hard one to follow. Today it takes three commands, and the
+person carries what connects them. `sealeye catalog test 1` lists each problem as a
+sentence (`secrets: line says Terraform, ...`). They then read the module's name and the
+place out of that sentence and work out the field (the place "short line" is the field
+`short-line`, the place "input secret_names" is `input:secret_names`). `sealeye catalog
+edit 1 secrets` lists every field, with nothing to say which ones fail. Then `sealeye
+catalog edit 1 secrets line "..."` changes one field, and the whole self-test prints
+again. Only word problems can be fixed this way, and nothing says so: a failed refused,
+accepted or shape check has no edit that fixes it.
+
+**Options:**
+- **Mark and point.** Smallest. `catalog test` ends with what to do next, one command line
+  per field that fails (`sealeye catalog edit 1 secrets line`), and says which problems
+  no edit can fix and what can (answering a question, a new run). `catalog edit 1
+  secrets` marks the fields that fail. Words come from `core/discovery-words.js`, and the
+  portal's Edit words marks the same fields. Half a day.
+- **A fix-up walk.** `sealeye catalog fix 1` (a new operation, so a portal page too, by
+  parity) goes through each field that fails, one at a time: it shows the module, the
+  field, its words now and the words to avoid, and asks for new words, prefilled, as
+  `catalog edit` does. Enter keeps the words and moves on. When it is done, it runs the
+  self-test and offers to approve. One command from refused to approved. The portal's
+  match is a "Fix what blocks approval" view on the Discovery page. A day or two.
+- **Fix from the refusal.** `catalog approve 1`, when the self-test fails on words alone,
+  asks "Fix these now? [y/N]" and runs the walk above, then tries the approval again. The
+  walk's shortest path, but it puts editing inside approving, so `approve` no longer
+  only approves.
+
+**Leaning:** mark and point now, since every person who meets a refusal needs it and it
+is small. Then the walk, built on it, for the rough-edges step after Step 7. Not the
+refusal prompt: one operation, one thing. It blocks nothing: the path today works.
+
 ## Later
 
 ### Q7. Windows
