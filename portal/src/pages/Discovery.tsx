@@ -16,7 +16,7 @@ import { CommandHint } from "../Command";
 import { commandLine, label } from "../../../core/operations.js";
 import { editableFieldsOf, EDIT_LIMIT } from "../../../core/catalog-edits.js";
 import { forbiddenWords } from "../../../core/developer-words.js";
-import { choicesFor, discoveryEventLine, discoveryStateWords, isOpen, activityWords, answerStateWords, elapsedWords, modulesDone, nextProgress, progressSummary, SOMETHING_ELSE, ANSWER_LIMIT, approvedWords, catalogStatusWords, catalogSummaryWords, madeLiveWords, nextCatalogStep, RESTS_ON_QUESTION, selfTestSummary, avoidWords, FIX_OFFER, fixableByEditing, fixedWords, fixPlaceWords, notFixedByEditing, wordFixesOf } from "../../../core/discovery-words.js";
+import { choicesFor, discoveryEventLine, discoveryStateWords, isOpen, activityWords, answerStateWords, elapsedWords, modulesDone, nextProgress, progressSummary, SOMETHING_ELSE, ANSWER_LIMIT, approvedWords, catalogStatusWords, catalogSummaryWords, madeLiveWords, nextCatalogStep, RESTS_ON_QUESTION, selfTestSummary, avoidWords, stillSaysWords, FIX_OFFER, fixableByEditing, fixedWords, fixPlaceWords, notFixedByEditing, wordFixesOf } from "../../../core/discovery-words.js";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -558,10 +558,10 @@ function FixWalk({ version, first, onChanged, onClose }: { version: number; firs
     if (!fix) return;
     const words = text.replace(/\s+/g, " ").trim();
     if (words === fix.text.replace(/\s+/g, " ").trim()) return next("kept");
-    const still = (forbiddenWords(words) as { term: string }[]).map(w => w.term);
+    const still = forbiddenWords(words) as { term: string; kind: string; found: string }[];
     if (still.length && warned !== words) {
       setWarned(words);
-      return setProblem(`That still says ${still.join(", ")}. Change it, or save again to keep it as written.`);
+      return setProblem(stillSaysWords(still, "save again"));
     }
     setBusy(true);
     setProblem(null);

@@ -3460,3 +3460,13 @@ list before saving, and says so once if a word is still there; saving the same w
 again keeps them, since a person may know better than the list (Q21). With no terminal,
 `catalog fix` lists each field with the command line that changes it. Tests drive the
 walk in a real terminal (`script`).
+
+**What to change is quoted (the same day).** Greg's first walk on the server stopped at
+"Not: a count of machines" with nothing to say which words those were ("2 replicas"),
+in the command and on the page alike. A word a developer never reads is now told as the
+text has it, in quotes, with what it is after only when that says more (`shownWord` in
+`core/developer-words.js`): `Not: "Terraform", "2 replicas" (a count of machines),
+"ca-central-1" (a region's name)`. In quotes is what to change; outside them, a
+description. The self-test's problems, the walk, its warning and the marks all say it
+this way, and a warning about a size or a count says what a developer reads instead.
+The plain-words pass still hands the model the terms by name.
