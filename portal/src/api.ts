@@ -51,6 +51,7 @@ export interface DiscoveryEvent { seq: number; type: string; [key: string]: unkn
 export interface DraftModule {
   id: string; source: string; availability: string; line: string; when?: string; guidance?: string;
   inputs?: Record<string, { required: boolean; line?: string }>; open?: string[]; not_read?: string;
+  short_line?: string; skip_line?: string; edited?: Record<string, { by: string | null; at: string | null }>;
 }
 export interface DraftCatalog { modules: DraftModule[]; discovery?: { open?: string[] } }
 
@@ -280,6 +281,9 @@ export const api = {
   catalogs: () => request<{ live: { version: number | "starter"; source: string }; catalogs: CatalogSummary[] }>("/catalogs"),
   catalogSelfTest: (version: number) => request<{ selfTest: SelfTest }>(`/catalogs/${version}/self-test`).then(r => r.selfTest),
   approveCatalog: (version: number) => request<{ selfTest: SelfTest }>(`/catalogs/${version}/approve`, { method: "POST", body: {} }),
+  catalogVersion: (version: number) => request<{ catalog: CatalogSummary; document: DraftCatalog }>(`/catalogs/${version}`),
+  editCatalog: (version: number, module: string, field: string, text: string) =>
+    request<{ catalog: CatalogSummary; selfTest: SelfTest }>(`/catalogs/${version}/edits`, { method: "POST", body: { module, field, text } }),
   makeCatalogLive: (version: number) => request<{ selfTest: SelfTest }>(`/catalogs/${version}/live`, { method: "POST", body: {} }),
   answerDiscovery: (id: string, question: string, answer: string) =>
     request<{ question: DiscoveryQuestion }>(`/discoveries/${encodeURIComponent(id)}/answers`, { method: "POST", body: { question, answer } }).then(r => r.question),

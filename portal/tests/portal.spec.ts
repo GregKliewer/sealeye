@@ -705,6 +705,24 @@ test("starting a run with no library named says so in words", async ({ page }) =
   await expect(page.getByRole("alert")).toContainText("No platform library is named for discovery yet");
 });
 
+// Editing a draft's words before approving it, as `sealeye catalog edit` does (Greg, Oct 16).
+test("Edit words: a draft entry's line changed on the page, the self-test run again, the entry marked edited", async ({ page }) => {
+  await signInOrgWide(page);
+  await page.goto("/discovery");
+  const row = page.getByTestId("draft-module").filter({ hasText: "postgres" });
+  await row.getByTestId("edit-words").click();
+  const panel = page.getByTestId("edit-words-panel");
+  await expect(panel).toContainText("Its id, inputs and whether it is offered stay as the library says");
+  await expect(panel.getByTestId("command-hint")).toContainText("sealeye catalog edit 1 postgres");
+  const line = panel.getByLabel("What it gives an app");
+  await line.fill("A relational database for your app, below staging.");
+  await panel.getByRole("button", { name: "Save" }).first().click();
+  await expect(panel.getByTestId("self-test-summary")).toHaveText("Catalog 1 passed its self-test.");
+  await expect(row).toContainText("A relational database for your app, below staging.");
+  await expect(row).toContainText("edited");
+  await expect(panel).toContainText("edited by lead@example.com");
+});
+
 // Approving and making live (PHASE4-PLAN Step 7), as `sealeye catalog` does. The sample
 // draft builds nothing yet (Terraform modules), and the sample environments run on the
 // starter's, so making it live is refused, naming them, and nothing changes.

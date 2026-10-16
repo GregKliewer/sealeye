@@ -3381,3 +3381,27 @@ were still wrong:
   now counts only a question touching the caches and nothing else, and the script
   answers only that one. Widening a question to every module its rule covers is right
   for the catalog: each of those entries rests on it.
+
+## A platform engineer edits a draft's words before approving it
+
+Fri Oct 16, 2026, Greg, after Juniper Mutual's first draft on the server was refused for
+one word in one line ("outside Terraform"), with no way to fix it but another run. Greg
+chose this over a second automatic fix-up "for flexibility's sake going forward".
+
+- **`POST /catalogs/{v}/edits`** (`{ module, field, text }`), `sealeye catalog edit <v>
+  <module> [<field> [words]]`, and Edit words on the Discovery page's draft table. An
+  organization-wide token's, as approving is.
+- **Words only** (`core/catalog-edits.js`): a module's line, short line, when, skip line
+  and guidance, and each input's line. Never its id, its inputs, its availability or what
+  builds it: those are code's, read from the library. A line cannot be empty, and an em
+  dash becomes a comma, as in a draft.
+- **Only a draft.** An approved or live catalog is as it was tested. An edit is made on
+  the draft as it is when its turn comes (`changeDraft`), and the self-test runs again
+  and answers it, so the engineer sees at once what is left.
+- **Kept with who and when** (`edited` on the entry), and never written over. A late
+  answer re-writes the entries it touches on the draft as it is then, keeping any field
+  a person edited (`keepEdits`). An input line a person wrote is never left out for
+  holding a blocked word; the self-test names it instead.
+
+How strict the word check should be, and whether the interview can explain a term, is
+Q21 (Greg, the same day: "developers ARE familiar with a lot of the jargon").

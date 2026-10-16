@@ -28,7 +28,7 @@ Two surfaces, one product: **seaLeye.run** is the `sealeye` command, and
 cli/        the sealeye command: bin/sealeye, client.js (talks to the API), interview/
             (follow.js streams the interview; render.js), discover.js (a discovery run,
             its questions answered as they come; discover-screen.js draws its window),
-            catalogs.js (`sealeye catalog versions|test|approve|live`), doctor.js,
+            catalogs.js (`sealeye catalog versions|test|edit|approve|live`), doctor.js,
             store-offer.js (moving .env values into the store),
             brand.js (the only place terminal colours live)
 api/        the API: server.js, store.js, db.js, migrations/, catalogs.js (each organization's
@@ -59,10 +59,11 @@ core/       what cli/ and api/ must agree on: schema.js (the plan contract), cat
             operations.js (every operation's command, aliases and portal label),
             discovery-words.js (what both surfaces say about a discovery run, a
             catalog's status and its self-test), developer-words.js (the cloud's
-            names, and sizes and counts, that a developer never reads).
+            names, and sizes and counts, that a developer never reads), catalog-edits.js
+            (which words of a draft's entry a person may change, and keeping them).
             secrets.js, scan.js, upload-rules.js, plan-words.js, evidence-summary.js,
             plan-report-words.js, retention.js, setting-names.js, environments.js,
-            operations.js, discovery-words.js and developer-words.js run in a browser,
+            operations.js, discovery-words.js, developer-words.js and catalog-edits.js run in a browser,
             so the portal imports them too
 prompts/    system prompt and the starter's passages for it (interview-starter.yaml), plan
             contract, plan, report and evidence templates, catalog
@@ -227,7 +228,9 @@ questions, and whether an answer is being written into the draft), GET /discover
 while it runs or after); discovery is an organization-wide token's only, one run at a time for an organization (409 RUN_GOING), over one library repository (409 ONE_LIBRARY). GET /catalogs (the organization's catalogs and which is live), GET
 /catalogs/{v}/self-test, POST /catalogs/{v}/approve (a draft; 422 SELF_TEST_FAILED with
 the result) and POST /catalogs/{v}/live (an approved or retired one; 422
-SELF_TEST_FAILED, 409 CATALOG_IN_USE), an organization-wide token's only too. Every endpoint but GET /health
+SELF_TEST_FAILED, 409 CATALOG_IN_USE), GET /catalogs/{v} (one, with its document) and
+POST /catalogs/{v}/edits ({ module, field, text }: a draft's words only, answered with
+the self-test), an organization-wide token's only too. Every endpoint but GET /health
 and the two /sessions needs `Authorization: Bearer <token>` (`api/tokens.js`) or the
 portal's session cookie; a change made with the cookie must also carry
 `x-sealeye-portal: 1`. A record says which surface made it. A laptop API may run with
@@ -373,7 +376,8 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   folder chosen in the browser), Control (state, deploy again, tear down,
   pause, settings, configure, history, plan and report, performance, logs, evidence), Validate (check a plan, and deploy a ready one with the
   code the platform has), Catalog (modules and the needs ledger), Costs, Team, Health,
-  and Discovery (with its Catalogs card: the self-test, Approve, Make live), shown only
+  and Discovery (Edit words on its draft, and its Catalogs card: the self-test, Approve,
+  Make live), shown only
   to an organization-wide token. Integrations is
   drawn in the archived mock-up only (Phase 5); the portal shows nothing it cannot do.
 

@@ -283,3 +283,24 @@ export async function updateDraft({ org, version, document }) {
     };
   });
 }
+
+/**
+ * Change a draft's document with `change(document)`, run on the draft as it is when this
+ * change's turn comes: a person's edit to its words (PHASE4-PLAN Step 7, after Greg's
+ * first approval was refused for one word). Only a draft, as for updateDraft.
+ */
+export async function changeDraft({ org, version, change }) {
+  return commit(org, list => {
+    const row = find(list, org, version);
+    if (row.status !== "draft") throw fail(`catalog ${version} is ${row.status}, not a draft: only a draft's words are changed`, "CATALOG_STATUS");
+    const document = change(structuredClone(row.document));
+    const problems = catalogProblems(document);
+    if (problems.length) throw fail(`not a catalog: ${problems.join("; ")}`, "CATALOG_INVALID", { problems });
+    const changed = { ...row, document };
+    return {
+      next: list.map(c => (c.version === row.version ? changed : c)),
+      sql: [[`UPDATE catalogs SET document = $3 WHERE org_id = $1 AND version = $2 AND status = 'draft'`, [org, row.version, JSON.stringify(document)]]],
+      result: { ...changed, document: undefined }
+    };
+  });
+}

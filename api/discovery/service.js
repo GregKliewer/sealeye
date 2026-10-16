@@ -19,7 +19,7 @@ import { Annotation, END, Send, START, StateGraph } from "@langchain/langgraph";
 
 import { setting } from "../../core/config.js";
 import { traceDiscovery, traceEvent } from "../../core/tracing.js";
-import { addCatalog, catalogAt, catalogsOf, updateDraft } from "../catalogs.js";
+import { addCatalog, catalogAt, catalogsOf, changeDraft } from "../catalogs.js";
 import { claimsFor, signerFromSettings, withCallerToken } from "../gateway-token.js";
 import { modelClient, modelCredential } from "../interview/model.js";
 import { switchOffLangSmith } from "../interview/service.js";
@@ -477,7 +477,9 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
       const asNew = async () => (await addCatalog({ org: run.org, document, by: run.startedBy })).version;
       if (status === "draft") {
         try {
-          await updateDraft({ org: run.org, version, document });
+          // Re-written on the draft as it is when this write's turn comes, so an edit a
+          // person made to its words meanwhile is kept, not written over (keepEdits).
+          await changeDraft({ org: run.org, version, change: latest => withoutUnplainInputLines(rewriteEntries(latest, { modules: run.modules, entries, questions: asked(id), library: run.library })) });
         } catch (err) {
           if (err.code !== "CATALOG_STATUS") throw err;
           version = await asNew();
