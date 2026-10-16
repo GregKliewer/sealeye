@@ -3511,3 +3511,34 @@ The interview's own prompt is unchanged: it plans from the catalog's words.
 
 The glossary turn ("what does that mean?" in the interview) is not in Step 8 (Greg);
 spelled-out acronyms and the phrasebook take most of the need away. Q21 is closed.
+
+## The discovery screens' rough edges
+
+Fri Oct 16, 2026, Greg, the step owed after Step 7 (PHASE4-PLAN's owed table), built
+with Q21 ("What a platform term is"). Each as recommended, after a click-through on the
+server that found nothing more.
+
+- **Which organization a token acts for is said first.** `sealeye catalog` and `sealeye
+  discover` print it before anything else, and `sealeye whoami` names it; the portal's
+  header names the token's own organization. Before, the header showed the server's
+  `ORG` name to every token, so a juniper token looked like the first organization's
+  until something was refused. The first organization is named by `ORG`, any other by
+  its id (`organizationInWords` in `core/token.js`). Not with `--json`.
+- **What an organization does not have is not shown.** App settings and costs are kept
+  by team, not yet by organization, so the API refuses them outside `default` (409
+  NOT_FOR_THIS_ORGANIZATION). The portal now leaves Costs out of its navigation and the
+  Settings card out of an environment's page there, and the Costs page, reached by its
+  address, says why in the API's own words rather than showing a refusal (Greg chose
+  hiding over explaining). The command already said it in words.
+- **Edit words reaches any draft on the page,** as `sealeye catalog edit <v>` reaches any
+  draft: each draft row on the Catalogs card but the latest run's (shown above it)
+  opens that draft by its version. Without its run's questions, an entry resting on a
+  question is shown as resting on an open one, since answering one rewrites the draft.
+- **A question asked again in more words is caught.** The repeat check compared the
+  words two questions share with every word in both, so the supervisor's longer
+  rewording of a reader's question about postgres's stages fell below the line and was
+  asked twice in both passes of the last measured run. Asked about the same module, the
+  share is now taken of the shorter question's words, with at least two in common and
+  filler words ("which", "should") left out; the longer repeat widens the first, as
+  before. Discovery is measured again before and after.
+- **`sealeye --version` and `-v`** print the version and nothing else.

@@ -382,10 +382,12 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   folder chosen in the browser), Control (state, deploy again, tear down,
   pause, settings, configure, history, plan and report, performance, logs, evidence), Validate (check a plan, and deploy a ready one with the
   code the platform has), Catalog (modules and the needs ledger), Costs, Team, Health,
-  and Discovery (Edit words on its draft, and its Catalogs card: the self-test, Fix what
-  blocks approval, Approve,
+  and Discovery (Edit words on its draft, and its Catalogs card: the self-test, Edit
+  words on any other draft, Fix what blocks approval, Approve,
   Make live), shown only
-  to an organization-wide token. Integrations is
+  to an organization-wide token. Costs and the Settings card are shown only to an
+  organization whose settings and costs are kept (`hasSettingsAndCosts` in
+  `core/token.js`); the header names the token's own organization. Integrations is
   drawn in the archived mock-up only (Phase 5); the portal shows nothing it cannot do.
 
 ## Working here
