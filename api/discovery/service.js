@@ -41,6 +41,12 @@ export const DEFAULT_RUN_CAP = 3;
 const MAX_PARALLEL = 4;
 const QUESTION_KINDS = ["overlap", "deprecated", "contradiction", "other"];
 
+/** A list as the tool asks for it, from a list, one value, or nothing. */
+const asList = v => (Array.isArray(v) ? v : v === undefined || v === null || v === "" ? [] : [v]);
+
+/** What kind of failure an error is, for a trace: its class and any status, never its message. */
+const errorKind = err => [err?.name || typeof err, Number.isInteger(err?.status) ? String(err.status) : null].filter(Boolean).join(" ");
+
 // Words that say nothing about what a question asks, left out when two are compared.
 const QUESTION_FILLER = new Set(["which", "what", "when", "where", "with", "from", "this", "that", "these", "those", "should", "would", "does", "there", "their", "they", "them", "have", "been", "being", "into", "about", "each", "every", "some", "other", "still"]);
 
@@ -155,50 +161,67 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
 
   async function raise(run, raised, touchesDefault) {
     const out = [];
-    const s = state(run.id);
-    for (const q of raised || []) {
-      const touches = [...new Set([...(touchesDefault ? [touchesDefault] : []), ...(Array.isArray(q.touches) ? q.touches : [])].map(t => sourceFor(run, t)).filter(Boolean))];
-      // The supervisor sees the readers' questions and may ask one again in its own
-      // words; the prompt says not to, and code makes sure (Greg, Oct 15, 2026).
-      const same = touchesDefault ? null : repeats({ kind: QUESTION_KINDS.includes(q.kind) ? q.kind : "other", question: String(q.question || ""), touches }, store.questionsOf(run.id));
-      if (same) {
-        // The supervisor sees across modules where a reader saw one: asked again naming a
-        // module the first left out, the first is widened to touch it too, rather than
-        // the wider one dropped (Greg's run, Oct 16, 2026: a reader asked about
-        // cache-valkey alone, and the supervisor's question naming cache-redis as well
-        // was dropped as a repeat).
-        const wider = touches.filter(t => !(same.touches || []).includes(t));
-        if (wider.length && same.answer == null && !same.mergedInto && (same.touches || []).length) {
-          const widened = { ...same, touches: [...same.touches, ...wider] };
-          await store.saveQuestion(widened);
-          emit(run.id, { type: "widened", question: publicQuestion(widened) });
-        }
-        continue;
+    for (const q of Array.isArray(raised) ? raised : []) {
+      // One question the model wrote in the wrong shape is left out, never the module it
+      // came from (Greg's run, Oct 16, 2026: custom-domain was read, then lost).
+      try {
+        const kept = await raiseOne(run, q, touchesDefault);
+        if (kept) out.push(kept);
+      } catch (err) {
+        traceEvent("question left out", { raisedBy: touchesDefault ? "worker" : "supervisor", error: errorKind(err) });
       }
-      const options = (q.options || []).map(String).slice(0, 4);
-      const question = {
-        id: `q_${crypto.randomBytes(6).toString("hex")}`,
-        seq: ++s.qseq,
-        discovery: run.id,
-        org: run.org,
-        // One of the schema's kinds, whatever the model wrote: the kind reaches the trace.
-        kind: QUESTION_KINDS.includes(q.kind) ? q.kind : "other",
-        question: String(q.question || "").slice(0, 600),
-        options,
-        guess: options.includes(q.guess) ? q.guess : options[0],
-        touches,
-        evidence: (q.evidence || []).slice(0, 6).map(e => ({ file: String(e.file || ""), ...(Number.isInteger(e.line) ? { line: e.line } : {}), shows: String(e.shows || "") })),
-        raisedBy: touchesDefault ? `worker:${touchesDefault}` : "supervisor",
-        answer: null,
-        createdAt: new Date(now()).toISOString()
-      };
-      await store.saveQuestion(question);
-      // Its kind and who raised it, never its words (DESIGN.md, Step 7's traces).
-      traceEvent("question", { kind: question.kind, raisedBy: question.raisedBy, touches: touches.length });
-      emit(run.id, { type: "question", question: publicQuestion(question) });
-      out.push(question);
     }
     return out;
+  }
+
+  /** One question raised, as `raise` does for each; the question kept, or null. */
+  async function raiseOne(run, q, touchesDefault) {
+    const s = state(run.id);
+    if (!q || typeof q !== "object" || typeof q.question !== "string" || !q.question.trim()) return null;
+    const touches = [...new Set([...(touchesDefault ? [touchesDefault] : []), ...asList(q.touches)].map(t => sourceFor(run, t)).filter(Boolean))];
+    // The supervisor sees the readers' questions and may ask one again in its own
+    // words; the prompt says not to, and code makes sure (Greg, Oct 15, 2026).
+    const same = touchesDefault ? null : repeats({ kind: QUESTION_KINDS.includes(q.kind) ? q.kind : "other", question: String(q.question || ""), touches }, store.questionsOf(run.id));
+    if (same) {
+      // The supervisor sees across modules where a reader saw one: asked again naming a
+      // module the first left out, the first is widened to touch it too, rather than
+      // the wider one dropped (Greg's run, Oct 16, 2026: a reader asked about
+      // cache-valkey alone, and the supervisor's question naming cache-redis as well
+      // was dropped as a repeat).
+      const wider = touches.filter(t => !(same.touches || []).includes(t));
+      if (wider.length && same.answer == null && !same.mergedInto && (same.touches || []).length) {
+        const widened = { ...same, touches: [...same.touches, ...wider] };
+        await store.saveQuestion(widened);
+        emit(run.id, { type: "widened", question: publicQuestion(widened) });
+      }
+      return null;
+    }
+    // The tool asks for lists; a model may still send one as a single value.
+    const options = asList(q.options).map(String).filter(o => o.trim()).slice(0, 4);
+    if (!options.length && typeof q.guess === "string" && q.guess.trim()) options.push(q.guess);
+    const question = {
+      id: `q_${crypto.randomBytes(6).toString("hex")}`,
+      seq: ++s.qseq,
+      discovery: run.id,
+      org: run.org,
+      // One of the schema's kinds, whatever the model wrote: the kind reaches the trace.
+      kind: QUESTION_KINDS.includes(q.kind) ? q.kind : "other",
+      question: String(q.question || "").slice(0, 600),
+      options,
+      guess: options.includes(q.guess) ? q.guess : options[0],
+      touches,
+      evidence: asList(q.evidence).slice(0, 6).map(e => (e && typeof e === "object"
+        ? { file: String(e.file || ""), ...(Number.isInteger(e.line) ? { line: e.line } : {}), shows: String(e.shows || "") }
+        : { file: "", shows: String(e) })),
+      raisedBy: touchesDefault ? `worker:${touchesDefault}` : "supervisor",
+      answer: null,
+      createdAt: new Date(now()).toISOString()
+    };
+    await store.saveQuestion(question);
+    // Its kind and who raised it, never its words (DESIGN.md, Step 7's traces).
+    traceEvent("question", { kind: question.kind, raisedBy: question.raisedBy, touches: touches.length });
+    emit(run.id, { type: "question", question: publicQuestion(question) });
+    return question;
   }
 
   /**
@@ -310,7 +333,9 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
           return { found: { [module.source]: { finding } } };
         } catch (err) {
           const failed = err instanceof SpendingLimit ? (err.scope === "run" ? "the run reached its spending limit" : "this module reached its spending limit") : "seaLeye could not finish reading it";
-          emit(run.id, { type: "not_read", source: module.source, why: failed });
+          // What kind of failure, never its words, so the next one says why.
+          traceEvent("not read", { source: module.source, error: errorKind(err) });
+          emit(run.id, { type: "not_read", source: module.source, why: failed, error: errorKind(err) });
           return { found: { [module.source]: { failed } } };
         }
       })
@@ -320,8 +345,9 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
           await raise(run, finding.questions, null);
           emit(run.id, { type: "read", source: "." });
           return { library: finding };
-        } catch {
-          emit(run.id, { type: "not_read", source: ".", why: "seaLeye could not finish reading the library's README and pipeline" });
+        } catch (err) {
+          traceEvent("not read", { source: ".", error: errorKind(err) });
+          emit(run.id, { type: "not_read", source: ".", why: "seaLeye could not finish reading the library's README and pipeline", error: errorKind(err) });
           return { library: null };
         }
       })
