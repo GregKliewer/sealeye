@@ -171,6 +171,8 @@ export function grade(result, expected) {
     needs,
     needsCorrect: needs.length === wantNeeds.length && needs.every((n, i) => n === wantNeeds[i]),
     missingNeeds: wantNeeds.filter(n => !needs.includes(n)),
+    missingModules: (expected.modules || []).filter(m => !modules.includes(m)),
+    unwantedModules: (expected.notModules || []).filter(m => modules.includes(m)),
     extraNeeds: needs.filter(n => !wantNeeds.includes(n)),
     questions: result?.questions ?? 0
   };
@@ -290,6 +292,12 @@ export function summaryLines(rows) {
     );
     if (r.missingNeeds.length) lines.push(`  ${"".padEnd(34)}    missing: ${r.missingNeeds.join(", ")}`);
     if (r.extraNeeds.length) lines.push(`  ${"".padEnd(34)}    not expected: ${r.extraNeeds.join(", ")}`);
+    // Modules wrong: what it planned, and which were missing or should not be there.
+    if (r.modulesCorrect === false) {
+      lines.push(`  ${"".padEnd(34)}    planned: ${r.modules.join(", ") || "no modules"}`);
+      if (r.missingModules?.length) lines.push(`  ${"".padEnd(34)}    missing: ${r.missingModules.join(", ")}`);
+      if (r.unwantedModules?.length) lines.push(`  ${"".padEnd(34)}    should not have: ${r.unwantedModules.join(", ")}`);
+    }
     // Not as expected: what the model asked, how each was answered, and why it stopped,
     // so a run that went wrong can be read without opening its trace.
     if (!allCorrect(r)) {

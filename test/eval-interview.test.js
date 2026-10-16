@@ -456,3 +456,15 @@ test("Juniper's set plans each app against its live catalog, graded on Juniper's
     else process.env.SEALEYE_HOME = before;
   }
 });
+
+test("modules not as expected say what was planned, what was missing, and what should not be there", () => {
+  const expected = { status: "drafted", modules: ["container_service", "postgres", "secrets"], notModules: ["postgres_cluster"], needs: ["event_stream"] };
+  const plan = { modules: [{ id: "container_service" }, { id: "postgres_cluster" }, { id: "secrets", enabled: false }], needs: [need("event_stream")] };
+  const row = { app: "juniper-payment-events-processor", ...grade({ status: "submitted", plan, questions: 0 }, expected) };
+  assert.deepEqual(row.missingModules, ["postgres", "secrets"]);
+  assert.deepEqual(row.unwantedModules, ["postgres_cluster"]);
+  const lines = summaryLines([row]).join("\n");
+  assert.match(lines, /planned: container_service, postgres_cluster/);
+  assert.match(lines, /missing: postgres, secrets/);
+  assert.match(lines, /should not have: postgres_cluster/);
+});
