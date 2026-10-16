@@ -507,16 +507,27 @@ async function main(args) {
       console.log(`\nDiscovery on Juniper Mutual (${path.resolve(library)}), ${scripted ? "with the key's answers, at fixed points" : "no answers given"}:\n`);
       const out = path.join(outDir, `discovery-${stamp}-${name}.yaml`);
       const pass = async () => runDiscovery(path.resolve(library), key, out, { scripted });
-      let result;
+      let result = null;
       if (datasetId) {
         const itemId = `${DATASET}-juniper-${name}`;
         await tracing.langfuseRequest("POST", "/api/public/dataset-items", { datasetName: DATASET, id: itemId, input: { library: key.library, answers: name }, expectedOutput: expectedFor(key, scripted) }, 10_000).catch(() => {});
-        result = await tracing.traceExperimentItem(
+        await tracing.traceExperimentItem(
           { experimentId, runName, description: `Discovery prompts ${promptsVersion()}`, datasetId, itemId, input: { library: key.library, answers: name }, expectedOutput: expectedFor(key, scripted) },
           async ({ traceId }) => {
-            const r = await pass();
-            r.traceId = traceId;
-            return r;
+            // The item's output in LangFuse is counts and yes-or-no, never a question's
+            // words, an answer or the run's record: the library is read by clone, and
+            // the clone named could be anyone's (the review, Oct 16, 2026).
+            result = await pass();
+            result.traceId = traceId;
+            const g = result.graded;
+            return {
+              correct: Boolean(g?.correct),
+              modulesRight: g ? g.modules.filter(m => m.ok).length : 0,
+              hardCasesCaught: g ? g.hardCases.filter(h => h.ok).length : 0,
+              hardCases: g ? g.hardCases.length : 0,
+              questions: result.questions.length,
+              spent: Number(result.total.toFixed(4))
+            };
           }
         );
       } else {

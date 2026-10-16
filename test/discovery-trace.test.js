@@ -87,8 +87,9 @@ test("a discovery run is traced as its shape: workers, files by path and size, t
   for (const words of ["Lyra", "Halcyon", "Orion", "Keeps the ledger"]) assert.ok(!attrs.includes(words), `${words} must not reach a trace`);
   assert.match(attrs, /modules\/ledger\/README\.md/, "the path read");
   assert.match(attrs, /"bytes":\d+/, "and its size");
-  assert.match(attrs, /"kind":"replacement"/, "a question's kind");
-  assert.match(attrs, /"questions_replacement":1/, "and the count by kind at the end");
+  assert.match(attrs, /"kind":"other"/, "a question's kind, one of the schema's: a model's own word for it is not kept");
+  assert.ok(!attrs.includes("replacement"));
+  assert.match(attrs, /"questions_other":1/, "and the count by kind at the end");
   assert.match(attrs, /"cost":0\.\d+/, "what a worker spent");
 
   // A late answer is written in under a trace of its own, with nothing of the answer in it.

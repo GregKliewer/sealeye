@@ -334,6 +334,11 @@ async function deployAgain(req, res) {
     const gone = noLongerBuilt(plan, callerOrg(req));
     if (gone.length) return res.status(409).json(catalogChanged(gone));
   }
+  // A deploy reads its app's settings from the store, kept by team and not yet by
+  // organization, so outside the default organization it would read another's: refused
+  // there, once the catalog has had its say, until the organization is in the store's
+  // path (the review, Oct 16, 2026). A drafted plan is saved before this.
+  if (callerOrg(req) !== "default") return notForThisOrganization(res, "Deploys");
 
   // One change at a time: the environment this goes to must not be changing now.
   {
@@ -393,6 +398,9 @@ async function deployAgain(req, res) {
   {
     const busy = changeUnderWay(naming.stackName);
     if (busy) return res.status(409).json(busyRefusal(busy));
+    // And the catalog, which may have been made live while this waited.
+    const gone = noLongerBuilt(plan, callerOrg(req));
+    if (gone.length) return res.status(409).json(catalogChanged(gone));
   }
   const record = putDeployment({
     deploymentId,
@@ -598,6 +606,11 @@ async function deployNew(req, res) {
     const gone = noLongerBuilt(plan, callerOrg(req));
     if (gone.length) return res.status(409).json(catalogChanged(gone));
   }
+  // A deploy reads its app's settings from the store, kept by team and not yet by
+  // organization, so outside the default organization it would read another's: refused
+  // there, once the catalog has had its say, until the organization is in the store's
+  // path (the review, Oct 16, 2026). A drafted plan is saved before this.
+  if (callerOrg(req) !== "default") return notForThisOrganization(res, "Deploys");
 
   // An uploaded copy is unpacked now, so a bad upload is a 400 and never a queued
   // deployment that fails later.
@@ -643,6 +656,14 @@ async function deployNew(req, res) {
     if (busy) {
       if (uploaded) removeUpload(deploymentId);
       return res.status(409).json(busyRefusal(busy));
+    }
+    // A catalog made live while the scan ran is checked again here, where nothing waits
+    // before the record is written, so a deploy cannot slip past the guard against
+    // making live a catalog that drops what an environment uses (the review, Oct 16).
+    const gone = noLongerBuilt(plan, callerOrg(req));
+    if (gone.length) {
+      if (uploaded) removeUpload(deploymentId);
+      return res.status(409).json(catalogChanged(gone));
     }
   }
 

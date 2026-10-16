@@ -37,6 +37,7 @@ import { idFor, listModules, moduleHash, moduleInputs } from "./terraform.js";
 export const DEFAULT_WORKER_CAP = 0.1;
 export const DEFAULT_RUN_CAP = 3;
 const MAX_PARALLEL = 4;
+const QUESTION_KINDS = ["overlap", "deprecated", "contradiction", "other"];
 
 const capSetting = (name, fallback) => {
   const v = setting(name);
@@ -154,14 +155,15 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
       const touches = [...new Set([...(touchesDefault ? [touchesDefault] : []), ...(Array.isArray(q.touches) ? q.touches : [])].map(t => sourceFor(run, t)).filter(Boolean))];
       // The supervisor sees the readers' questions and may ask one again in its own
       // words; the prompt says not to, and code makes sure (Greg, Oct 15, 2026).
-      if (!touchesDefault && repeats({ kind: q.kind || "other", question: String(q.question || ""), touches }, store.questionsOf(run.id))) continue;
+      if (!touchesDefault && repeats({ kind: QUESTION_KINDS.includes(q.kind) ? q.kind : "other", question: String(q.question || ""), touches }, store.questionsOf(run.id))) continue;
       const options = (q.options || []).map(String).slice(0, 4);
       const question = {
         id: `q_${crypto.randomBytes(6).toString("hex")}`,
         seq: ++s.qseq,
         discovery: run.id,
         org: run.org,
-        kind: q.kind || "other",
+        // One of the schema's kinds, whatever the model wrote: the kind reaches the trace.
+        kind: QUESTION_KINDS.includes(q.kind) ? q.kind : "other",
         question: String(q.question || "").slice(0, 600),
         options,
         guess: options.includes(q.guess) ? q.guess : options[0],
@@ -236,7 +238,13 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
       for (const id of new Set((Array.isArray(m.merged) ? m.merged : []).map(String))) {
         const other = all.get(id);
         if (!other || other.id === keep.id || other.mergedInto) continue;
+        // Never closes a question nobody answered: one with no answer goes only into
+        // another with none, and two answers that differ are never merged.
+        if (other.answer == null && keep.answer != null) continue;
         if (other.answer != null && keep.answer != null && other.answer !== keep.answer) continue;
+        // A question about the whole catalog holds up its approval; one about modules
+        // holds back only those. Merging across the two would move a guess out of sight.
+        if (!(other.touches || []).length !== !(keep.touches || []).length) continue;
         if (other.answer != null && keep.answer == null) {
           keep = { ...keep, answer: other.answer, answeredBy: other.answeredBy || null, answeredAt: other.answeredAt || null, usedAt: null, usedIn: null };
         }
@@ -360,7 +368,7 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
     s.writing = s.writing.then(async () => {
       const run = runOf(id);
       if (!run?.catalogVersion) return;
-      const pending = asked(id).filter(q => q.answer != null && !q.usedAt);
+      let pending = asked(id).filter(q => q.answer != null && !q.usedAt);
       if (!pending.length) return;
       const sources = [...new Set(pending.flatMap(q => q.touches))];
       let entries = [];
@@ -379,6 +387,10 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
           await raise(run, written.questions, null);
           await applyMerges(run, written.merges);
           entries = written.entries.filter(e => sources.includes(e.source));
+          // An answer a merge carried onto modules this pass did not write waits for the
+          // next one, so no module is marked done without being written (the review).
+          const now = new Map(asked(id).map(q => [q.id, q]));
+          pending = pending.map(q => now.get(q.id)).filter(q => q && q.answer != null && (q.touches || []).every(t => sources.includes(t)));
         } catch (err) {
           run.spend = s.budget.spend();
           run.answerProblem = err instanceof SpendingLimit ? "the run reached its spending limit" : "seaLeye could not write the entries again";
@@ -391,8 +403,17 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
       const current = catalogAt(run.org, version);
       const document = rewriteEntries(structuredClone(current), { modules: run.modules, entries, questions: asked(id), library: run.library });
       const status = catalogsOf(run.org).find(c => c.version === version)?.status;
-      if (status === "draft") await updateDraft({ org: run.org, version, document });
-      else version = (await addCatalog({ org: run.org, document, by: run.startedBy })).version;
+      // Approved meanwhile (between reading its status and writing it): a new draft, as
+      // for one approved earlier, so the answer is not left stuck (the review).
+      const asNew = async () => (await addCatalog({ org: run.org, document, by: run.startedBy })).version;
+      if (status === "draft") {
+        try {
+          await updateDraft({ org: run.org, version, document });
+        } catch (err) {
+          if (err.code !== "CATALOG_STATUS") throw err;
+          version = await asNew();
+        }
+      } else version = await asNew();
       await markUsed(pending, version);
       run.catalogVersion = version;
       run.spend = s.budget ? s.budget.spend() : run.spend;

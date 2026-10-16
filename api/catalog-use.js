@@ -6,8 +6,6 @@
 // catalog live is refused, naming each one, until they are torn down or the catalog
 // builds what they use.
 import { isBuildable } from "../core/catalog.js";
-import { IN_FLIGHT } from "./store.js";
-import { replacements } from "./replaced.js";
 
 /** The modules a record's environment runs: its plan's, or for an older record, what it resolved. */
 const modulesOf = record =>
@@ -16,26 +14,33 @@ const modulesOf = record =>
     : (record.resolvedModules || []).map(m => m?.id).filter(Boolean);
 
 /**
- * Each of an organization's environments that runs, or is being built with, a module
- * `document` does not build: its newest successful deploy, or one under way. A failed
- * deploy left the environment as it was, so the success before it is the one counted.
+ * Each of an organization's environments that may still run, or be built with, a module
+ * `document` does not build. Erring toward naming one: an environment counts unless its
+ * newest record says it is gone (`destroyed`), and every record since it was last torn
+ * down counts, whatever its status. A failed deploy left what was there before, and a
+ * failed tear-down left the stack standing with its record marked failed (the review of
+ * Oct 16, 2026), so neither is taken to mean the environment is gone. A drafted plan
+ * built nothing. One wrongly named is cleared by tearing it down, which marks it gone.
  *
  * @returns {{ environment: string, app: string | null, team: string, deploymentId: string, modules: string[] }[]}
  */
 export function environmentsDropped({ org, document, records }) {
-  const ours = records.filter(r => (r.orgId || "default") === org);
-  const replaced = replacements(ours);
-  const found = new Map();
-  for (const r of ours) {
-    const running = r.status === "succeeded" && !replaced.has(r.deploymentId);
-    const underWay = IN_FLIGHT.has(r.status) && r.status !== "destroying";
-    if (!running && !underWay) continue;
-    const dropped = modulesOf(r).filter(id => !isBuildable(id, document));
-    if (!dropped.length) continue;
+  const byEnvironment = new Map();
+  for (const r of records.filter(r => (r.orgId || "default") === org && r.status !== "drafted")) {
     const key = r.stackName || r.environment || r.deploymentId;
-    const seen = found.get(key);
-    const modules = [...new Set([...(seen?.modules || []), ...dropped])];
-    found.set(key, { environment: key, app: r.app?.name || null, team: r.teamId || "default", deploymentId: r.deploymentId, modules });
+    if (!byEnvironment.has(key)) byEnvironment.set(key, []);
+    byEnvironment.get(key).push(r);
   }
-  return [...found.values()];
+  const found = [];
+  for (const [environment, list] of byEnvironment) {
+    list.sort((a, b) => String(a.startedAt || "").localeCompare(String(b.startedAt || "")));
+    const lastGone = list.map(r => r.status).lastIndexOf("destroyed");
+    const since = list.slice(lastGone + 1);
+    if (!since.length) continue;
+    const modules = [...new Set(since.flatMap(modulesOf).filter(id => !isBuildable(id, document)))];
+    if (!modules.length) continue;
+    const newest = since.at(-1);
+    found.push({ environment, app: newest.app?.name || null, team: newest.teamId || "default", deploymentId: newest.deploymentId, modules });
+  }
+  return found;
 }

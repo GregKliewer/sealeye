@@ -12,6 +12,7 @@ const ANA = token("a");     // a developer in default
 const LEE = token("l");     // default's platform engineer
 const JUN = token("j");     // juniper's platform engineer
 const JUNDEV = token("d");  // a developer in juniper
+const ACORN = token("c");   // a developer in a third organization, with no catalog of its own
 let api;
 
 const at = "2026-10-16T09:00:00.000Z";
@@ -55,7 +56,8 @@ before(async () => {
       { token: ANA, id: "ana", team: "default" },
       { token: LEE, id: "lee", team: "platform", scope: "org" },
       { token: JUN, id: "jun", team: "platform", scope: "org", org: "juniper" },
-      { token: JUNDEV, id: "dev", team: "payments", org: "juniper" }
+      { token: JUNDEV, id: "dev", team: "payments", org: "juniper" },
+      { token: ACORN, id: "acorn", team: "platform", org: "acorn" }
     ],
     records: [{
       deploymentId: "dep_shop1", status: "succeeded", backend: "cloudformation", stackName: "sealeye-default-shop-abc123",
@@ -166,9 +168,13 @@ test("a catalog that stops building what an environment runs is not made live, n
   assert.equal(ours.body.catalog.source, "starter", "nothing changed");
 });
 
-test("a second organization does not reach the store's settings or the account's costs, kept by team only", async () => {
-  for (const [method, route] of [["GET", "/apps/shop/settings"], ["PUT", "/apps/shop/settings/GREETING"], ["DELETE", "/apps/shop/settings/GREETING"], ["GET", "/costs"]]) {
-    const r = await api.call(route, { token: JUN, method, ...(method === "PUT" ? { body: { value: "hello" } } : {}) });
+test("a second organization does not reach the store's settings, the account's costs, or a deploy that would read those settings", async () => {
+  const plan = { planVersion: "0.5", catalog: "starter", app: { name: "orders", type: "api" }, profile: "dev", outputs: [], modules: [{ id: "http_api_serverless" }, { id: "observability_basic" }] };
+  for (const [method, route, body] of [["GET", "/apps/shop/settings"], ["PUT", "/apps/shop/settings/GREETING", { value: "hello" }], ["DELETE", "/apps/shop/settings/GREETING"], ["GET", "/costs"],
+    ["POST", "/deployments", { plan, appPath: "/tmp", backend: "cloudformation" }]]) {
+    // A third organization plans against the starter, which builds, so only the
+    // organization stops the deploy; the store is never read for it.
+    const r = await api.call(route, { token: route === "/deployments" ? ACORN : JUN, method, ...(body ? { body } : {}) });
     assert.equal(r.status, 409, `${method} ${route}`);
     assert.equal(r.body.error.code, "NOT_FOR_THIS_ORGANIZATION");
   }

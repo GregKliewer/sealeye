@@ -234,12 +234,16 @@ export async function approveCatalog({ org, version, by, gate = () => {} }) {
  * makes it the self-test and the guard for environments in use (PHASE4-PLAN Step 7).
  */
 export async function makeLive({ org, version, by = null, gate = () => {} }) {
-  return commit(org, list => {
+  const turn = commit(org, list => {
     const row = find(list, org, version);
     if (row.status !== "approved" && row.status !== "retired") {
       throw fail(`catalog ${version} is ${row.status}; only an approved or retired catalog goes live`, "CATALOG_STATUS");
     }
     gate(row, list);
+    // From here until it is written, a deploy is checked against this catalog as well as
+    // the live one (`goingLive`), so none can be queued on a module it drops while the
+    // database is being written.
+    goingLive.set(org, row.document);
     const at = new Date().toISOString();
     return {
       next: list.map(c =>
@@ -252,7 +256,12 @@ export async function makeLive({ org, version, by = null, gate = () => {} }) {
       result: { org, version: row.version, status: "live", madeLiveBy: by, madeLiveAt: at }
     };
   });
+  return turn.finally(() => goingLive.delete(org));
 }
+
+/** A catalog being made live for an organization right now, or null. */
+const goingLive = new Map();
+export const catalogGoingLive = org => goingLive.get(org) || null;
 
 /**
  * Change a draft's document in place, as a discovery run does when a late answer

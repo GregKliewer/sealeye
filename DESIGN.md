@@ -3309,3 +3309,29 @@ organization plans and refuses against. Each as recommended, except where it say
   supervisor's prompt changed, so the run is measured before and after.
 - **The rough edges of the discovery screens** are a step of their own after this one,
   once approving and making live are on them too.
+
+**Reviewed independently** before the pull request. It found five defects, all fixed
+with tests where a test could reach them:
+- A merge could close a question nobody had answered. An unanswered question merged
+  into an answered one left the open list, so its guess went into the catalog. A merge
+  now never closes a question that has no answer. It never crosses between a question
+  about the whole catalog and one about modules. An answer it carries onto modules the
+  pass did not write waits for the next pass.
+- The guard missed an environment whose tear-down had failed. The executor marks that
+  record failed, but its stack is still standing. The guard now counts every
+  environment that has not been torn down, whatever its status.
+- A deploy could slip past the guard while its code was being scanned. The catalog is
+  now checked again where nothing waits before the record is written. While a catalog
+  is being made live, a deploy is checked against it too (`catalogGoingLive`).
+- A deploy outside `default` would read `default`'s stored settings, since the store
+  keeps them by team only. Deploys answer 409 `NOT_FOR_THIS_ORGANIZATION` there too. A
+  drafted plan is still saved, so the needs ledger counts it.
+- The eval's LangFuse output held every question's words and answers. It now holds
+  counts and yes-or-no only.
+
+Two should-fixes are in as well. A question's kind is one of the schema's, so a model's
+own word for it never reaches a trace. An answer whose draft is approved while the
+answer is being written in goes into a new draft instead of being stuck.
+
+`sealeye catalog approve` now names its catalog, as `live` does, so what is approved is
+the catalog that was tested.

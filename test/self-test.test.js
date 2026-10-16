@@ -137,3 +137,21 @@ test("the word check reads every place a developer reads, and nothing else", () 
   http.inputs.entry_point.line = "The handler Lambda calls.";
   assert.deepEqual(developerWordProblems(doc), [{ where: "http_api_serverless: input entry_point", module: "http_api_serverless", term: "Lambda", kind: "cloud" }]);
 });
+
+test("the guard counts every environment not known to be gone: a failed tear-down left it standing", async () => {
+  const { environmentsDropped } = await import("../api/catalog-use.js");
+  const doc = starterCatalog();
+  doc.modules = doc.modules.filter(m => m.id !== "config_basic");
+  const rec = (id, status, startedAt, modules = ["http_api_serverless", "config_basic"]) => ({
+    deploymentId: id, status, startedAt, orgId: "default", teamId: "default", stackName: "sealeye-default-shop-1", app: { name: "shop" },
+    plan: { modules: modules.map(m => ({ id: m })) }
+  });
+  const named = records => environmentsDropped({ org: "default", document: doc, records }).map(e => e.modules);
+  assert.deepEqual(named([rec("d1", "succeeded", "1")]), [["config_basic"]], "running");
+  assert.deepEqual(named([rec("d1", "failed", "1")]), [["config_basic"]], "its tear-down failed, so the stack is still there");
+  assert.deepEqual(named([rec("d1", "succeeded", "1"), rec("d2", "failed", "2", ["http_api_serverless"])]), [["config_basic"]], "a failed deploy left the one before");
+  assert.deepEqual(named([rec("d1", "succeeded", "1"), rec("d1b", "destroyed", "2")]), [], "torn down");
+  assert.deepEqual(named([rec("d1", "destroyed", "1"), rec("d2", "queued", "2")]), [["config_basic"]], "built again since");
+  assert.deepEqual(named([{ ...rec("d1", "drafted", "1"), stackName: undefined }]), [], "a drafted plan built nothing");
+  assert.deepEqual(environmentsDropped({ org: "juniper", document: doc, records: [rec("d1", "succeeded", "1")] }), [], "another organization's");
+});

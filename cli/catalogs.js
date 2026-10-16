@@ -6,7 +6,7 @@
 //
 //   sealeye catalog versions      every catalog, and which is live
 //   sealeye catalog test [v]      the self-test, run now (the newest draft without v)
-//   sealeye catalog approve [v]   approve a draft that passes (the newest draft without v)
+//   sealeye catalog approve <v>   approve a draft that passes
 //   sealeye catalog live <v>      make an approved or retired catalog live
 import { c, step } from "./brand.js";
 import { approveCatalogVersion, catalogSelfTest, listCatalogs, makeCatalogLive } from "./client.js";
@@ -92,6 +92,11 @@ export async function catalogs({ apiBaseUrl, sub, args, say, json = false }) {
   if (sub === "approve" || sub === "live") {
     if (sub === "live" && asked === undefined) {
       throw userError(`Name the catalog to make live: ${commandLine("catalog-live", null, ["<number>"])}. ${commandLine("catalogs")} lists them.`);
+    }
+    // Named, so what is approved is the catalog that was tested, never one written since.
+    if (sub === "approve" && asked === undefined) {
+      const newest = await versionFor({ apiBaseUrl, asked, verb: "approve" });
+      throw userError(`Name the catalog to approve: ${commandLine("catalog-approve", null, [String(newest)])} for the newest draft. ${commandLine("catalogs")} lists them.`);
     }
     const version = await versionFor({ apiBaseUrl, asked, verb: "approve" });
     const act = sub === "approve" ? approveCatalogVersion : makeCatalogLive;

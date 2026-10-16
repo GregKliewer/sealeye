@@ -68,7 +68,9 @@ test("sealeye catalog test: each check, what is never built and why", async () =
 });
 
 test("sealeye catalog approve: a failing draft is refused with its self-test; the named one is approved", async () => {
-  const refused = await sealeye(["catalog", "approve"], LEE);   // the newest draft, catalog 2
+  const unnamed = await sealeye(["catalog", "approve"], LEE);
+  assert.match(unnamed.stdout + unnamed.stderr, /Name the catalog to approve: sealeye catalog approve 2 for the newest draft/);
+  const refused = await sealeye(["catalog", "approve", "2"], LEE);
   assert.match(refused.stdout, /db: line says RDS and subnet/);
   assert.match(refused.stdout + refused.stderr, /Catalog 2 cannot be approved/);
   const ok = await sealeye(["catalog", "approve", "1"], LEE);
