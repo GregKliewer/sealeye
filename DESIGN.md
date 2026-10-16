@@ -3573,6 +3573,12 @@ catalog discovery wrote.
   catalogs; `--set starter` or `--set juniper` runs one. The starter's prompt and tool
   are unchanged (`d3ab331a0a17` with the default organization).
 - **Not in it:** the glossary turn ("what does that mean?"), which Greg left out.
+- **The payment events case says it is for dev** (Greg, Oct 16, 2026, after the first
+  run that finished): against Juniper's catalog the interview asks whether the app is
+  being tried out or is headed for production, and with no answer it planned the
+  database for production. The case now answers "trying it out in dev first", so it
+  tests the library's rule below staging. What a plan headed for production should name
+  waits for Q20 (a module per stage).
 
 Seen while building it, for later steps:
 - Catalog 3's postgres entry says both "for all six stages" and "below staging only":
