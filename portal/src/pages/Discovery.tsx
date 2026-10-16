@@ -11,7 +11,7 @@ import { ago, when } from "../model";
 import { PageTitle, Problem } from "../Layout";
 import { CommandHint } from "../Command";
 import { commandLine, label } from "../../../core/operations.js";
-import { choicesFor, discoveryEventLine, discoveryStateWords, isOpen, activityWords, elapsedWords, modulesDone, nextProgress, progressSummary, SOMETHING_ELSE, ANSWER_LIMIT } from "../../../core/discovery-words.js";
+import { choicesFor, discoveryEventLine, discoveryStateWords, isOpen, activityWords, answerStateWords, elapsedWords, modulesDone, nextProgress, progressSummary, SOMETHING_ELSE, ANSWER_LIMIT } from "../../../core/discovery-words.js";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -25,6 +25,7 @@ export function DiscoveryPage() {
 }
 
 const LOOK_AGAIN_MS = 5000;
+const LOOK_AGAIN_WRITING_MS = 1500;
 
 /** Milliseconds since an event's time, never less than none. */
 const since = (at: string | null | undefined, now: number) => (at ? Math.max(0, now - Date.parse(at)) : 0);
@@ -61,16 +62,19 @@ function Discovery() {
 
   // Otherwise the page looks again every few seconds while it is in view, so a run
   // started, or a question answered, from the command line shows without a refresh.
+  // While an answer is being written into the draft it looks more often, so the answer
+  // shows as in the draft soon after it is.
+  const rewriting = Boolean(run?.rewriting);
   useEffect(() => {
     if (running) return;
     const timer = setInterval(() => {
       if (document.visibilityState !== "visible") return;
       runs.reload();
       setTick(t => t + 1);
-    }, LOOK_AGAIN_MS);
+    }, rewriting ? LOOK_AGAIN_WRITING_MS : LOOK_AGAIN_MS);
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [running]);
+  }, [running, rewriting]);
 
   // A clock for the run card while the run goes, so how long a step has taken moves.
   const [now, setNow] = useState(() => Date.now());
@@ -178,7 +182,7 @@ function Discovery() {
                 <div className="mt-1 text-dim">
                   <span className="text-ink">{q.answer}</span>
                   {q.answeredBy ? ` · ${q.answeredBy}` : ""}{q.answeredAt ? ` · ${when(q.answeredAt)}` : ""}
-                  {" · "}{q.usedAt ? "in the draft" : "waiting to be written into the draft"}
+                  {" · "}<AnswerState q={q} run={run!} />
                 </div>
               </div>
             ))}
@@ -186,6 +190,17 @@ function Discovery() {
         </Card>
       ) : null}
     </>
+  );
+}
+
+/** Where an answer stands: in the draft, being written in (turning), or not yet and why. */
+function AnswerState({ q, run }: { q: DiscoveryQuestion; run: DiscoveryRun }) {
+  const state = answerStateWords(q, run);
+  return (
+    <span className="inline-flex items-center gap-1.5" data-testid="answer-state">
+      {state.moving ? <span aria-hidden="true" className="sealeye-spin inline-block size-3 rounded-full border-2 border-phosphor border-t-transparent" /> : null}
+      <span className={state.moving ? "text-ink" : undefined}>{state.words}</span>
+    </span>
   );
 }
 

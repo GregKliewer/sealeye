@@ -43,7 +43,9 @@ export interface DiscoverySummary {
   modules: { source: string; id: string; status: string }[]; catalog: { version: number } | null; spent: number;
   createdAt: string; finishedAt: string | null;
 }
-export interface DiscoveryRun extends DiscoverySummary { questions: DiscoveryQuestion[] }
+// `rewriting`: an answer is being written into the draft now; `answerProblem`: why the
+// last one could not be. The run says so because its stream has ended by then.
+export interface DiscoveryRun extends DiscoverySummary { questions: DiscoveryQuestion[]; rewriting?: boolean; answerProblem?: string }
 export interface DiscoveryEvent { seq: number; type: string; [key: string]: unknown }
 export interface DraftModule {
   id: string; source: string; availability: string; line: string; when?: string; guidance?: string;
