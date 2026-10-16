@@ -3418,3 +3418,45 @@ are in:
 
 Still to do: the page edits only the latest run's draft, while the command edits any
 draft. This is for the rough-edges step.
+
+## What blocks approval is fixed in one walk
+
+Fri Oct 16, 2026, Greg, after putting Juniper Mutual's catalog 1 right by hand. The path
+worked, but it was a hard one to follow: `sealeye catalog test` gave each problem as a
+sentence, the person read the module and the place out of it and worked out the field
+(the place "short line" is the field `short-line`), `catalog edit <v> <module>` listed
+every field with nothing to say which failed, and each edit printed the whole self-test
+again. Nothing said that only word problems are fixed by editing. Raised as Q22 and
+decided the same day; Greg chose the walk and the offer from a refused approval.
+
+- **`sealeye catalog fix <v>`**, a new operation (`catalog-fix` in `core/operations.js`),
+  goes through each field of a draft that fails the word check, one at a time. For each
+  it shows the module, the field, its words now and the words to avoid, and asks for new
+  words, prefilled with the old ones, as `catalog edit` does. Enter keeps them and moves
+  on. Each change is an ordinary edit (`POST /catalogs/{v}/edits`), so it is kept with
+  who and when, as any edit is. When the walk ends it runs the self-test and offers to
+  approve.
+- **A refused approval offers the walk.** When `sealeye catalog approve <v>` is refused
+  and every check that failed is the word check, it asks "Fix these now? [y/N]" in a
+  terminal; y runs the walk and then tries the approval again, behind the self-test as
+  always. Anything but y, no terminal, or `--json` refuses as it does today. A failed
+  shape, refused or accepted check has no edit that fixes it, so the refusal says what
+  does (answering a question, or a new discovery run) and offers no walk. The command
+  still approves only what passes; the offer only shortens the way there.
+- **The portal, by parity:** a "Fix what blocks approval" view on the Discovery page, the
+  same walk field by field, and a refused Approve on the Catalogs card offers it.
+- **Which fields fail comes from the self-test, in one place.** Each word problem carries
+  its module and field (`fieldForPlace` in `core/catalog-edits.js`), so the walk, the
+  offer, and the marks on `catalog edit <v> <module>` and the page's Edit words all read
+  the same list, never a sentence.
+
+Built the same day, at Greg's word, ahead of the rough-edges step. No new endpoint: the
+walk is the self-test and edits, the API's two operations already. The self-test's word
+check now carries `fixes` (module, field, label, words now, words to leave out) and
+`unfixable` (a place no edit reaches), and `core/discovery-words.js` says, for both
+surfaces, whether editing alone can bring a self-test to a pass (`fixableByEditing`) and
+what fixes the rest (`notFixedByEditing`). The walk checks new words with the same word
+list before saving, and says so once if a word is still there; saving the same words
+again keeps them, since a person may know better than the list (Q21). With no terminal,
+`catalog fix` lists each field with the command line that changes it. Tests drive the
+walk in a real terminal (`script`).

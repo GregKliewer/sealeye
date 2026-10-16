@@ -11,6 +11,7 @@
 import { PLAN_VERSION } from "../core/schema.js";
 import { catalogProblems, isBuildable } from "../core/catalog.js";
 import { developerWordProblems } from "../core/developer-words.js";
+import { editableFieldsOf, fieldForPlace } from "../core/catalog-edits.js";
 import { SELF_TEST_CHECKS } from "../core/discovery-words.js";
 import { checkAgainst } from "./validate.js";
 
@@ -36,7 +37,28 @@ export function planNaming(id, version, appType = "api") {
   };
 }
 
-const check = (id, problems) => ({ id, title: SELF_TEST_CHECKS[id], passed: problems.length === 0, problems });
+const check = (id, problems, more = {}) => ({ id, title: SELF_TEST_CHECKS[id], passed: problems.length === 0, problems, ...more });
+
+/**
+ * Each place a word problem was found, as an edit would name it: { module, field, label,
+ * text, words } for a field of a module's entry (`sealeye catalog fix` walks these, and
+ * `catalog edit` and the page's Edit words mark them), or { where, words } for a place no
+ * edit reaches (a need kind, a profile, a pattern), which a new run writes again.
+ */
+function wordFixes(document, byPlace) {
+  const modules = new Map((document.modules || []).map(m => [m.id, m]));
+  const fixes = [];
+  const unfixable = [];
+  for (const [where, { module, cloud, size }] of byPlace) {
+    const words = [...cloud, ...size];
+    const entry = module ? modules.get(module) : null;
+    const field = entry && where.startsWith(`${module}: `) ? fieldForPlace(where.slice(module.length + 2)) : null;
+    const f = field ? editableFieldsOf(entry).find(x => x.field === field) : null;
+    if (f) fixes.push({ module, field, label: f.label, text: f.text, words });
+    else unfixable.push({ where, words });
+  }
+  return { fixes, unfixable };
+}
 
 /**
  * Run the self-test on a catalog document.
@@ -84,7 +106,7 @@ export function selfTest({ document, version, questionText = () => null }) {
   // One problem a place, naming every word in it, so one fix finds them all.
   const byPlace = new Map();
   for (const p of developerWordProblems(offered)) {
-    if (!byPlace.has(p.where)) byPlace.set(p.where, { cloud: [], size: [] });
+    if (!byPlace.has(p.where)) byPlace.set(p.where, { module: p.module || null, cloud: [], size: [] });
     byPlace.get(p.where)[p.kind].push(p.term);
   }
   const and = list => (list.length < 2 ? list.join("") : `${list.slice(0, -1).join(", ")} and ${list.at(-1)}`);
@@ -101,7 +123,7 @@ export function selfTest({ document, version, questionText = () => null }) {
     check("questions", questions),
     check("refused", refusedProblems),
     check("accepted", acceptedProblems),
-    check("words", words)
+    check("words", words, wordFixes(document, byPlace))
   ];
   return { version, passed: checks.every(c => c.passed), checks, refused, built, notes };
 }

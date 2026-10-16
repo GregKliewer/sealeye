@@ -28,7 +28,7 @@ Two surfaces, one product: **seaLeye.run** is the `sealeye` command, and
 cli/        the sealeye command: bin/sealeye, client.js (talks to the API), interview/
             (follow.js streams the interview; render.js), discover.js (a discovery run,
             its questions answered as they come; discover-screen.js draws its window),
-            catalogs.js (`sealeye catalog versions|test|edit|approve|live`), doctor.js,
+            catalogs.js (`sealeye catalog versions|test|edit|fix|approve|live`), doctor.js,
             store-offer.js (moving .env values into the store),
             brand.js (the only place terminal colours live)
 api/        the API: server.js, store.js, db.js, migrations/, catalogs.js (each organization's
@@ -226,7 +226,8 @@ library the server names), GET /discoveries, GET /discoveries/{id} (the run and 
 questions, and whether an answer is being written into the draft), GET /discoveries/{id}/events (server-sent events), GET
 /discoveries/{id}/catalog (its draft), POST /discoveries/{id}/answers ({ question, answer },
 while it runs or after); discovery is an organization-wide token's only, one run at a time for an organization (409 RUN_GOING), over one library repository (409 ONE_LIBRARY). GET /catalogs (the organization's catalogs and which is live), GET
-/catalogs/{v}/self-test, POST /catalogs/{v}/approve (a draft; 422 SELF_TEST_FAILED with
+/catalogs/{v}/self-test (its word check names each field to change, which `sealeye catalog
+fix` and the portal walk with the edits below), POST /catalogs/{v}/approve (a draft; 422 SELF_TEST_FAILED with
 the result) and POST /catalogs/{v}/live (an approved or retired one; 422
 SELF_TEST_FAILED, 409 CATALOG_IN_USE), GET /catalogs/{v} (one, with its document) and
 POST /catalogs/{v}/edits ({ module, field, text }: a draft's words only, answered with
@@ -376,7 +377,8 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   folder chosen in the browser), Control (state, deploy again, tear down,
   pause, settings, configure, history, plan and report, performance, logs, evidence), Validate (check a plan, and deploy a ready one with the
   code the platform has), Catalog (modules and the needs ledger), Costs, Team, Health,
-  and Discovery (Edit words on its draft, and its Catalogs card: the self-test, Approve,
+  and Discovery (Edit words on its draft, and its Catalogs card: the self-test, Fix what
+  blocks approval, Approve,
   Make live), shown only
   to an organization-wide token. Integrations is
   drawn in the archived mock-up only (Phase 5); the portal shows nothing it cannot do.

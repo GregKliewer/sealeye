@@ -205,3 +205,51 @@ export const RESTS_ON_QUESTION =
 /** What approving and making live say once done. */
 export const approvedWords = v => `Catalog ${v} is approved. Nothing changes for developers until it is made live.`;
 export const madeLiveWords = v => `Catalog ${v} is live: your organization's developers plan against it now.`;
+
+// Fixing what blocks approval, one field at a time (DESIGN.md, "What blocks approval is
+// fixed in one walk"): `sealeye catalog fix` and the Discovery page's Fix what blocks
+// approval say the same.
+
+/** Each field the self-test's word check says to change: { module, field, label, text, words }. */
+export function wordFixesOf(result) {
+  return (result?.checks || []).find(c => c.id === "words")?.fixes || [];
+}
+
+/**
+ * Whether editing words alone can bring this self-test to a pass: it failed, only its
+ * word check failed, and every place that check names is a module's field.
+ */
+export function fixableByEditing(result) {
+  if (!result || result.passed) return false;
+  const failed = (result.checks || []).filter(c => !c.passed);
+  const words = failed.find(c => c.id === "words");
+  return failed.length === 1 && Boolean(words) && (words.fixes || []).length > 0 && !(words.unfixable || []).length;
+}
+
+/** What fixes each failure an edit cannot: one line each, or none when every failure is words in a module's field. */
+export function notFixedByEditing(result) {
+  const lines = [];
+  for (const c of (result?.checks || []).filter(x => !x.passed)) {
+    if (c.id === "questions") lines.push("A question about the whole catalog is waiting: answering it writes a new draft. No edit changes it.");
+    else if (c.id === "words") {
+      for (const u of c.unfixable || []) lines.push(`${u.where} is not one of a module's words, so no edit reaches it: a new discovery run writes it again.`);
+    } else lines.push(`${c.title}: no edit fixes this. It comes from the library and the answers, so a new discovery run writes it again.`);
+  }
+  return lines;
+}
+
+/** The words a field must not use, as the walk shows them. */
+export const avoidWords = fix => `Not: ${(fix?.words || []).join(", ")}`;
+
+/** Where the walk is: "2 of 5". */
+export const fixPlaceWords = (i, n) => `${i} of ${n}`;
+
+/** The walk's end, in a line. */
+export function fixedWords({ changed, kept }) {
+  if (!changed && !kept) return "Nothing to change.";
+  return [changed ? `Changed ${plural(changed, "field", "fields")}` : null, kept ? `left ${plural(kept, "field", "fields")} as ${kept === 1 ? "it was" : "they were"}` : null]
+    .filter(Boolean).join(", ").replace(/^l/, "L") + ".";
+}
+
+/** What a refused approval asks when editing words can fix it. */
+export const FIX_OFFER = "Fix these now?";
