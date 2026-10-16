@@ -310,8 +310,13 @@ function asUserFacing(err) {
  * sentence rather than a stack. One generation in the trace per turn, retry included;
  * the trace sees the shape of the conversation, never its contents (core/tracing.js).
  */
-export async function createWithOneRetry(client, params, onStep, turn = 0) {
-  return traceTurn({ turn, model: params.model, messages: params.messages }, async traced => {
+export async function createWithOneRetry(client, params, onStep, turn = 0, { traceAs = "interview" } = {}) {
+  // Discovery records its own generation, with no reply in it (core/tracing.js,
+  // traceDiscoveryCall), so the interview's, which records the model's text, is not made.
+  const traced = traceAs === "interview"
+    ? fn => traceTurn({ turn, model: params.model, messages: params.messages }, fn)
+    : fn => fn({ retried() {} });
+  return traced(async traced => {
     const startedAt = Date.now();
     try {
       return await client.messages.create(params);

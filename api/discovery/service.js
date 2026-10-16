@@ -18,7 +18,7 @@ import path from "node:path";
 import { Annotation, END, Send, START, StateGraph } from "@langchain/langgraph";
 
 import { setting } from "../../core/config.js";
-import { withoutTracing } from "../../core/tracing.js";
+import { traceDiscovery, traceEvent } from "../../core/tracing.js";
 import { addCatalog, catalogAt, catalogsOf, updateDraft } from "../catalogs.js";
 import { claimsFor, signerFromSettings, withCallerToken } from "../gateway-token.js";
 import { modelClient, modelCredential } from "../interview/model.js";
@@ -172,6 +172,8 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
         createdAt: new Date(now()).toISOString()
       };
       await store.saveQuestion(question);
+      // Its kind and who raised it, never its words (DESIGN.md, Step 7's traces).
+      traceEvent("question", { kind: question.kind, raisedBy: question.raisedBy, touches: touches.length });
       emit(run.id, { type: "question", question: publicQuestion(question) });
       out.push(question);
     }
@@ -315,10 +317,14 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
       if (sources.length) {
         s.budget = s.budget || createBudget({ workerCap: capSetting("DISCOVERY_WORKER_CAP", DEFAULT_WORKER_CAP), runCap: capSetting("DISCOVERY_RUN_CAP", DEFAULT_RUN_CAP), spend: run.spend });
         try {
-          const written = await withoutTracing(() => superviseEntries({
-            clientFor: clientFor(run), credentialIsGateway: viaGateway(), budget: s.budget, org: run.orgName,
-            modules: run.modules, library: run.library, questions: store.questionsOf(id), sources
-          }));
+          const written = await traceDiscovery({ runId: id, org: run.org, repo: run.repos?.[0]?.repo, commit: run.repos?.[0]?.commit, user: run.startedBy, kind: "answers" }, async trace => {
+            const out = await superviseEntries({
+              clientFor: clientFor(run), credentialIsGateway: viaGateway(), budget: s.budget, org: run.orgName,
+              modules: run.modules, library: run.library, questions: store.questionsOf(id), sources
+            });
+            trace.set({ answers: pending.length, entries: sources.length });
+            return out;
+          });
           // Questions it raises now go out too, and entries resting on them say so.
           await raise(run, written.questions, null);
           entries = written.entries.filter(e => sources.includes(e.source));
@@ -424,7 +430,15 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
       await save(run.id);
       emit(run.id, { type: "modules", modules: modules.map(m => m.source) });
 
-      await withoutTracing(() => graphFor(run).invoke({ modules }, { maxConcurrency: MAX_PARALLEL, recursionLimit: 50 }));
+      // Traced as its shape only: workers, files by path and size, tokens and cost, and
+      // questions by kind; never a file, a prompt or a reply (core/tracing.js).
+      await traceDiscovery({ runId: run.id, org: run.org, repo: run.repos[0]?.repo, commit: run.repos[0]?.commit, user: run.startedBy }, async trace => {
+        try {
+          await graphFor(run).invoke({ modules }, { maxConcurrency: MAX_PARALLEL, recursionLimit: 50 });
+        } finally {
+          trace.set(runOutcome(run, s));
+        }
+      });
       run.status = "finished";
       run.finishedAt = new Date(now()).toISOString();
       run.spend = s.budget.spend();
@@ -451,6 +465,22 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
         if (!s.listeners.size) s.events = [];
       }, 60 * 60 * 1000).unref();
     }
+  }
+
+  /** What a run's trace says of it at the end: counts and money, never words. */
+  function runOutcome(run, s) {
+    const questions = store.questionsOf(run.id);
+    const byKind = {};
+    for (const q of questions) byKind[`questions_${String(q.kind).replace(/[^a-z_]/g, "")}`] = (byKind[`questions_${String(q.kind).replace(/[^a-z_]/g, "")}`] || 0) + 1;
+    return {
+      modules: (run.modules || []).length,
+      notRead: (run.modules || []).filter(m => m.status === "not_read").length,
+      questions: questions.length,
+      open: questions.filter(q => q.answer == null).length,
+      ...byKind,
+      catalog: run.catalogVersion || 0,
+      spent: Number(Object.values(s.budget?.spend() || {}).reduce((t, w) => t + (w?.cost || 0), 0).toFixed(4))
+    };
   }
 
   /** Answer a question, during the run or after it. */
