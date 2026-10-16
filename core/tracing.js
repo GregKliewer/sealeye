@@ -607,7 +607,13 @@ const SCORES = {
   // compare a run's plan with what the sample app is known to need.
   outcome_correct: "BOOLEAN",
   modules_correct: "BOOLEAN",
-  needs_correct: "BOOLEAN"
+  needs_correct: "BOOLEAN",
+  // Only discovery's graded runs (scripts/eval-discovery.js, PHASE4-PLAN Step 7) post
+  // these: a draft against Juniper Mutual's answer key.
+  catalog_correct: "BOOLEAN",
+  hard_cases_caught: "NUMERIC",
+  self_test_passed: "BOOLEAN",
+  must_refuse_refused: "BOOLEAN"
 };
 
 // Scores are sent one request each to LangFuse's public scores endpoint, with a hard

@@ -9,18 +9,24 @@
 //                                                           a clone of the library
 //   npm run eval:discovery -- --smoke                       seaLeye's own templates/,
 //                                                           whose answer is the starter
-//   npm run eval:discovery -- --run --library <path> [--out <file>]
+//   npm run eval:discovery -- --run --library <path> [--answers none|scripted] [--out <dir>]
 //                                                           run discovery for real on the
 //                                                           clone and grade its draft
 //
 // Without --run the answer key is graded against itself (it must pass its own grading),
 // and `--library` checks the key still matches the library, and that seaLeye's scanner
 // stops the planted secret before any model could read it. With --run, discovery runs
-// with the real model and no answers given: the draft and the questions it raised are
-// graded, and what each worker spent is shown, to set the caps (PHASE4-PLAN D6).
-// Recording a run in LangFuse, and a second run with scripted answers, are Step 7's.
+// with the real model, twice (PHASE4-PLAN Step 7), so each result repeats: once with no
+// answers given, graded on the questions it raised and the guesses it made, and once with
+// the answers the key scripts (`answers:`), given at fixed points, graded on the catalog
+// they settle. Each draft also gets the self-test a catalog passes before it is approved,
+// and is graded on what it must refuse. What each worker spent is shown, to keep the caps
+// honest (PHASE4-PLAN D6). With LangFuse keys, both are recorded as one dataset run
+// (Datasets, then sealeye-discovery), with each run's trace, which holds its shape only.
+// Run it before and after any change to discovery, its prompts above all.
 //
 // Without --run, needs no model and no keys. Deploys nothing either way.
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -56,6 +62,13 @@ export function loadCatalogFile(file) {
 
 const norm = text => String(text || "").toLowerCase();
 
+/** Which discovery prompts a run used: a short hash of the three, as the interview's prompt is named. */
+function promptsVersion() {
+  const text = ["discovery-worker.md", "discovery-library.md", "discovery-supervisor.md"]
+    .map(f => { try { return fs.readFileSync(path.join(repoRoot, "prompts", f), "utf8"); } catch { return ""; } }).join("\n");
+  return crypto.createHash("sha256").update(text).digest("hex").slice(0, 12);
+}
+
 /**
  * Match each of the key's modules to the candidate's: by `source` (its folder in the
  * library), so discovery may name a module as it likes; by id when the candidate gives
@@ -82,18 +95,26 @@ function matchModules(keyModules, candidateModules) {
  * @returns {{ modules: object[], extra: string[], problems: string[], hardCases: object[],
  *   pending: object[], correct: boolean }}
  */
-export function gradeCatalog(candidate, key, { questions = null } = {}) {
+export function gradeCatalog(candidate, key, { questions = null, selfTest = null, scripted = false } = {}) {
   const keyModules = key.catalog.modules || [];
   const { pairs, extra } = matchModules(keyModules, candidate?.modules || []);
+  const isAnswered = q => Boolean(q) && q.answer !== null && q.answer !== undefined;
+  // The question about what the library leaves unclear: one touching the module and the
+  // one it is unclear beside.
+  const amb = key.hard_cases?.ambiguous;
+  const aboutUnclear = amb ? [amb.module, ...(amb.with ? [amb.with] : [])] : [];
+  const unclearQuestion = Array.isArray(questions) && amb ? questions.find(q => aboutUnclear.every(s => (q.touches || []).includes(s))) : null;
 
   const modules = pairs.map(({ key: k, found }) => {
     if (!found) return { source: k.source || k.id, found: false, ok: false, why: ["missing"] };
     const why = [];
     if (found.builds_with !== k.builds_with) why.push(`builds_with is ${found.builds_with ?? "missing"}, not ${k.builds_with}`);
     const offered = found.availability === "available";
-    // A module the library leaves unclear is graded on its question, not on a guess.
-    const unclear = key.hard_cases?.ambiguous?.module === k.source;
-    if (!unclear && offered !== (k.availability === "available")) {
+    // A module the library leaves unclear is graded on its question, not on a guess,
+    // until the question is answered; then on what the answer settles.
+    const unclear = amb?.module === k.source && !isAnswered(unclearQuestion);
+    const wanted = amb?.module === k.source && isAnswered(unclearQuestion) ? (key.answers?.ambiguous?.then?.availability || k.availability) : k.availability;
+    if (!unclear && offered !== (wanted === "available")) {
       why.push(offered ? "offered, and it must not be" : `not offered (${found.availability ?? "no availability"})`);
     }
     const keyInputs = Object.keys(k.inputs || {});
@@ -168,9 +189,9 @@ export function gradeCatalog(candidate, key, { questions = null } = {}) {
     const m = bySource.get(hc.ambiguous.module);
     if (Array.isArray(questions)) {
       // About what is unclear: touching the module, and the one it is unclear beside.
-      const about = [hc.ambiguous.module, ...(hc.ambiguous.with ? [hc.ambiguous.with] : [])];
-      const asked = questions.find(q => about.every(s => (q.touches || []).includes(s)));
-      const unanswered = asked && (asked.answer === null || asked.answer === undefined);
+      const about = aboutUnclear;
+      const asked = unclearQuestion;
+      const unanswered = asked && !isAnswered(asked);
       const rests = Boolean(asked) && (!unanswered || (m?.open || []).includes(asked.id));
       hardCases.push({
         case: "unclear module asked",
@@ -181,6 +202,47 @@ export function gradeCatalog(candidate, key, { questions = null } = {}) {
       pending.push({ case: "unclear module asked", waits: "a run's questions (--run)", what: hc.ambiguous.module });
     }
   }
+  // With the key's answers given (the second pass): every answer is written into the
+  // draft, and nothing it holds rests on a question any more.
+  if (scripted && Array.isArray(questions)) {
+    const notIn = questions.filter(q => isAnswered(q) && !q.usedAt);
+    const stillOpen = questions.filter(q => !isAnswered(q));
+    const resting = (candidate?.modules || []).filter(m => (m?.open || []).length).map(m => m.id);
+    const ok = !notIn.length && !stillOpen.length && !resting.length && !(candidate?.discovery?.open || []).length;
+    hardCases.push({
+      case: "answers written in",
+      ok,
+      why: ok ? `${questions.length} answered, every one in the draft` : [
+        notIn.length ? `${notIn.length} answered but not in the draft` : "",
+        stillOpen.length ? `${stillOpen.length} never answered` : "",
+        resting.length ? `still resting on a question: ${resting.join(", ")}` : ""
+      ].filter(Boolean).join("; ") || "the catalog still rests on a question"
+    });
+  }
+
+  // The self-test a catalog passes before it is approved (api/self-test.js): it passes,
+  // and refuses what the key says must be refused.
+  if (selfTest) {
+    hardCases.push({
+      case: "self-test",
+      ok: selfTest.passed,
+      why: selfTest.passed ? "passes: it could be approved" : selfTest.checks.filter(c => !c.passed).flatMap(c => c.problems).join("; ")
+    });
+    const refusal = source => {
+      const m = bySource.get(source);
+      return m ? selfTest.refused.find(r => r.id === m.id) : null;
+    };
+    if (hc.deprecated) {
+      const r = refusal(hc.deprecated.module);
+      hardCases.push({ case: "must refuse: deprecated", ok: Boolean(r), why: r ? `refused: ${r.why}` : "a plan using it would be accepted" });
+    }
+    if (amb && unclearQuestion && !isAnswered(unclearQuestion)) {
+      const r = refusal(amb.module);
+      const ok = Boolean(r) && /question/.test(r.why);
+      hardCases.push({ case: "must refuse: resting on a question", ok, why: ok ? `refused: ${r.why}` : r ? `refused, but for another reason: ${r.why}` : "a plan using it would be accepted" });
+    }
+  }
+
   if (key.gaps?.length) pending.push({ case: "gaps", waits: "PHASE4-PLAN Step 10, the gap report", what: key.gaps.join(", ") });
   if (key.stages) pending.push({ case: "stages", waits: "Phase 5", what: (key.stages.path || []).join(", ") });
 
@@ -301,38 +363,80 @@ function argValue(args, name) {
   return i === -1 ? null : args[i + 1] || null;
 }
 
+/** The answer a script gives a question, or null to leave it (the key's `answers:`). */
+export function scriptedAnswer(q, key, when) {
+  const amb = key.hard_cases?.ambiguous;
+  const about = amb ? [amb.module, ...(amb.with ? [amb.with] : [])] : [];
+  const isUnclear = amb && about.every(s => (q.touches || []).includes(s));
+  const a = key.answers || {};
+  if (isUnclear && a.ambiguous?.when === when) return a.ambiguous.answer;
+  if (!isUnclear && a.others?.when === when) return a.others.answer === "guess" ? q.guess : a.others.answer;
+  return null;
+}
+
 /**
- * Run discovery for real on a clone of the library (PHASE4-PLAN Step 6): the real model,
- * through the gateway when this machine is set for one, with no answers given, so the
- * questions it raises and the guesses it makes are what is graded. Keeps nothing in this
- * machine's seaLeye folder: the run's draft is written to `out`.
+ * Get ready to run discovery for real (PHASE4-PLAN Step 6): find the model key and the
+ * LangFuse keys where this machine keeps them (the repo's .env or ~/.sealeye/config),
+ * then move seaLeye's folder to a scratch one, so nothing a run keeps lands in this
+ * machine's own. Returns what the passes need.
  */
-async function runDiscovery(libraryDir, key, out) {
+async function prepareRuns() {
   const os = await import("node:os");
-  // The model key is found first, where this machine keeps it (the repo's .env or
-  // ~/.sealeye/config), before seaLeye's folder moves to a scratch one for the run.
   const { modelCredential, resolveApiKey } = await import("../api/interview/model.js");
   resolveApiKey();
   if (!modelCredential()) throw new Error("--run needs a model key: ANTHROPIC_API_KEY in the environment, the repo's .env or ~/.sealeye/config");
+  const tracing = await import("../core/tracing.js");
+  const record = tracing.tracingConfigured() && !tracing.tracingSwitchedOff() && tracing.startTracing();
   process.env.SEALEYE_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-eval-discovery-"));
   delete process.env.DATABASE_URL;
-  const { openCatalogs, catalogAt } = await import("../api/catalogs.js");
+  const { openCatalogs } = await import("../api/catalogs.js");
+  await openCatalogs();
+  return { record, tracing };
+}
+
+/**
+ * One run of discovery on the clone, graded. With `scripted`, the key's answers are
+ * given at its fixed points: as a question goes out, or once the draft is written.
+ * The draft and its questions are written to `out`.
+ */
+export async function runDiscovery(libraryDir, key, out, { scripted = false, client } = {}) {
+  const { catalogAt } = await import("../api/catalogs.js");
   const { createDiscoveryService } = await import("../api/discovery/service.js");
   const { readLibraryFolder } = await import("../api/discovery/library.js");
-  await openCatalogs();
-  const service = createDiscoveryService({ readLibrary: async () => readLibraryFolder(libraryDir, { repo: key.library }) });
+  const { selfTest } = await import("../api/self-test.js");
+  const service = createDiscoveryService({ ...(client ? { client } : {}), readLibrary: async () => readLibraryFolder(libraryDir, { repo: key.library }) });
   const [owner, repo] = key.library.split("/");
-  const caller = { email: "eval@sealeye", org: "eval", team: "platform", scope: "org" };
+  const caller = { email: "eval@sealeye", org: `eval-${scripted ? "scripted" : "none"}`, team: "platform", scope: "org" };
   const started = Date.now();
   const { discoveryId } = await service.start({ caller, repos: [{ owner, repo }] });
+  const given = [];
   service.subscribe(discoveryId, 0, e => {
     if (!e) return;
     if (e.type === "read") console.log(`  read     ${e.source}`);
     if (e.type === "not_read") console.log(`  NOT READ ${e.source}: ${e.why}`);
-    if (e.type === "question") console.log(`  asked    ${e.question.question} (guess: ${e.question.guess})`);
+    if (e.type === "question") {
+      console.log(`  asked    ${e.question.question} (guess: ${e.question.guess})`);
+      const answer = scripted ? scriptedAnswer(e.question, key, "as_asked") : null;
+      if (answer) {
+        given.push(service.answer({ id: discoveryId, questionId: e.question.id, answer, by: "eval@sealeye" }).catch(() => {}));
+        console.log(`  answered ${answer}`);
+      }
+    }
+    if (e.type === "merged") console.log(`  merged   ${e.questions.length} into one`);
     if (e.type === "writing") console.log("  writing the catalog");
   });
   await service.settled(discoveryId);
+  await Promise.all(given);
+  if (scripted) {
+    // The rest, once the draft is written: late answers, each written into the draft.
+    for (const q of service.questions(discoveryId).filter(q => q.answer === null)) {
+      const answer = scriptedAnswer(q, key, "after_draft");
+      if (!answer) continue;
+      console.log(`  answered ${answer} (after the draft: ${q.question})`);
+      await service.answer({ id: discoveryId, questionId: q.id, answer, by: "eval@sealeye" });
+    }
+    await service.settled(discoveryId);
+  }
   const run = service.record(discoveryId);
   const questions = service.questions(discoveryId);
   const spend = Object.entries(run.spend || {}).map(([w, v]) => [w, v?.cost || 0]).sort((a, b) => b[1] - a[1]);
@@ -340,14 +444,37 @@ async function runDiscovery(libraryDir, key, out) {
   console.log(`
 The run: ${run.status}${run.reason ? ` (${run.reason})` : ""}, ${Math.round((Date.now() - started) / 1000)} s, US$${total.toFixed(4)} in all`);
   for (const [w, c] of spend) console.log(`  US$${c.toFixed(4)}  ${w}`);
-  if (!run.catalogVersion) return { graded: null, run };
+  if (!run.catalogVersion) return { graded: null, run, questions, total };
   const draft = catalogAt(run.org, run.catalogVersion);
+  const tested = selfTest({ document: draft, version: run.catalogVersion, questionText: id => questions.find(q => q.id === id)?.question || null });
   fs.mkdirSync(path.dirname(out), { recursive: true });
-  fs.writeFileSync(out, YAML.stringify({ ...draft, questions }));
+  fs.writeFileSync(out, YAML.stringify({ ...draft, questions, selfTest: tested }));
   console.log(`
-The draft, with its questions: ${out}`);
-  return { graded: gradeCatalog(draft, key, { questions }), run };
+The draft, with its questions and its self-test: ${out}`);
+  return { graded: gradeCatalog(draft, key, { questions, selfTest: tested, scripted }), run, questions, total };
 }
+
+const DATASET = "sealeye-discovery";
+
+/** The dataset's id, creating it the first time. */
+async function ensureDataset(langfuseRequest) {
+  try {
+    const created = await langfuseRequest("POST", "/api/public/v2/datasets", {
+      name: DATASET,
+      description: "Juniper Mutual's library, graded against its answer key with no answers and with scripted ones. Written by scripts/eval-discovery.js."
+    }, 10_000);
+    if (created?.id) return created.id;
+  } catch {}
+  return (await langfuseRequest("GET", `/api/public/v2/datasets/${encodeURIComponent(DATASET)}`, undefined, 10_000))?.id;
+}
+
+/** What a pass is expected to come to, for the dataset item: counts and names, never the library's words. */
+const expectedFor = (key, scripted) => ({
+  modules: (key.catalog.modules || []).length,
+  refused: [key.hard_cases?.deprecated?.module].filter(Boolean),
+  hardCases: Object.keys(key.hard_cases || {}),
+  answers: scripted ? "the key's, at fixed points" : "none"
+});
 
 async function main(args) {
   if (args.includes("--run")) {
@@ -357,20 +484,71 @@ async function main(args) {
       process.exitCode = 1;
       return;
     }
-    const key = loadAnswerKey();
-    const out = path.resolve(argValue(args, "--out") || path.join("eval-results", `discovery-${new Date().toISOString().replace(/[:.]/g, "-")}.yaml`));
-    console.log(`
-Discovery on Juniper Mutual (${path.resolve(library)}), no answers given:\n`);
-    const { graded } = await runDiscovery(path.resolve(library), key, out);
-    if (!graded) {
-      console.log("\nNo draft to grade.");
+    const which = argValue(args, "--answers");
+    if (which && !["none", "scripted"].includes(which)) {
+      console.error("--answers is none or scripted; left out, both run");
       process.exitCode = 1;
       return;
     }
-    console.log("");
-    for (const line of gradeLines(graded)) console.log(line);
-    console.log(`\n${graded.correct ? "As expected." : "Not as expected."}`);
-    process.exitCode = graded.correct ? 0 : 1;
+    const passes = which ? [which === "scripted"] : [false, true];
+    const key = loadAnswerKey();
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const outDir = path.resolve(argValue(args, "--out") || "eval-results");
+    const { record, tracing } = await prepareRuns();
+    const runName = `${stamp} discovery`;
+    const datasetId = record ? await ensureDataset(tracing.langfuseRequest).catch(() => null) : null;
+    const experimentId = tracing.newExperimentId();
+    if (!record) console.log("\nLangFuse keys are not set here, or tracing is off: graded, and not recorded.");
+    else if (!datasetId) console.log("\nThe dataset could not be reached in LangFuse: graded, and not recorded.");
+
+    let allOk = true;
+    for (const scripted of passes) {
+      const name = scripted ? "scripted-answers" : "no-answers";
+      console.log(`\nDiscovery on Juniper Mutual (${path.resolve(library)}), ${scripted ? "with the key's answers, at fixed points" : "no answers given"}:\n`);
+      const out = path.join(outDir, `discovery-${stamp}-${name}.yaml`);
+      const pass = async () => runDiscovery(path.resolve(library), key, out, { scripted });
+      let result;
+      if (datasetId) {
+        const itemId = `${DATASET}-juniper-${name}`;
+        await tracing.langfuseRequest("POST", "/api/public/dataset-items", { datasetName: DATASET, id: itemId, input: { library: key.library, answers: name }, expectedOutput: expectedFor(key, scripted) }, 10_000).catch(() => {});
+        result = await tracing.traceExperimentItem(
+          { experimentId, runName, description: `Discovery prompts ${promptsVersion()}`, datasetId, itemId, input: { library: key.library, answers: name }, expectedOutput: expectedFor(key, scripted) },
+          async ({ traceId }) => {
+            const r = await pass();
+            r.traceId = traceId;
+            return r;
+          }
+        );
+      } else {
+        result = await pass();
+      }
+      const { graded } = result;
+      if (!graded) {
+        console.log("\nNo draft to grade.");
+        allOk = false;
+        continue;
+      }
+      console.log("");
+      for (const line of gradeLines(graded)) console.log(line);
+      console.log(`\n${graded.correct ? "As expected." : "Not as expected."}`);
+      allOk = allOk && graded.correct;
+      if (datasetId && result.traceId) {
+        await tracing.flushTracing();
+        tracing.scoreTrace(result.traceId, "catalog_correct", graded.correct);
+        tracing.scoreTrace(result.traceId, "hard_cases_caught", graded.hardCases.filter(h => h.ok).length);
+        const selfTestCase = graded.hardCases.find(h => h.case === "self-test");
+        if (selfTestCase) tracing.scoreTrace(result.traceId, "self_test_passed", selfTestCase.ok);
+        const refusals = graded.hardCases.filter(h => h.case.startsWith("must refuse"));
+        if (refusals.length) tracing.scoreTrace(result.traceId, "must_refuse_refused", refusals.every(h => h.ok));
+        tracing.scoreTrace(result.traceId, "questions_asked", result.questions.length);
+      }
+    }
+    if (datasetId) {
+      await tracing.flushTracing();
+      await tracing.flushScores(10_000);
+      console.log(`\nIn LangFuse: Datasets, ${DATASET}, Experiments, then ${runName}.`);
+    }
+    process.exitCode = allOk ? 0 : 1;
     return;
   }
 

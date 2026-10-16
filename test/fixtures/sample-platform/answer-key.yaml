@@ -370,6 +370,22 @@ hard_cases:
     file: modules/postgres/examples/restore-from-snapshot/terraform.tfvars
     must: never be read; its name only.
 
+# The answers a script gives in the eval's second pass (PHASE4-PLAN Step 7), so a run
+# graded with answers repeats as one graded without them does. The unclear module's
+# question is answered the moment it goes out, while the run goes; every other question
+# still open once the draft is written is answered with its own guess, after, so both
+# ways an answer is taken are exercised. Juniper's platform team settles the caches this
+# way: cache-valkey is the cache for new apps now.
+answers:
+  ambiguous:
+    when: as_asked
+    answer: "Yes: cache-valkey is the cache for new apps now, and cache-redis stays deprecated."
+    then:
+      availability: available
+  others:
+    when: after_draft
+    answer: guess
+
 # What the library has nothing for. The gap report (PHASE4-PLAN Step 10) must find
 # these once apps ask for them; graded then.
 gaps: [event_stream, user_sign_in, scheduled_task]
