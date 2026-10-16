@@ -10,7 +10,7 @@
 // catalog still open, are checked first.
 import { PLAN_VERSION } from "../core/schema.js";
 import { catalogProblems, isBuildable } from "../core/catalog.js";
-import { developerWordProblems } from "../core/developer-words.js";
+import { developerWordProblems, shownWord } from "../core/developer-words.js";
 import { editableFieldsOf, fieldForPlace } from "../core/catalog-edits.js";
 import { SELF_TEST_CHECKS } from "../core/discovery-words.js";
 import { checkAgainst } from "./validate.js";
@@ -107,11 +107,11 @@ export function selfTest({ document, version, questionText = () => null }) {
   const byPlace = new Map();
   for (const p of developerWordProblems(offered)) {
     if (!byPlace.has(p.where)) byPlace.set(p.where, { module: p.module || null, cloud: [], size: [] });
-    byPlace.get(p.where)[p.kind].push(p.term);
+    byPlace.get(p.where)[p.kind].push(shownWord(p));
   }
   const and = list => (list.length < 2 ? list.join("") : `${list.slice(0, -1).join(", ")} and ${list.at(-1)}`);
   const words = [...byPlace].flatMap(([where, { cloud, size }]) => [
-    ...(cloud.length ? [`${where} says ${and(cloud)}, ${cloud.length === 1 ? "a word" : "words"} a developer never reads; say what it does for their app`] : []),
+    ...(cloud.length ? [`${where} says ${and(cloud)}, words a developer never reads; say what it does for their app`] : []),
     ...(size.length ? [`${where} gives ${and(size)}; a developer reads "set by a load test" instead`] : [])
   ]);
 

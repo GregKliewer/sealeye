@@ -733,7 +733,7 @@ test("Fix what blocks approval: Edit words marks the field, a refused Approve of
   const panel = page.getByTestId("edit-words-panel");
   await panel.getByLabel("What it gives an app").fill("A relational database, run outside Terraform.");
   await panel.getByRole("button", { name: "Save" }).first().click();
-  await expect(panel.getByTestId("field-fails")).toHaveText("✗ Not: Terraform");
+  await expect(panel.getByTestId("field-fails")).toHaveText('✗ Not: "Terraform"');
   await row.getByTestId("edit-words").click();
 
   const card = page.getByTestId("catalogs");
@@ -743,13 +743,13 @@ test("Fix what blocks approval: Edit words marks the field, a refused Approve of
   const walk = card.getByTestId("fix-walk");
   await expect(walk.getByTestId("fix-step")).toContainText("1 of 1");
   await expect(walk.getByTestId("fix-step")).toContainText("postgres");
-  await expect(walk.getByTestId("fix-avoid")).toHaveText("Not: Terraform");
+  await expect(walk.getByTestId("fix-avoid")).toHaveText('Not: "Terraform"');
   await expect(walk.getByTestId("command-hint")).toContainText("sealeye catalog fix 1");
 
   // A word still there is caught before it is saved.
   await walk.getByTestId("fix-text").fill("A relational database, kept by Terraform.");
   await walk.getByTestId("fix-save").click();
-  await expect(walk.getByRole("alert")).toContainText("That still says Terraform");
+  await expect(walk.getByRole("alert")).toContainText('That still says "Terraform"');
   await walk.getByTestId("fix-text").fill("A relational database for your app, below staging.");
   await walk.getByTestId("fix-save").click();
   await expect(walk.getByTestId("fix-counts")).toHaveText("Changed 1 field.");

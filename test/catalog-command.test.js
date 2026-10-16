@@ -60,7 +60,7 @@ test("sealeye catalog test: each check, what is never built and why", async () =
   const out = await sealeye(["catalog", "test", "2"], LEE);
   assert.equal(out.code, 1, "a failed self-test fails the command");
   assert.match(out.stdout, /✗ Nothing a developer reads uses a word they never should/);
-  assert.match(out.stdout, /db: line says RDS and subnet, words a developer never reads/);
+  assert.match(out.stdout, /db: line says "RDS" and "subnet", words a developer never reads/);
   assert.match(out.stdout, /old_cache: the library has deprecated it/);
   assert.match(out.stdout, /The self-test found 1 problem in catalog 2/);
   const json = await sealeye(["catalog", "test", "1", "--json"], LEE);
@@ -71,7 +71,7 @@ test("sealeye catalog approve: a failing draft is refused with its self-test; th
   const unnamed = await sealeye(["catalog", "approve"], LEE);
   assert.match(unnamed.stdout + unnamed.stderr, /Name the catalog to approve: sealeye catalog approve 2 for the newest draft/);
   const refused = await sealeye(["catalog", "approve", "2"], LEE);
-  assert.match(refused.stdout, /db: line says RDS and subnet/);
+  assert.match(refused.stdout, /db: line says "RDS" and "subnet"/);
   assert.match(refused.stdout + refused.stderr, /Catalog 2 cannot be approved/);
   const ok = await sealeye(["catalog", "approve", "1"], LEE);
   assert.match(ok.stdout, /Catalog 1 is approved\. Nothing changes for developers until it is made live\./);

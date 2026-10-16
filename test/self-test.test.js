@@ -76,7 +76,7 @@ test("a word a developer never reads fails the catalog, naming where", () => {
   const doc = discovered({ lines: { "modules/postgres": "Sends its logs to a CloudWatch log group." } });
   const result = selfTest({ document: doc, version: 3 });
   assert.equal(result.passed, false);
-  assert.deepEqual(failed(result).words, ["postgres: line says CloudWatch and log group, words a developer never reads; say what it does for their app"]);
+  assert.deepEqual(failed(result).words, ['postgres: line says "CloudWatch" and "log group", words a developer never reads; say what it does for their app']);
 });
 
 test("a deprecated module's words are not held against the catalog: nobody reads them", () => {
@@ -86,7 +86,7 @@ test("a deprecated module's words are not held against the catalog: nobody reads
 
 test("a size or a count fails the catalog: capacity is set by a load test", () => {
   const doc = discovered({ lines: { "modules/postgres": "A database on a db.t3.medium with 100 GB of storage." } });
-  assert.match(failed(selfTest({ document: doc, version: 3 })).words[0], /^postgres: line gives a size and a machine size; a developer reads "set by a load test" instead$/);
+  assert.match(failed(selfTest({ document: doc, version: 3 })).words[0], /^postgres: line gives "100 GB" \(a size\) and "db\.t3\.medium" \(a machine size\); a developer reads "set by a load test" instead$/);
 });
 
 test("a module the catalog deprecates is refused by the same check a developer's plan meets", () => {
@@ -135,7 +135,7 @@ test("the word check reads every place a developer reads, and nothing else", () 
   http.rules = [{ rule: "Never more than 2 instances in dev." }];
   assert.deepEqual(developerWordProblems(doc), [], "signals and rules are not a developer's words");
   http.inputs.entry_point.line = "The handler Lambda calls.";
-  assert.deepEqual(developerWordProblems(doc), [{ where: "http_api_serverless: input entry_point", module: "http_api_serverless", term: "Lambda", kind: "cloud" }]);
+  assert.deepEqual(developerWordProblems(doc), [{ where: "http_api_serverless: input entry_point", module: "http_api_serverless", term: "Lambda", kind: "cloud", found: "Lambda" }]);
 });
 
 test("the guard counts every environment not known to be gone: a failed tear-down left it standing", async () => {

@@ -75,8 +75,8 @@ test("the self-test names each field to change by module and field, and what no 
   doc.need_kinds = [...doc.need_kinds, { key: "lambda_thing", line: "A Lambda your app calls." }];
   const result = selfTest({ document: doc, version: 1 });
   assert.deepEqual(wordFixesOf(result).map(f => [f.module, f.field, f.words]), [
-    ["secrets", "line", ["Terraform"]],
-    ["secrets", "input:secret_names", ["log group", "Terraform"]]
+    ["secrets", "line", ['"Terraform"']],
+    ["secrets", "input:secret_names", ['"log group"', '"Terraform"']]
   ]);
   assert.equal(wordFixesOf(result)[0].label, "What it gives an app");
   assert.equal(wordFixesOf(result)[0].text, draft().modules[0].line);
@@ -102,7 +102,7 @@ test("with no terminal, catalog fix lists each field and the command that change
   assert.match(r.stdout, /Catalog 1: 2 fields say words a developer never reads/);
   assert.match(r.stdout, /sealeye catalog edit 1 secrets line "<words>"/);
   assert.match(r.stdout, /sealeye catalog edit 1 secrets input:secret_names "<words>"/);
-  assert.match(r.stdout, /Not: log group, Terraform/);
+  assert.match(r.stdout, /Not: "log group", "Terraform"/);
   const json = JSON.parse((await cli(["catalog", "fix", "1", "--json"])).stdout);
   assert.equal(json.fixes.length, 2);
 });
@@ -113,7 +113,7 @@ test("catalog test and catalog edit point to the walk, and edit marks the fields
   const shown = await cli(["catalog", "edit", "1", "secrets"]);
   assert.match(shown.stdout, /✗ line\s+What it gives an app/);
   assert.match(shown.stdout, /✗ input:secret_names/);
-  assert.match(shown.stdout, /Not: log group, Terraform/);
+  assert.match(shown.stdout, /Not: "log group", "Terraform"/);
   assert.doesNotMatch(shown.stdout, /✗ when/);
 });
 
@@ -126,7 +126,7 @@ test("refused for words with no terminal, approve says which command fixes them"
 test("the walk: each field in turn, a word still there is caught, Enter leaves one, and approval is offered", async () => {
   const r = await inTerminal(["catalog", "fix", "2"], [
     ["1 of 2", null], ["New words (Enter leaves them):", `${CLEAR}Named places for the secrets your app reads, outside Terraform.\r`],
-    ["That still says Terraform", `${CLEAR}Named places for the secrets your app reads, put in by your team.\r`],
+    ['That still says "Terraform"', `${CLEAR}Named places for the secrets your app reads, put in by your team.\r`],
     ["2 of 2", null], ["New words (Enter leaves them):", "\r"]
   ]);
   assert.equal(r.typed, 5, r.out);
@@ -170,4 +170,25 @@ test("no to the offer leaves the draft refused, and says how to fix it later", a
   assert.notEqual(r.code, 0);
   const list = await cli(["catalog", "versions", "--json"]);
   assert.equal(JSON.parse(list.stdout).catalogs.find(c => c.version === 5).status, "draft");
+});
+
+test("a size or a count is named by its own words, so a person can see which to change (Greg, Oct 16)", async () => {
+  const doc = draft();
+  doc.modules[1].when = "When your app keeps data in a general-purpose store or 2 replicas.";
+  const result = selfTest({ document: doc, version: 1 });
+  const fix = wordFixesOf(result).find(f => f.module === "postgres");
+  assert.deepEqual(fix.words, ['"2 replicas" (a count of machines)']);
+  assert.match(result.checks.find(c => c.id === "words").problems.join(" "), /postgres: when gives "2 replicas" \(a count of machines\)/);
+  const { stillSaysWords } = await import("../core/discovery-words.js");
+  const { forbiddenWords } = await import("../core/developer-words.js");
+  assert.equal(stillSaysWords(forbiddenWords("Holds data, in 2 replicas.")),
+    'That still says "2 replicas" (a count of machines). A developer reads "set by a load test" in place of a size or a count. Change it, or press Enter to keep it as written.');
+});
+
+test("in quotes, the words to change; after them, what they are, only when that says more", async () => {
+  const { forbiddenWords, shownWord } = await import("../core/developer-words.js");
+  const shown = t => forbiddenWords(t).map(shownWord);
+  assert.deepEqual(shown("Built with Terraform, in ca-central-1."), ['"ca-central-1" (a region\'s name)', '"Terraform"']);
+  assert.deepEqual(shown("Behind an ALB, with logs in log groups."), ['"ALB" (load balancer)', '"log groups"']);
+  assert.deepEqual(shown("Holds 20 GiB."), ['"20 GiB" (a size)']);
 });

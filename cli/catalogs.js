@@ -18,10 +18,10 @@
 import { ask, c, step } from "./brand.js";
 import { approveCatalogVersion, catalogSelfTest, editCatalog, getCatalogVersion, listCatalogs, makeCatalogLive } from "./client.js";
 import { editableFieldsOf, fieldOf } from "../core/catalog-edits.js";
-import { forbiddenWords } from "../core/developer-words.js";
+import { forbiddenWords, shownWord } from "../core/developer-words.js";
 import { commandLine } from "../core/operations.js";
 import {
-  approvedWords, avoidWords, catalogStatusWords, catalogSummaryWords, FIX_OFFER, fixableByEditing, fixedWords, fixPlaceWords,
+  approvedWords, avoidWords, stillSaysWords, catalogStatusWords, catalogSummaryWords, FIX_OFFER, fixableByEditing, fixedWords, fixPlaceWords,
   madeLiveWords, nextCatalogStep, notFixedByEditing, selfTestSummary, wordFixesOf
 } from "../core/discovery-words.js";
 
@@ -115,9 +115,9 @@ async function fixWalk({ apiBaseUrl, version, say, first }) {
           if (text === null || stopped) { stopped = true; break; }
           if (text.replace(/\s+/g, " ") === fix.text.replace(/\s+/g, " ").trim()) { kept += 1; break; }
           if (!text && fix.field === "line") { say("A module's line cannot be empty: it is what a developer reads of it."); continue; }
-          const still = forbiddenWords(text).map(w => w.term);
+          const still = forbiddenWords(text);
           if (still.length && warned !== text) {
-            say(`That still says ${still.join(", ")}. Change it, or press Enter to keep it as written.`);
+            say(stillSaysWords(still));
             prefill = text;
             warned = text;
             continue;
