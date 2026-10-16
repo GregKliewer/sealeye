@@ -296,4 +296,5 @@ request.
 | **The Bedrock route** (Phase 3 Step 8) | When the account has model access; then an organization's code can stay in its own account. |
 | **Admin onboarding** (identity provider, repositories, which automation is strategic) | With Phase 5's Cognito sign-in, since both need an organization's administrator. Until then the platform team names repositories in a setting. |
 | **The discovery screens' rough edges** (Greg, Oct 16) | Right after Step 7, as a step of its own, once approving and making live are on both surfaces: one pass over the whole flow. |
+| **Fixing what blocks approval** (Greg, Oct 16; DESIGN.md, "What blocks approval is fixed in one walk") | With the rough-edges step: `sealeye catalog fix`, its portal view, and the offer from a refused approval. |
 | **Public module libraries at scale** | After Step 7, for cost caps and scale; no answer key, checked by hand. |
