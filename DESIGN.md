@@ -3287,7 +3287,12 @@ organization plans and refuses against. Each as recommended, except where it say
   plan. Tokens already carry an organization; `deploy/server.sh token add --org juniper`
   issues one. And a guard: making a catalog live is refused (409 `CATALOG_IN_USE`) while
   any environment of that organization runs on a module the new catalog would not
-  build, naming each.
+  build, naming each. Found while adding it: an app's settings are kept in the store by
+  team (`/sealeye-apps/<team>/<app>/`) and costs are tagged by team and app, neither by
+  organization, so a second organization could reach the first's. Both answer 409
+  `NOT_FOR_THIS_ORGANIZATION` to any organization but `default` until the organization
+  is in the path and the tags. The library discovery reads is still the server's one
+  setting for every organization, until admin onboarding names one each.
 - **Traces hold the shape, never the content**, as the interview's do: for each worker
   its module, the files it read by path and size, tokens and cost; how many questions
   of which kind. No file contents, no prompt, no reply.

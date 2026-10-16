@@ -165,3 +165,11 @@ test("a catalog that stops building what an environment runs is not made live, n
   const ours = await api.call("/catalog", { token: ANA });
   assert.equal(ours.body.catalog.source, "starter", "nothing changed");
 });
+
+test("a second organization does not reach the store's settings or the account's costs, kept by team only", async () => {
+  for (const [method, route] of [["GET", "/apps/shop/settings"], ["PUT", "/apps/shop/settings/GREETING"], ["DELETE", "/apps/shop/settings/GREETING"], ["GET", "/costs"]]) {
+    const r = await api.call(route, { token: JUN, method, ...(method === "PUT" ? { body: { value: "hello" } } : {}) });
+    assert.equal(r.status, 409, `${method} ${route}`);
+    assert.equal(r.body.error.code, "NOT_FOR_THIS_ORGANIZATION");
+  }
+});

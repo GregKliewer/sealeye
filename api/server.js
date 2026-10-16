@@ -956,6 +956,7 @@ app.get("/deployments/:deploymentId/performance", async (req, res) => {
 // GET /costs?since=7d|30d — what each of your team's apps has cost (api/costs.js),
 // by the cost allocation tags; an organization-wide token sees every team's. Step 20.
 app.get("/costs", async (req, res) => {
+  if (callerOrg(req) !== "default") return notForThisOrganization(res, "Costs");
   const { status, body } = await readCosts(req.caller, { window: typeof req.query.since === "string" ? req.query.since : "30d" });
   return res.status(status).json(body);
 });
@@ -1448,11 +1449,19 @@ function settingsScope(req) {
   if (!asked || asked === req.caller.team) return { org, team: req.caller.team, app };
   return req.caller.scope === "org" ? { org, team: asked, app } : null;
 }
+// The store keeps an app's settings by team (/sealeye-apps/<team>/<app>/), and costs are
+// tagged by team and app, neither yet by organization. So with a second organization on
+// the server (juniper, PHASE4-PLAN Step 7) one could reach another's settings or see its
+// costs: both stay the default organization's until the organization is in the path and
+// the tags.
+const notForThisOrganization = (res, what) =>
+  res.status(409).json({ error: { code: "NOT_FOR_THIS_ORGANIZATION", message: `${what} are not available to your organization yet: the platform keeps them by team, and not yet by organization.` } });
 const noSuchApp = res => res.status(404).json({ error: { code: "NOT_FOUND", message: "No app of that name that you can see." } });
 
 // GET /apps/{app}/settings: the settings its latest plan asks for and the ones stored,
 // each with whether it is set and who last changed it.
 app.get("/apps/:app/settings", async (req, res) => {
+  if (callerOrg(req) !== "default") return notForThisOrganization(res, "App settings");
   const scope = settingsScope(req);
   if (!scope) return noSuchApp(res);
   const folder = storeFolder(scope);
@@ -1481,6 +1490,7 @@ app.get("/apps/:app/settings", async (req, res) => {
 
 // PUT /apps/{app}/settings/{name} { value }: store one, encrypted, replacing any before.
 app.put("/apps/:app/settings/:name", async (req, res) => {
+  if (callerOrg(req) !== "default") return notForThisOrganization(res, "App settings");
   const scope = settingsScope(req);
   if (!scope) return noSuchApp(res);
   const name = req.params.name;
@@ -1501,6 +1511,7 @@ app.put("/apps/:app/settings/:name", async (req, res) => {
 
 // DELETE /apps/{app}/settings/{name}: remove one.
 app.delete("/apps/:app/settings/:name", async (req, res) => {
+  if (callerOrg(req) !== "default") return notForThisOrganization(res, "App settings");
   const scope = settingsScope(req);
   if (!scope) return noSuchApp(res);
   const name = req.params.name;
