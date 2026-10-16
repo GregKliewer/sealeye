@@ -93,7 +93,7 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
   const viaGateway = () => !client && Boolean(modelCredential()?.gatewayKey);
 
   function state(id) {
-    if (!live.has(id)) live.set(id, { run: null, listeners: new Set(), events: [], writing: Promise.resolve(), qseq: 0 });
+    if (!live.has(id)) live.set(id, { run: null, listeners: new Set(), events: [], writing: Promise.resolve(), rewrites: 0, qseq: 0 });
     return live.get(id);
   }
 
@@ -131,6 +131,10 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
     repos: run.repos,
     modules: (run.modules || []).map(m => ({ source: m.source, id: m.id, status: m.status })),
     catalog: run.catalogVersion ? { version: run.catalogVersion } : null,
+    // An answer being written into the draft now, and why the last one could not be,
+    // for a surface to show after the run's own stream has ended (Greg, Oct 15, 2026).
+    rewriting: (live.get(run.id)?.rewrites || 0) > 0,
+    ...(run.answerProblem ? { answerProblem: run.answerProblem } : {}),
     spent: Number(Object.values(run.spend || {}).reduce((s, w) => s + (w?.cost || 0), 0).toFixed(4)),
     createdAt: run.createdAt,
     finishedAt: run.finishedAt || null
@@ -300,6 +304,7 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
    */
   function useAnswers(id) {
     const s = state(id);
+    s.rewrites += 1;
     s.writing = s.writing.then(async () => {
       const run = runOf(id);
       if (!run?.catalogVersion) return;
@@ -319,8 +324,9 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
           entries = written.entries.filter(e => sources.includes(e.source));
         } catch (err) {
           run.spend = s.budget.spend();
+          run.answerProblem = err instanceof SpendingLimit ? "the run reached its spending limit" : "seaLeye could not write the entries again";
           await save(id);
-          emit(id, { type: "answer_not_used", questions: pending.map(q => q.id), why: err instanceof SpendingLimit ? "the run reached its spending limit" : "seaLeye could not write the entries again" });
+          emit(id, { type: "answer_not_used", questions: pending.map(q => q.id), why: run.answerProblem });
           return;
         }
       }
@@ -333,6 +339,7 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
       await markUsed(pending, version);
       run.catalogVersion = version;
       run.spend = s.budget ? s.budget.spend() : run.spend;
+      delete run.answerProblem;
       await save(id);
       emit(id, { type: "answers_used", questions: pending.map(q => q.id), sources, catalog: { version } });
       // An answer that changed while this pass ran is still pending: one more pass.
@@ -341,7 +348,15 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
       // Kept, never lost: the answers stay pending and the next pass uses them. Said on
       // the run's events and in the API's log, which holds no content of the library.
       console.error(`discovery ${id}: answers could not be written into the draft: ${err?.message || err}`);
-      emit(id, { type: "answer_not_used", why: err instanceof SpendingLimit ? "the run reached its spending limit" : "seaLeye could not write the entries again" });
+      const why = err instanceof SpendingLimit ? "the run reached its spending limit" : "seaLeye could not write the entries again";
+      const run = runOf(id);
+      if (run) {
+        run.answerProblem = why;
+        save(id).catch(() => {});
+      }
+      emit(id, { type: "answer_not_used", why });
+    }).finally(() => {
+      s.rewrites -= 1;
     });
     return s.writing;
   }

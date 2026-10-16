@@ -210,7 +210,7 @@ DELETE /interviews/{id}, GET /whoami, GET /team (people with tokens, never a tok
 settings in the store: names out, values in, never back), POST /sessions ({ token }) and
 DELETE /sessions (the portal's sign-in and sign-out), POST /discoveries (a run over the
 library the server names), GET /discoveries, GET /discoveries/{id} (the run and its
-questions), GET /discoveries/{id}/events (server-sent events), GET
+questions, and whether an answer is being written into the draft), GET /discoveries/{id}/events (server-sent events), GET
 /discoveries/{id}/catalog (its draft), POST /discoveries/{id}/answers ({ question, answer },
 while it runs or after); discovery is an organization-wide token's only, one run at a time for an organization (409 RUN_GOING), over one library repository (409 ONE_LIBRARY). Every endpoint but GET /health
 and the two /sessions needs `Authorization: Bearer <token>` (`api/tokens.js`) or the

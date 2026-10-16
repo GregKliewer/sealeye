@@ -3226,3 +3226,29 @@ colour, "Discovery" and the time so far in the top edge, the totals in the botto
 a blank line above it, and the step and the run's last lines inside. `boxed` in
 `cli/discover-screen.js` pads by what shows, colours left out, so every edge is the same
 width; at most a hundred columns, two in from a narrower terminal's edge.
+
+## Answers given after the draft, on both surfaces
+
+Thu Oct 15, 2026, Greg: the questions left for later were kept on the page, but the
+command did not bring him back to them, and nothing showed that an answer given after
+the draft was written was being written into it.
+
+- **The run says what its stream no longer can.** By the time most late answers come,
+  the run's stream has ended. GET /discoveries/{id} now carries `rewriting` (an answer
+  is being written into the draft) and `answerProblem` (why the last one could not be:
+  the spending limit, or the model failing), kept on the run's record and cleared when
+  an answer goes in.
+- **`sealeye discover` offers the questions left for later** once the run has finished:
+  "Answer the 2 questions you left for later now?" Yes goes straight into them; Not now
+  says where they are kept. Before the run's end is said, the window waits for the
+  answers given to be written in, saying "Writing your answer into the draft" with its
+  clock.
+- **`sealeye discover answers` has a box of its own** over the questions, saying the
+  same while each answer is written in, and ends with "Your answers are written into
+  draft catalog 1", or that they are not yet and why, kept either way.
+- **The page shows a turning ring by an answer being written in**, and looks again
+  every second and a half while one is, then says "in the draft". `answerStateWords` in
+  `core/discovery-words.js` says it for both.
+
+An answer still never starts a new run: it rewrites only the entries it touches, in
+the same draft, for one planner call against the run's own limit.
