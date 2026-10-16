@@ -152,8 +152,10 @@ export async function catalogs({ apiBaseUrl, sub, args, say, json = false }) {
     }
     const where = fieldOf(field);
     if (!where) throw userError(`${field} is not something whose words can be changed: line, short-line, when, skip-line, guidance, or input:<name>.`);
-    let text = rest.join(" ");
-    if (!text) {
+    // --clear empties a field (not a line, which a module must have), as an empty box does on the page.
+    const clearing = process.argv.includes("--clear");
+    let text = clearing ? "" : rest.join(" ");
+    if (!text && !clearing) {
       if (!process.stdin.isTTY) throw userError("Give the new words after the field, or run this in a terminal to be asked for them.");
       const now = editableFieldsOf(entry).find(f => f.field === where.field)?.text || "";
       const readline = await import("node:readline/promises");
@@ -169,7 +171,7 @@ export async function catalogs({ apiBaseUrl, sub, args, say, json = false }) {
     const done = await editCatalog({ apiBaseUrl, version, module, field: where.field, text });
     if (json) return console.log(JSON.stringify(done, null, 2));
     console.log("");
-    console.log(c.ok(`${module}: ${where.label} is now: ${text.replace(/\s+/g, " ").trim()}`));
+    console.log(c.ok(clearing ? `${module}: ${where.label} is cleared` : `${module}: ${where.label} is now: ${text.replace(/\s+/g, " ").trim()}`));
     printSelfTest(done.selfTest, say);
     if (done.selfTest.passed) say(`${nextLine("draft", version)} approves it.`);
     return;

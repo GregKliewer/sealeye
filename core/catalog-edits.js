@@ -84,7 +84,14 @@ export function keepEdits(previous, rewritten) {
     const where = fieldOf(field);
     if (!where) continue;
     if (where.kind === "input") {
-      if (!out.inputs?.[where.name]) continue;
+      // The input is gone, or renamed, in what the library now says: the edit has nothing
+      // to keep, and the entry no longer says a person wrote it.
+      if (!out.inputs?.[where.name]) {
+        const { [field]: _stale, ...rest } = out.edited;
+        out = { ...out, edited: rest };
+        if (!Object.keys(rest).length) delete out.edited;
+        continue;
+      }
       const before = previous.inputs?.[where.name]?.line;
       const { line: _gone, ...spec } = out.inputs[where.name];
       out = { ...out, inputs: { ...out.inputs, [where.name]: before ? { ...spec, line: before } : spec } };
@@ -96,4 +103,11 @@ export function keepEdits(previous, rewritten) {
     }
   }
   return out;
+}
+
+/** The field an edit names for one of developer-words.js's places ("short line", "input x"), or null. */
+export function fieldForPlace(place) {
+  const p = String(place || "");
+  if (p.startsWith("input ")) return `input:${p.slice(6)}`;
+  return fieldOf(p.replace(/ /g, "-"))?.field || null;
 }

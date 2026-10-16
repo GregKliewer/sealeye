@@ -305,7 +305,7 @@ function DraftTable({ draft, version, questions, tick, onChanged }: { draft: Dra
                 </TableRow>
                 {editable && editing === m.id ? (
                   <TableRow data-testid="edit-panel">
-                    <TableCell colSpan={5}><EditWords version={version!} module={m} onChanged={onChanged} /></TableCell>
+                    <TableCell colSpan={5}><EditWords key={JSON.stringify(editableFieldsOf(m))} version={version!} module={m} onChanged={onChanged} /></TableCell>
                   </TableRow>
                 ) : null}
                 </Fragment>

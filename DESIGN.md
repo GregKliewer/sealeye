@@ -3405,3 +3405,16 @@ chose this over a second automatic fix-up "for flexibility's sake going forward"
 
 How strict the word check should be, and whether the interview can explain a term, is
 Q21 (Greg, the same day: "developers ARE familiar with a lot of the jargon").
+
+**Reviewed independently** before the pull request, with no must-fix. Its should-fixes
+are in:
+- Who edited an entry is left out of what a developer's surfaces read (`buildableView`).
+- An edit to an input the library later renamed or removed loses its mark.
+- The page's edit boxes refill when a rewrite changes the entry beneath them, so stale
+  words are never saved back as a person's.
+- `--clear` empties a field from the command, as an empty box does on the page.
+- A field a person wrote is never sent back to the model's plain-words pass.
+- Tests for each of these.
+
+Still to do: the page edits only the latest run's draft, while the command edits any
+draft. This is for the rough-edges step.

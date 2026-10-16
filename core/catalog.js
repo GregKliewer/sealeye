@@ -226,7 +226,8 @@ export function buildableView(catalog = loadCatalog()) {
     ...(catalog.catalogVersion !== undefined ? { catalogVersion: catalog.catalogVersion } : {}),
     // What builds a module is the platform's to know, and its name is an AWS term; the
     // client is told only that the platform builds it.
-    modules: modules.map(({ builds_with, guidance, ...m }) => ({ ...m, buildable: true })),
+    // Nor who edited an entry's words (catalog-edits.js): people are GET /team's to name.
+    modules: modules.map(({ builds_with, guidance, edited, ...m }) => ({ ...m, buildable: true })),
     need_kinds: catalog.need_kinds || [],
     profiles: catalog.profiles || [],
     patterns

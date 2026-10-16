@@ -7,7 +7,7 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
-import { starterCatalog } from "../core/catalog.js";
+import { buildableView, starterCatalog } from "../core/catalog.js";
 import { applyEdit, editableFieldsOf, keepEdits } from "../core/catalog-edits.js";
 import { startApi, token } from "./helpers/api-with-aws.js";
 
@@ -62,8 +62,11 @@ test("an edit is recorded on the entry, in plain words, with who and when", asyn
   assert.equal(secrets.line, "Named places for the secrets an app reads, its values put in by the team, never in its code.", "an em dash becomes a comma");
   assert.equal(secrets.edited.line.by, "lee@example.com");
   assert.ok(secrets.edited["input:secret_names"].at);
-  assert.equal(secrets.id, "secrets");
-  assert.equal(secrets.availability, "available", "nothing but words changes");
+  const original = draft().modules.find(m => m.id === "secrets");
+  for (const key of ["id", "source", "availability", "builds_with"]) assert.equal(secrets[key], original[key], `${key} is not words, and does not change`);
+  assert.deepEqual(Object.keys(secrets.inputs), Object.keys(original.inputs));
+  assert.equal(secrets.inputs.secret_names.required, true);
+  assert.equal(secrets.open, undefined);
 });
 
 test("only a draft's words, only by an organization-wide token, only the fields that are words", async () => {
@@ -71,6 +74,9 @@ test("only a draft's words, only by an organization-wide token, only the fields 
   const approved = await edit(2, { module: "postgres", field: "line", text: "A database." });
   assert.equal(approved.status, 409);
   assert.match(approved.body.error.message, /only a draft's words are changed/);
+  const two = await api.call("/catalogs/2", { token: LEE });
+  assert.equal(two.body.document.modules.find(m => m.id === "postgres").line, "A relational database for your app.", "and catalog 2 is as it was");
+  assert.equal(two.body.document.modules.find(m => m.id === "postgres").edited, undefined);
   for (const [body, words] of [
     [{ module: "postgres", field: "availability", text: "available" }, /is not something whose words can be changed/],
     [{ module: "nope", field: "line", text: "x" }, /has no module nope/],
@@ -96,6 +102,26 @@ test("a rewrite keeps what a person wrote, and writes the rest", () => {
   assert.deepEqual(editableFieldsOf(old).map(f => f.field), ["line", "short-line", "when", "skip-line", "guidance"]);
 });
 
+test("a rewrite keeps an edited input line and a cleared field; an input the library renamed loses its mark", () => {
+  let doc = applyEdit(draft(), { module: "secrets", field: "input:secret_names", text: "The names your app reads.", by: "lee@example.com", at });
+  doc = applyEdit(doc, { module: "secrets", field: "guidance", text: "", by: "lee@example.com", at });
+  const old = doc.modules.find(m => m.id === "secrets");
+  const rewritten = { ...draft().modules.find(m => m.id === "secrets"), guidance: "The model's guidance." };
+  const kept = keepEdits(old, rewritten);
+  assert.equal(kept.inputs.secret_names.line, "The names your app reads.");
+  assert.equal(kept.guidance, undefined, "cleared by a person, and kept cleared");
+  const renamed = keepEdits(old, { ...rewritten, inputs: { names: { required: true, line: "From the library." } } });
+  assert.deepEqual(Object.keys(renamed.edited), ["guidance"], "the input it was written for is gone");
+  assert.equal(renamed.inputs.names.line, "From the library.");
+});
+
+test("who edited an entry never reaches a developer: GET /catalog's document leaves it out", () => {
+  const doc = applyEdit(starterCatalog(), { module: "http_api_serverless", field: "line", text: "Runs your code when a request comes in.", by: "lee@example.com", at });
+  const view = buildableView(doc).modules.find(m => m.id === "http_api_serverless");
+  assert.equal(view.line, "Runs your code when a request comes in.");
+  assert.equal(view.edited, undefined);
+});
+
 test("sealeye catalog edit changes the words and prints the self-test", async () => {
   const run = args => promisify(execFile)(process.execPath, [path.join(root, "cli/bin/sealeye"), ...args, "--api", api.api], {
     env: { ...process.env, NO_COLOR: "1", SEALEYE_TOKEN: LEE, SEALEYE_HOME: api.home }
@@ -106,6 +132,8 @@ test("sealeye catalog edit changes the words and prints the self-test", async ()
   const shown = await run(["catalog", "edit", "3", "secrets"]);
   assert.match(shown.stdout, /line\s+What it gives an app\s+Named places for the secrets your app reads\./);
   assert.match(shown.stdout, /input:secret_names\s+Input secret_names\s+Names only: the values are never in Terraform\./);
+  const cleared = await run(["catalog", "edit", "3", "postgres", "when", "--clear"]);
+  assert.match(cleared.stdout, /postgres: When an app uses it is cleared/);
   const bad = await run(["catalog", "edit", "3", "secrets", "availability", "x"]);
   assert.match(bad.stdout + bad.stderr, /is not something whose words can be changed/);
 });
