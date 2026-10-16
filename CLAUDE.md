@@ -27,11 +27,14 @@ Two surfaces, one product: **seaLeye.run** is the `sealeye` command, and
 ```
 cli/        the sealeye command: bin/sealeye, client.js (talks to the API), interview/
             (follow.js streams the interview; render.js), discover.js (a discovery run,
-            its questions answered as they come; discover-screen.js draws its window), doctor.js,
+            its questions answered as they come; discover-screen.js draws its window),
+            catalogs.js (`sealeye catalog versions|test|approve|live`), doctor.js,
             store-offer.js (moving .env values into the store),
             brand.js (the only place terminal colours live)
 api/        the API: server.js, store.js, db.js, migrations/, catalogs.js (each organization's
-            catalog, or the starter), needs.js, mappings.js, validate.js,
+            catalog, or the starter), self-test.js (what a catalog passes before it is
+            approved and made live), catalog-use.js (the environments a catalog would
+            stop building), needs.js, mappings.js, validate.js,
             secret-scan.js and gitleaks.toml (the API's scan of what arrives),
             gateway-token.js (the token on every model call), model-routes.js (the
             gateway's named routes, small and frontier), discovery/ (reading a platform
@@ -54,11 +57,13 @@ core/       what cli/ and api/ must agree on: schema.js (the plan contract), cat
             environments.js (what an environment's key is: one row in `sealeye
             list`, one page in the portal, the page `sealeye online <app>` opens),
             operations.js (every operation's command, aliases and portal label),
-            discovery-words.js (what both surfaces say about a discovery run).
+            discovery-words.js (what both surfaces say about a discovery run, a
+            catalog's status and its self-test), developer-words.js (the cloud's
+            names, and sizes and counts, that a developer never reads).
             secrets.js, scan.js, upload-rules.js, plan-words.js, evidence-summary.js,
             plan-report-words.js, retention.js, setting-names.js, environments.js,
-            operations.js and discovery-words.js run in a browser, so the portal
-            imports them too
+            operations.js, discovery-words.js and developer-words.js run in a browser,
+            so the portal imports them too
 prompts/    system prompt and the starter's passages for it (interview-starter.yaml), plan
             contract, plan, report and evidence templates, catalog
 templates/  one CloudFormation template per buildable module, plus run.sh and
@@ -177,7 +182,7 @@ ids and need kinds are checked against that catalog (`schemaFor` in `core/catalo
 `api/validate.js`). A module is buildable when its catalog marks it `availability:
 available` and an executor builds what its `builds_with` names (`EXECUTORS`, today
 cloudformation and the starter's four: static_site_edge, http_api_serverless,
-observability_basic, config_basic). 0.2, 0.3 and 0.4 plans are read as 0.5 against the
+observability_basic, config_basic), and no question it rests on is still open (`open`). 0.2, 0.3 and 0.4 plans are read as 0.5 against the
 starter: a planned module in a 0.2 or 0.3 plan is read as the need it described and the
 plan becomes a draft. The interview's model writes the 0.4 shape with its catalog's
 modules (`interviewContract`; `planSchema04` for the starter) and never a catalog: the
@@ -189,8 +194,15 @@ Each organization may have catalogs of its own (`api/catalogs.js`, the `catalogs
 draft, approved, live, retired; one live). One with no live catalog has the starter,
 `prompts/module-catalog.yaml`, word for word. The API hands the functions in
 `core/catalog.js` the catalog a plan or a record names, or for the catalog listing and
-the needs ledger the organization's live one; nothing makes a catalog live from a
-request until the self-test (PHASE4-PLAN Step 7). A deploy whose plan names a replaced
+the needs ledger the organization's live one. A catalog goes live in two steps, each
+behind the self-test (`api/self-test.js`, PHASE4-PLAN Step 7): an organization-wide
+token approves a draft, then makes an approved or retired one live, which is refused
+while any environment of the organization runs on a module it would not build (409
+CATALOG_IN_USE, `api/catalog-use.js`). The self-test is plain code: the catalog's shape,
+no question about the whole catalog open, a plan for each module that must be refused
+refused and one for each it builds accepted (by the same check as POST
+/plans/validate), and no cloud term, size or count in the words a developer reads
+(`core/developer-words.js`). A deploy whose plan names a replaced
 catalog that no longer builds a module it uses is refused with 409 CATALOG_CHANGED. The
 command draws its card and DEPLOYMENT_PLAN.md from `GET /catalog?version=`, never its
 own copy (`catalogForPlan` in `cli/client.js`).
@@ -212,7 +224,10 @@ DELETE /sessions (the portal's sign-in and sign-out), POST /discoveries (a run o
 library the server names), GET /discoveries, GET /discoveries/{id} (the run and its
 questions, and whether an answer is being written into the draft), GET /discoveries/{id}/events (server-sent events), GET
 /discoveries/{id}/catalog (its draft), POST /discoveries/{id}/answers ({ question, answer },
-while it runs or after); discovery is an organization-wide token's only, one run at a time for an organization (409 RUN_GOING), over one library repository (409 ONE_LIBRARY). Every endpoint but GET /health
+while it runs or after); discovery is an organization-wide token's only, one run at a time for an organization (409 RUN_GOING), over one library repository (409 ONE_LIBRARY). GET /catalogs (the organization's catalogs and which is live), GET
+/catalogs/{v}/self-test, POST /catalogs/{v}/approve (a draft; 422 SELF_TEST_FAILED with
+the result) and POST /catalogs/{v}/live (an approved or retired one; 422
+SELF_TEST_FAILED, 409 CATALOG_IN_USE), an organization-wide token's only too. Every endpoint but GET /health
 and the two /sessions needs `Authorization: Bearer <token>` (`api/tokens.js`) or the
 portal's session cookie; a change made with the cookie must also carry
 `x-sealeye-portal: 1`. A record says which surface made it. A laptop API may run with
@@ -334,8 +349,11 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   records and interviews in Postgres, or locally with a JSON file and interviews in
   memory (no `DATABASE_URL`). No sign-in yet: each person has a token, issued with
   `deploy/server.sh token add` and kept by `sealeye login`, a stand-in until Q3 (ROADMAP
-  Phase 5, Q16). Every token is org "default" until there is a second
-  organization. A token is for one team, or issued `--org-wide` to see every team's.
+  Phase 5, Q16). Tokens are in org "default", except the pilot's second organization,
+  `juniper` (`deploy/server.sh token add ... --org juniper`), where Juniper Mutual's
+  discovered catalog may go live. An app's settings and costs are kept by team, not yet
+  by organization, so they answer 409 NOT_FOR_THIS_ORGANIZATION to any organization
+  but default. A token is for one team, or issued `--org-wide` to see every team's.
   The store reads from memory, written through to Postgres: one API process only.
   Every model call on the server goes through agentgateway, a container beside the API
   (`deploy/gateway.yaml`, `deploy/gateway.sh`), which holds the model key and a money
@@ -355,7 +373,8 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   folder chosen in the browser), Control (state, deploy again, tear down,
   pause, settings, configure, history, plan and report, performance, logs, evidence), Validate (check a plan, and deploy a ready one with the
   code the platform has), Catalog (modules and the needs ledger), Costs, Team, Health,
-  and Discovery, shown only to an organization-wide token. Integrations is
+  and Discovery (with its Catalogs card: the self-test, Approve, Make live), shown only
+  to an organization-wide token. Integrations is
   drawn in the archived mock-up only (Phase 5); the portal shows nothing it cannot do.
 
 ## Working here
@@ -377,9 +396,15 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   a route (`small`, `frontier`; `api/model-routes.js`), never a model by name.
 - A discovery run (`api/discovery/service.js`) never waits on a person: readers raise
   questions with a guess, and an answer re-writes only the entries it touches, whenever
-  it comes. Code, not the model, reads each module's inputs and decides which entries
-  rest on an open question. `npm run eval:discovery -- --run --library <clone>` runs one
-  for real (it needs a model key) and prints each worker's spend.
+  it comes. Code, not the model, reads each module's inputs, decides which entries rest
+  on an open question, and applies the questions the supervisor merges (`merges`). A
+  run is traced in LangFuse as its shape only (`traceDiscovery`, `traceDiscoveryCall` in
+  `core/tracing.js`): workers, files by path and size, tokens, cost, questions by kind;
+  never a file, a prompt or a reply. `npm run eval:discovery -- --run --library <clone>`
+  runs it for real twice (it needs a model key), with no answers and with the answer
+  key's at fixed points, grades each draft with its self-test, prints each worker's
+  spend, and with LangFuse keys records both as the `sealeye-discovery` dataset. Run it
+  before and after any change to discovery or its prompts.
 - `npm run eval:interview` before and after any change to `prompts/`. It runs the
   interview graph in-process on each sample app, grades the plans, and records a
   LangFuse dataset run; it needs ANTHROPIC_API_KEY and LangFuse keys, and deploys

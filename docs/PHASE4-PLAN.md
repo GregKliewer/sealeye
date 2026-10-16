@@ -208,6 +208,11 @@ should, when it sees the readers' questions.
 
 ### Step 7. Self-test, then live
 
+Built Fri Oct 16, 2026 (DESIGN.md, "A catalog goes live through a self-test, approved
+and made live apart"). Still to be done on Greg's Mac, where the model key is: the
+measured run before and after the supervisor's prompt change (merges), with `npm run
+eval:discovery -- --run --library <clone>`, which now runs both passes and records them.
+
 Not before Step 3 has shipped: until the interview plans against the live catalog, a
 live catalog that drops a starter module would refuse every plan the interview writes
 that uses it (CATALOG_CHANGED), and running it again would not help (DESIGN.md, "A plan
