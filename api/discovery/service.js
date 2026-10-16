@@ -24,6 +24,7 @@ import { claimsFor, signerFromSettings, withCallerToken } from "../gateway-token
 import { modelClient, modelCredential } from "../interview/model.js";
 import { switchOffLangSmith } from "../interview/service.js";
 import { draftCatalog, rewriteEntries } from "./draft.js";
+import { developerWordProblems } from "../../core/developer-words.js";
 import { libraryRepos, repoName } from "./github.js";
 import { readLibrary as readFromGitHub } from "./library.js";
 import { ANSWER_LIMIT } from "../../core/discovery-words.js";
@@ -316,6 +317,41 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
     return graph.compile();
   }
 
+  /**
+   * Once, before a draft is kept: the entries among `sources` whose words a developer
+   * must never read (the self-test's word check, core/developer-words.js) go back to the
+   * supervisor to be written again in plain words, and the new ones replace them. A
+   * library's own descriptions, a variable's above all, are written in the cloud's terms,
+   * and a draft holding them cannot be approved (Greg, Oct 16, 2026). If the call cannot
+   * be made, the entries stay as they were and the self-test says what to fix.
+   *
+   * @param {(entries: object[]) => object} build  the draft as it would be with these entries
+   * @returns {Promise<object[]>} the entries, some written again
+   */
+  async function inPlainWords(run, entries, sources, build) {
+    const doc = build(entries);
+    const sourceOf = new Map((doc.modules || []).map(m => [m.id, m.source]));
+    const offered = { ...doc, modules: (doc.modules || []).filter(m => m.availability === "available" && sources.includes(m.source)) };
+    const problems = developerWordProblems(offered).filter(p => p.module && sourceOf.has(p.module));
+    if (!problems.length) return entries;
+    const again = [...new Set(problems.map(p => sourceOf.get(p.module)))];
+    const lines = problems.map(p => `${sourceOf.get(p.module)}: ${p.where.slice(p.where.indexOf(": ") + 2)} uses ${p.term}`);
+    emit(run.id, { type: "plain_words", sources: again });
+    const s = state(run.id);
+    try {
+      const written = await superviseEntries({
+        clientFor: clientFor(run), credentialIsGateway: viaGateway(), budget: s.budget, org: run.orgName,
+        modules: run.modules, library: run.library, questions: asked(run.id), sources: again, plainWords: lines
+      });
+      const fresh = new Map((written.entries || []).filter(e => again.includes(e.source)).map(e => [e.source, e]));
+      traceEvent("plain words", { entries: fresh.size, words: problems.length });
+      return entries.map(e => fresh.get(e.source) || e).concat([...fresh.values()].filter(e => !entries.some(x => x.source === e.source)));
+    } catch (err) {
+      emit(run.id, { type: "plain_words_not_done", sources: again, why: err instanceof SpendingLimit ? "the run reached its spending limit" : "seaLeye could not write them again" });
+      return entries;
+    }
+  }
+
   /** The supervisor writes every entry, using every answer there is now, then the draft is kept. */
   async function writeAll(run) {
     const s = state(run.id);
@@ -333,8 +369,10 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
     });
     await raise(run, written.questions, null);
     await applyMerges(run, written.merges);
+    const entries = await inPlainWords(run, written.entries || [], run.modules.map(m => m.source),
+      list => draftCatalog({ run, modules: run.modules, library: run.library, entries: list, questions: asked(run.id) }));
     const questions = asked(run.id);
-    const document = draftCatalog({ run, modules: run.modules, library: run.library, entries: written.entries, questions });
+    const document = draftCatalog({ run, modules: run.modules, library: run.library, entries, questions });
     const kept = await addCatalog({ org: run.org, document, by: run.startedBy });
     run.catalogVersion = kept.version;
     run.spend = s.budget.spend();
@@ -387,6 +425,11 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
           await raise(run, written.questions, null);
           await applyMerges(run, written.merges);
           entries = written.entries.filter(e => sources.includes(e.source));
+          {
+            const base = catalogAt(run.org, run.catalogVersion);
+            entries = await inPlainWords(run, entries, sources,
+              list => rewriteEntries(structuredClone(base), { modules: run.modules, entries: list, questions: asked(id), library: run.library }));
+          }
           // An answer a merge carried onto modules this pass did not write waits for the
           // next one, so no module is marked done without being written (the review).
           const now = new Map(asked(id).map(q => [q.id, q]));

@@ -633,3 +633,57 @@ test("questions the supervisor says ask the same thing are merged: one kept, tou
   assert.ok(latest.modules.find(m => m.id === "db_cluster").open.includes(overlap.id));
 });
 
+
+test("entries in words a developer never reads are written again once, in plain words, before the draft is kept", async () => {
+  const model = scripted();
+  const create = model.client.messages.create;
+  const fixes = [];
+  model.client.messages.create = async params => {
+    const reply = await create(params);
+    if (!params.tools.some(t => t.name === "write_catalog")) return reply;
+    const opening = text(params.messages[0].content);
+    const input = reply.content[0].input;
+    if (opening.includes("words a developer never reads")) {
+      fixes.push(opening.slice(0, opening.indexOf("What the readers found")));
+      for (const e of input.entries) if (e.source === "modules/db") Object.assign(e, { line: "A relational database for your app.", input_lines: { name: "Your app's name." } });
+    } else {
+      for (const e of input.entries) if (e.source === "modules/db") e.line = "A database on RDS in a private subnet.";
+      for (const e of input.entries) if (e.source === "modules/db-cluster") e.line = "The database from staging up.";
+    }
+    return reply;
+  };
+  const service = createDiscoveryService({ client: model.client, readLibrary: readFolder(library()) });
+  const events = [];
+  const started = await service.start({ caller, repos: [{ owner: "acme", repo: "platform" }] });
+  service.subscribe(started.discoveryId, 0, e => e && events.push(e));
+  await service.settled(started.discoveryId);
+
+  assert.equal(fixes.length, 1, "one fix-up call");
+  assert.match(fixes[0], /Write the entries for these modules: modules\/db\./, "only the entries that need it");
+  assert.match(fixes[0], /- modules\/db: line uses RDS/);
+  assert.match(fixes[0], /- modules\/db: line uses subnet/);
+  assert.deepEqual(events.find(e => e.type === "plain_words").sources, ["modules/db"]);
+  const draft = catalogAt("acme", service.get(started.discoveryId).catalog.version);
+  assert.equal(draft.modules.find(m => m.id === "db").line, "A relational database for your app.");
+  const { developerWordProblems } = await import("../core/developer-words.js");
+  assert.deepEqual(developerWordProblems({ ...draft, modules: draft.modules.filter(m => m.availability === "available") }), []);
+});
+
+test("a fix-up that cannot be made keeps the draft as it was, and says so", async () => {
+  const model = scripted();
+  const create = model.client.messages.create;
+  model.client.messages.create = async params => {
+    if (params.tools.some(t => t.name === "write_catalog") && text(params.messages[0].content).includes("words a developer never reads")) throw Object.assign(new Error("bad request"), { status: 400 });
+    const reply = await create(params);
+    if (params.tools.some(t => t.name === "write_catalog")) for (const e of reply.content[0].input.entries) if (e.source === "modules/db") e.line = "Runs on Lambda.";
+    return reply;
+  };
+  const service = createDiscoveryService({ client: model.client, readLibrary: readFolder(library()) });
+  const events = [];
+  const started = await service.start({ caller, repos: [{ owner: "acme", repo: "platform" }] });
+  service.subscribe(started.discoveryId, 0, e => e && events.push(e));
+  await service.settled(started.discoveryId);
+  assert.equal(service.get(started.discoveryId).status, "finished");
+  assert.ok(events.some(e => e.type === "plain_words_not_done"));
+  assert.equal(catalogAt("acme", service.get(started.discoveryId).catalog.version).modules.find(m => m.id === "db").line, "Runs on Lambda.");
+});

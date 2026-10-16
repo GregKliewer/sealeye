@@ -3335,3 +3335,13 @@ answer is being written in goes into a new draft instead of being stuck.
 
 `sealeye catalog approve` now names its catalog, as `live` does, so what is approved is
 the catalog that was tested.
+
+**Words put right once, before the draft is kept** (Greg, Oct 16, 2026, choosing it after
+the grader blocked a draft of the real library on its own variable descriptions: five
+say "subnet", one "Terraform"). Before a draft is kept, and before an answer's rewrite
+is written in, code runs the word check over the entries it is about to keep. Each that
+fails goes back to the supervisor once, told which words in which places, to be written
+again with the same meaning in plain words, with a plain line for each input named. The
+new entries replace the old. Once only: if the call cannot be made, or the words still
+fail, the entries stay as they are and the self-test says what to change. It costs one
+frontier call for just those entries, against the run's cap, and only when it is needed.

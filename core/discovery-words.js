@@ -38,6 +38,10 @@ export function discoveryEventLine(event) {
       return `Draft catalog ${event.catalog?.version} written${event.open ? `, resting on ${plural(event.open, "question", "questions")} not yet answered` : ""}`;
     case "answered":
       return `Answer taken: ${event.question?.answer}`;
+    case "plain_words":
+      return `Writing ${plural((event.sources || []).length, "entry", "entries")} again in plain words: ${(event.sources || []).join(", ")}`;
+    case "plain_words_not_done":
+      return `Could not write ${(event.sources || []).join(", ")} again in plain words: ${event.why}. The self-test will say what to change.`;
     case "merged":
       return `${plural((event.questions || []).length, "question", "questions")} merged into one that asks the same thing`;
     case "answers_used":

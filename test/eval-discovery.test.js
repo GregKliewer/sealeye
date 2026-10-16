@@ -182,10 +182,9 @@ test("graded twice: no answers, then the key's answers at fixed points; each pas
           const questions = source === "modules/work-queue"
             ? [{ kind: "other", question: "Are failed messages kept in every stage?", options: ["Yes", "Only from staging up"], guess: "Yes", evidence: [{ file: "modules/work-queue/README.md", shows: "a dead-letter queue" }] }]
             : [];
-          // A plain line for every input, as the worker's prompt asks where the library's
-          // own description uses cloud terms: the self-test refuses a draft without them.
-          const input_lines = Object.fromEntries(Object.entries(k.inputs || {}).filter(([, v]) => v?.line).map(([n, v]) => [n, v.line]));
-          return { content: [{ type: "tool_use", id: "f", name: "submit_finding", input: { line: k.line, when: k.when || "", signals: k.signals || [], role: k.role || "optional", availability: k.availability === "available" ? "available" : "deprecated", stages: "all", rules: [], questions, input_lines } }], usage };
+          // No input lines of its own: the library's variable descriptions stand, and
+          // some say "subnet" or "Terraform", so the fix-up has to put them right.
+          return { content: [{ type: "tool_use", id: "f", name: "submit_finding", input: { line: k.line, when: k.when || "", signals: k.signals || [], role: k.role || "optional", availability: k.availability === "available" ? "available" : "deprecated", stages: "all", rules: [], questions } }], usage };
         }
         if (tools.includes("submit_library")) return { content: [{ type: "tool_use", id: "l", name: "submit_library", input: { stages: ["dev", "sit", "uat", "staging", "prod"], rules: [], questions: [] } }], usage };
         const sources = opening.match(/Write the entries for these modules: (.+)\./)[1].split(", ");
@@ -194,14 +193,23 @@ test("graded twice: no answers, then the key's answers at fixed points; each pas
         const questions = first
           ? [{ kind: "deprecated", question: "Is cache-valkey the replacement for cache-redis for new apps?", options: ["No, not yet", "Yes"], guess: "No, not yet", touches: ["modules/cache-valkey", "modules/cache-redis"], evidence: [{ file: "modules/cache-redis/README.md", shows: "no cache for new apps until replaced" }] }]
           : [];
-        return { content: [{ type: "tool_use", id: "w", name: "write_catalog", input: { entries: sources.map(s => entryFor(s, asked)), questions } }], usage };
+        // Asked to write entries again in plain words: the key's own lines for every input.
+        const plain = opening.includes("words a developer never reads");
+        if (plain) fixUps += 1;
+        const entries = sources.map(s => ({
+          ...entryFor(s, asked),
+          ...(plain ? { input_lines: Object.fromEntries(Object.entries(words.get(s).inputs || {}).filter(([, v]) => v?.line).map(([n, v]) => [n, v.line])) } : {})
+        }));
+        return { content: [{ type: "tool_use", id: "w", name: "write_catalog", input: { entries, questions: plain ? [] : questions } }], usage };
       }
     }
   };
+  let fixUps = 0;
   const out = dir => path.join(fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-eval-out-")), `${dir}.yaml`);
 
   const none = await runDiscovery(process.env.SEALEYE_SAMPLE_PLATFORM, key, out("none"), { client });
   assert.ok(none.graded.correct, gradeLines(none.graded).join("\n"));
+  assert.equal(fixUps, 1, "the library's own descriptions were written again once, and then the self-test passed");
   assert.deepEqual(none.graded.hardCases.filter(h => h.case.startsWith("must refuse") || h.case === "self-test").map(h => [h.case, h.ok]),
     [["self-test", true], ["must refuse: deprecated", true], ["must refuse: resting on a question", true]]);
 

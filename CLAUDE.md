@@ -397,7 +397,9 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
 - A discovery run (`api/discovery/service.js`) never waits on a person: readers raise
   questions with a guess, and an answer re-writes only the entries it touches, whenever
   it comes. Code, not the model, reads each module's inputs, decides which entries rest
-  on an open question, and applies the questions the supervisor merges (`merges`). A
+  on an open question, and applies the questions the supervisor merges (`merges`).
+  Entries whose words fail the self-test's word check go back to the supervisor once, to
+  be written in plain words, before the draft is kept (`inPlainWords`). A
   run is traced in LangFuse as its shape only (`traceDiscovery`, `traceDiscoveryCall` in
   `core/tracing.js`): workers, files by path and size, tokens, cost, questions by kind;
   never a file, a prompt or a reply. `npm run eval:discovery -- --run --library <clone>`
