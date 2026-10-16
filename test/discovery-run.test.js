@@ -53,7 +53,7 @@ const text = c => (typeof c === "string" ? c : JSON.stringify(c));
  * supervisor's first call waits on; `holdWorker` one the db-cluster worker waits on
  * before it hands in, so a test can answer a question at either moment.
  */
-function scripted({ hold = null, holdWorker = null, deprecated = ["modules/cache"], libraryQuestion = false, looseTouches = false, rewriteQuestion = false, repeat = false, repeatWider = false, repeatLonger = false } = {}) {
+function scripted({ hold = null, holdWorker = null, deprecated = ["modules/cache"], libraryQuestion = false, looseTouches = false, rewriteQuestion = false, repeat = false, repeatWider = false, repeatLonger = false, malformed = false } = {}) {
   const calls = [];
   const seen = { results: [] };
   const create = async params => {
@@ -81,7 +81,15 @@ function scripted({ hold = null, holdWorker = null, deprecated = ["modules/cache
         rules: [{ rule: `Read from ${source}'s README.`, evidence: { file: `${source}/README.md`, shows: "says so" } }],
         questions: source === "modules/cache"
           ? [{ kind: "deprecated", question: "Is the cache still offered to anyone?", options: ["No", "Yes, to old apps"], guess: "No", evidence: [{ file: "modules/cache/README.md", shows: "says deprecated" }] }]
-          : []
+          : malformed && source === "modules/db"
+            // What a model may send despite the tool's schema: one value where a list
+            // goes, and a question with no words at all.
+            ? [
+                { kind: "other", question: "Is the db for dev only?", options: "Yes", guess: "Yes", touches: "modules/db", evidence: "the README says dev only" },
+                { kind: "other", question: 7, options: ["A"] },
+                null
+              ]
+            : []
       };
       return { content: [{ type: "tool_use", id: "f", name: "submit_finding", input: finding }], stop_reason: "tool_use", usage };
     }
@@ -546,6 +554,21 @@ test("a question asked again in many more words, naming one more module, widens 
   const onCache = service.questions(discoveryId).filter(q => q.touches.includes("modules/cache"));
   assert.deepEqual(onCache.map(q => q.question), ["Is the cache still offered to anyone?"]);
   assert.deepEqual(onCache[0].touches, ["modules/cache", "modules/db"]);
+});
+
+test("a question in the wrong shape is put right or left out, never the module it came from (Greg's run, Oct 16)", async () => {
+  const model = scripted({ malformed: true });
+  const service = createDiscoveryService({ client: model.client, readLibrary: readFolder(library()) });
+  const { discoveryId } = await service.start({ caller, repos: [{ owner: "acme", repo: "platform" }] });
+  await service.settled(discoveryId);
+  const db = service.get(discoveryId).modules.find(m => m.source === "modules/db");
+  assert.equal(db.status, "read");
+  const fromDb = service.questions(discoveryId).filter(q => q.touches.length === 1 && q.touches[0] === "modules/db");
+  assert.equal(fromDb.length, 1, "the question with no words is left out");
+  assert.equal(fromDb[0].question, "Is the db for dev only?");
+  assert.deepEqual(fromDb[0].options, ["Yes"]);
+  assert.deepEqual(fromDb[0].touches, ["modules/db"]);
+  assert.deepEqual(fromDb[0].evidence, [{ file: "", shows: "the README says dev only" }]);
 });
 
 test("a question asked again after it was answered is dropped: the answer stands (Greg's run, Oct 15)", async () => {
