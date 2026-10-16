@@ -17,8 +17,8 @@ For each module you are asked to write:
 - A plain line for each input that has none, or whose description uses cloud terms.
 
 Words a developer reads (`line`, `when`, `signals`, input lines) are plain: what it gives
-their app, never how the cloud provider builds it. No product or service names of the
-cloud provider, no em dashes, no sizes, counts or capacity numbers.
+their app, never how the cloud provider builds it. They follow one rule:
+{{plain_words}}
 
 Answers: a question that has an answer is settled by it. Write the entry as the answer
 says, even where a reader guessed otherwise. A question with no answer yet is settled by

@@ -295,5 +295,5 @@ request.
 | **A new account per customer, and a paid run** (D2) | The first customer run. |
 | **The Bedrock route** (Phase 3 Step 8) | When the account has model access; then an organization's code can stay in its own account. |
 | **Admin onboarding** (identity provider, repositories, which automation is strategic) | With Phase 5's Cognito sign-in, since both need an organization's administrator. Until then the platform team names repositories in a setting. |
-| **The discovery screens' rough edges** (Greg, Oct 16) | Right after Step 7, as a step of its own, once approving and making live are on both surfaces: one pass over the whole flow. |
+| **The discovery screens' rough edges** (Greg, Oct 16) | Built Oct 16, 2026, with Q21's rule for platform words (DESIGN.md, "What a platform term is" and "The discovery screens' rough edges"). |
 | **Public module libraries at scale** | After Step 7, for cost caps and scale; no answer key, checked by hand. |

@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { isBuildable, starterCatalog } from "../core/catalog.js";
-import { developerWordProblems, forbiddenWord } from "../core/developer-words.js";
+import { developerWordProblems, forbiddenWord, forbiddenWords, plainWordsRule, shownWord } from "../core/developer-words.js";
 import { draftCatalog } from "../api/discovery/draft.js";
 import { planNaming, selfTest } from "../api/self-test.js";
 import { checkAgainst } from "../api/validate.js";
@@ -105,16 +105,16 @@ test("a malformed catalog fails on its shape and nothing else is tried", () => {
   assert.deepEqual(result.checks.map(c => c.id), ["shape"]);
 });
 
-test("the cloud's names and sizes are found; plain words are not", () => {
+test("product names, one cloud's nouns and sizes are found; words every cloud uses are not (Q21)", () => {
   for (const [text, term] of [
     ["Runs on Lambda.", "Lambda"],
     ["Keeps files in an S3 bucket.", "S3"],
     ["Alarms go to an SNS topic.", "SNS"],
-    ["Lives in a private subnet.", "subnet"],
     ["Built with Terraform.", "Terraform"],
+    ["Built with OpenTofu.", "OpenTofu"],
     ["Only in ca-central-1.", "a region's name"],
-    ["Two availability zones.", "availability zone"],
     ["Sends logs to a log group.", "log group"],
+    ["Behind a security group.", "security group"],
     ["Runs 3 replicas.", "a count of machines"],
     ["Holds 20 GiB.", "a size"],
     ["A cache.r6g.large node.", "a machine size"]
@@ -124,8 +124,32 @@ test("the cloud's names and sizes are found; plain words are not", () => {
     "A queue your app puts work on, and a worker takes it from.",
     "A relational database for your app, below staging.",
     "Keeps logs for as long as your organization requires.",
-    "A lambda function in your own code is fine as an idea, not a product.".replace("lambda", "small")
+    "Lives in a private subnet, in one region.",
+    "Keeps files in a bucket, behind a load balancer.",
+    "Spread across each availability zone.",
+    "Runs in a Virtual Private Cloud (VPC).",
+    "Runs on Kubernetes, from a Docker image."
   ]) assert.equal(forbiddenWord(text), null, text);
+});
+
+test("an acronym is spelled out in the same line, and a setting is said as what it does (Q21)", () => {
+  const said = t => forbiddenWords(t).map(w => [w.kind, w.found, w.instead]);
+  assert.deepEqual(said("Runs in a VPC."), [["acronym", "VPC", "Virtual Private Cloud (VPC)"]]);
+  assert.deepEqual(said("One per AZ."), [["acronym", "AZ", "Availability Zone (AZ)"]]);
+  assert.deepEqual(said("A multi-AZ database."), [["setting", "multi-AZ", "keeps running if one data centre fails"]]);
+  assert.deepEqual(said("Spread over two availability zones."), [["setting", "two availability zones", "keeps running if one data centre fails"]]);
+  assert.deepEqual(said("Multi-region, with read replicas."), [
+    ["setting", "Multi-region", "must survive a regional disaster"],
+    ["setting", "read replicas", "handles heavy reading"]
+  ]);
+  assert.deepEqual(said("Pick the instance class."), [["setting", "instance class", "set by a load test"]]);
+  // A number with it is a capacity number, not a setting.
+  assert.deepEqual(said("3000 IOPS."), [["size", "3000 IOPS", undefined]]);
+  assert.equal(shownWord(forbiddenWord("A multi-AZ database.")), '"multi-AZ" (write "keeps running if one data centre fails")');
+  assert.equal(shownWord(forbiddenWord("Runs in a VPC.")), '"VPC" (write "Virtual Private Cloud (VPC)")');
+  // The rule the models are told is the one the check holds.
+  assert.match(plainWordsRule(), /"Virtual Private Cloud \(VPC\)"/);
+  assert.match(plainWordsRule(), /multi-AZ: "keeps running if one data centre fails"/);
 });
 
 test("the word check reads every place a developer reads, and nothing else", () => {

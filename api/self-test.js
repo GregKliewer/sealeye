@@ -49,8 +49,8 @@ function wordFixes(document, byPlace) {
   const modules = new Map((document.modules || []).map(m => [m.id, m]));
   const fixes = [];
   const unfixable = [];
-  for (const [where, { module, cloud, size }] of byPlace) {
-    const words = [...cloud, ...size];
+  for (const [where, { module, cloud, setting, acronym, size }] of byPlace) {
+    const words = [...cloud, ...setting, ...acronym, ...size];
     const entry = module ? modules.get(module) : null;
     const field = entry && where.startsWith(`${module}: `) ? fieldForPlace(where.slice(module.length + 2)) : null;
     const f = field ? editableFieldsOf(entry).find(x => x.field === field) : null;
@@ -106,12 +106,14 @@ export function selfTest({ document, version, questionText = () => null }) {
   // One problem a place, naming every word in it, so one fix finds them all.
   const byPlace = new Map();
   for (const p of developerWordProblems(offered)) {
-    if (!byPlace.has(p.where)) byPlace.set(p.where, { module: p.module || null, cloud: [], size: [] });
+    if (!byPlace.has(p.where)) byPlace.set(p.where, { module: p.module || null, cloud: [], setting: [], acronym: [], size: [] });
     byPlace.get(p.where)[p.kind].push(shownWord(p));
   }
   const and = list => (list.length < 2 ? list.join("") : `${list.slice(0, -1).join(", ")} and ${list.at(-1)}`);
-  const words = [...byPlace].flatMap(([where, { cloud, size }]) => [
+  const words = [...byPlace].flatMap(([where, { cloud, setting, acronym, size }]) => [
     ...(cloud.length ? [`${where} says ${and(cloud)}, words a developer never reads; say what it does for their app`] : []),
+    // A setting or an acronym carries what to write instead, in its own words (Q21).
+    ...([...setting, ...acronym].length ? [`${where} says ${and([...setting, ...acronym])}`] : []),
     ...(size.length ? [`${where} gives ${and(size)}; a developer reads "set by a load test" instead`] : [])
   ]);
 

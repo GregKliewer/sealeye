@@ -41,6 +41,9 @@ export const DEFAULT_RUN_CAP = 3;
 const MAX_PARALLEL = 4;
 const QUESTION_KINDS = ["overlap", "deprecated", "contradiction", "other"];
 
+// Words that say nothing about what a question asks, left out when two are compared.
+const QUESTION_FILLER = new Set(["which", "what", "when", "where", "with", "from", "this", "that", "these", "those", "should", "would", "does", "there", "their", "they", "them", "have", "been", "being", "into", "about", "each", "every", "some", "other", "still"]);
+
 const capSetting = (name, fallback) => {
   const v = setting(name);
   if (v === undefined) return fallback;
@@ -206,18 +209,25 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
    * nearly the same words, even if it names one more (the third measured run). Answered
    * questions count too: the answer settles it, and asking again after someone answered
    * put the same question in front of them twice (Greg's run, Oct 15, 2026).
+   *
+   * Asked about the same module, the shorter question's words are what count: the
+   * supervisor asks again what a reader asked, in more words, and against every word of
+   * both the share fell below the line (the postgres stages question, asked twice in
+   * both passes of Greg's run, Oct 16, 2026). At least two words in common, so two
+   * short questions on one module are not the same for one word.
    */
   function repeats(q, existing) {
-    const words = t => new Set(String(t).toLowerCase().match(/[a-z0-9]+/g)?.filter(w => w.length > 3) || []);
+    const words = t => new Set(String(t).toLowerCase().match(/[a-z0-9]+/g)?.filter(w => w.length > 3 && !QUESTION_FILLER.has(w)) || []);
     const mine = words(q.question);
     return existing.find(e => {
       const theirs = words(e.question);
       const shared = [...mine].filter(w => theirs.has(w)).length;
       const overlap = shared / Math.max(1, new Set([...mine, ...theirs]).size);
+      const withinShorter = shared / Math.max(1, Math.min(mine.size, theirs.size));
       const covered = q.touches.length ? q.touches.every(t => (e.touches || []).includes(t)) : !(e.touches || []).length;
       // Asked about the same module in mostly the same words, even naming one more.
       const sharesOne = q.touches.some(t => (e.touches || []).includes(t));
-      if (sharesOne && overlap >= 0.6) return true;
+      if (sharesOne && shared >= 2 && withinShorter >= 0.6) return true;
       if (!covered) return false;
       // "other" is a catch-all, so only the words can say two of those are the same.
       return (e.kind === q.kind && q.kind !== "other") || overlap >= 0.4;
@@ -365,14 +375,14 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
     const lines = problems.map(p => {
       const place = p.where.slice(p.where.indexOf(": ") + 2);
       const input = place.startsWith("input ") ? place.slice(6) : null;
-      return `${sourceOf.get(p.module)}: ${place} uses ${p.term}${textAt.has(p.where) ? ` (now: "${String(textAt.get(p.where)).replace(/\s+/g, " ").slice(0, 200)}")` : ""}${input ? `; write input_lines.${input}` : ""}`;
+      return `${sourceOf.get(p.module)}: ${place} uses ${p.instead ? `"${p.found}"; write "${p.instead}" in its place` : p.term}${textAt.has(p.where) ? ` (now: "${String(textAt.get(p.where)).replace(/\s+/g, " ").slice(0, 200)}")` : ""}${input ? `; write input_lines.${input}` : ""}`;
     });
     emit(run.id, { type: "plain_words", sources: again });
     const s = state(run.id);
     try {
       const written = await superviseEntries({
         clientFor: clientFor(run), credentialIsGateway: viaGateway(), budget: s.budget, org: run.orgName,
-        modules: run.modules, library: run.library, questions: asked(run.id), sources: again, plainWords: { lines, terms: [...new Set(problems.map(p => p.term))] }
+        modules: run.modules, library: run.library, questions: asked(run.id), sources: again, plainWords: { lines, terms: [...new Set(problems.filter(p => !p.instead).map(p => p.term))] }
       });
       const fresh = new Map((written.entries || []).filter(e => again.includes(e.source)).map(e => [e.source, e]));
       traceEvent("plain words", { entries: fresh.size, words: problems.length });

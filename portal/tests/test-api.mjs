@@ -159,6 +159,15 @@ fs.writeFileSync(path.join(home, "catalogs.json"), JSON.stringify([{
     ],
     need_kinds: starter.need_kinds, profiles: starter.profiles
   }
+}, {
+  // An earlier draft no run on the page wrote: its words are reached from the Catalogs card.
+  org: "default", version: 2, status: "draft", createdBy: "lead@example.com", createdAt: ago(7200_000), approvedBy: null, approvedAt: null,
+  document: {
+    catalogVersion: "discovery-dsc_0000000000000000",
+    discovery: { run: "dsc_0000000000000000", library: [{ repo: "northwind/platform-library", commit: "4d52bb4".padEnd(40, "0") }] },
+    modules: [draftModule("work_queue", "modules/work-queue", { line: "A queue your app puts work on, kept with Terraform." })],
+    need_kinds: starter.need_kinds, profiles: starter.profiles
+  }
 }]));
 const runModules = ["modules/cache-redis", "modules/cache-valkey", "modules/postgres"].map(source => ({
   source, id: source.split("/").pop().replace(/-/g, "_"), repo: 0, hash: "0", status: "read",

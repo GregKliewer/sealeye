@@ -122,9 +122,14 @@ in `core/` or behind an endpoint.
    a record, from a file seaLeye wrote, or from AWS at the moment of generation. A value
    that could not be read says so in words and is never guessed or left as a dash.
 8. **Plain language.** Every CLI step prints one plain-language line of what the
-   platform is doing. Developers see no AWS terms in the interview, no em dashes, and
-   no sizes, counts or capacity numbers in any plan, card or file: capacity is "set by
-   a load test", always.
+   platform is doing. Developers see no product or trademark names (Lambda, Terraform)
+   and no one cloud's own nouns (log group), no em dashes, and no sizes, counts or
+   capacity numbers in any plan, card or file: capacity is "set by a load test",
+   always. Words every cloud uses the same way are fine (subnet, region, bucket), as are
+   Kubernetes and Docker; an acronym is spelled out in the same line ("Virtual Private
+   Cloud (VPC)"); a configuration choice is said as what it does for the app ("keeps
+   running if one data centre fails", never "multi-AZ"). `core/developer-words.js`
+   holds the rule (DESIGN.md, "What a platform term is").
 9. **Developers deploy to dev.** The profile describes what the plan is designed for;
    promotion to later stages goes through the organization's pipeline and approvals.
 10. **Never hard-code an organization.** The org name comes from `ORG=` in
@@ -202,7 +207,7 @@ while any environment of the organization runs on a module it would not build (4
 CATALOG_IN_USE, `api/catalog-use.js`). The self-test is plain code: the catalog's shape,
 no question about the whole catalog open, a plan for each module that must be refused
 refused and one for each it builds accepted (by the same check as POST
-/plans/validate), and no cloud term, size or count in the words a developer reads
+/plans/validate), and no product name, unspelled acronym, setting, size or count in the words a developer reads
 (`core/developer-words.js`). A deploy whose plan names a replaced
 catalog that no longer builds a module it uses is refused with 409 CATALOG_CHANGED. The
 command draws its card and DEPLOYMENT_PLAN.md from `GET /catalog?version=`, never its
@@ -377,10 +382,12 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   folder chosen in the browser), Control (state, deploy again, tear down,
   pause, settings, configure, history, plan and report, performance, logs, evidence), Validate (check a plan, and deploy a ready one with the
   code the platform has), Catalog (modules and the needs ledger), Costs, Team, Health,
-  and Discovery (Edit words on its draft, and its Catalogs card: the self-test, Fix what
-  blocks approval, Approve,
+  and Discovery (Edit words on its draft, and its Catalogs card: the self-test, Edit
+  words on any other draft, Fix what blocks approval, Approve,
   Make live), shown only
-  to an organization-wide token. Integrations is
+  to an organization-wide token. Costs and the Settings card are shown only to an
+  organization whose settings and costs are kept (`hasSettingsAndCosts` in
+  `core/token.js`); the header names the token's own organization. Integrations is
   drawn in the archived mock-up only (Phase 5); the portal shows nothing it cannot do.
 
 ## Working here

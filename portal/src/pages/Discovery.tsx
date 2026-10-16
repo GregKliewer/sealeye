@@ -177,7 +177,7 @@ function Discovery() {
 
       {draft ? <DraftTable draft={draft} version={run?.catalog?.version} questions={questions} tick={tick} onChanged={() => setTick(t => t + 1)} /> : null}
 
-      <CatalogsCard tick={tick} />
+      <CatalogsCard tick={tick} runDraft={draft ? run?.catalog?.version : undefined} />
 
       {answered.length ? (
         <Card className="mt-8">
@@ -262,8 +262,11 @@ function QuestionCard({ runId, q, onAnswered }: { runId: string; q: DiscoveryQue
   );
 }
 
-function DraftTable({ draft, version, questions, tick, onChanged }: { draft: DraftCatalog; version?: number; questions: DiscoveryQuestion[]; tick: number; onChanged: () => void }) {
-  const openIds = new Set(questions.filter(isOpen).map(q => q.id));
+function DraftTable({ draft, version, questions, tick, onChanged }: { draft: DraftCatalog; version?: number; questions: DiscoveryQuestion[] | null; tick: number; onChanged: () => void }) {
+  // Without its run's questions (a draft read by its version), a question an entry rests
+  // on is taken as open: the draft is rewritten when one is answered.
+  const isOpenId = (id: string) => (questions ? questions.some(q => q.id === id && isOpen(q)) : true);
+  const openIds = { has: isOpenId };
   const catalogOpen = (draft.discovery?.open || []).filter(id => openIds.has(id));
   // Only a draft's words can be changed: once approved, a catalog is as it was tested.
   const [status, setStatus] = useState<string | null>(null);
@@ -307,7 +310,7 @@ function DraftTable({ draft, version, questions, tick, onChanged }: { draft: Dra
                 </TableRow>
                 {editable && editing === m.id ? (
                   <TableRow data-testid="edit-panel">
-                    <TableCell colSpan={5}><EditWords key={JSON.stringify(editableFieldsOf(m))} version={version!} module={m} onChanged={onChanged} /></TableCell>
+                    <TableCell colSpan={5}><EditWords key={m.id} version={version!} module={m} onChanged={onChanged} /></TableCell>
                   </TableRow>
                 ) : null}
                 </Fragment>
@@ -320,11 +323,25 @@ function DraftTable({ draft, version, questions, tick, onChanged }: { draft: Dra
   );
 }
 
+/** A draft that is not the latest run's, read by its version, with its words to edit. */
+function OtherDraft({ version, tick, onChanged }: { version: number; tick: number; onChanged: () => void }) {
+  const [document, setDocument] = useState<DraftCatalog | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    api.catalogVersion(version).then(r => live && setDocument(r.document)).catch(err => live && setProblem(err instanceof ApiError ? err.message : String(err)));
+    return () => { live = false; };
+  }, [version, tick]);
+  if (problem) return <div className="mt-4"><Problem message={problem} /></div>;
+  if (!document) return null;
+  return <div data-testid="other-draft"><DraftTable draft={document} version={version} questions={null} tick={tick} onChanged={onChanged} /></div>;
+}
+
 /**
  * The organization's catalogs: which is live, each one's status, its self-test, and the
  * next step for each: approve a draft, make an approved or retired one live.
  */
-function CatalogsCard({ tick }: { tick: number }) {
+function CatalogsCard({ tick, runDraft }: { tick: number; runDraft?: number }) {
   const [list, setList] = useState<{ live: { version: number | "starter"; source: string }; catalogs: CatalogSummary[] } | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [mine, setMine] = useState(0);
@@ -334,6 +351,9 @@ function CatalogsCard({ tick }: { tick: number }) {
   const [confirming, setConfirming] = useState<number | null>(null);
   // The walk through what blocks a draft's approval, and the self-test it starts from.
   const [fixing, setFixing] = useState<{ version: number; first?: SelfTest } | null>(null);
+  // Any draft's words, as `sealeye catalog edit <v>` reaches any draft; the latest run's
+  // draft is already on the page above (Greg, Oct 16, 2026).
+  const [wording, setWording] = useState<number | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -389,6 +409,9 @@ function CatalogsCard({ tick }: { tick: number }) {
                     <TableCell className="text-sm text-dim">{catalogSummaryWords(x)}</TableCell>
                     <TableCell className="text-right whitespace-nowrap">
                       <Button size="sm" variant="ghost" onClick={() => act(x.version, "test")} disabled={busy !== null}>{label("catalog-test")}</Button>
+                      {x.status === "draft" && x.version !== runDraft ? (
+                        <Button size="sm" variant="ghost" className="ml-2" onClick={() => setWording(wording === x.version ? null : x.version)} disabled={busy !== null} data-testid="catalog-edit-words">{wording === x.version ? "Close" : label("catalog-edit")}</Button>
+                      ) : null}
                       {x.status === "draft" ? (
                         <Button size="sm" variant="ghost" className="ml-2" onClick={() => { setShown(null); setConfirming(null); setFixing({ version: x.version }); }} disabled={busy !== null} data-testid="catalog-fix">{label("catalog-fix")}</Button>
                       ) : null}
@@ -419,6 +442,9 @@ function CatalogsCard({ tick }: { tick: number }) {
             <span className="text-sm">{FIX_OFFER}</span>
             <Button size="sm" onClick={() => { const { version, result } = shown; setShown(null); setFixing({ version, first: result }); }} data-testid="fix-offer-yes">{label("catalog-fix")}</Button>
           </div>
+        ) : null}
+        {wording !== null && list.catalogs.some(x => x.version === wording && x.status === "draft") ? (
+          <OtherDraft key={wording} version={wording} tick={tick + mine} onChanged={() => setMine(n => n + 1)} />
         ) : null}
         {fixing ? (
           <FixWalk key={fixing.version} version={fixing.version} first={fixing.first} onChanged={() => setMine(n => n + 1)} onClose={() => setFixing(null)} />
@@ -466,6 +492,14 @@ function SelfTestResult({ version, result, message, done }: { version: number; r
 function EditWords({ version, module, onChanged }: { version: number; module: DraftModule; onChanged: () => void }) {
   const fields = editableFieldsOf(module) as { field: string; label: string; text: string }[];
   const [texts, setTexts] = useState<Record<string, string>>(() => Object.fromEntries(fields.map(f => [f.field, f.text])));
+  // The boxes refill when the entry beneath them changes (a save read back, a late
+  // answer's rewrite), so stale words are never saved back as a person's. The panel
+  // stays mounted, so the self-test a save just ran stays shown (it was lost when the
+  // panel was remounted on every change, and GitHub's runner caught it).
+  const fieldsNow = JSON.stringify(fields.map(f => [f.field, f.text]));
+  useEffect(() => {
+    setTexts(Object.fromEntries((JSON.parse(fieldsNow) as [string, string][])));
+  }, [fieldsNow]);
   const [busy, setBusy] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [result, setResult] = useState<SelfTest | null>(null);

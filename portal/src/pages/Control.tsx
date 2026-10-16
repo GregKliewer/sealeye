@@ -17,6 +17,7 @@ import { PageTitle, Problem } from "../Layout";
 import { Address } from "../Address";
 import { Cmd, CommandHint } from "../Command";
 import { commandLine, label } from "../../../core/operations.js";
+import { hasSettingsAndCosts } from "../../../core/token.js";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -173,7 +174,7 @@ export function Control() {
         </Card>
       </div>
 
-      {latest.kind !== "static" ? <Settings app={env.app} team={latest.teamId || "default"} moving={moving} /> : null}
+      {latest.kind !== "static" && hasSettingsAndCosts(person ?? {}) ? <Settings app={env.app} team={latest.teamId || "default"} moving={moving} /> : null}
 
       {latest.kind !== "static" && code && ownTeam ? (
         <Configure app={env.app} fromDeployment={code.deploymentId} locked={locked} onDone={deployments.reload} />
