@@ -13,6 +13,7 @@ import YAML from "yaml";
 
 import { abandonInterview, answerInterview, followInterview, startInterview } from "../cli/client.js";
 import { freePort } from "./helpers/free-port.js";
+import { answerModel } from "./helpers/model-reply.js";
 
 const root = path.resolve(import.meta.dirname, "..");
 const ENV_SECRET = "sk-live-from-the-dotenv-file";
@@ -40,20 +41,15 @@ before(async () => {
       calls.push({ key: req.headers["x-api-key"], body });
       // An app that would read forever, each reply costing $0.40: the cap stops it.
       if (body.includes("looping-site")) {
-        res.writeHead(200, { "content-type": "application/json" });
-        res.end(JSON.stringify({
-          id: `msg_${calls.length}`, type: "message", role: "assistant", model: "claude-sonnet-5",
+        answerModel(res, {
+          id: `msg_${calls.length}`,
           usage: { input_tokens: 200_000, output_tokens: 0 }, stop_reason: "tool_use",
           content: [toolUse(`l${calls.length}`, "list_files", { path: "." })]
-        }));
+        }, body);
         return;
       }
       const turn = turns[calls.length - 1] || { content: [{ type: "text", text: "Done." }], stop_reason: "end_turn" };
-      res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({
-        id: `msg_${calls.length}`, type: "message", role: "assistant", model: "claude-sonnet-5",
-        usage: { input_tokens: 100, output_tokens: 10 }, ...turn
-      }));
+      answerModel(res, { id: `msg_${calls.length}`, usage: { input_tokens: 100, output_tokens: 10 }, ...turn }, body);
     });
   });
   await new Promise(r => model.listen(0, "127.0.0.1", r));

@@ -330,6 +330,10 @@ Keep existing endpoints and commands working; add, do not break.
   `spending_limit` and `spendingLimitWords`, so it can go past the cap by one reply.
   A model with no price never starts (503 MODEL_NOT_PRICED). `release.sh` warns when
   the prices were checked more than 90 days ago.
+- Every model call, the interview's and discovery's, streams its reply (`askModel` in
+  `api/interview/model.js`): it waits up to 120 s for the reply to start, and then gives
+  up only when the model goes quiet for 60 s, never on the reply's length; either is
+  retried once. Through the gateway, a streamed call carries its signed token too.
 - At most four questions, one per turn, in developer language. Look at the folder
   before asking anything the folder can answer.
 - The submitted plan goes to POST /plans/validate; errors go back to the model; two

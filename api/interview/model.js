@@ -16,9 +16,14 @@ import { spendingLimitWords } from "../../core/model-prices.js";
 export const DEFAULT_MODEL = "claude-sonnet-5";
 
 export const MAX_TOKENS = 16000;
-// The SDK's default is ten minutes. A turn that writes a whole plan after a correction
-// is the slowest one, so leave room for it: 120 s, retried once.
+// How long to wait for the model to start answering: 120 s, retried once. Its reply is
+// streamed (`askModel`), so a long reply is not cut off by this: once it has started,
+// what ends it is silence (IDLE_MS), not length (Greg, Oct 16, 2026, after a plan
+// against Juniper Mutual's catalog took longer than two minutes to write, every time).
 const TIMEOUT_MS = 120_000;
+// How long the model may go quiet in the middle of a reply before the turn is given up
+// and retried. A streamed reply sends something every few seconds while it is working.
+export const IDLE_MS = 60_000;
 // What the retry calls a long wait. A dropped connection comes back in well under a
 // second, so a retry after this much silence is worth saying out loud.
 const SLOW_MS = 30_000;
@@ -310,7 +315,39 @@ function asUserFacing(err) {
  * sentence rather than a stack. One generation in the trace per turn, retry included;
  * the trace sees the shape of the conversation, never its contents (core/tracing.js).
  */
-export async function createWithOneRetry(client, params, onStep, turn = 0, { traceAs = "interview" } = {}) {
+/**
+ * One model call, its reply streamed and returned whole, as `messages.create` would
+ * return it. Streamed so a long reply is never cut off by a limit on the whole call: it
+ * is given up only when the model goes quiet for IDLE_MS, as a timeout, which is
+ * retried like any other. A client without `messages.stream` (a test's stand-in) is
+ * called the old way.
+ */
+export async function askModel(client, params, { idleMs = IDLE_MS } = {}) {
+  if (typeof client?.messages?.stream !== "function") return client.messages.create(params);
+  const controller = new AbortController();
+  let quiet = false;
+  let timer;
+  const wait = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      quiet = true;
+      controller.abort();
+    }, idleMs);
+  };
+  wait();
+  try {
+    const stream = client.messages.stream(params, { signal: controller.signal });
+    stream.on("streamEvent", wait);
+    return await stream.finalMessage();
+  } catch (err) {
+    if (quiet) throw new Anthropic.APIConnectionTimeoutError({ message: `the model sent nothing for ${Math.round(idleMs / 1000)} s` });
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function createWithOneRetry(client, params, onStep, turn = 0, { traceAs = "interview", idleMs = IDLE_MS } = {}) {
   // Discovery records its own generation, with no reply in it (core/tracing.js,
   // traceDiscoveryCall), so the interview's, which records the model's text, is not made.
   const traced = traceAs === "interview"
@@ -319,7 +356,7 @@ export async function createWithOneRetry(client, params, onStep, turn = 0, { tra
   return traced(async traced => {
     const startedAt = Date.now();
     try {
-      return await client.messages.create(params);
+      return await askModel(client, params, { idleMs });
     } catch (err) {
       if (!isRetryable(err)) throw asUserFacing(err);
       traced.retried(err);
@@ -337,7 +374,7 @@ export async function createWithOneRetry(client, params, onStep, turn = 0, { tra
       }
 
       try {
-        return await client.messages.create(params);
+        return await askModel(client, params, { idleMs });
       } catch (retryErr) {
         throw asUserFacing(retryErr);
       }

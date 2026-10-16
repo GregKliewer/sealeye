@@ -3599,3 +3599,26 @@ saving it did not expect.
 - **Why a module was not read is kept, as a kind only**: the error's class and any
   status, never its message, in the run's trace (`not read`) and on the `not_read`
   event, which the eval prints. What a person reads stays the same sentence.
+
+## A model reply is streamed, and ends on silence, not on length
+
+Fri Oct 16, 2026, Greg, choosing it over a longer limit or fewer words in the catalog.
+Against Juniper Mutual's catalog, the interview's plan for the payment events processor
+took longer than two minutes to write, in three runs out of three: once it finished
+with about 11,000 tokens of output, once the connection dropped twice, once it timed out
+twice. A developer at Juniper running `sealeye run` on such an app would have met the
+same wall.
+
+- **Every model call streams its reply** (`askModel` in `api/interview/model.js`), the
+  interview's and discovery's alike, and returns it whole, as before. It waits up to
+  120 s for the reply to start; once it has, it gives up only when the model sends
+  nothing for 60 s (`IDLE_MS`). A long reply that keeps coming is never cut off. Giving
+  up is a timeout, retried once, as any other.
+- **The gateway's token rides on a streamed call too** (`withCallerToken`), so the
+  gateway still knows who made it.
+- **To check on the server after release:** that the gateway's record of calls
+  (`deploy/server.sh gateway-calls`) still shows tokens and cost for streamed calls,
+  whose counts arrive in the reply's last events. Not checked here: the tests use a
+  stand-in model, not the gateway.
+- Not done here, and still worth doing: finding why this plan is so long (Juniper's
+  postgres entry saying two things is the likeliest reason).

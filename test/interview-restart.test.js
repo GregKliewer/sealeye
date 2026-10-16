@@ -14,6 +14,7 @@ import YAML from "yaml";
 import { answerInterview, followInterview, startInterview } from "../cli/client.js";
 import { freshDatabase, pgAvailable } from "./helpers/pg.js";
 import { freePort } from "./helpers/free-port.js";
+import { answerModel } from "./helpers/model-reply.js";
 
 const root = path.resolve(import.meta.dirname, "..");
 const plan = YAML.parse(fs.readFileSync(path.join(root, "plans", "static-plan.yaml"), "utf8"));
@@ -32,8 +33,7 @@ test("an interview paused at a question resumes after the API restarts", { skip:
     req.on("end", () => {
       calls.push(body);
       const turn = turns[calls.length - 1] || { content: [{ type: "text", text: "Done." }], stop_reason: "end_turn" };
-      res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({ id: `m${calls.length}`, type: "message", role: "assistant", model: "claude-sonnet-5", usage: { input_tokens: 1, output_tokens: 1 }, ...turn }));
+      answerModel(res, { id: `m${calls.length}`, usage: { input_tokens: 1, output_tokens: 1 }, ...turn }, body);
     });
   });
   await new Promise(r => model.listen(0, "127.0.0.1", r));
