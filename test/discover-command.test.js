@@ -142,6 +142,18 @@ test("the window above a question moves on its own, and what is done with stays 
   assert.match(written, /\x1b\[\d+A/, "the window is taken off the screen it was drawn on");
 });
 
+test("the window is a box: every edge the same width, whatever is inside it", async () => {
+  const { boxed } = await import("../cli/discover-screen.js");
+  const colour = t => `\x1b[38;2;1;2;3m${t}\x1b[0m`;
+  const box = boxed({ width: 60, title: colour("Discovery"), right: colour("3m 12s so far"), rows: [colour("⠋ Reading modules/a"), "", "Read modules/b"], footer: "6 of 6 modules read" });
+  const plain = box.map(l => l.replace(/\x1b\[[0-9;]*m/g, ""));
+  for (const line of plain) assert.equal([...line].length, 60, `"${line}" is the box's width`);
+  assert.match(plain[0], /^╭─ Discovery ─+ 3m 12s so far ─╮$/);
+  assert.match(plain[1], /^│ ⠋ Reading modules\/a +│$/);
+  assert.match(plain.at(-1), /^╰─ 6 of 6 modules read ─+╯$/);
+  assert.match(boxed({ width: 30 }).at(-1), /^╰─+╯$/, "an edge with nothing in it is a plain line");
+});
+
 test("both surfaces count a run's progress from its events, not a module's own status", async () => {
   const { nextProgress, activityWords, elapsedWords, progressSummary, modulesDone } = await import("../core/discovery-words.js");
   let p = nextProgress(null, null);

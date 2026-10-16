@@ -22,6 +22,30 @@ export const fitText = (text, width) => {
   return t.length > width ? `${t.slice(0, Math.max(1, width - 1))}…` : t;
 };
 
+/** Plain text padded with spaces to `width` visible characters, colours left out of the count. */
+const padTo = (text, width) => `${text}${" ".repeat(Math.max(0, width - visible(text).length))}`;
+
+/**
+ * A box drawn with lines on all four sides, so the window reads as one thing apart from
+ * the questions under it (Greg, Oct 15, 2026). `title` and `right` sit in the top edge,
+ * `footer` in the bottom one; `rows` are the lines inside, already fitted to the width.
+ * `edge` colours the lines. `width` is the whole box, edges included.
+ */
+export function boxed({ title = "", right = "", rows = [], footer = "", width = 80, edge = s => s }) {
+  const inner = Math.max(10, width - 4);
+  // An edge: its corners, a dash, the words with a space each side, and dashes to fill.
+  const rule = (left, label, tail, close) => {
+    const fixed = 4 + (label ? visible(label).length + 2 : 0) + (tail ? visible(tail).length + 2 : 0);
+    const fill = "\u2500".repeat(Math.max(1, width - fixed));
+    return `${edge(`${left}\u2500`)}${label ? ` ${label} ` : ""}${edge(fill)}${tail ? ` ${tail} ` : ""}${edge(`\u2500${close}`)}`;
+  };
+  return [
+    rule("\u256d", title, right, "\u256e"),
+    ...rows.map(row => `${edge("\u2502")} ${padTo(row, inner)} ${edge("\u2502")}`),
+    rule("\u2570", footer, "", "\u256f")
+  ];
+}
+
 /** Ctrl+C at the screen: the run goes on without this terminal. */
 export const stopped = () => Object.assign(new Error("Stopped. The run goes on: sealeye discover answers, or the Discovery page on seaLeye.online, for its questions."), { interrupted: true, userFacing: true });
 
