@@ -737,7 +737,8 @@ test("Fix what blocks approval: Edit words marks the field, a refused Approve of
   await row.getByTestId("edit-words").click();
 
   const card = page.getByTestId("catalogs");
-  await card.getByTestId("catalog-approve").click();
+  const one = card.getByTestId("catalog-row").filter({ has: page.getByRole("cell", { name: "1", exact: true }) });
+  await one.getByTestId("catalog-approve").click();
   await expect(card.getByTestId("fix-offer")).toContainText("Fix these now?");
   await card.getByTestId("fix-offer-yes").click();
   const walk = card.getByTestId("fix-walk");
@@ -755,7 +756,7 @@ test("Fix what blocks approval: Edit words marks the field, a refused Approve of
   await expect(walk.getByTestId("fix-counts")).toHaveText("Changed 1 field.");
   await expect(walk.getByTestId("self-test-summary")).toHaveText("Catalog 1 passed its self-test.");
   await expect(walk.getByTestId("fix-approve")).toBeVisible();
-  await expect(card.getByTestId("catalog-row")).toContainText("Draft");
+  await expect(one).toContainText("Draft");
   await walk.getByRole("button", { name: "Close" }).click();
   await expect(card.getByTestId("fix-walk")).toHaveCount(0);
 });
@@ -767,23 +768,24 @@ test("Catalogs: the self-test, approving a draft, and making live refused while 
   await signInOrgWide(page);
   await page.goto("/discovery");
   const card = page.getByTestId("catalogs");
+  const one = card.getByTestId("catalog-row").filter({ has: page.getByRole("cell", { name: "1", exact: true }) });
   await expect(card.getByTestId("live-catalog")).toContainText("starter catalog");
-  await expect(card.getByTestId("catalog-row")).toHaveCount(1);
-  await expect(card.getByTestId("catalog-row")).toContainText("Draft");
+  await expect(card.getByTestId("catalog-row")).toHaveCount(2);
+  await expect(one).toContainText("Draft");
   await expect(card.getByTestId("command-hint")).toContainText("sealeye catalog versions");
 
-  await card.getByRole("button", { name: "Self-test" }).click();
+  await one.getByRole("button", { name: "Self-test" }).click();
   await expect(card.getByTestId("self-test-summary")).toHaveText("Catalog 1 passed its self-test.");
   await expect(card.getByTestId("self-test-check")).toHaveCount(5);
   await expect(card.getByTestId("self-test")).toContainText("postgres: nothing the platform has builds it yet");
   await expect(card.getByTestId("self-test")).toContainText("It builds nothing yet");
 
-  await card.getByTestId("catalog-approve").click();
+  await one.getByTestId("catalog-approve").click();
   await expect(card.getByTestId("catalog-done")).toHaveText("Catalog 1 is approved. Nothing changes for developers until it is made live.");
-  await expect(card.getByTestId("catalog-row")).toContainText("Approved, not live");
-  await expect(card.getByTestId("catalog-row")).toContainText("approved by lead@example.com");
+  await expect(one).toContainText("Approved, not live");
+  await expect(one).toContainText("approved by lead@example.com");
 
-  await card.getByTestId("catalog-live").click();
+  await one.getByTestId("catalog-live").click();
   await expect(card.getByTestId("confirm-live")).toContainText("Every developer in your organization plans against it from now on");
   await card.getByTestId("confirm-live-yes").click();
   await expect(page.getByRole("alert")).toContainText("Catalog 1 cannot be made live: it does not build what");
@@ -807,4 +809,23 @@ test("the first organization keeps its name and its Costs", async ({ page }) => 
   await signIn(page);
   await expect(page.getByTestId("organization")).not.toHaveText("default");
   await expect(page.getByRole("navigation", { name: "Sections" }).getByText("Costs")).toHaveCount(1);
+});
+
+test("Edit words reaches any draft from the Catalogs card, not only the latest run's", async ({ page }) => {
+  await signInOrgWide(page);
+  await page.goto("/discovery");
+  const card = page.getByTestId("catalogs");
+  const row = (v: string) => card.getByTestId("catalog-row").filter({ has: page.getByRole("cell", { name: v, exact: true }) });
+  await expect(row("1").getByTestId("catalog-edit-words")).toHaveCount(0);
+  await row("2").getByTestId("catalog-edit-words").click();
+  const other = card.getByTestId("other-draft");
+  await expect(other).toContainText("Draft catalog 2");
+  const entry = other.getByTestId("draft-module").filter({ hasText: "work_queue" });
+  await entry.getByTestId("edit-words").click();
+  const panel = other.getByTestId("edit-words-panel");
+  await expect(panel.getByTestId("command-hint")).toContainText("sealeye catalog edit 2 work_queue");
+  await panel.getByLabel("What it gives an app").fill("A queue your app puts work on.");
+  await panel.getByRole("button", { name: "Save" }).first().click();
+  await expect(entry).toContainText("A queue your app puts work on.");
+  await expect(entry).toContainText("edited");
 });
