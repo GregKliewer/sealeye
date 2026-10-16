@@ -33,7 +33,7 @@ import {
   getCatalog,
   catalogForPlan
 } from "../client.js";
-import { looksLikeToken, seesInWords } from "../../core/token.js";
+import { looksLikeToken, seesInWords, organizationInWords } from "../../core/token.js";
 import { banner, step, ask, answer, typing, typed, c, product, spinner, stopSpinner, animations } from "../brand.js";
 import { safeName, CONFIG_FILE, LEGACY_CONFIG_FILE } from "../../core/names.js";
 import { USER_CONFIG_HINT, setting, loadUserConfig, DEFAULT_API, saveUserSetting, sealeyeHome, portalFor } from "../../core/config.js";
@@ -1064,16 +1064,27 @@ async function main() {
     return;
   }
 
+  // Which organization the token acts for, before anything that is the organization's:
+  // a juniper token otherwise looked like a default one until something was refused
+  // (Greg, Oct 16, 2026). Not for --json, and nothing at all if the platform cannot say.
+  async function sayOrganization() {
+    if (jsonOut || !setting("TOKEN")) return;
+    const me = await whoAmI({ apiBaseUrl }).catch(() => null);
+    if (me && me.auth !== "off" && me.org) console.log(c.dim(`For ${organizationInWords(me)}`));
+  }
+
   // Discovery (PHASE4-PLAN Step 6b): read the organization's platform library into a
   // draft catalog, and answer its questions as they come. For a platform engineer, with
   // an organization-wide token; the API refuses anyone else in its own words.
   if (command === "discover") {
+    await sayOrganization();
     return discover({ apiBaseUrl, args: process.argv.slice(3).filter(a => !a.startsWith("--") && a !== getArg("--api")), say, json: jsonOut });
   }
 
   // What the platform can build, and the needs it cannot yet, as the portal's Catalog
   // page shows them.
   if (command === "catalog") {
+    await sayOrganization();
     // A platform engineer's: the organization's catalogs, the self-test, approving and
     // making live (PHASE4-PLAN Step 7).
     const words = process.argv.slice(3).filter(a => !a.startsWith("--") && a !== getArg("--api"));
@@ -1176,7 +1187,7 @@ async function main() {
       return;
     }
     if (me.auth === "off") say("This platform does not ask who is calling.");
-    else console.log(c.fg(`${me.name} (${me.email}), ${seesInWords(me)}, at ${apiBaseUrl}`));
+    else console.log(c.fg(`${me.name} (${me.email}), ${seesInWords(me)}, for ${organizationInWords(me)}, at ${apiBaseUrl}`));
     return;
   }
 

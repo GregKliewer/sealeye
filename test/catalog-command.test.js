@@ -13,6 +13,7 @@ import { starterCatalog } from "../core/catalog.js";
 const root = path.resolve(import.meta.dirname, "..");
 const ANA = token("a");
 const LEE = token("l");
+const JUNE = token("j");
 let api;
 const at = new Date().toISOString();
 
@@ -30,7 +31,8 @@ before(async () => {
   api = await startApi({
     tokens: [
       { token: ANA, id: "ana", team: "default" },
-      { token: LEE, id: "lee", team: "platform", scope: "org" }
+      { token: LEE, id: "lee", team: "platform", scope: "org" },
+      { token: JUNE, id: "june", team: "platform", scope: "org", org: "juniper" }
     ],
     records: [],
     aws: "",
@@ -86,4 +88,14 @@ test("sealeye catalog live: only when named, and then the organization plans aga
   const { stdout } = await sealeye(["catalog", "versions"], LEE);
   assert.match(stdout, /plans against catalog 1/);
   assert.match(stdout, /  1  Live\s+from run dsc_1 · 2 modules · approved by lee@example.com · made live by lee@example.com/);
+});
+
+test("the command says which organization it acts for (Greg, Oct 16, 2026)", async () => {
+  const theirs = await sealeye(["catalog", "versions"], JUNE);
+  assert.match(theirs.stdout, /^For juniper$/m);
+  const ours = await sealeye(["catalog", "versions"], LEE);
+  assert.doesNotMatch(ours.stdout, /^For juniper$/m);
+  assert.match(ours.stdout, /^For \S/m, "the first organization is named too");
+  const json = await sealeye(["catalog", "versions", "--json"], JUNE);
+  assert.doesNotThrow(() => JSON.parse(json.stdout), "--json is the object and nothing else");
 });

@@ -789,3 +789,22 @@ test("Catalogs: the self-test, approving a draft, and making live refused while 
   await expect(page.getByRole("alert")).toContainText("Catalog 1 cannot be made live: it does not build what");
   await expect(card.getByTestId("live-catalog")).toContainText("starter catalog");
 });
+
+// The rough-edges step (Greg, Oct 16, 2026): a token for another organization says which
+// it is, and the portal shows nothing that organization does not have.
+test("another organization's token sees its own name, and no Costs", async ({ page }) => {
+  await page.goto("/sign-in");
+  await page.fill("#token", `sl_${"o".repeat(43)}`);
+  await page.click("button[type=submit]");
+  await expect(page.getByTestId("person")).toHaveText("Other Org");
+  await expect(page.getByTestId("organization")).toHaveText("other-org");
+  await expect(page.getByRole("navigation", { name: "Sections" }).getByText("Costs")).toHaveCount(0);
+  await page.goto("/costs");
+  await expect(page.getByTestId("not-kept")).toContainText("Costs are not available to your organization yet");
+});
+
+test("the first organization keeps its name and its Costs", async ({ page }) => {
+  await signIn(page);
+  await expect(page.getByTestId("organization")).not.toHaveText("default");
+  await expect(page.getByRole("navigation", { name: "Sections" }).getByText("Costs")).toHaveCount(1);
+});
