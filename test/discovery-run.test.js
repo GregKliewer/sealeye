@@ -544,6 +544,21 @@ test("a question asked again after it was answered is dropped: the answer stands
   assert.equal(onCache.find(x => x.kind === "deprecated").answer, "No");
 });
 
+test("a late answer says on the run that it is being written in, and when it is", async () => {
+  const model = scripted({});
+  const service = createDiscoveryService({ client: model.client, readLibrary: readFolder(library()) });
+  const { discoveryId } = await service.start({ caller, repos: [{ owner: "acme", repo: "platform" }] });
+  await service.settled(discoveryId);
+  assert.equal(service.get(discoveryId).rewriting, false);
+  const q = service.questions(discoveryId).find(x => x.kind === "deprecated");
+  await service.answer({ id: discoveryId, questionId: q.id, answer: "No", by: "lead@acme.test" });
+  assert.equal(service.get(discoveryId).rewriting, true, "the stream has ended, so the run itself says so");
+  await service.settled(discoveryId);
+  assert.equal(service.get(discoveryId).rewriting, false);
+  assert.equal(service.get(discoveryId).answerProblem, undefined);
+  assert.ok(service.questions(discoveryId).find(x => x.id === q.id).usedAt, "written into the draft");
+});
+
 test("the supervisor is bounded by the run's cap, not a reader's, so a late answer is written after a costly first draft", async () => {
   const { createBudget, SpendingLimit } = await import("../api/discovery/readers.js");
   const budget = createBudget({ workerCap: 0.1, runCap: 3, spend: { supervisor: { cost: 0.15 }, "worker:modules/db": { cost: 0.1 } } });
