@@ -14,7 +14,7 @@
 //   sealeye discover status [id]   the latest run, or run id
 import { c, spinnerFrame, step } from "./brand.js";
 import { answerDiscovery, followDiscovery, getDiscovery, listDiscoveries, startDiscovery } from "./client.js";
-import { createScreen, fitText, pick, stopped, typeLine } from "./discover-screen.js";
+import { boxed, createScreen, fitText, pick, stopped, typeLine } from "./discover-screen.js";
 import {
   activityWords, ANSWER_LIMIT, choicesFor, discoveryEventLine, discoveryStateWords, elapsedWords, isOpen, LATER,
   modulesDone, nextProgress, progressSummary, SOMETHING_ELSE
@@ -183,20 +183,30 @@ async function followLive({ apiBaseUrl, run, say }) {
 
   const screen = createScreen({
     top: () => {
-      const width = screen.columns() - 6;
+      // The whole box, edges and all, a little in from the terminal's edge.
+      const width = Math.min(screen.columns() - 2, 100);
+      const inner = width - 4;
       const now = Date.now();
       const lines = recent.slice(-WINDOW_LINES);
       while (lines.length < WINDOW_LINES) lines.unshift("");
       const waiting = queue.length + (current ? 1 : 0);
       // Once the run is over nothing moves: a tick, and how long it took.
+      const elapsed = elapsedWords(now - doingSince);
       const status = progress.over
-        ? `  ${c.accent("✓")} ${c.fg(activityWords(progress))}`
-        : `  ${c.accent(spinnerFrame(now))} ${c.fg(fitText(activityWords(progress), width - 10))}  ${c.dim(elapsedWords(now - doingSince))}`;
+        ? `${c.accent("\u2713")} ${c.fg(activityWords(progress))}`
+        : `${c.accent(spinnerFrame(now))} ${c.fg(fitText(activityWords(progress), inner - elapsed.length - 4))}  ${c.dim(elapsed)}`;
       const took = progress.over ? `took ${elapsedWords(overAt - startedAt)}` : `${elapsedWords(now - startedAt)} so far`;
+      const summary = progressSummary(progress, waiting);
       return [
-        status,
-        ...lines.map(line => c.dim(`  │ ${fitText(line, width)}`)),
-        c.dim(`  └ ${fitText(`${progressSummary(progress, waiting)}  ·  ${took}`, width)}`)
+        "",
+        ...boxed({
+          width,
+          edge: c.dim,
+          title: c.fg("Discovery"),
+          right: c.dim(took),
+          rows: [status, "", ...lines.map(line => c.dim(fitText(line, inner)))],
+          footer: c.dim(fitText(summary, width - 8))
+        }).map(line => ` ${line}`)
       ];
     }
   });

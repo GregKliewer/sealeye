@@ -3219,3 +3219,10 @@ the run is working through the long waits between its events.
   more pages need the same.
 - **The run card shows a turning ring**, what the run is doing and for how long, and the
   totals, while the run goes.
+
+The window is a box (same day, Greg after his third run: it "abuts directly against
+completed questions in the same font colour"). Lines on all four sides in the dim
+colour, "Discovery" and the time so far in the top edge, the totals in the bottom one,
+a blank line above it, and the step and the run's last lines inside. `boxed` in
+`cli/discover-screen.js` pads by what shows, colours left out, so every edge is the same
+width; at most a hundred columns, two in from a narrower terminal's edge.
