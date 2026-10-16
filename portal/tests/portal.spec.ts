@@ -723,6 +723,43 @@ test("Edit words: a draft entry's line changed on the page, the self-test run ag
   await expect(panel).toContainText("edited by lead@example.com");
 });
 
+// Fixing what blocks approval, as `sealeye catalog fix` does (DESIGN.md, "What blocks
+// approval is fixed in one walk"). Leaves catalog 1 a draft that passes, for the next test.
+test("Fix what blocks approval: Edit words marks the field, a refused Approve offers the walk, and it ends passing", async ({ page }) => {
+  await signInOrgWide(page);
+  await page.goto("/discovery");
+  const row = page.getByTestId("draft-module").filter({ hasText: "postgres" });
+  await row.getByTestId("edit-words").click();
+  const panel = page.getByTestId("edit-words-panel");
+  await panel.getByLabel("What it gives an app").fill("A relational database, run outside Terraform.");
+  await panel.getByRole("button", { name: "Save" }).first().click();
+  await expect(panel.getByTestId("field-fails")).toHaveText("✗ Not: Terraform");
+  await row.getByTestId("edit-words").click();
+
+  const card = page.getByTestId("catalogs");
+  await card.getByTestId("catalog-approve").click();
+  await expect(card.getByTestId("fix-offer")).toContainText("Fix these now?");
+  await card.getByTestId("fix-offer-yes").click();
+  const walk = card.getByTestId("fix-walk");
+  await expect(walk.getByTestId("fix-step")).toContainText("1 of 1");
+  await expect(walk.getByTestId("fix-step")).toContainText("postgres");
+  await expect(walk.getByTestId("fix-avoid")).toHaveText("Not: Terraform");
+  await expect(walk.getByTestId("command-hint")).toContainText("sealeye catalog fix 1");
+
+  // A word still there is caught before it is saved.
+  await walk.getByTestId("fix-text").fill("A relational database, kept by Terraform.");
+  await walk.getByTestId("fix-save").click();
+  await expect(walk.getByRole("alert")).toContainText("That still says Terraform");
+  await walk.getByTestId("fix-text").fill("A relational database for your app, below staging.");
+  await walk.getByTestId("fix-save").click();
+  await expect(walk.getByTestId("fix-counts")).toHaveText("Changed 1 field.");
+  await expect(walk.getByTestId("self-test-summary")).toHaveText("Catalog 1 passed its self-test.");
+  await expect(walk.getByTestId("fix-approve")).toBeVisible();
+  await expect(card.getByTestId("catalog-row")).toContainText("Draft");
+  await walk.getByRole("button", { name: "Close" }).click();
+  await expect(card.getByTestId("fix-walk")).toHaveCount(0);
+});
+
 // Approving and making live (PHASE4-PLAN Step 7), as `sealeye catalog` does. The sample
 // draft builds nothing yet (Terraform modules), and the sample environments run on the
 // starter's, so making it live is refused, naming them, and nothing changes.

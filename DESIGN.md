@@ -3450,4 +3450,13 @@ decided the same day; Greg chose the walk and the offer from a refused approval.
   offer, and the marks on `catalog edit <v> <module>` and the page's Edit words all read
   the same list, never a sentence.
 
-To be built with the rough-edges step (PHASE4-PLAN, the owed table).
+Built the same day, at Greg's word, ahead of the rough-edges step. No new endpoint: the
+walk is the self-test and edits, the API's two operations already. The self-test's word
+check now carries `fixes` (module, field, label, words now, words to leave out) and
+`unfixable` (a place no edit reaches), and `core/discovery-words.js` says, for both
+surfaces, whether editing alone can bring a self-test to a pass (`fixableByEditing`) and
+what fixes the rest (`notFixedByEditing`). The walk checks new words with the same word
+list before saving, and says so once if a word is still there; saving the same words
+again keeps them, since a person may know better than the list (Q21). With no terminal,
+`catalog fix` lists each field with the command line that changes it. Tests drive the
+walk in a real terminal (`script`).

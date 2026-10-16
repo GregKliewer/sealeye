@@ -61,7 +61,9 @@ export interface CatalogSummary {
   createdBy: string | null; createdAt: string; approvedBy: string | null; approvedAt: string | null;
   madeLiveBy: string | null; madeLiveAt: string | null; discovery: string | null; modules: number; open: number;
 }
-export interface SelfTestCheck { id: string; title: string; passed: boolean; problems: string[] }
+/** A field the word check says to change, as `sealeye catalog fix` walks it. */
+export interface WordFix { module: string; field: string; label: string; text: string; words: string[] }
+export interface SelfTestCheck { id: string; title: string; passed: boolean; problems: string[]; fixes?: WordFix[]; unfixable?: { where: string; words: string[] }[] }
 export interface SelfTest {
   version: number; passed: boolean; checks: SelfTestCheck[]; refused: { id: string; why: string }[]; built: string[]; notes: string[];
 }

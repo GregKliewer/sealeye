@@ -4,17 +4,19 @@
 // the API refuses anyone else and the portal shows nothing it cannot do. The run never
 // waits on an answer; one given now is used whenever it comes. Its Catalogs card runs
 // the self-test, approves a draft and makes a catalog live, as `sealeye catalog` does
-// (PHASE4-PLAN Step 7).
+// (PHASE4-PLAN Step 7), and walks each field that blocks a draft's approval, as `sealeye
+// catalog fix` does (DESIGN.md, "What blocks approval is fixed in one walk").
 import { Fragment, useEffect, useState } from "react";
 import { Navigate } from "react-router";
-import { api, ApiError, type CatalogSummary, type DiscoveryQuestion, type DiscoveryRun, type DraftCatalog, type DraftModule, type SelfTest } from "../api";
+import { api, ApiError, type CatalogSummary, type DiscoveryQuestion, type DiscoveryRun, type DraftCatalog, type DraftModule, type SelfTest, type WordFix } from "../api";
 import { orgWide, useLoad, useSession } from "../session";
 import { ago, when } from "../model";
 import { PageTitle, Problem } from "../Layout";
 import { CommandHint } from "../Command";
 import { commandLine, label } from "../../../core/operations.js";
 import { editableFieldsOf, EDIT_LIMIT } from "../../../core/catalog-edits.js";
-import { choicesFor, discoveryEventLine, discoveryStateWords, isOpen, activityWords, answerStateWords, elapsedWords, modulesDone, nextProgress, progressSummary, SOMETHING_ELSE, ANSWER_LIMIT, approvedWords, catalogStatusWords, catalogSummaryWords, madeLiveWords, nextCatalogStep, RESTS_ON_QUESTION, selfTestSummary } from "../../../core/discovery-words.js";
+import { forbiddenWords } from "../../../core/developer-words.js";
+import { choicesFor, discoveryEventLine, discoveryStateWords, isOpen, activityWords, answerStateWords, elapsedWords, modulesDone, nextProgress, progressSummary, SOMETHING_ELSE, ANSWER_LIMIT, approvedWords, catalogStatusWords, catalogSummaryWords, madeLiveWords, nextCatalogStep, RESTS_ON_QUESTION, selfTestSummary, avoidWords, FIX_OFFER, fixableByEditing, fixedWords, fixPlaceWords, notFixedByEditing, wordFixesOf } from "../../../core/discovery-words.js";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -330,6 +332,8 @@ function CatalogsCard({ tick }: { tick: number }) {
   const [busy, setBusy] = useState<number | null>(null);
   // Making a catalog live changes what every developer plans against: asked once more.
   const [confirming, setConfirming] = useState<number | null>(null);
+  // The walk through what blocks a draft's approval, and the self-test it starts from.
+  const [fixing, setFixing] = useState<{ version: number; first?: SelfTest } | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -339,6 +343,7 @@ function CatalogsCard({ tick }: { tick: number }) {
 
   async function act(version: number, step: "test" | "approve" | "live") {
     setConfirming(null);
+    setFixing(null);
     setShown(null);
     setBusy(version);
     setProblem(null);
@@ -384,6 +389,9 @@ function CatalogsCard({ tick }: { tick: number }) {
                     <TableCell className="text-sm text-dim">{catalogSummaryWords(x)}</TableCell>
                     <TableCell className="text-right whitespace-nowrap">
                       <Button size="sm" variant="ghost" onClick={() => act(x.version, "test")} disabled={busy !== null}>{label("catalog-test")}</Button>
+                      {x.status === "draft" ? (
+                        <Button size="sm" variant="ghost" className="ml-2" onClick={() => { setShown(null); setConfirming(null); setFixing({ version: x.version }); }} disabled={busy !== null} data-testid="catalog-fix">{label("catalog-fix")}</Button>
+                      ) : null}
                       {next ? (
                         <Button size="sm" className="ml-2" onClick={() => (next === "live" ? setConfirming(x.version) : act(x.version, next))} disabled={busy !== null} data-testid={`catalog-${next}`}>
                           {next === "approve" ? label("catalog-approve") : label("catalog-live")}
@@ -406,6 +414,15 @@ function CatalogsCard({ tick }: { tick: number }) {
           </div>
         ) : null}
         {shown ? <SelfTestResult {...shown} /> : null}
+        {shown && shown.message && fixableByEditing(shown.result) && !fixing ? (
+          <div className="mt-3 flex items-center gap-3" data-testid="fix-offer">
+            <span className="text-sm">{FIX_OFFER}</span>
+            <Button size="sm" onClick={() => { const { version, result } = shown; setShown(null); setFixing({ version, first: result }); }} data-testid="fix-offer-yes">{label("catalog-fix")}</Button>
+          </div>
+        ) : null}
+        {fixing ? (
+          <FixWalk key={fixing.version} version={fixing.version} first={fixing.first} onChanged={() => setMine(n => n + 1)} onClose={() => setFixing(null)} />
+        ) : null}
         <CommandHint op="catalogs" className="mt-3" />
       </CardContent>
     </Card>
@@ -434,6 +451,9 @@ function SelfTestResult({ version, result, message, done }: { version: number; r
         </div>
       ) : null}
       {result.notes.map((n, i) => <p key={i} className="mt-3 text-sm text-dim">{n}</p>)}
+      {notFixedByEditing(result).length ? (
+        <ul className="mt-3 space-y-0.5 text-sm text-amber" data-testid="not-fixed-by-editing">{notFixedByEditing(result).map((l: string, i: number) => <li key={i}>{l}</li>)}</ul>
+      ) : null}
       {done ? <p className="mt-3 text-sm text-phosphor" data-testid="catalog-done">{done}</p> : null}
     </div>
   );
@@ -449,6 +469,15 @@ function EditWords({ version, module, onChanged }: { version: number; module: Dr
   const [busy, setBusy] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [result, setResult] = useState<SelfTest | null>(null);
+  // Which of this entry's fields the self-test says to change, marked beside each.
+  const [failing, setFailing] = useState<Map<string, WordFix>>(new Map());
+  useEffect(() => {
+    let live = true;
+    const mark = (r: SelfTest) => live && setFailing(new Map((wordFixesOf(r) as WordFix[]).filter(f => f.module === module.id).map(f => [f.field, f])));
+    if (result) mark(result);
+    else api.catalogSelfTest(version).then(mark).catch(() => {});
+    return () => { live = false; };
+  }, [version, module.id, result]);
 
   async function save(field: string) {
     setBusy(field);
@@ -470,6 +499,7 @@ function EditWords({ version, module, onChanged }: { version: number; module: Dr
       {fields.map(f => (
         <div key={f.field}>
           <label className="text-xs text-dim" htmlFor={`edit-${module.id}-${f.field}`}>{f.label}{module.edited?.[f.field] ? ` · edited by ${module.edited[f.field].by}` : ""}</label>
+          {failing.get(f.field) ? <span className="ml-2 text-xs text-amber" data-testid="field-fails">{"\u2717"} {avoidWords(failing.get(f.field))}</span> : null}
           <div className="mt-1 flex items-start gap-2">
             <textarea id={`edit-${module.id}-${f.field}`} rows={2} maxLength={EDIT_LIMIT} value={texts[f.field] ?? ""}
               onChange={e => setTexts(t => ({ ...t, [f.field]: e.target.value }))}
@@ -481,6 +511,124 @@ function EditWords({ version, module, onChanged }: { version: number; module: Dr
       {problem ? <Problem message={problem} /> : null}
       {result ? <SelfTestResult version={version} result={result} /> : null}
       <CommandHint op="catalog-edit" flags={[String(version), module.id]} />
+    </div>
+  );
+}
+
+/**
+ * Each field the self-test says to change, one at a time, as `sealeye catalog fix` walks
+ * them: its words now, the words to leave out, and a box holding them to change. Leave
+ * moves on without a change. At the end the self-test runs again, and a draft that
+ * passes can be approved here.
+ */
+function FixWalk({ version, first, onChanged, onClose }: { version: number; first?: SelfTest; onChanged: () => void; onClose: () => void }) {
+  const [fixes, setFixes] = useState<WordFix[] | null>(first ? (wordFixesOf(first) as WordFix[]) : null);
+  const [start, setStart] = useState<SelfTest | null>(first || null);
+  const [at, setAt] = useState(0);
+  const [text, setText] = useState("");
+  const [warned, setWarned] = useState<string | null>(null);
+  const [counts, setCounts] = useState({ changed: 0, kept: 0 });
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const [end, setEnd] = useState<SelfTest | null>(null);
+  const [approved, setApproved] = useState<SelfTest | null>(null);
+
+  useEffect(() => {
+    if (fixes) return;
+    let live = true;
+    api.catalogSelfTest(version).then(r => { if (live) { setStart(r); setFixes(wordFixesOf(r) as WordFix[]); } })
+      .catch(err => live && setProblem(err instanceof ApiError ? err.message : String(err)));
+    return () => { live = false; };
+  }, [version, fixes]);
+
+  const fix = fixes && at < fixes.length ? fixes[at] : null;
+  useEffect(() => { setText(fix?.text || ""); setWarned(null); setProblem(null); }, [fix]);
+
+  // The walk is over: the self-test as the catalog stands now.
+  useEffect(() => {
+    if (!fixes || fix) return;
+    let live = true;
+    api.catalogSelfTest(version).then(r => live && setEnd(r)).catch(err => live && setProblem(err instanceof ApiError ? err.message : String(err)));
+    return () => { live = false; };
+  }, [version, fixes, fix]);
+
+  const next = (kind: "changed" | "kept") => { setCounts(c => ({ ...c, [kind]: c[kind] + 1 })); setAt(i => i + 1); };
+
+  async function save() {
+    if (!fix) return;
+    const words = text.replace(/\s+/g, " ").trim();
+    if (words === fix.text.replace(/\s+/g, " ").trim()) return next("kept");
+    const still = (forbiddenWords(words) as { term: string }[]).map(w => w.term);
+    if (still.length && warned !== words) {
+      setWarned(words);
+      return setProblem(`That still says ${still.join(", ")}. Change it, or save again to keep it as written.`);
+    }
+    setBusy(true);
+    setProblem(null);
+    try {
+      await api.editCatalog(version, fix.module, fix.field, words);
+      onChanged();
+      next("changed");
+    } catch (err) {
+      setProblem(err instanceof ApiError ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function approve() {
+    setBusy(true);
+    setProblem(null);
+    try {
+      setApproved((await api.approveCatalog(version)).selfTest);
+      onChanged();
+    } catch (err) {
+      const result = err instanceof ApiError ? (err.details as { selfTest?: SelfTest } | undefined)?.selfTest : undefined;
+      if (result) setEnd(result);
+      setProblem(err instanceof ApiError ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-4 rounded-md border border-rule p-4" data-testid="fix-walk" role="region" aria-label={`${label("catalog-fix")}, catalog ${version}`}>
+      <div className="flex items-center gap-3">
+        <p className="font-medium">{label("catalog-fix")}: catalog {version}</p>
+        <Button size="sm" variant="ghost" className="ml-auto" onClick={onClose}>Close</Button>
+      </div>
+      {start && !start.passed && notFixedByEditing(start).length ? (
+        <ul className="mt-2 space-y-0.5 text-sm text-amber">{notFixedByEditing(start).map((l: string, i: number) => <li key={i}>{l}</li>)}</ul>
+      ) : null}
+      {fix && fixes ? (
+        <div className="mt-3" data-testid="fix-step">
+          <p className="text-sm">
+            <span className="text-xs text-dim">{fixPlaceWords(at + 1, fixes.length)}</span>{" "}
+            <span className="font-mono">{fix.module}</span> · {fix.label}
+          </p>
+          <p className="mt-1 text-sm text-dim">{fix.text}</p>
+          <p className="mt-1 text-xs text-amber" data-testid="fix-avoid">{avoidWords(fix)}</p>
+          <label className="sr-only" htmlFor="fix-words">New words for {fix.module}, {fix.label}</label>
+          <textarea id="fix-words" rows={3} maxLength={EDIT_LIMIT} value={text} onChange={e => setText(e.target.value)}
+            className="mt-2 w-full rounded-md border border-rule bg-surface px-3 py-2 text-sm" data-testid="fix-text" />
+          <div className="mt-2 flex gap-2">
+            <Button size="sm" onClick={save} disabled={busy || (!text.trim() && fix.field === "line")} data-testid="fix-save">Save and go on</Button>
+            <Button size="sm" variant="ghost" onClick={() => next("kept")} disabled={busy} data-testid="fix-leave">Leave it</Button>
+          </div>
+        </div>
+      ) : null}
+      {!fix && fixes && !end && !problem ? <p className="mt-3 text-sm text-dim">Running the self-test again…</p> : null}
+      {!fix && fixes ? <p className="mt-3 text-sm" data-testid="fix-counts">{fixedWords(counts)}</p> : null}
+      {problem ? <div className="mt-3"><Problem message={problem} /></div> : null}
+      {end && !approved ? <SelfTestResult version={version} result={end} /> : null}
+      {end && end.passed && !approved ? (
+        <div className="mt-3 flex items-center gap-3">
+          <span className="text-sm">Approve catalog {version} now?</span>
+          <Button size="sm" onClick={approve} disabled={busy} data-testid="fix-approve">{label("catalog-approve")}</Button>
+        </div>
+      ) : null}
+      {approved ? <SelfTestResult version={version} result={approved} done={approvedWords(version)} /> : null}
+      <CommandHint op="catalog-fix" flags={[String(version)]} className="mt-3" />
     </div>
   );
 }
