@@ -3542,3 +3542,19 @@ server that found nothing more.
   filler words ("which", "should") left out; the longer repeat widens the first, as
   before. Discovery is measured again before and after.
 - **`sealeye --version` and `-v`** print the version and nothing else.
+
+## One question in the wrong shape never loses its module
+
+Fri Oct 16, 2026, Greg, after the scripted pass of the measured run lost custom-domain:
+its worker read the module and raised one question, then the run marked the whole
+module not read, and kept nothing to say why. The likeliest cause is a question the
+model wrote in the wrong shape (one value where the tool asks for a list), which the code
+saving it did not expect.
+
+- **Each question is raised on its own.** A list sent as one value (options, evidence,
+  the modules it touches) is read as a list of one; a question with no words is left
+  out; and a question that still cannot be kept is left out, never the module it came
+  from.
+- **Why a module was not read is kept, as a kind only**: the error's class and any
+  status, never its message, in the run's trace (`not read`) and on the `not_read`
+  event, which the eval prints. What a person reads stays the same sentence.

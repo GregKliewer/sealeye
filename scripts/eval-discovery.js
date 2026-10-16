@@ -425,7 +425,7 @@ export async function runDiscovery(libraryDir, key, out, { scripted = false, cli
   service.subscribe(discoveryId, 0, e => {
     if (!e) return;
     if (e.type === "read") console.log(`  read     ${e.source}`);
-    if (e.type === "not_read") console.log(`  NOT READ ${e.source}: ${e.why}`);
+    if (e.type === "not_read") console.log(`  NOT READ ${e.source}: ${e.why}${e.error ? ` (${e.error})` : ""}`);
     if (e.type === "question" || e.type === "widened") {
       console.log(e.type === "question" ? `  asked    ${e.question.question} (guess: ${e.question.guess})` : `  widened  to touch ${e.question.touches.join(", ")}: ${e.question.question}`);
       const answer = scripted && !answeredIds.has(e.question.id) ? scriptedAnswer(e.question, key, "as_asked") : null;
