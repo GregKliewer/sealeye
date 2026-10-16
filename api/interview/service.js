@@ -535,7 +535,7 @@ function strip({ type, ...rest }) {
  *
  * @returns {Promise<{status, plan?, summary?, assumptions?, questions?, validationRetries?, message?, errors?, traceId?}>}
  */
-export async function runInterview({ appPath, deployed = null, ask, onStep = () => {}, model, user, client, trace = true }) {
+export async function runInterview({ appPath, deployed = null, ask, onStep = () => {}, model, user, caller = null, client, trace = true }) {
   const service = createInterviewService({ client });
   try {
     if (!service.ready()) {
@@ -544,7 +544,8 @@ export async function runInterview({ appPath, deployed = null, ask, onStep = () 
       throw err;
     }
 
-    const { interviewId } = service.start({ appDir: path.resolve(appPath), deployed, user, model, trace });
+    // `caller` says whose organization, and so whose live catalog, it plans against.
+    const { interviewId } = service.start({ appDir: path.resolve(appPath), deployed, user, caller, model, trace });
 
     return await new Promise((resolve, reject) => {
       service.subscribe(interviewId, 0, async event => {

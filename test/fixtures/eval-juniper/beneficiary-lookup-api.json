@@ -1,0 +1,26 @@
+{
+  "answers": [
+    {
+      "when": ["setting", "environment", "api key", "database url", "anything else"],
+      "answer": "No, nothing else."
+    },
+    {
+      "when": ["reach", "internal", "public", "inside", "network", "private", "who uses", "who will use", "who calls"],
+      "answer": "Our review screen calls it over HTTPS. It doesn't need to be private."
+    },
+    {
+      "when": ["stay", "running", "warm", "connection", "long-running", "start fresh"],
+      "answer": "No, it answers each request on its own. Nothing has to stay running between them."
+    },
+    {
+      "when": ["is that right", "right?", "looks like", "what does your app do", "when it runs", "does it", "serve", "listen"],
+      "answer": "Yes, that's right. It answers requests."
+    }
+  ],
+  "expected": {
+    "status": "ready",
+    "modules": ["http_api"],
+    "notModules": ["container_service", "static_site"],
+    "needs": []
+  }
+}

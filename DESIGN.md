@@ -3542,3 +3542,44 @@ server that found nothing more.
   filler words ("which", "should") left out; the longer repeat widens the first, as
   before. Discovery is measured again before and after.
 - **`sealeye --version` and `-v`** print the version and nothing else.
+
+## The front door plans from a discovered catalog
+
+Fri Oct 16, 2026, Greg, PHASE4-PLAN Step 8. The interview, unchanged, planning against a
+catalog discovery wrote.
+
+- **Juniper's modules are treated as built, in the eval only.** Juniper Mutual's live
+  catalog is all Terraform, which nothing builds until Step 9, and the interview hears
+  only of modules the platform builds. So against it today every plan comes out drafted
+  with needs, and could not be graded on modules. Greg chose to have the eval add the
+  catalog's Terraform modules to the executor list in its own process (`treatAsBuilt`
+  in `scripts/eval-interview.js`), over grading needs only now or building Step 9
+  first. Whether a module is offered and whether it rests on a question are still the
+  catalog's to say. Nothing outside the eval changes, and once Step 9 adds the real
+  executor the line does nothing and the same eval runs for real.
+- **A snapshot, not the server.** The catalog is catalog 3, Juniper's live one on the
+  server on Oct 16, kept as `test/fixtures/juniper-catalog-3.json` without who edited
+  it, so results repeat. The eval makes it the live catalog of an organization of its
+  own (`eval-juniper`), drafted, approved and made live as a platform engineer would,
+  in a scratch folder, never the machine's own.
+- **The same three sample apps, with Juniper's right plans**
+  (`test/fixtures/eval-juniper/`): the static site on `static_site`; the beneficiary
+  lookup on `http_api`, told it answers each request on its own and need not be
+  private; the payment events processor on `container_service`, `postgres` and
+  `secrets` below staging, still drafted for its one gap, the event stream. Each is
+  graded on its outcome, the modules it must and must not use, and its needs, as the
+  starter's are. Its LangFuse items are `sealeye-interview-juniper-<app>`.
+- **Both sets run by default**, so a change to the prompt is measured against both
+  catalogs; `--set starter` or `--set juniper` runs one. The starter's prompt and tool
+  are unchanged (`d3ab331a0a17` with the default organization).
+- **Not in it:** the glossary turn ("what does that mean?"), which Greg left out.
+
+Seen while building it, for later steps:
+- Catalog 3's postgres entry says both "for all six stages" and "below staging only":
+  it looks like an answer written into the draft beside the library's own rule rather
+  than in place of it. The eval grades a dev plan, where both agree. Worth a look at how
+  discovery writes an answer in before a customer run.
+- Juniper's modules require inputs only the platform can give (subnets, a cluster, a
+  role, a permissions boundary). The plan contract leaves inputs free, so a plan without
+  them passes; supplying them is Step 9's executor's job, from the stage, never the
+  developer's.

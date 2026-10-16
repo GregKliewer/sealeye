@@ -1,0 +1,18 @@
+{
+  "answers": [
+    {
+      "when": ["reach", "internal", "public", "inside", "network", "private", "who uses", "who will use", "anything else"],
+      "answer": "It must only be reachable from inside the bank."
+    },
+    {
+      "when": ["is that right", "right?", "looks like", "what does your app do", "when it runs", "does it"],
+      "answer": "Yes, that's right."
+    }
+  ],
+  "expected": {
+    "status": "drafted",
+    "modules": ["container_service", "postgres", "secrets"],
+    "notModules": ["http_api", "postgres_cluster"],
+    "needs": ["event_stream"]
+  }
+}
