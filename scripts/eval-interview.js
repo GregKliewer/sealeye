@@ -13,6 +13,14 @@
 // At the end it reads each run's tokens and cost back from LangFuse and prints them as
 // one table, with the largest run and the typical one (PHASE3-PLAN Step 1).
 //
+// Two sets (PHASE4-PLAN Step 8): the starter's, each app planned against seaLeye's own
+// modules, and Juniper Mutual's, each app planned against the catalog discovery wrote
+// for the made-up organization (a snapshot of its live catalog,
+// test/fixtures/juniper-catalog-3.json). Juniper's modules are Terraform, which nothing
+// builds until Step 9, so for this eval only they are treated as built (`treatAsBuilt`):
+// the plans are graded on being right, not on being buildable. `--set starter` or
+// `--set juniper` runs one.
+//
 // It calls the model and LangFuse, so it is not part of `npm test`, which stays offline.
 // The API it validates plans against is started here, on a spare port with an empty
 // store of its own, so nothing is added to your deployment records.
@@ -21,6 +29,8 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { DEFAULT_MODEL, loadSystemPrompt, resolveApiKey } from "../api/interview/model.js";
+import { addCatalog, approveCatalog, liveCatalog, makeLive, openCatalogs } from "../api/catalogs.js";
+import { EXECUTORS } from "../core/schema.js";
 import { runInterview } from "../api/interview/service.js";
 import { loadEnv, loadUserConfig, repoRoot, setting } from "../core/config.js";
 import {
@@ -38,6 +48,17 @@ import {
 
 export const DATASET = "sealeye-interview";
 const FIXTURES = path.join(repoRoot, "test", "fixtures", "eval");
+const JUNIPER_FIXTURES = path.join(repoRoot, "test", "fixtures", "eval-juniper");
+const JUNIPER_CATALOG = path.join(repoRoot, "test", "fixtures", "juniper-catalog-3.json");
+
+/**
+ * The sets the eval runs: each its cases, and the organization whose live catalog they
+ * plan against (none: the starter, as `default` has it).
+ */
+export const SETS = {
+  starter: { dir: FIXTURES, org: null },
+  juniper: { dir: JUNIPER_FIXTURES, org: "eval-juniper", catalog: JUNIPER_CATALOG }
+};
 // When no scripted answer fits the question, the interview still gets an answer a
 // developer might give, rather than an empty line.
 const FALLBACK_ANSWER = "I'm not sure. Use your best judgement from the code.";
@@ -78,15 +99,48 @@ const oneLine = text => {
 };
 
 /** Every sample app with a fixture: its answers and what its plan should be. */
-export function loadCases(dir = FIXTURES) {
+export function loadCases(dir = FIXTURES, { set = "starter", org = null } = {}) {
   return fs
     .readdirSync(dir)
     .filter(f => f.endsWith(".json"))
     .sort()
     .map(f => {
       const { answers = [], expected } = JSON.parse(fs.readFileSync(path.join(dir, f), "utf8"));
-      return { app: path.basename(f, ".json"), answers, expected };
+      return { app: path.basename(f, ".json"), answers, expected, set, org };
     });
+}
+
+/**
+ * For this eval only: what an executor for Terraform will build once there is one
+ * (PHASE4-PLAN Step 9), so a catalog of Terraform modules can be planned against and its
+ * plans graded on their modules. Each of the catalog's Terraform modules is added to the
+ * executor list in this process; whether a module is offered and whether it rests on a
+ * question are left to the catalog, as ever. Nothing changes once Step 9 adds the real
+ * executor: an executor already there is left alone.
+ */
+export function treatAsBuilt(document, executor = "terraform") {
+  if (EXECUTORS[executor]) return false;
+  EXECUTORS[executor] = (document.modules || []).filter(m => m?.builds_with === executor).map(m => m.id);
+  return true;
+}
+
+/**
+ * Make a catalog an organization's live one, as a platform engineer would: kept as a
+ * draft, approved, made live. Run in a scratch folder (SEALEYE_HOME), never the
+ * machine's own. Returns its version.
+ */
+export async function seedCatalog({ org, document }) {
+  await openCatalogs();
+  const { version } = await addCatalog({ org, document, by: "eval@sealeye" });
+  await approveCatalog({ org, version, by: "eval@sealeye" });
+  await makeLive({ org, version, by: "eval@sealeye" });
+  return version;
+}
+
+/** The prompt an organization's interview reads, by its fingerprint, for the run's name. */
+export function promptFor(org) {
+  const live = org ? liveCatalog(org) : null;
+  return promptVersionOf(live && live.source === "organization" ? loadSystemPrompt(live.document, { starter: false }) : loadSystemPrompt());
 }
 
 /** What the run came to: a ready or drafted plan, or how the interview ended without one. */
@@ -154,22 +208,24 @@ async function ensureDataset() {
  */
 export async function evaluate({ cases, runName, model, clientFor, log = () => {} }) {
   const datasetId = await ensureDataset();
-  const description = `Interview prompt ${promptVersionOf(loadSystemPrompt())}, model ${model}`;
   const experimentId = newExperimentId();
 
   const rows = [];
-  for (const { app, answers, expected } of cases) {
-    const itemId = `${DATASET}-${app}`;
+  for (const { app, answers, expected, set = "starter", org = null } of cases) {
+    const description = `Interview prompt ${promptFor(org)}, model ${model}${org ? `, ${set}'s catalog` : ""}`;
+    // The starter's items keep the ids they always had; another set's are its own.
+    const name = set === "starter" ? app : `${set}-${app}`;
+    const itemId = `${DATASET}-${name}`;
     // The input is the app's name, never its files: the dataset is a list of what to
     // run and what should come of it.
     await langfuseRequest("POST", "/api/public/dataset-items", {
       datasetName: DATASET,
       id: itemId,
-      input: { app },
+      input: { app, ...(set === "starter" ? {} : { catalog: set }) },
       expectedOutput: expected
     }, 10_000);
 
-    log(`${app}: interviewing`);
+    log(`${name}: interviewing`);
     const state = {};
     // What was asked and how each was answered, shown when the app is not as expected.
     const asked = [];
@@ -179,12 +235,13 @@ export async function evaluate({ cases, runName, model, clientFor, log = () => {
       // Recorded the way LangFuse's own experiment runner records an item, so the run
       // shows under the dataset's Experiments with each app's trace, cost and scores.
       row = await traceExperimentItem(
-        { experimentId, runName, description, datasetId, itemId, input: { app }, expectedOutput: expected },
+        { experimentId, runName, description, datasetId, itemId, input: { app, ...(set === "starter" ? {} : { catalog: set }) }, expectedOutput: expected },
         async () => {
           const result = await runInterview({
             appPath: path.join(repoRoot, "apps", app),
             model,
             user: "eval",
+            ...(org ? { caller: { email: "eval@sealeye", org, team: "eval" } } : {}),
             ask: async question => {
               const { answer, by } = answerFor(question, answers, state);
               asked.push({ question: oneLine(question), by });
@@ -193,7 +250,7 @@ export async function evaluate({ cases, runName, model, clientFor, log = () => {
             ...(clientFor ? { client: clientFor(app) } : {})
           });
           return {
-            app, traceId: result.traceId, turns: result.turns, spent: result.spent, asked,
+            app: name, traceId: result.traceId, turns: result.turns, spent: result.spent, asked,
             ...(result.status === "stopped" && result.message ? { stopped: oneLine(result.message) } : {}),
             ...grade(result, expected)
           };
@@ -207,11 +264,11 @@ export async function evaluate({ cases, runName, model, clientFor, log = () => {
         if (row.modulesCorrect !== null) scoreTrace(row.traceId, "modules_correct", row.modulesCorrect);
       }
     } catch (err) {
-      row = { app, error: err.message };
+      row = { app: name, error: err.message };
     }
 
     rows.push(row);
-    log(`${app}: ${row.error ? `could not finish (${row.error})` : allCorrect(row) ? "as expected" : "not as expected"}`);
+    log(`${name}: ${row.error ? `could not finish (${row.error})` : allCorrect(row) ? "as expected" : "not as expected"}`);
   }
 
   await flushScores(10_000);
@@ -224,20 +281,20 @@ export function summaryLines(rows) {
   const lines = [];
   for (const r of rows) {
     if (r.error) {
-      lines.push(`  ${r.app.padEnd(26)} could not finish: ${r.error}`);
+      lines.push(`  ${r.app.padEnd(34)} could not finish: ${r.error}`);
       continue;
     }
     lines.push(
-      `  ${r.app.padEnd(26)} ${mark(r.outcomeCorrect)} ${r.outcome.padEnd(8)}` +
+      `  ${r.app.padEnd(34)} ${mark(r.outcomeCorrect)} ${r.outcome.padEnd(8)}` +
         ` ${mark(r.modulesCorrect)} modules  ${mark(r.needsCorrect)} needs  ${r.questions} question${r.questions === 1 ? "" : "s"}`
     );
-    if (r.missingNeeds.length) lines.push(`  ${"".padEnd(26)}    missing: ${r.missingNeeds.join(", ")}`);
-    if (r.extraNeeds.length) lines.push(`  ${"".padEnd(26)}    not expected: ${r.extraNeeds.join(", ")}`);
+    if (r.missingNeeds.length) lines.push(`  ${"".padEnd(34)}    missing: ${r.missingNeeds.join(", ")}`);
+    if (r.extraNeeds.length) lines.push(`  ${"".padEnd(34)}    not expected: ${r.extraNeeds.join(", ")}`);
     // Not as expected: what the model asked, how each was answered, and why it stopped,
     // so a run that went wrong can be read without opening its trace.
     if (!allCorrect(r)) {
-      for (const a of r.asked || []) lines.push(`  ${"".padEnd(26)}    asked: ${a.question} (${a.by})`);
-      if (r.stopped) lines.push(`  ${"".padEnd(26)}    stopped: ${r.stopped}`);
+      for (const a of r.asked || []) lines.push(`  ${"".padEnd(34)}    asked: ${a.question} (${a.by})`);
+      if (r.stopped) lines.push(`  ${"".padEnd(34)}    stopped: ${r.stopped}`);
     }
   }
   return lines;
@@ -386,6 +443,36 @@ export function costLines(rows, model) {
 
 // ---------------------------------------------------------------------------------
 
+/** The sets `--set starter` or `--set juniper` asks for; both when it asks for none. */
+export function setsAsked(argv) {
+  const i = argv.indexOf("--set");
+  const asked = i >= 0 ? argv[i + 1] : process.env.npm_config_set;
+  if (!asked) return Object.keys(SETS);
+  if (!SETS[asked]) throw new Error(`--set takes ${Object.keys(SETS).join(" or ")}, not ${asked}`);
+  return [asked];
+}
+
+/**
+ * The cases of each set asked for, with each set's catalog live in a scratch folder of
+ * its own, so nothing on this machine's own seaLeye folder is read or changed.
+ */
+export async function prepareSets(names) {
+  const os = await import("node:os");
+  process.env.SEALEYE_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-eval-interview-"));
+  delete process.env.DATABASE_URL;
+  const cases = [];
+  for (const set of names) {
+    const { dir, org, catalog } = SETS[set];
+    if (catalog) {
+      const document = JSON.parse(fs.readFileSync(catalog, "utf8"));
+      treatAsBuilt(document);
+      await seedCatalog({ org, document });
+    }
+    cases.push(...loadCases(dir, { set, org }));
+  }
+  return cases;
+}
+
 async function main() {
   loadEnv();
   loadUserConfig();
@@ -424,9 +511,9 @@ async function main() {
   const stamp = `${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())} ` +
     `${two(now.getHours())}:${two(now.getMinutes())}:${two(now.getSeconds())}`;
   const runName = `${stamp} prompt ${promptVersionOf(loadSystemPrompt())}`;
-  const cases = loadCases();
+  const cases = await prepareSets(setsAsked(process.argv));
 
-  console.log(`Interview regression set: ${cases.length} apps, model ${model}`);
+  console.log(`Interview regression set: ${cases.length} runs (${[...new Set(cases.map(c => c.set))].join(" and ")}), model ${model}`);
   console.log(`Dataset run: ${runName}`);
   console.log("");
 

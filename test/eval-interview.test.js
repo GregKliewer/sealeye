@@ -367,3 +367,92 @@ test("a run whose own count differs from LangFuse's by more than five percent is
   assert.match(text, /far: seaLeye's own count, \$0\.0200, differs from LangFuse's, \$0\.0100, by more than 5%\./);
   assert.doesNotMatch(text, /close: seaLeye's own count/);
 });
+
+// ---------------------------------------------------------------------------------
+// Juniper Mutual's set (PHASE4-PLAN Step 8): the same apps, planned against the catalog
+// discovery wrote for the made-up organization, its Terraform modules treated as built
+// for the eval only.
+
+test("every Juniper case is a sample app, and names only modules its catalog has", async () => {
+  const { SETS } = await import("../scripts/eval-interview.js");
+  const apps = new Set(fs.readdirSync(path.join(root, "apps")));
+  const doc = JSON.parse(fs.readFileSync(SETS.juniper.catalog, "utf8"));
+  const ids = new Set(doc.modules.map(m => m.id));
+  const kinds = new Set(doc.need_kinds.map(n => n.key));
+  const cases = loadCases(SETS.juniper.dir, { set: "juniper", org: SETS.juniper.org });
+  assert.ok(cases.length >= 3);
+  for (const c of cases) {
+    assert.ok(apps.has(c.app), c.app);
+    for (const id of [...(c.expected.modules || []), ...(c.expected.notModules || [])]) assert.ok(ids.has(id), `${c.app}: ${id}`);
+    for (const k of c.expected.needs) assert.ok(kinds.has(k), `${c.app}: ${k}`);
+  }
+  assert.ok(!JSON.stringify(doc).includes("@"), "the snapshot holds no one's address");
+});
+
+test("treated as built for the eval only: a Terraform module is planned, and an executor already there is left alone", async () => {
+  const { treatAsBuilt } = await import("../scripts/eval-interview.js");
+  const { EXECUTORS } = await import("../core/schema.js");
+  const { buildableModules } = await import("../core/catalog.js");
+  const doc = { modules: [
+    { id: "web", availability: "available", builds_with: "terraform" },
+    { id: "old", availability: "deprecated", builds_with: "terraform" },
+    { id: "guess", availability: "available", builds_with: "terraform", open: ["q_1"] }
+  ] };
+  assert.deepEqual(buildableModules(doc), []);
+  try {
+    assert.equal(treatAsBuilt(doc), true);
+    assert.deepEqual(buildableModules(doc).map(m => m.id), ["web"], "still not what is deprecated or rests on a question");
+    assert.equal(treatAsBuilt({ modules: [{ id: "other", builds_with: "terraform" }] }), false);
+    assert.deepEqual(EXECUTORS.terraform, ["web", "old", "guess"]);
+  } finally {
+    delete EXECUTORS.terraform;
+  }
+});
+
+test("Juniper's set plans each app against its live catalog, graded on Juniper's modules", async () => {
+  const { prepareSets, promptFor } = await import("../scripts/eval-interview.js");
+  const { EXECUTORS } = await import("../core/schema.js");
+  assert.equal(startTracing({ exporter }), true);
+  const requests = [];
+  useLangfuseTransport((method, apiPath, body) => {
+    requests.push({ method, apiPath, body });
+    if (apiPath === "/api/public/v2/datasets") return { id: "ds_1" };
+    if (apiPath === "/api/public/dataset-run-items") return { datasetRunId: "run_1" };
+    return {};
+  });
+  const before = process.env.SEALEYE_HOME;
+  try {
+    const cases = await prepareSets(["juniper"]);
+    assert.ok(cases.every(c => c.set === "juniper" && c.org === "eval-juniper"));
+    const juniperPrompt = promptFor("eval-juniper");
+    assert.notEqual(juniperPrompt, promptFor(null), "Juniper's interview reads a prompt of its own");
+
+    const plan = (app, type, modules, needs = []) => ({ planVersion: "0.4", app: { name: app, type }, profile: "dev", modules, outputs: ["logs"], ...(needs.length ? { needs } : {}) });
+    const on = (id, inputs = {}) => ({ id, enabled: true, inputs });
+    const byApp = {
+      "static-website": plan("static-website", "static-site", [on("static_site", { index_document: "index.html" }), on("logs_and_alarms")]),
+      "beneficiary-lookup-api": plan("beneficiary-lookup-api", "api", [on("http_api"), on("logs_and_alarms")]),
+      "payment-events-processor": plan("payment-events-processor", "api", [on("container_service"), on("postgres"), on("secrets", { secret_names: ["SIGNING_KEY"] })],
+        [need("event_stream")])
+    };
+    const systems = [];
+    const clientWith = p => {
+      const c = clientFor(p);
+      return { messages: { create: async params => { systems.push(typeof params.system === "string" ? params.system : JSON.stringify(params.system)); return c.messages.create(params); } } };
+    };
+    const rows = await evaluate({ cases, runName: "juniper run", model: "claude-sonnet-5", clientFor: app => clientWith(byApp[app]) });
+
+    for (const row of rows) assert.ok(allCorrect(row), JSON.stringify(row));
+    assert.deepEqual(rows.map(r => r.app), ["juniper-beneficiary-lookup-api", "juniper-payment-events-processor", "juniper-static-website"]);
+    assert.deepEqual(rows.map(r => r.outcome), ["ready", "drafted", "ready"]);
+    assert.ok(systems.length && systems.every(s => s.includes("`container_service`")), "the model was told Juniper's modules");
+
+    const items = requests.filter(r => r.method === "POST" && r.apiPath === "/api/public/dataset-items").map(r => r.body);
+    assert.deepEqual(items.map(b => b.id), rows.map(r => `${DATASET}-${r.app}`));
+    assert.ok(items.every(b => b.input.catalog === "juniper"));
+  } finally {
+    delete EXECUTORS.terraform;
+    if (before === undefined) delete process.env.SEALEYE_HOME;
+    else process.env.SEALEYE_HOME = before;
+  }
+});

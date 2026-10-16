@@ -242,6 +242,12 @@ before the pull request.
 - The interview, unchanged, against the made-up organization's live catalog. Its eval
   gains apps whose right plan uses that organization's modules.
 
+Built Fri Oct 16, 2026 (DESIGN.md, "The front door plans from a discovered catalog"):
+`npm run eval:interview` runs a second set, the three sample apps against a snapshot of
+Juniper Mutual's live catalog 3, its Terraform modules treated as built in the eval only
+(Greg chose this over grading needs only, or waiting for Step 9). The glossary turn is
+not in it (Greg).
+
 ### Step 9. A Terraform executor (D8)
 
 - `terraform` in the API's image, pinned and checked like gitleaks. One root module per
