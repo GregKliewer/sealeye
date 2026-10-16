@@ -365,14 +365,14 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
     const lines = problems.map(p => {
       const place = p.where.slice(p.where.indexOf(": ") + 2);
       const input = place.startsWith("input ") ? place.slice(6) : null;
-      return `${sourceOf.get(p.module)}: ${place} uses ${p.term}${textAt.has(p.where) ? ` (now: "${String(textAt.get(p.where)).replace(/\s+/g, " ").slice(0, 200)}")` : ""}${input ? `; write input_lines.${input}` : ""}`;
+      return `${sourceOf.get(p.module)}: ${place} uses ${p.instead ? `"${p.found}"; write "${p.instead}" in its place` : p.term}${textAt.has(p.where) ? ` (now: "${String(textAt.get(p.where)).replace(/\s+/g, " ").slice(0, 200)}")` : ""}${input ? `; write input_lines.${input}` : ""}`;
     });
     emit(run.id, { type: "plain_words", sources: again });
     const s = state(run.id);
     try {
       const written = await superviseEntries({
         clientFor: clientFor(run), credentialIsGateway: viaGateway(), budget: s.budget, org: run.orgName,
-        modules: run.modules, library: run.library, questions: asked(run.id), sources: again, plainWords: { lines, terms: [...new Set(problems.map(p => p.term))] }
+        modules: run.modules, library: run.library, questions: asked(run.id), sources: again, plainWords: { lines, terms: [...new Set(problems.filter(p => !p.instead).map(p => p.term))] }
       });
       const fresh = new Map((written.entries || []).filter(e => again.includes(e.source)).map(e => [e.source, e]));
       traceEvent("plain words", { entries: fresh.size, words: problems.length });

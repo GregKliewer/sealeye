@@ -3470,3 +3470,44 @@ text has it, in quotes, with what it is after only when that says more (`shownWo
 description. The self-test's problems, the walk, its warning and the marks all say it
 this way, and a warning about a size or a count says what a developer reads instead.
 The plain-words pass still hands the model the terms by name.
+
+## What a platform term is
+
+Fri Oct 16, 2026, Greg, deciding Q21 ("developers ARE familiar with a lot of the
+jargon"). The word check refused every cloud word the same way, so a draft was blocked
+for "subnet" and "bucket", words a reviewer would pass and a developer already uses. The
+sample library showed it: of the words its variable descriptions and READMEs hold, every
+one the check refused but machine sizes was one developers know. Greg chose tiers over
+each organization keeping its own list, then said where the line falls:
+
+1. **A product or trademark name is refused, whoever owns it**: Lambda, CloudFormation,
+   Azure, and Terraform, which is HashiCorp's (IBM's since 2025) and a tool choice, not a
+   concept; OpenTofu is its fork. The exceptions are trademarks that became the everyday
+   name on every cloud: Kubernetes and Docker are allowed, and are the only two today.
+2. **A concept every major cloud names the same way is allowed**: subnet, region,
+   availability zone, bucket, load balancer, queue. One cloud's own noun is refused: log
+   group and log stream (say "the app's logs"), security group (say "firewall rules").
+   Bucket is allowed though Azure says "container": it is understood everywhere.
+3. **An acronym is allowed only when the same line spells it out**: "Virtual Private
+   Cloud (VPC)", "Availability Zone (AZ)", likewise CDN, NAT and WAF. Each line is shown
+   on its own, so each spells it out. Everyday web words (API, URL, HTTPS, DNS) are not
+   policed.
+4. **A configuration choice is said as what it does for the app**, from a phrasebook:
+   multi-region is "must survive a regional disaster", multi-AZ "keeps running if one
+   data centre fails", read replicas "handles heavy reading", autoscaling "grows and
+   shrinks with traffic", an instance class, IOPS or a node count "set by a load test",
+   point-in-time recovery "can be restored to an earlier moment", encryption at rest
+   "encrypted when stored", RPO "how much data could be lost", RTO "how long it can be
+   down". Sizes and counts are "set by a load test", as before.
+
+`core/developer-words.js` is the one place that holds it. A finding for an acronym or a
+setting carries what to write instead (`instead`), so the self-test, the walk and the
+page say `"multi-AZ" (write "keeps running if one data centre fails")`. The same rule is
+written into the discovery workers' and supervisor's prompts from that file
+(`plainWordsRule`), so a first draft follows the rule the self-test checks, and the
+plain-words pass asks for the phrase rather than only forbidding the term. Both prompts
+changed, so discovery is measured before and after (`npm run eval:discovery -- --run`).
+The interview's own prompt is unchanged: it plans from the catalog's words.
+
+The glossary turn ("what does that mean?" in the interview) is not in Step 8 (Greg);
+spelled-out acronyms and the phrasebook take most of the need away. Q21 is closed.

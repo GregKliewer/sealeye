@@ -14,6 +14,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { plainWordsRule } from "../../core/developer-words.js";
 import { addSpend, priceUsage } from "../../core/model-prices.js";
 import { createWithOneRetry } from "../interview/model.js";
 import { listFiles, readFile, ToolRefusal } from "../interview/tools.js";
@@ -327,7 +328,7 @@ export function readModule({ module, snapshot, org, ...common }) {
     ...common,
     route: "small",
     worker: `worker:${module.source}`,
-    system: prompt("discovery-worker.md", { org, source: module.source }),
+    system: prompt("discovery-worker.md", { org, source: module.source, plain_words: plainWordsRule() }),
     opening: `Your module is ${module.source}. Its inputs, read from its variables:\n${inputs}\n\nRead it, then call submit_finding.`,
     tools: fileTools,
     finalTool: submitFindingTool,
@@ -396,7 +397,7 @@ async function superviseTraced({ clientFor, credentialIsGateway, budget, org, mo
     ...(plainWords ? [
       "These entries were written with words a developer never reads. Write each again with the same meaning in plain words, saying what it does for the developer's app, and give a plain line in input_lines for every input named here:",
       ...plainWords.lines.map(line => `- ${line}`),
-      `Do not use these words anywhere in what you write again, not even where a module's own name has them: ${plainWords.terms.join(", ")}. Say what the thing does for the app instead ("somewhere to keep the files it writes", "keeps its logs").`,
+      ...(plainWords.terms.length ? [`Do not use these words anywhere in what you write again, not even where a module's own name has them: ${plainWords.terms.join(", ")}. Say what the thing does for the app instead ("somewhere to keep the files it writes", "keeps its logs").`] : []),
       ""
     ] : []),
     "What the readers found, each module:",
@@ -416,7 +417,7 @@ async function superviseTraced({ clientFor, credentialIsGateway, budget, org, mo
       {
         model: credentialIsGateway ? "frontier" : model,
         max_tokens: 16000,
-        system: prompt("discovery-supervisor.md", { org }),
+        system: prompt("discovery-supervisor.md", { org, plain_words: plainWordsRule() }),
         tools: [writeCatalogTool],
         tool_choice: { type: "tool", name: writeCatalogTool.name },
         messages

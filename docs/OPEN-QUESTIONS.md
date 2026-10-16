@@ -43,40 +43,6 @@ catalog; the plan the developer approved stays the plan that is promoted. It cha
 the plan contract, so it is a DESIGN.md decision when it is made. Blocks Phase 5
 (`sealeye promote`), not Phase 4: until then, plans are for dev.
 
-## Before the first customer
-
-### Q21. How strict is "no platform words", and can a developer ask what a term means?
-
-Raised Oct 16, 2026, by Greg, after Juniper Mutual's first draft was refused for "outside
-Terraform" in one line: "developers ARE familiar with a lot of the jargon". Principle 8
-and the self-test's word check (`core/developer-words.js`) treat every cloud term the
-same way. "Lambda" and "CloudFormation" are seaLeye's business, not a developer's, but
-"bucket", "subnet", "queue", "log group" and "Terraform" are words many developers use
-every day. Blocking them makes catalogs read stiffly and refuses drafts a reviewer would
-pass. Greg also asked whether the interview should answer "what does that mean?" when a
-platform term overlaps with ordinary developer language.
-
-**Options:**
-- **Tiers in the word list.** Product names and the platform's own machinery (Lambda,
-  CloudFormation, IAM, ARN, a region's name, sizes and counts) are always refused. Common
-  developer vocabulary (bucket, queue, subnet, Terraform, log group) is allowed, and a
-  catalog may use it. This is small, in one file, and changes principle 8's wording.
-- **Each organization's own list.** The platform engineer marks the terms their
-  developers know, in the catalog (`plain_terms`), and the check allows them. This fits
-  how organizations differ, but is one more thing to set before a first approval.
-- **A glossary the interview can explain from.** Each catalog carries short definitions
-  of the terms its modules use, written by discovery and editable like any entry's
-  words. A developer can ask "what does that mean?" at any question, and the interview
-  answers from the glossary, never from the model's general knowledge. This is the
-  larger change: an interview turn that answers rather than asks, inside the
-  four-question limit or outside it, and an eval case for it.
-
-**Leaning:** tiers now, since it is a day at most and it ends refusals over words a
-reviewer would pass. The glossary later, when the interview is next changed (Phase 4
-Step 8), because it needs its own eval cases. Either way it changes principle 8, so it
-is a DESIGN.md decision when it is made. It blocks nothing yet: until then, a draft's
-words can be edited before approval (`sealeye catalog edit`).
-
 ## Later
 
 ### Q7. Windows

@@ -22,9 +22,8 @@ How to read:
 
 What you write is read by developers, so:
 - `line`, `when`, `signals` and each input's line are in plain words a developer uses:
-  what it gives their app, never how the cloud provider builds it. No product or
-  service names of the cloud provider, no em dashes, and no sizes, counts or capacity
-  numbers ("set by a load test" is the only way to speak of capacity).
+  what it gives their app, never how the cloud provider builds it. They follow one rule:
+{{plain_words}}
 - `signals` describe code or configuration in an app that shows it needs this module,
   never prose.
 - `guidance` is for the planner, not the developer: the module's rules, in the
