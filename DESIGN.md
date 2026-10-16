@@ -3579,6 +3579,11 @@ catalog discovery wrote.
   database for production. The case now answers "trying it out in dev first", so it
   tests the library's rule below staging. What a plan headed for production should name
   waits for Q20 (a module per stage).
+- **Each app is interviewed from a clean copy** (`cleanCopy`, the same evening): without
+  the files seaLeye writes into a folder (sealeye.yaml, the DEPLOYMENT files, .sealeye)
+  or node_modules. A plan left in Greg's copy of the payment events app by an earlier
+  `sealeye run` said `profile: prod`, and the interview rightly carried it forward, so
+  the case was graded on that old plan rather than the app.
 
 Seen while building it, for later steps:
 - Catalog 3's postgres entry says both "for all six stages" and "below staging only":

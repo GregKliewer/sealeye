@@ -486,3 +486,15 @@ test("each run's plan, summary and questions are kept as a file, and a run that 
   const failed = YAML.parse(fs.readFileSync(path.join(outDir, "static-website.yaml"), "utf8"));
   assert.ok(failed.status === "error" || failed.message, JSON.stringify(failed));
 });
+
+test("each app is interviewed from a clean copy: a plan left in its folder is never read (Greg's run, Oct 16)", async () => {
+  const { cleanCopy } = await import("../scripts/eval-interview.js");
+  const app = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-eval-app-"));
+  fs.writeFileSync(path.join(app, "index.js"), "console.log(1)");
+  for (const f of ["sealeye.yaml", "deployme.yaml", "DEPLOYMENT_PLAN.md", "DEPLOYMENT_REPORT.md", "DEPLOYMENT_EVIDENCE.md"]) fs.writeFileSync(path.join(app, f), "profile: prod");
+  fs.mkdirSync(path.join(app, ".sealeye"));
+  fs.mkdirSync(path.join(app, "node_modules"));
+  const copy = cleanCopy(app, fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-eval-scratch-")));
+  assert.deepEqual(fs.readdirSync(copy).sort(), ["index.js"]);
+  assert.deepEqual(fs.readdirSync(app).length, 8, "the app's own folder is left as it was");
+});

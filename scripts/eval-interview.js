@@ -32,6 +32,7 @@ import YAML from "yaml";
 import { DEFAULT_MODEL, loadSystemPrompt, resolveApiKey } from "../api/interview/model.js";
 import { addCatalog, approveCatalog, liveCatalog, makeLive, openCatalogs } from "../api/catalogs.js";
 import { EXECUTORS } from "../core/schema.js";
+import { CONFIG_FILE, LEGACY_CONFIG_FILE } from "../core/names.js";
 import { runInterview } from "../api/interview/service.js";
 import { loadEnv, loadUserConfig, repoRoot, setting } from "../core/config.js";
 import {
@@ -211,6 +212,7 @@ async function ensureDataset() {
  */
 export async function evaluate({ cases, runName, model, clientFor, outDir = null, log = () => {} }) {
   const datasetId = await ensureDataset();
+  const scratch = fs.mkdtempSync(path.join((await import("node:os")).tmpdir(), "sealeye-eval-apps-"));
   const experimentId = newExperimentId();
 
   const rows = [];
@@ -241,7 +243,8 @@ export async function evaluate({ cases, runName, model, clientFor, outDir = null
         { experimentId, runName, description, datasetId, itemId, input: { app, ...(set === "starter" ? {} : { catalog: set }) }, expectedOutput: expected },
         async () => {
           const result = await runInterview({
-            appPath: path.join(repoRoot, "apps", app),
+            // A clean copy each time: the app as written, never a plan left in it.
+            appPath: cleanCopy(path.join(repoRoot, "apps", app), fs.mkdtempSync(path.join(scratch, `${name}-`))),
             model,
             user: "eval",
             ...(org ? { caller: { email: "eval@sealeye", org, team: "eval" } } : {}),
@@ -300,6 +303,25 @@ function keepResult(outDir, name, result, asked) {
   } catch {
     // Keeping it is a convenience; the run's grade does not depend on it.
   }
+}
+
+/**
+ * The files seaLeye itself writes into an app's folder (principle 5), and the folder it
+ * keeps there. A plan left by an earlier `sealeye run` is read by the interview and
+ * carried forward, so a sample app holding one is graded on that plan, not on the app
+ * (Greg's run, Oct 16, 2026: a leftover plan's prod profile chose production's
+ * database).
+ */
+export const SEALEYE_WRITES = [CONFIG_FILE, LEGACY_CONFIG_FILE, "DEPLOYMENT_PLAN.md", "DEPLOYMENT_REPORT.md", "DEPLOYMENT_EVIDENCE.md", ".sealeye"];
+
+/** A copy of a sample app, without anything seaLeye wrote into it, in a scratch folder. */
+export function cleanCopy(appDir, scratch) {
+  const to = path.join(scratch, path.basename(appDir));
+  fs.cpSync(appDir, to, {
+    recursive: true,
+    filter: src => !SEALEYE_WRITES.includes(path.basename(src)) && path.basename(src) !== "node_modules"
+  });
+  return to;
 }
 
 /** One line per app, for the terminal. */
