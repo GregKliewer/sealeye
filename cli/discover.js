@@ -15,6 +15,7 @@
 import { c, spinnerFrame, step } from "./brand.js";
 import { answerDiscovery, followDiscovery, getDiscovery, listDiscoveries, startDiscovery } from "./client.js";
 import { boxed, createScreen, fitText, pick, stopped, typeLine } from "./discover-screen.js";
+import { commandLine } from "../core/operations.js";
 import {
   activityWords, ANSWER_LIMIT, choicesFor, discoveryEventLine, discoveryStateWords, elapsedWords, isOpen, LATER,
   modulesDone, nextProgress, progressSummary, SOMETHING_ELSE
@@ -52,7 +53,7 @@ async function askQuestion(q, { screen, label = "" }) {
   ];
   const choice = await pick([...choicesFor(q), SOMETHING_ELSE, LATER], { screen, header });
   if (choice === LATER) {
-    screen.commit([c.dim("  Left for later. The draft rests on the guess until it is answered.")], []);
+    screen.commit([c.dim("  Left for later. Until it is answered, the modules it touches are never built.")], []);
     return null;
   }
   if (choice !== SOMETHING_ELSE) return choice;
@@ -399,7 +400,7 @@ async function finish({ apiBaseUrl, run, end, say, print, offering = false }) {
     print(c.ok(discoveryEventLine({ ...end, open })));
     if (now?.answerProblem && (now.questions || []).some(q => !isOpen(q) && !q.usedAt)) print(c.fail(`An answer is not written into the draft yet: ${now.answerProblem}. It is kept.`));
     if (open && !offering) say(`${open === 1 ? "One question is" : `${open} questions are`} still open, kept for you: sealeye discover answers, or the Discovery page on seaLeye.online.`);
-    say("Nothing goes live from here: a platform engineer approves a catalog after its self-test.");
+    say(`Nothing goes live until it passes its self-test and a platform engineer approves it and makes it live: ${commandLine("catalog-approve")}.`);
     return { open, run: now };
   } else if (end.type === "closed") {
     const now = await getDiscovery({ apiBaseUrl, id: run.discoveryId });

@@ -53,6 +53,17 @@ export interface DraftModule {
 }
 export interface DraftCatalog { modules: DraftModule[]; discovery?: { open?: string[] } }
 
+// An organization's catalogs, the self-test, approving and making live (PHASE4-PLAN Step 7).
+export interface CatalogSummary {
+  org: string; version: number; status: "draft" | "approved" | "live" | "retired"; live: boolean;
+  createdBy: string | null; createdAt: string; approvedBy: string | null; approvedAt: string | null;
+  madeLiveBy: string | null; madeLiveAt: string | null; discovery: string | null; modules: number; open: number;
+}
+export interface SelfTestCheck { id: string; title: string; passed: boolean; problems: string[] }
+export interface SelfTest {
+  version: number; passed: boolean; checks: SelfTestCheck[]; refused: { id: string; why: string }[]; built: string[]; notes: string[];
+}
+
 export interface RequestedBy { user?: string; name?: string; host?: string | null; verified?: string; surface?: string; at?: string }
 
 export interface DeploymentSummary {
@@ -265,6 +276,10 @@ export const api = {
   discovery: (id: string) => request<DiscoveryRun>(`/discoveries/${encodeURIComponent(id)}`),
   discoveryDraft: (id: string) => request<{ version: number; document: DraftCatalog }>(`/discoveries/${encodeURIComponent(id)}/catalog`),
   startDiscovery: () => request<DiscoverySummary>("/discoveries", { method: "POST", body: {} }),
+  catalogs: () => request<{ live: { version: number | "starter"; source: string }; catalogs: CatalogSummary[] }>("/catalogs"),
+  catalogSelfTest: (version: number) => request<{ selfTest: SelfTest }>(`/catalogs/${version}/self-test`).then(r => r.selfTest),
+  approveCatalog: (version: number) => request<{ selfTest: SelfTest }>(`/catalogs/${version}/approve`, { method: "POST", body: {} }),
+  makeCatalogLive: (version: number) => request<{ selfTest: SelfTest }>(`/catalogs/${version}/live`, { method: "POST", body: {} }),
   answerDiscovery: (id: string, question: string, answer: string) =>
     request<{ question: DiscoveryQuestion }>(`/discoveries/${encodeURIComponent(id)}/answers`, { method: "POST", body: { question, answer } }).then(r => r.question),
   /** Every event so far, then each as it comes, until the run ends. */

@@ -165,3 +165,35 @@ export function selfTestSummary(result) {
     ? `The self-test found ${plural(problems, "problem", "problems")} in catalog ${result.version}.`
     : `Catalog ${result.version} passed its self-test.`;
 }
+
+/** A catalog's status in words, the same on both surfaces. */
+export function catalogStatusWords(status) {
+  return { draft: "Draft", approved: "Approved, not live", live: "Live", retired: "Retired" }[status] || String(status || "");
+}
+
+/**
+ * What can be done with a catalog of this status next: approve a draft, make an approved
+ * or retired one live. Null for the live one.
+ */
+export function nextCatalogStep(status) {
+  return status === "draft" ? "approve" : status === "approved" || status === "retired" ? "live" : null;
+}
+
+/** One catalog in a list: where it came from, how big, what rests on a question. */
+export function catalogSummaryWords(c) {
+  const parts = [];
+  if (c.discovery) parts.push(`from run ${c.discovery}`);
+  if (typeof c.modules === "number") parts.push(plural(c.modules, "module", "modules"));
+  if (c.open) parts.push(`${c.open} resting on a question`);
+  if (c.approvedBy && c.status !== "draft") parts.push(`approved by ${c.approvedBy}`);
+  if (c.madeLiveBy && (c.status === "live" || c.status === "retired")) parts.push(`made live by ${c.madeLiveBy}`);
+  return parts.join(" · ");
+}
+
+/** What an entry resting on an open question means, now that a catalog can go live without it. */
+export const RESTS_ON_QUESTION =
+  "Until it is answered, the modules it touches are never built, even in a live catalog. An answer writes a new draft.";
+
+/** What approving and making live say once done. */
+export const approvedWords = v => `Catalog ${v} is approved. Nothing changes for developers until it is made live.`;
+export const madeLiveWords = v => `Catalog ${v} is live: your organization's developers plan against it now.`;
