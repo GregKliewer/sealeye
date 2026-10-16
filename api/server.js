@@ -39,7 +39,10 @@ import { databaseUrl, closeDb } from "./db.js";
 import { startTracing } from "../core/tracing.js";
 import { authMode, callerFor, callerForSession, endSession, SESSION_COOKIE, SESSION_HOURS, startSession } from "./tokens.js";
 import { buildableView, needKinds, orgName } from "../core/catalog.js";
-import { catalogAt, liveCatalog, openCatalogs } from "./catalogs.js";
+import { approveCatalog, catalogAt, catalogsOf, liveCatalog, makeLive, openCatalogs } from "./catalogs.js";
+import { selfTest } from "./self-test.js";
+import { environmentsDropped } from "./catalog-use.js";
+import { selfTestSummary } from "../core/discovery-words.js";
 
 const app = express();
 
@@ -1303,6 +1306,133 @@ for (const signal of ["SIGTERM", "SIGINT"]) {
     setTimeout(() => process.exit(0), 5000).unref();
   });
 }
+
+// An organization's catalogs, and making one live (PHASE4-PLAN Step 7; DESIGN.md, "A
+// catalog goes live through a self-test, approved and made live apart"). A platform
+// engineer's, as discovery is: an organization-wide token only. A catalog is approved,
+// then made live, and the self-test runs at each, on the catalog as it is when the
+// change's turn comes. A retired catalog may go live again.
+const catalogVersionOf = raw => (/^[1-9][0-9]{0,8}$/.test(String(raw)) ? Number(raw) : null);
+const catalogNotFound = res => res.status(404).json({ error: { code: "CATALOG_NOT_FOUND", message: "Your organization has no catalog of that version." } });
+
+/** A question's words, from the run that wrote the catalog. */
+const questionTextFor = document => id => {
+  const runId = document?.discovery?.run;
+  if (!runId || !discoveries) return null;
+  return (discoveries.questions(runId) || []).find(q => q.id === id)?.question || null;
+};
+
+const runSelfTest = (org, row) => selfTest({ document: row.document, version: row.version, questionText: questionTextFor(row.document) });
+
+/** What a list of catalogs says of each: never its document. */
+function catalogSummary(org, row, liveVersion) {
+  const doc = catalogAt(org, row.version) || {};
+  const modules = Array.isArray(doc.modules) ? doc.modules : [];
+  return {
+    ...row,
+    live: row.version === liveVersion,
+    discovery: doc.discovery?.run || null,
+    library: doc.discovery?.library || [],
+    modules: modules.length,
+    open: modules.filter(m => Array.isArray(m?.open) && m.open.length).length + (Array.isArray(doc.discovery?.open) ? doc.discovery.open.length : 0)
+  };
+}
+
+const selfTestFailed = (verb, result) => ({
+  error: {
+    code: "SELF_TEST_FAILED",
+    message: `Catalog ${result.version} cannot be ${verb}. ${selfTestSummary(result)}`,
+    details: { selfTest: result }
+  }
+});
+
+// GET /catalogs: the organization's catalogs, newest first, and which is live.
+app.get("/catalogs", (req, res) => {
+  if (!mayDiscover(req.caller)) return discoveryForbidden(res);
+  const org = callerOrg(req);
+  const live = liveCatalog(org);
+  return res.status(200).json({
+    live: { version: live.version, source: live.source },
+    catalogs: catalogsOf(org).map(row => catalogSummary(org, row, live.version)).reverse()
+  });
+});
+
+// GET /catalogs/{version}/self-test: the self-test, run now. Plain code; nothing spent.
+app.get("/catalogs/:version/self-test", (req, res) => {
+  if (!mayDiscover(req.caller)) return discoveryForbidden(res);
+  const org = callerOrg(req);
+  const version = catalogVersionOf(req.params.version);
+  const row = version && catalogsOf(org).find(c => c.version === version);
+  if (!row) return catalogNotFound(res);
+  return res.status(200).json({ selfTest: runSelfTest(org, { ...row, document: catalogAt(org, version) }) });
+});
+
+/** Answer a refused catalog change in the API's words. */
+function catalogChangeRefused(res, err) {
+  if (err.code === "CATALOG_NOT_FOUND") return catalogNotFound(res);
+  if (err.code === "CATALOG_STATUS") return res.status(409).json({ error: { code: "CATALOG_STATUS", message: err.message.replace(/^catalog/, "Catalog") } });
+  if (err.code === "SELF_TEST_FAILED") return res.status(422).json(err.body);
+  if (err.code === "CATALOG_IN_USE") return res.status(409).json(err.body);
+  throw err;
+}
+
+// POST /catalogs/{version}/approve: a draft that passes its self-test is approved, with
+// who approved it. Body: {}.
+app.post("/catalogs/:version/approve", async (req, res) => {
+  if (!mayDiscover(req.caller)) return discoveryForbidden(res);
+  const org = callerOrg(req);
+  const version = catalogVersionOf(req.params.version);
+  if (!version) return catalogNotFound(res);
+  try {
+    let tested = null;
+    const approved = await approveCatalog({
+      org, version, by: req.caller?.email || "someone, with sign-in off",
+      gate: row => {
+        tested = runSelfTest(org, row);
+        if (!tested.passed) throw Object.assign(new Error("self-test failed"), { code: "SELF_TEST_FAILED", body: selfTestFailed("approved", tested) });
+      }
+    });
+    return res.status(200).json({ catalog: approved, selfTest: tested });
+  } catch (err) {
+    return catalogChangeRefused(res, err);
+  }
+});
+
+// POST /catalogs/{version}/live: an approved catalog, or a retired one going back, is
+// made the organization's live one when it passes its self-test again and no
+// environment runs on a module it would not build. The live one it replaces is retired.
+app.post("/catalogs/:version/live", async (req, res) => {
+  if (!mayDiscover(req.caller)) return discoveryForbidden(res);
+  const org = callerOrg(req);
+  const version = catalogVersionOf(req.params.version);
+  if (!version) return catalogNotFound(res);
+  try {
+    let tested = null;
+    const made = await makeLive({
+      org, version, by: req.caller?.email || "someone, with sign-in off",
+      gate: row => {
+        tested = runSelfTest(org, row);
+        if (!tested.passed) throw Object.assign(new Error("self-test failed"), { code: "SELF_TEST_FAILED", body: selfTestFailed("made live", tested) });
+        const environments = environmentsDropped({ org, document: row.document, records: listDeployments() });
+        if (environments.length) {
+          throw Object.assign(new Error("in use"), {
+            code: "CATALOG_IN_USE",
+            body: {
+              error: {
+                code: "CATALOG_IN_USE",
+                message: `Catalog ${version} cannot be made live: it does not build what ${environments.length === 1 ? "an environment runs" : `${environments.length} environments run`}. ${environments.map(e => `${e.app || e.environment} (team ${e.team}) uses ${e.modules.join(", ")}.`).join(" ")} Tear ${environments.length === 1 ? "it" : "them"} down first, or keep a catalog that builds ${environments.length === 1 ? "it" : "them"}.`,
+                details: { environments }
+              }
+            }
+          });
+        }
+      }
+    });
+    return res.status(200).json({ catalog: made, selfTest: tested });
+  } catch (err) {
+    return catalogChangeRefused(res, err);
+  }
+});
 
 // An app's settings in the organization's store (PHASE2-PLAN Step 8, D3). A team's app
 // keeps them in its own folder, /sealeye-apps/<team>/<app>/, so a team reaches only its

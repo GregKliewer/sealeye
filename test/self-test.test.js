@@ -76,7 +76,7 @@ test("a word a developer never reads fails the catalog, naming where", () => {
   const doc = discovered({ lines: { "modules/postgres": "Sends its logs to a CloudWatch log group." } });
   const result = selfTest({ document: doc, version: 3 });
   assert.equal(result.passed, false);
-  assert.deepEqual(failed(result).words, ["postgres: line says CloudWatch, a word a developer never reads; say what it does for their app"]);
+  assert.deepEqual(failed(result).words, ["postgres: line says CloudWatch and log group, words a developer never reads; say what it does for their app"]);
 });
 
 test("a deprecated module's words are not held against the catalog: nobody reads them", () => {
@@ -86,7 +86,7 @@ test("a deprecated module's words are not held against the catalog: nobody reads
 
 test("a size or a count fails the catalog: capacity is set by a load test", () => {
   const doc = discovered({ lines: { "modules/postgres": "A database on a db.t3.medium with 100 GB of storage." } });
-  assert.match(failed(selfTest({ document: doc, version: 3 })).words[0], /^postgres: line gives a size; a developer reads "set by a load test" instead$/);
+  assert.match(failed(selfTest({ document: doc, version: 3 })).words[0], /^postgres: line gives a size and a machine size; a developer reads "set by a load test" instead$/);
 });
 
 test("a module the catalog deprecates is refused by the same check a developer's plan meets", () => {

@@ -24,7 +24,7 @@ export async function startApi({ tokens, records, aws, env: extra = {}, files = 
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-day-two-"));
   const at = new Date().toISOString();
   fs.writeFileSync(path.join(home, "tokens.json"), JSON.stringify(tokens.map(t => ({
-    tokenId: t.id, tokenHash: hash(t.token), email: `${t.id}@example.com`, name: t.name || t.id, org: "default", team: t.team,
+    tokenId: t.id, tokenHash: hash(t.token), email: `${t.id}@example.com`, name: t.name || t.id, org: t.org || "default", team: t.team,
     ...(t.scope ? { scope: t.scope } : {}), createdAt: at, revokedAt: null, lastUsedAt: null
   }))));
   fs.writeFileSync(path.join(home, "deployments.json"), JSON.stringify(records));

@@ -81,10 +81,17 @@ const SIZES = [
  * kind is "cloud" for the cloud's names, "size" for sizes, counts and capacity numbers.
  */
 export function forbiddenWord(text) {
+  return forbiddenWords(text)[0] || null;
+}
+
+/** Every such word in `text`, each once, cloud terms first: so one fix finds them all. */
+export function forbiddenWords(text) {
   const s = String(text ?? "");
-  for (const [re, term] of TERMS) if (re.test(s)) return { term, kind: "cloud" };
-  for (const [re, term] of SIZES) if (re.test(s)) return { term, kind: "size" };
-  return null;
+  const found = [
+    ...TERMS.filter(([re]) => re.test(s)).map(([, term]) => ({ term, kind: "cloud" })),
+    ...SIZES.filter(([re]) => re.test(s)).map(([, term]) => ({ term, kind: "size" }))
+  ];
+  return found.filter((f, i) => found.findIndex(g => g.term === f.term) === i);
 }
 
 /**
@@ -121,12 +128,10 @@ export function developerTexts(doc) {
 }
 
 /**
- * Every place in a catalog that holds a word a developer must never read, one a place:
- * { where, module?, term, kind }. Empty when there is none.
+ * Every word in a catalog a developer must never read, with where it is:
+ * { where, module?, term, kind }, one for each word in each place. Empty when there is none.
  */
 export function developerWordProblems(doc) {
-  return developerTexts(doc)
-    .map(t => ({ ...t, found: forbiddenWord(t.text) }))
-    .filter(t => t.found)
-    .map(({ where, module, found }) => ({ where, ...(module ? { module } : {}), term: found.term, kind: found.kind }));
+  return developerTexts(doc).flatMap(({ where, module, text }) =>
+    forbiddenWords(text).map(found => ({ where, ...(module ? { module } : {}), term: found.term, kind: found.kind })));
 }

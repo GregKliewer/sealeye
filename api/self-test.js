@@ -81,11 +81,17 @@ export function selfTest({ document, version, questionText = () => null }) {
   // Every module the catalog offers, built yet or not: one waiting only for an executor
   // is built the day the platform has one, with no self-test in between.
   const offered = { ...document, modules: modules.filter(m => m.availability === "available") };
-  const words = developerWordProblems(offered).map(p =>
-    p.kind === "size"
-      ? `${p.where} gives ${p.term}; a developer reads "set by a load test" instead`
-      : `${p.where} says ${p.term}, a word a developer never reads; say what it does for their app`
-  );
+  // One problem a place, naming every word in it, so one fix finds them all.
+  const byPlace = new Map();
+  for (const p of developerWordProblems(offered)) {
+    if (!byPlace.has(p.where)) byPlace.set(p.where, { cloud: [], size: [] });
+    byPlace.get(p.where)[p.kind].push(p.term);
+  }
+  const and = list => (list.length < 2 ? list.join("") : `${list.slice(0, -1).join(", ")} and ${list.at(-1)}`);
+  const words = [...byPlace].flatMap(([where, { cloud, size }]) => [
+    ...(cloud.length ? [`${where} says ${and(cloud)}, ${cloud.length === 1 ? "a word" : "words"} a developer never reads; say what it does for their app`] : []),
+    ...(size.length ? [`${where} gives ${and(size)}; a developer reads "set by a load test" instead`] : [])
+  ]);
 
   const notes = [];
   if (!built.length) notes.push("It builds nothing yet: the platform has nothing that builds these modules, so every plan written against it will be refused until it does.");
