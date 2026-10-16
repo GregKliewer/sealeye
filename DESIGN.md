@@ -3252,3 +3252,46 @@ the draft was written was being written into it.
 
 An answer still never starts a new run: it rewrites only the entries it touches, in
 the same draft, for one planner call against the run's own limit.
+
+## A catalog goes live through a self-test, approved and made live apart
+
+Fri Oct 16, 2026, Greg, PHASE4-PLAN Step 7. How a draft catalog becomes the one an
+organization plans and refuses against. Each as recommended, except where it says.
+
+- **Who approves: any organization-wide token**, and the catalog keeps who and when.
+  That the approver must not be whoever started the run waits for Cognito groups (Q16),
+  where a bank will want it.
+- **Approving and making live are two steps.** Approving says the words are right; making
+  live says now. The self-test runs at both, since what the platform builds can change
+  between them. A retired catalog can go live again once its self-test passes: the way
+  back from a bad catalog.
+- **The self-test is code: no model, seconds, nothing spent** (`core/self-test.js`). It
+  checks the catalog's shape; writes, from the catalog, a plan for each module that must
+  be refused (deprecated, not read, resting on an open question, or nothing the platform
+  has builds it) and sends each through the same check `POST /plans/validate` makes; a
+  plan for each buildable module must pass it; and the words a developer reads must hold
+  no cloud term. Planning sample apps with the model is Step 8's eval, not the gate's.
+- **An open question does not hold up approval** (Greg chose the alternative). An entry
+  resting on one is never buildable, whatever its availability says (`isBuildable` in
+  `core/catalog.js`), so the catalog can be approved and made live without its guess;
+  the answer, when it comes, writes a new draft. A question that touches no module (the
+  path to production) has no entry to switch off, so it does hold up approval until it
+  is answered: otherwise its guess would go live.
+- **The words a developer reads block, not warn** (Greg). Product names of the cloud
+  (`core/developer-words.js`), and sizes and counts, in each module's line, short line,
+  when, skip line, guidance and inputs' lines. A rule's own words and a module's signals
+  are not checked: the first is for whoever approves, the second describes code.
+- **A second organization, `juniper`, on the server.** A catalog discovered from Juniper
+  Mutual's library builds nothing until the Terraform executor (Step 9), and every
+  token today is in `default`, so making it live there would refuse every developer's
+  plan. Tokens already carry an organization; `deploy/server.sh token add --org juniper`
+  issues one. And a guard: making a catalog live is refused (409 `CATALOG_IN_USE`) while
+  any environment of that organization runs on a module the new catalog would not
+  build, naming each.
+- **Traces hold the shape, never the content**, as the interview's do: for each worker
+  its module, the files it read by path and size, tokens and cost; how many questions
+  of which kind. No file contents, no prompt, no reply.
+- **The supervisor merges questions that ask the same thing** by naming the readers'
+  questions it merges; code applies it, keeping who asked each and any answer given.
+- **The rough edges of the discovery screens** are a step of their own after this one,
+  once approving and making live are on them too.
