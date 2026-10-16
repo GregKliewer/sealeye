@@ -115,7 +115,17 @@ export function withCallerToken(client, signer, claims) {
       create(params, options = {}) {
         const headers = { ...(options.headers || {}), authorization: `Bearer ${signer.sign(claims())}` };
         return client.messages.create(params, { ...options, headers });
-      }
+      },
+      // Replies are streamed (askModel in api/interview/model.js); a streamed call
+      // carries its own token too.
+      ...(typeof client.messages.stream === "function"
+        ? {
+            stream(params, options = {}) {
+              const headers = { ...(options.headers || {}), authorization: `Bearer ${signer.sign(claims())}` };
+              return client.messages.stream(params, { ...options, headers });
+            }
+          }
+        : {})
     }
   };
 }
