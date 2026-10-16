@@ -141,7 +141,13 @@ export function rewriteEntries(document, { modules, entries, questions, library 
     modules: document.modules.map(old => {
       const m = moduleBySource.get(old.source);
       if (!m) return old;
-      if (bySource.has(old.source)) return entryFor(m, bySource.get(old.source), m.finding, questions, library);
+      if (bySource.has(old.source)) {
+        // An input line written plainly before (by the fix-up) is kept where the new words
+        // give none, rather than going back to the library's own description.
+        const written = bySource.get(old.source);
+        const kept = Object.fromEntries(Object.entries(old.inputs || {}).filter(([name, spec]) => spec?.line && spec.line !== m.inputs?.[name]?.line).map(([name, spec]) => [name, spec.line]));
+        return entryFor(m, { ...written, input_lines: { ...kept, ...(written.input_lines || {}) } }, m.finding, questions, library);
+      }
       // Untouched words, but which questions it rests on can still change.
       const open = openFor(old.source, questions);
       const { open: _gone, ...rest } = old;

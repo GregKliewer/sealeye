@@ -669,11 +669,20 @@ test("entries in words a developer never reads are written again once, in plain 
   assert.match(fixes[0], /Write the entries for these modules: modules\/db\./, "only the entries that need it");
   assert.match(fixes[0], /- modules\/db: line uses RDS/);
   assert.match(fixes[0], /- modules\/db: line uses subnet/);
+  assert.match(fixes[0], /Do not use these words anywhere in what you write again, not even where a module's own name has them: RDS, subnet\./);
   assert.deepEqual(events.find(e => e.type === "plain_words").sources, ["modules/db"]);
   const draft = catalogAt("acme", service.get(started.discoveryId).catalog.version);
   assert.equal(draft.modules.find(m => m.id === "db").line, "A relational database for your app.");
   const { developerWordProblems } = await import("../core/developer-words.js");
   assert.deepEqual(developerWordProblems({ ...draft, modules: draft.modules.filter(m => m.availability === "available") }), []);
+  assert.equal(draft.modules.find(m => m.id === "db").inputs.name.line, "Your app's name.");
+
+  // A late answer re-writes the db's entry; the input's plain line is kept, not the library's again.
+  const overlap = service.questions(started.discoveryId).find(q => q.kind === "overlap");
+  await service.answer({ id: started.discoveryId, questionId: overlap.id, answer: "db below staging, db-cluster from staging up", by: "lee@acme.test" });
+  await service.settled(started.discoveryId);
+  const after = catalogAt("acme", service.get(started.discoveryId).catalog.version);
+  assert.equal(after.modules.find(m => m.id === "db").inputs.name.line, "Your app's name.");
 });
 
 test("a fix-up that cannot be made keeps the draft as it was, and says so", async () => {

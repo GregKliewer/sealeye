@@ -228,3 +228,14 @@ test("graded twice: no answers, then the key's answers at fixed points; each pas
   assert.ok(scripted.graded.hardCases.some(h => h.case === "answers written in" && h.ok));
   assert.equal(scriptedAnswer({ touches: ["modules/postgres"], guess: "A" }, key, "as_asked"), null, "only the unclear one is answered as it goes out");
 });
+
+test("the unclear cache is graded on a question about the caches only, not on one about every module", () => {
+  const unclear = { id: "q1", touches: ["modules/cache-valkey", "modules/cache-redis"], question: "Is cache-valkey the replacement?", answer: null };
+  const wide = { id: "q2", touches: key.catalog.modules.map(m => m.source), question: "Does the staging rule apply to perf?", answer: null };
+  const doc = copy();
+  bySource(doc, "modules/cache-valkey").open = ["q1"];
+  bySource(doc, "modules/cache-redis").open = ["q1"];
+  const caseOf = qs => gradeCatalog(doc, key, { questions: qs }).hardCases.find(h => h.case === "unclear module asked");
+  assert.equal(caseOf([wide]).ok, false, "a rule across every module is not about the caches");
+  assert.equal(caseOf([wide, unclear]).ok, true);
+});

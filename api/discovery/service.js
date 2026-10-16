@@ -343,11 +343,15 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
    * @param {(entries: object[]) => object} build  the draft as it would be with these entries
    * @returns {Promise<object[]>} the entries, some written again
    */
-  async function inPlainWords(run, entries, sources, build) {
+  async function inPlainWords(run, entries, sources, build, { inputs = true } = {}) {
     const doc = build(entries);
     const sourceOf = new Map((doc.modules || []).map(m => [m.id, m.source]));
     const offered = { ...doc, modules: (doc.modules || []).filter(m => m.availability === "available" && sources.includes(m.source)) };
-    const problems = developerWordProblems(offered).filter(p => p.module && sourceOf.has(p.module));
+    // A rewrite after an answer keeps the input lines already written plainly, and leaves
+    // any still unplain out (withoutUnplainInputLines), so it asks again only about a
+    // module's own words: each late answer would otherwise pay for the inputs again
+    // (Greg's run, Oct 16: four fix-ups in one pass).
+    const problems = developerWordProblems(offered).filter(p => p.module && sourceOf.has(p.module) && (inputs || !/: input /.test(p.where)));
     if (!problems.length) return entries;
     const again = [...new Set(problems.map(p => sourceOf.get(p.module)))];
     // Each place with what it says now, so the model sees the words to replace: an
@@ -363,7 +367,7 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
     try {
       const written = await superviseEntries({
         clientFor: clientFor(run), credentialIsGateway: viaGateway(), budget: s.budget, org: run.orgName,
-        modules: run.modules, library: run.library, questions: asked(run.id), sources: again, plainWords: lines
+        modules: run.modules, library: run.library, questions: asked(run.id), sources: again, plainWords: { lines, terms: [...new Set(problems.map(p => p.term))] }
       });
       const fresh = new Map((written.entries || []).filter(e => again.includes(e.source)).map(e => [e.source, e]));
       traceEvent("plain words", { entries: fresh.size, words: problems.length });
@@ -450,7 +454,7 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
           {
             const base = catalogAt(run.org, run.catalogVersion);
             entries = await inPlainWords(run, entries, sources,
-              list => rewriteEntries(structuredClone(base), { modules: run.modules, entries: list, questions: asked(id), library: run.library }));
+              list => rewriteEntries(structuredClone(base), { modules: run.modules, entries: list, questions: asked(id), library: run.library }), { inputs: false });
           }
           // An answer a merge carried onto modules this pass did not write waits for the
           // next one, so no module is marked done without being written (the review).

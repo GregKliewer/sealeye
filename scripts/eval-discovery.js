@@ -103,7 +103,11 @@ export function gradeCatalog(candidate, key, { questions = null, selfTest = null
   // one it is unclear beside.
   const amb = key.hard_cases?.ambiguous;
   const aboutUnclear = amb ? [amb.module, ...(amb.with ? [amb.with] : [])] : [];
-  const unclearQuestion = Array.isArray(questions) && amb ? questions.find(q => aboutUnclear.every(s => (q.touches || []).includes(s))) : null;
+  // About the caches only: a question touching both and nothing else (a question about a
+  // rule across every module touches both too, and is not about this; Greg's run, Oct 16).
+  const unclearQuestion = Array.isArray(questions) && amb
+    ? questions.find(q => aboutUnclear.every(s => (q.touches || []).includes(s)) && (q.touches || []).every(t => aboutUnclear.includes(t)))
+    : null;
 
   const modules = pairs.map(({ key: k, found }) => {
     if (!found) return { source: k.source || k.id, found: false, ok: false, why: ["missing"] };
@@ -196,7 +200,7 @@ export function gradeCatalog(candidate, key, { questions = null, selfTest = null
       hardCases.push({
         case: "unclear module asked",
         ok: Boolean(m) && Boolean(asked) && rests,
-        why: !m ? "not in the catalog" : !asked ? `no question touches ${about.join(" and ")}` : !rests ? "asked, but its entry does not rest on the question" : `asked: ${asked.question}`
+        why: !m ? "not in the catalog" : !asked ? `no question touches ${about.join(" and ")}, and only them` : !rests ? "asked, but its entry does not rest on the question" : `asked: ${asked.question}`
       });
     } else {
       pending.push({ case: "unclear module asked", waits: "a run's questions (--run)", what: hc.ambiguous.module });
@@ -374,7 +378,7 @@ function argValue(args, name) {
 export function scriptedAnswer(q, key, when) {
   const amb = key.hard_cases?.ambiguous;
   const about = amb ? [amb.module, ...(amb.with ? [amb.with] : [])] : [];
-  const isUnclear = amb && about.every(s => (q.touches || []).includes(s));
+  const isUnclear = amb && about.every(s => (q.touches || []).includes(s)) && (q.touches || []).every(t => about.includes(t));
   const a = key.answers || {};
   if (isUnclear && a.ambiguous?.when === when) return a.ambiguous.answer;
   if (!isUnclear && a.others?.when === when) return a.others.answer === "guess" ? q.guess : a.others.answer;

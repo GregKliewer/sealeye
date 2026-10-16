@@ -3364,3 +3364,20 @@ $0.41). Three changes:
   whole catalog (how perf is built) rightly holds up approval until it is answered. In
   that pass, the self-test's question check is listed as pending, and every other
   check must pass. With the key's answers, all of them must.
+
+**After Greg's second measured run** (Oct 16, 2026). Widening and the fix-up worked: the
+cache question was widened to both caches, and the plain-words pass ran. Three things
+were still wrong:
+- **The fix-up kept "bucket" and "log group".** It now names the words not to use at
+  all, "not even where a module's own name has them", with an example of saying what the
+  thing does instead.
+- **Each late answer paid for the input lines again.** A rewrite took the library's own
+  descriptions back, so the second pass made four fix-up calls and its supervisor spent
+  $0.69. A rewrite now keeps an input line already written plainly. Its fix-up asks only
+  about a module's own words: an input line still unplain is left out, as before.
+- **The grader passed the cache case on the wrong question.** A question about a rule
+  across every module was widened to touch all thirteen, both caches among them. It was
+  graded as the cache question, and the script gave it the cache answer. The unclear case
+  now counts only a question touching the caches and nothing else, and the script
+  answers only that one. Widening a question to every module its rule covers is right
+  for the catalog: each of those entries rests on it.
