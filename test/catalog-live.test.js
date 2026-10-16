@@ -106,7 +106,7 @@ test("the self-test is there to read before approving", async () => {
   const r = await api.call("/catalogs/2/self-test", { token: LEE });
   assert.equal(r.status, 200);
   assert.equal(r.body.selfTest.passed, false);
-  assert.match(r.body.selfTest.checks.find(c => c.id === "words").problems[0], /^http_api_serverless: line says Lambda and API Gateway, words a developer never reads/);
+  assert.match(r.body.selfTest.checks.find(c => c.id === "words").problems[0], /^http_api_serverless: line says "Lambda" and "API Gateway", words a developer never reads/);
 });
 
 test("a catalog with a word a developer never reads is not approved, and stays a draft", async () => {

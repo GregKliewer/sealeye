@@ -42,7 +42,7 @@ test("a draft refused for one word is put right by hand, and then approved", asy
   assert.equal((await api.call("/catalogs/1/approve", { token: LEE, method: "POST", body: {} })).status, 422);
   const line = await edit(1, { module: "secrets", field: "line", text: "Named places for the secrets an app reads — its values put in by the team, never in its code." });
   assert.equal(line.status, 200, JSON.stringify(line.body));
-  assert.match(line.body.selfTest.checks.find(c => c.id === "words").problems.join(" "), /secrets: input secret_names says Terraform/, "the self-test is run again, and says what is left");
+  assert.match(line.body.selfTest.checks.find(c => c.id === "words").problems.join(" "), /secrets: input secret_names says "Terraform"/, "the self-test is run again, and says what is left");
   const input = await edit(1, { module: "secrets", field: "input:secret_names", text: "The names of the secrets your app reads. Names only, never the values." });
   assert.equal(input.body.selfTest.passed, true, JSON.stringify(input.body.selfTest));
 
@@ -128,7 +128,7 @@ test("sealeye catalog edit changes the words and prints the self-test", async ()
   }).catch(err => err);
   const out = await run(["catalog", "edit", "3", "secrets", "line", "Named places for the secrets your app reads."]);
   assert.match(out.stdout, /secrets: What it gives an app is now: Named places for the secrets your app reads\./);
-  assert.match(out.stdout, /secrets: input secret_names says Terraform/);
+  assert.match(out.stdout, /secrets: input secret_names says "Terraform"/);
   const shown = await run(["catalog", "edit", "3", "secrets"]);
   assert.match(shown.stdout, /line\s+What it gives an app\s+Named places for the secrets your app reads\./);
   assert.match(shown.stdout, /input:secret_names\s+Input secret_names\s+Names only: the values are never in Terraform\./);

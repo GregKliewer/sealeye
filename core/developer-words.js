@@ -84,14 +84,32 @@ export function forbiddenWord(text) {
   return forbiddenWords(text)[0] || null;
 }
 
-/** Every such word in `text`, each once, cloud terms first: so one fix finds them all. */
+/**
+ * Every such word in `text`, each once, cloud terms first: so one fix finds them all.
+ * `found` is the words as the text has them ("2 replicas"), so a person can see which
+ * to change.
+ */
 export function forbiddenWords(text) {
   const s = String(text ?? "");
+  const hits = list => list.map(([re, term]) => [s.match(re), term]).filter(([m]) => m);
   const found = [
-    ...TERMS.filter(([re]) => re.test(s)).map(([, term]) => ({ term, kind: "cloud" })),
-    ...SIZES.filter(([re]) => re.test(s)).map(([, term]) => ({ term, kind: "size" }))
+    ...hits(TERMS).map(([m, term]) => ({ term, kind: "cloud", found: m[0] })),
+    ...hits(SIZES).map(([m, term]) => ({ term, kind: "size", found: m[0] }))
   ];
   return found.filter((f, i) => found.findIndex(g => g.term === f.term) === i);
+}
+
+/**
+ * One such word as a person is told it: the words as the text has them, in quotes, and
+ * what they are after, when that says more ("ca-central-1" (a region's name), "2
+ * replicas" (a count of machines), "Terraform"). In quotes is what to change; outside
+ * them, a description (Greg, Oct 16, 2026: "a count of machines" alone did not say which
+ * words to change).
+ */
+export function shownWord(w) {
+  if (!w?.found) return w?.term || "";
+  const says = w.found.toLowerCase().includes(String(w.term).toLowerCase());
+  return says ? `"${w.found}"` : `"${w.found}" (${w.term})`;
 }
 
 /**
@@ -130,9 +148,9 @@ export function developerTexts(doc) {
 
 /**
  * Every word in a catalog a developer must never read, with where it is:
- * { where, module?, term, kind }, one for each word in each place. Empty when there is none.
+ * { where, module?, term, kind, found }, one for each word in each place. Empty when there is none.
  */
 export function developerWordProblems(doc) {
   return developerTexts(doc).flatMap(({ where, module, text }) =>
-    forbiddenWords(text).map(found => ({ where, ...(module ? { module } : {}), term: found.term, kind: found.kind })));
+    forbiddenWords(text).map(found => ({ where, ...(module ? { module } : {}), term: found.term, kind: found.kind, found: found.found })));
 }

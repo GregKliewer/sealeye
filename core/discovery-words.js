@@ -5,6 +5,7 @@
 // own (something else, or later).
 //
 // Runs in a browser: the portal imports it. No node: modules, no packages.
+import { shownWord } from "./developer-words.js";
 
 /** The choice that opens a box for an answer of the engineer's own. */
 export const SOMETHING_ELSE = "Something else";
@@ -249,6 +250,17 @@ export function fixedWords({ changed, kept }) {
   if (!changed && !kept) return "Nothing to change.";
   return [changed ? `Changed ${plural(changed, "field", "fields")}` : null, kept ? `left ${plural(kept, "field", "fields")} as ${kept === 1 ? "it was" : "they were"}` : null]
     .filter(Boolean).join(", ").replace(/^l/, "L") + ".";
+}
+
+/**
+ * What the walk says when new words still hold one a developer never reads: the words
+ * themselves, and for a size or count, what to say instead. `keep` is how the surface
+ * keeps them anyway ("press Enter", "save again").
+ */
+export function stillSaysWords(found, keep = "press Enter") {
+  const shown = (found || []).map(shownWord);
+  const sizes = (found || []).some(w => w.kind === "size");
+  return `That still says ${shown.join(", ")}.${sizes ? ' A developer reads "set by a load test" in place of a size or a count.' : ""} Change it, or ${keep} to keep it as written.`;
 }
 
 /** What a refused approval asks when editing words can fix it. */
