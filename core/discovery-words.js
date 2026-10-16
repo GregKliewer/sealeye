@@ -143,3 +143,25 @@ export function choicesFor(q) {
   const ordered = q.guess && options.includes(q.guess) ? [q.guess, ...options.filter(o => o !== q.guess)] : options;
   return ordered;
 }
+
+/**
+ * What each check of the self-test is called on both surfaces (PHASE4-PLAN Step 7). The
+ * API sends each check's id and its problems in words; this is its title.
+ */
+export const SELF_TEST_CHECKS = Object.freeze({
+  shape: "The catalog is well formed",
+  questions: "No question about the whole catalog is waiting",
+  refused: "Plans using what it must not build are refused",
+  accepted: "Plans using what it builds are accepted",
+  words: "Nothing a developer reads uses a word they never should"
+});
+
+/** A self-test's result in one line. */
+export function selfTestSummary(result) {
+  if (!result) return "";
+  const failed = (result.checks || []).filter(c => !c.passed);
+  const problems = failed.reduce((n, c) => n + (c.problems || []).length, 0);
+  return failed.length
+    ? `The self-test found ${plural(problems, "problem", "problems")} in catalog ${result.version}.`
+    : `Catalog ${result.version} passed its self-test.`;
+}

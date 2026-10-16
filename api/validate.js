@@ -79,8 +79,15 @@ export function checkUpgraded(plan, { org = "default" } = {}) {
   // the starter's shape, as any other field is.
   const known = plan && typeof plan === "object" && isVersion(plan.catalog) ? catalogOfPlan(plan, org) : null;
   if (known?.error) return { valid: false, errors: [known.error] };
-  const catalog = known?.document || catalogAt(org, STARTER_VERSION);
+  return checkAgainst(plan, known?.document || catalogAt(org, STARTER_VERSION));
+}
 
+/**
+ * The same check against a catalog document, whatever its status: the self-test asks it
+ * of a draft or an approved catalog before any plan may name one (api/self-test.js), and
+ * must get the answer a developer's plan would get once it is live.
+ */
+export function checkAgainst(plan, catalog) {
   const validate = validatorFor(catalog);
   const ok = validate(plan);
   const errors = ok ? unlistedNeedProblems(plan, catalogModuleIds(catalog)) : formatAjvErrors(validate.errors);

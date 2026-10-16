@@ -3265,7 +3265,7 @@ organization plans and refuses against. Each as recommended, except where it say
   live says now. The self-test runs at both, since what the platform builds can change
   between them. A retired catalog can go live again once its self-test passes: the way
   back from a bad catalog.
-- **The self-test is code: no model, seconds, nothing spent** (`core/self-test.js`). It
+- **The self-test is code: no model, seconds, nothing spent** (`api/self-test.js`). It
   checks the catalog's shape; writes, from the catalog, a plan for each module that must
   be refused (deprecated, not read, resting on an open question, or nothing the platform
   has builds it) and sends each through the same check `POST /plans/validate` makes; a
