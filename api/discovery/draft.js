@@ -9,6 +9,7 @@
 // need and what each profile expects are seaLeye's, not the library's. It takes nothing
 // else of the starter's, since its modules and rules are seaLeye's own four.
 import { starterCatalog } from "../../core/catalog.js";
+import { forbiddenWord } from "../../core/developer-words.js";
 
 const unanswered = q => q.answer === undefined || q.answer === null;
 
@@ -140,11 +141,44 @@ export function rewriteEntries(document, { modules, entries, questions, library 
     modules: document.modules.map(old => {
       const m = moduleBySource.get(old.source);
       if (!m) return old;
-      if (bySource.has(old.source)) return entryFor(m, bySource.get(old.source), m.finding, questions, library);
+      if (bySource.has(old.source)) {
+        // An input line written plainly before (by the fix-up) is kept where the new words
+        // give none, rather than going back to the library's own description.
+        const written = bySource.get(old.source);
+        const kept = Object.fromEntries(Object.entries(old.inputs || {}).filter(([name, spec]) => spec?.line && spec.line !== m.inputs?.[name]?.line).map(([name, spec]) => [name, spec.line]));
+        return entryFor(m, { ...written, input_lines: { ...kept, ...(written.input_lines || {}) } }, m.finding, questions, library);
+      }
       // Untouched words, but which questions it rests on can still change.
       const open = openFor(old.source, questions);
       const { open: _gone, ...rest } = old;
       return open.length ? { ...rest, open } : rest;
+    })
+  };
+}
+
+/**
+ * The last resort for an input's line, after the supervisor has had its one chance to
+ * write it plainly: a line that still holds a word a developer never reads is left out,
+ * and the input is shown by its name alone. An input's line is most often the library's
+ * own variable description ("The DB subnet group"), which no one at seaLeye wrote, and a
+ * missing line costs a developer less than a catalog that cannot be approved (Greg's run,
+ * Oct 16, 2026). A module's own words are never left out: the self-test names them.
+ */
+export function withoutUnplainInputLines(document) {
+  return {
+    ...document,
+    modules: (document.modules || []).map(m => {
+      if (!m || m.availability !== "available" || !m.inputs) return m;
+      let changed = false;
+      const inputs = Object.fromEntries(Object.entries(m.inputs).map(([name, spec]) => {
+        if (spec && typeof spec.line === "string" && forbiddenWord(spec.line)) {
+          changed = true;
+          const { line: _gone, ...rest } = spec;
+          return [name, rest];
+        }
+        return [name, spec];
+      }));
+      return changed ? { ...m, inputs } : m;
     })
   };
 }

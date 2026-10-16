@@ -103,7 +103,11 @@ export function gradeCatalog(candidate, key, { questions = null, selfTest = null
   // one it is unclear beside.
   const amb = key.hard_cases?.ambiguous;
   const aboutUnclear = amb ? [amb.module, ...(amb.with ? [amb.with] : [])] : [];
-  const unclearQuestion = Array.isArray(questions) && amb ? questions.find(q => aboutUnclear.every(s => (q.touches || []).includes(s))) : null;
+  // About the caches only: a question touching both and nothing else (a question about a
+  // rule across every module touches both too, and is not about this; Greg's run, Oct 16).
+  const unclearQuestion = Array.isArray(questions) && amb
+    ? questions.find(q => aboutUnclear.every(s => (q.touches || []).includes(s)) && (q.touches || []).every(t => aboutUnclear.includes(t)))
+    : null;
 
   const modules = pairs.map(({ key: k, found }) => {
     if (!found) return { source: k.source || k.id, found: false, ok: false, why: ["missing"] };
@@ -196,7 +200,7 @@ export function gradeCatalog(candidate, key, { questions = null, selfTest = null
       hardCases.push({
         case: "unclear module asked",
         ok: Boolean(m) && Boolean(asked) && rests,
-        why: !m ? "not in the catalog" : !asked ? `no question touches ${about.join(" and ")}` : !rests ? "asked, but its entry does not rest on the question" : `asked: ${asked.question}`
+        why: !m ? "not in the catalog" : !asked ? `no question touches ${about.join(" and ")}, and only them` : !rests ? "asked, but its entry does not rest on the question" : `asked: ${asked.question}`
       });
     } else {
       pending.push({ case: "unclear module asked", waits: "a run's questions (--run)", what: hc.ambiguous.module });
@@ -223,11 +227,18 @@ export function gradeCatalog(candidate, key, { questions = null, selfTest = null
   // The self-test a catalog passes before it is approved (api/self-test.js): it passes,
   // and refuses what the key says must be refused.
   if (selfTest) {
+    // With no answers given, a question about the whole catalog rightly holds up its
+    // approval (DESIGN.md, Step 7): that check waits on the answer, and every other must
+    // pass (Greg's run, Oct 16, 2026). With the key's answers, all of them must.
+    const failing = selfTest.checks.filter(c => !c.passed);
+    const waiting = !scripted ? failing.filter(c => c.id === "questions") : [];
+    const blocking = failing.filter(c => !waiting.includes(c));
     hardCases.push({
       case: "self-test",
-      ok: selfTest.passed,
-      why: selfTest.passed ? "passes: it could be approved" : selfTest.checks.filter(c => !c.passed).flatMap(c => c.problems).join("; ")
+      ok: blocking.length === 0,
+      why: !failing.length ? "passes: it could be approved" : blocking.length ? blocking.flatMap(c => c.problems).join("; ") : "passes, but for the questions about the whole catalog"
     });
+    for (const c of waiting) pending.push({ case: "approval", waits: `the answers to ${c.problems.length} ${c.problems.length === 1 ? "question" : "questions"} about the whole catalog`, what: c.problems.map(p => p.replace(/^A question about the whole catalog is not answered yet: /, "")).join("; ") });
     const refusal = source => {
       const m = bySource.get(source);
       return m ? selfTest.refused.find(r => r.id === m.id) : null;
@@ -367,7 +378,7 @@ function argValue(args, name) {
 export function scriptedAnswer(q, key, when) {
   const amb = key.hard_cases?.ambiguous;
   const about = amb ? [amb.module, ...(amb.with ? [amb.with] : [])] : [];
-  const isUnclear = amb && about.every(s => (q.touches || []).includes(s));
+  const isUnclear = amb && about.every(s => (q.touches || []).includes(s)) && (q.touches || []).every(t => about.includes(t));
   const a = key.answers || {};
   if (isUnclear && a.ambiguous?.when === when) return a.ambiguous.answer;
   if (!isUnclear && a.others?.when === when) return a.others.answer === "guess" ? q.guess : a.others.answer;
@@ -410,19 +421,23 @@ export async function runDiscovery(libraryDir, key, out, { scripted = false, cli
   const started = Date.now();
   const { discoveryId } = await service.start({ caller, repos: [{ owner, repo }] });
   const given = [];
+  const answeredIds = new Set();
   service.subscribe(discoveryId, 0, e => {
     if (!e) return;
     if (e.type === "read") console.log(`  read     ${e.source}`);
     if (e.type === "not_read") console.log(`  NOT READ ${e.source}: ${e.why}`);
-    if (e.type === "question") {
-      console.log(`  asked    ${e.question.question} (guess: ${e.question.guess})`);
-      const answer = scripted ? scriptedAnswer(e.question, key, "as_asked") : null;
+    if (e.type === "question" || e.type === "widened") {
+      console.log(e.type === "question" ? `  asked    ${e.question.question} (guess: ${e.question.guess})` : `  widened  to touch ${e.question.touches.join(", ")}: ${e.question.question}`);
+      const answer = scripted && !answeredIds.has(e.question.id) ? scriptedAnswer(e.question, key, "as_asked") : null;
+      if (answer) answeredIds.add(e.question.id);
       if (answer) {
         given.push(service.answer({ id: discoveryId, questionId: e.question.id, answer, by: "eval@sealeye" }).catch(() => {}));
         console.log(`  answered ${answer}`);
       }
     }
     if (e.type === "merged") console.log(`  merged   ${e.questions.length} into one`);
+    if (e.type === "plain_words") console.log(`  plain    writing again in plain words: ${e.sources.join(", ")}`);
+    if (e.type === "plain_words_not_done") console.log(`  NOT PLAIN ${e.sources.join(", ")}: ${e.why}`);
     if (e.type === "writing") console.log("  writing the catalog");
   });
   await service.settled(discoveryId);

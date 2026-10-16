@@ -42,6 +42,8 @@ export function discoveryEventLine(event) {
       return `Writing ${plural((event.sources || []).length, "entry", "entries")} again in plain words: ${(event.sources || []).join(", ")}`;
     case "plain_words_not_done":
       return `Could not write ${(event.sources || []).join(", ")} again in plain words: ${event.why}. The self-test will say what to change.`;
+    case "widened":
+      return `A question now also touches ${(event.question?.touches || []).join(", ")}`;
     case "merged":
       return `${plural((event.questions || []).length, "question", "questions")} merged into one that asks the same thing`;
     case "answers_used":

@@ -3345,3 +3345,39 @@ again with the same meaning in plain words, with a plain line for each input nam
 new entries replace the old. Once only: if the call cannot be made, or the words still
 fail, the entries stay as they are and the self-test says what to change. It costs one
 frontier call for just those entries, against the run's cap, and only when it is needed.
+
+**After Greg's measured run** (Oct 16, 2026: both passes "Not as expected", $0.27 and
+$0.41). Three changes:
+- **A wider question widens the first instead of being dropped.** A reader asked about
+  cache-valkey's standing alone. The supervisor's question naming cache-redis as well
+  was dropped by code as a repeat, so no question touched both caches, and the scripted
+  answer never fired. Now a repeat that names modules the first left out widens the
+  first (while it is unanswered), and the entries it touches rest on it. The
+  supervisor is told to ask naming both even when a reader asked about one.
+- **An input's line still unplain after the fix-up is left out.** The fix-up ran ($0.09
+  of the supervisor's spend), but five input lines kept the library's own "subnet". The
+  fix-up now shows the model each failing line as it stands, and names the
+  `input_lines` field to write. A line that still fails is left out, and the input is
+  shown by its name alone (`withoutUnplainInputLines`). A module's own words are never
+  left out: the self-test names them.
+- **The no-answers pass grades approval as waiting, not failing.** A question about the
+  whole catalog (how perf is built) rightly holds up approval until it is answered. In
+  that pass, the self-test's question check is listed as pending, and every other
+  check must pass. With the key's answers, all of them must.
+
+**After Greg's second measured run** (Oct 16, 2026). Widening and the fix-up worked: the
+cache question was widened to both caches, and the plain-words pass ran. Three things
+were still wrong:
+- **The fix-up kept "bucket" and "log group".** It now names the words not to use at
+  all, "not even where a module's own name has them", with an example of saying what the
+  thing does instead.
+- **Each late answer paid for the input lines again.** A rewrite took the library's own
+  descriptions back, so the second pass made four fix-up calls and its supervisor spent
+  $0.69. A rewrite now keeps an input line already written plainly. Its fix-up asks only
+  about a module's own words: an input line still unplain is left out, as before.
+- **The grader passed the cache case on the wrong question.** A question about a rule
+  across every module was widened to touch all thirteen, both caches among them. It was
+  graded as the cache question, and the script gave it the cache answer. The unclear case
+  now counts only a question touching the caches and nothing else, and the script
+  answers only that one. Widening a question to every module its rule covers is right
+  for the catalog: each of those entries rests on it.

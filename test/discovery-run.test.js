@@ -519,13 +519,20 @@ test("a question the supervisor asks again in its own words is dropped; a new on
   assert.deepEqual(onCache.map(q => q.question), ["Is the cache still offered to anyone?", "Should the cache's own README name what replaces it?"]);
 });
 
-test("a question asked again in nearly the same words is dropped, even naming one more module", async () => {
+test("a question asked again in nearly the same words is not asked twice: naming one more module, it widens the first", async () => {
   const model = scripted({ repeatWider: true });
   const service = createDiscoveryService({ client: model.client, readLibrary: readFolder(library()) });
+  const events = [];
   const { discoveryId } = await service.start({ caller, repos: [{ owner: "acme", repo: "platform" }] });
+  service.subscribe(discoveryId, 0, e => e && events.push(e));
   await service.settled(discoveryId);
   const onCache = service.questions(discoveryId).filter(q => q.touches.includes("modules/cache"));
   assert.deepEqual(onCache.map(q => q.question), ["Is the cache still offered to anyone?"]);
+  // The reader's question now touches the db too, as the supervisor's did (Greg's run, Oct 16).
+  assert.deepEqual(onCache[0].touches, ["modules/cache", "modules/db"]);
+  assert.ok(events.some(e => e.type === "widened" && e.question.id === onCache[0].id));
+  const draft = catalogAt("acme", service.get(discoveryId).catalog.version);
+  assert.ok(draft.modules.find(m => m.id === "db").open.includes(onCache[0].id), "and the db's entry rests on it");
 });
 
 test("a question asked again after it was answered is dropped: the answer stands (Greg's run, Oct 15)", async () => {
@@ -662,11 +669,20 @@ test("entries in words a developer never reads are written again once, in plain 
   assert.match(fixes[0], /Write the entries for these modules: modules\/db\./, "only the entries that need it");
   assert.match(fixes[0], /- modules\/db: line uses RDS/);
   assert.match(fixes[0], /- modules\/db: line uses subnet/);
+  assert.match(fixes[0], /Do not use these words anywhere in what you write again, not even where a module's own name has them: RDS, subnet\./);
   assert.deepEqual(events.find(e => e.type === "plain_words").sources, ["modules/db"]);
   const draft = catalogAt("acme", service.get(started.discoveryId).catalog.version);
   assert.equal(draft.modules.find(m => m.id === "db").line, "A relational database for your app.");
   const { developerWordProblems } = await import("../core/developer-words.js");
   assert.deepEqual(developerWordProblems({ ...draft, modules: draft.modules.filter(m => m.availability === "available") }), []);
+  assert.equal(draft.modules.find(m => m.id === "db").inputs.name.line, "Your app's name.");
+
+  // A late answer re-writes the db's entry; the input's plain line is kept, not the library's again.
+  const overlap = service.questions(started.discoveryId).find(q => q.kind === "overlap");
+  await service.answer({ id: started.discoveryId, questionId: overlap.id, answer: "db below staging, db-cluster from staging up", by: "lee@acme.test" });
+  await service.settled(started.discoveryId);
+  const after = catalogAt("acme", service.get(started.discoveryId).catalog.version);
+  assert.equal(after.modules.find(m => m.id === "db").inputs.name.line, "Your app's name.");
 });
 
 test("a fix-up that cannot be made keeps the draft as it was, and says so", async () => {
@@ -686,4 +702,23 @@ test("a fix-up that cannot be made keeps the draft as it was, and says so", asyn
   assert.equal(service.get(started.discoveryId).status, "finished");
   assert.ok(events.some(e => e.type === "plain_words_not_done"));
   assert.equal(catalogAt("acme", service.get(started.discoveryId).catalog.version).modules.find(m => m.id === "db").line, "Runs on Lambda.");
+});
+
+test("an input's line still unplain after the fix-up is left out, the input kept by its name", async () => {
+  const model = scripted();
+  const create = model.client.messages.create;
+  model.client.messages.create = async params => {
+    const reply = await create(params);
+    if (params.tools.some(t => t.name === "write_catalog")) {
+      // Never writes the input's line plainly, even when asked.
+      for (const e of reply.content[0].input.entries) if (e.source === "modules/db") e.input_lines = { name: "The name of the app's VPC." };
+    }
+    return reply;
+  };
+  const service = createDiscoveryService({ client: model.client, readLibrary: readFolder(library()) });
+  const { discoveryId } = await service.start({ caller, repos: [{ owner: "acme", repo: "platform" }] });
+  await service.settled(discoveryId);
+  const db = catalogAt("acme", service.get(discoveryId).catalog.version).modules.find(m => m.id === "db");
+  assert.deepEqual(db.inputs.name, { required: true });
+  assert.ok(model.calls.some(c => c.opening.includes('modules/db: input name uses VPC (now: "The name of the app\'s VPC."); write input_lines.name')), "the fix-up showed the words to replace");
 });

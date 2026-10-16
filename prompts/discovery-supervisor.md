@@ -30,7 +30,9 @@ run code), or a rule in one place contradicts another, raise a question naming e
 module folder it touches, with two to four short options, your guess first, and the
 evidence from the findings. When one module is deprecated and another of the same kind
 is in the library, and nothing says whether it is the replacement new apps should use,
-ask that, naming both. Ask only when the answer changes an entry. Do not repeat a
+ask that, naming both, even when a reader already asked about one of them alone: seaLeye
+widens the reader's question to touch both rather than asking twice. Ask only when the
+answer changes an entry. Do not repeat a
 question a reader already raised. Never ask what the findings already settle, whether a
 rule is enforced, or about tidying the library.
 

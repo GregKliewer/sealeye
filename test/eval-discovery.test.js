@@ -179,14 +179,19 @@ test("graded twice: no answers, then the key's answers at fixed points; each pas
         if (tools.includes("submit_finding")) {
           const source = opening.match(/Your module is (\S+)\./)[1];
           const k = words.get(source);
+          // As in Greg's run of Oct 16: the cache-valkey reader asks about its standing
+          // alone, and the supervisor, naming cache-redis too, widens it.
           const questions = source === "modules/work-queue"
             ? [{ kind: "other", question: "Are failed messages kept in every stage?", options: ["Yes", "Only from staging up"], guess: "Yes", evidence: [{ file: "modules/work-queue/README.md", shows: "a dead-letter queue" }] }]
-            : [];
+            : source === "modules/cache-valkey"
+              ? [{ kind: "other", question: "Is cache-valkey the replacement for new apps now?", options: ["No, not yet", "Yes"], guess: "No, not yet", evidence: [{ file: "modules/cache-valkey/README.md", shows: "in trial with two teams" }] }]
+              : [];
           // No input lines of its own: the library's variable descriptions stand, and
           // some say "subnet" or "Terraform", so the fix-up has to put them right.
           return { content: [{ type: "tool_use", id: "f", name: "submit_finding", input: { line: k.line, when: k.when || "", signals: k.signals || [], role: k.role || "optional", availability: k.availability === "available" ? "available" : "deprecated", stages: "all", rules: [], questions } }], usage };
         }
-        if (tools.includes("submit_library")) return { content: [{ type: "tool_use", id: "l", name: "submit_library", input: { stages: ["dev", "sit", "uat", "staging", "prod"], rules: [], questions: [] } }], usage };
+        // And a question about the whole catalog, which holds approval until it is answered.
+        if (tools.includes("submit_library")) return { content: [{ type: "tool_use", id: "l", name: "submit_library", input: { stages: ["dev", "sit", "uat", "staging", "prod"], rules: [], questions: [{ kind: "other", question: "How is the perf stage built?", options: ["From the staging package", "Its own pipeline"], guess: "From the staging package", evidence: [{ file: "README.md", shows: "perf has no job" }] }] } }], usage };
         const sources = opening.match(/Write the entries for these modules: (.+)\./)[1].split(", ");
         const asked = JSON.parse(opening.slice(opening.indexOf("Questions so far, with any answers:") + 35));
         const first = sources.length > 2;
@@ -212,12 +217,25 @@ test("graded twice: no answers, then the key's answers at fixed points; each pas
   assert.equal(fixUps, 1, "the library's own descriptions were written again once, and then the self-test passed");
   assert.deepEqual(none.graded.hardCases.filter(h => h.case.startsWith("must refuse") || h.case === "self-test").map(h => [h.case, h.ok]),
     [["self-test", true], ["must refuse: deprecated", true], ["must refuse: resting on a question", true]]);
+  assert.ok(none.graded.pending.some(p => p.case === "approval" && /How is the perf stage built/.test(p.what)), "the whole-catalog question waits, not fails");
 
   const scripted = await runDiscovery(process.env.SEALEYE_SAMPLE_PLATFORM, key, out("scripted"), { client, scripted: true });
   assert.ok(scripted.graded.correct, gradeLines(scripted.graded).join("\n"));
   const answered = Object.fromEntries(scripted.questions.map(q => [q.question, q.answer]));
-  assert.equal(answered["Is cache-valkey the replacement for cache-redis for new apps?"], key.answers.ambiguous.answer, "answered as it went out");
+  assert.equal(answered["Is cache-valkey the replacement for new apps now?"], key.answers.ambiguous.answer, "answered once widened to both caches, as the run went");
+  assert.ok(!("Is cache-valkey the replacement for cache-redis for new apps?" in answered), "the supervisor's wider question was not asked twice");
   assert.equal(answered["Are failed messages kept in every stage?"], "Yes", "answered with its guess, after the draft");
   assert.ok(scripted.graded.hardCases.some(h => h.case === "answers written in" && h.ok));
   assert.equal(scriptedAnswer({ touches: ["modules/postgres"], guess: "A" }, key, "as_asked"), null, "only the unclear one is answered as it goes out");
+});
+
+test("the unclear cache is graded on a question about the caches only, not on one about every module", () => {
+  const unclear = { id: "q1", touches: ["modules/cache-valkey", "modules/cache-redis"], question: "Is cache-valkey the replacement?", answer: null };
+  const wide = { id: "q2", touches: key.catalog.modules.map(m => m.source), question: "Does the staging rule apply to perf?", answer: null };
+  const doc = copy();
+  bySource(doc, "modules/cache-valkey").open = ["q1"];
+  bySource(doc, "modules/cache-redis").open = ["q1"];
+  const caseOf = qs => gradeCatalog(doc, key, { questions: qs }).hardCases.find(h => h.case === "unclear module asked");
+  assert.equal(caseOf([wide]).ok, false, "a rule across every module is not about the caches");
+  assert.equal(caseOf([wide, unclear]).ok, true);
 });

@@ -395,7 +395,8 @@ async function superviseTraced({ clientFor, credentialIsGateway, budget, org, mo
     // (Greg, Oct 16, 2026): the same entries, the same meaning, in plain words.
     ...(plainWords ? [
       "These entries were written with words a developer never reads. Write each again with the same meaning in plain words, saying what it does for the developer's app, and give a plain line in input_lines for every input named here:",
-      ...plainWords.map(line => `- ${line}`),
+      ...plainWords.lines.map(line => `- ${line}`),
+      `Do not use these words anywhere in what you write again, not even where a module's own name has them: ${plainWords.terms.join(", ")}. Say what the thing does for the app instead ("somewhere to keep the files it writes", "keeps its logs").`,
       ""
     ] : []),
     "What the readers found, each module:",
