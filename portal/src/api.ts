@@ -36,6 +36,7 @@ export interface DiscoveryQuestion {
   id: string; kind: string; question: string; options: string[]; guess: string; touches: string[];
   evidence: { file: string; line?: number; shows: string }[];
   answer: string | null; answeredBy: string | null; answeredAt: string | null; usedAt: string | null;
+  merged?: { question: string; raisedBy: string }[];
 }
 export interface DiscoverySummary {
   discoveryId: string; org: string; status: "running" | "finished" | "stopped" | "failed"; reason?: string; message?: string;

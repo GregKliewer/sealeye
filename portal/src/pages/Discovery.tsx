@@ -32,7 +32,7 @@ const LOOK_AGAIN_WRITING_MS = 1500;
 /** Milliseconds since an event's time, never less than none. */
 const since = (at: string | null | undefined, now: number) => (at ? Math.max(0, now - Date.parse(at)) : 0);
 
-const MOVES = new Set(["question", "answered", "answers_used", "draft", "finished", "stopped", "failed", "not_read", "read"]);
+const MOVES = new Set(["question", "answered", "answers_used", "merged", "draft", "finished", "stopped", "failed", "not_read", "read"]);
 
 function Discovery() {
   const runs = useLoad(api.discoveries);
@@ -233,6 +233,7 @@ function QuestionCard({ runId, q, onAnswered }: { runId: string; q: DiscoveryQue
       <CardContent>
         <p className="font-medium">{q.question}</p>
         {q.touches.length ? <p className="mt-1 text-xs text-dim">Touches {q.touches.join(", ")}</p> : null}
+        {q.merged?.length ? <p className="mt-1 text-xs text-dim" data-testid="also-asked">Also asked as: {q.merged.map(m => `"${m.question}"`).join("; ")}</p> : null}
         <ul className="mt-2 space-y-0.5 text-xs text-dim">
           {q.evidence.map((e, i) => <li key={i}><span className="font-mono">{e.file}{e.line ? `:${e.line}` : ""}</span>: {e.shows}</li>)}
         </ul>

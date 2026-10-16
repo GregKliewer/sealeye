@@ -208,8 +208,57 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
   const publicQuestion = q => ({
     id: q.id, kind: q.kind, question: q.question, options: q.options, guess: q.guess, touches: q.touches,
     evidence: q.evidence, answer: q.answer ?? null, answeredBy: q.answeredBy || null, answeredAt: q.answeredAt || null,
-    usedAt: q.usedAt || null
+    usedAt: q.usedAt || null,
+    // The questions merged into this one, each as it was asked and by whom.
+    ...(q.merged?.length ? { merged: q.merged.map(m => ({ question: m.question, raisedBy: m.raisedBy })) } : {})
   });
+
+  /**
+   * A run's questions, less those merged into another: one issue is one question, kept
+   * once, wherever it was asked. A merged question keeps its own record, saying which it
+   * was merged into.
+   */
+  const asked = id => store.questionsOf(id).filter(q => !q.mergedInto);
+
+  /**
+   * Merge the questions the supervisor says ask the same thing (Greg, Oct 16, 2026: three
+   * about the caches in one run). Code checks and applies each: both must be this run's
+   * and not merged already, and two different answers are never merged. The one kept
+   * touches every module either did, takes an answer only the other had, and keeps who
+   * asked each.
+   */
+  async function applyMerges(run, merges) {
+    const all = new Map(store.questionsOf(run.id).map(q => [q.id, q]));
+    const done = [];
+    for (const m of Array.isArray(merges) ? merges : []) {
+      let keep = all.get(String(m?.keep || ""));
+      if (!keep || keep.mergedInto) continue;
+      for (const id of new Set((Array.isArray(m.merged) ? m.merged : []).map(String))) {
+        const other = all.get(id);
+        if (!other || other.id === keep.id || other.mergedInto) continue;
+        if (other.answer != null && keep.answer != null && other.answer !== keep.answer) continue;
+        if (other.answer != null && keep.answer == null) {
+          keep = { ...keep, answer: other.answer, answeredBy: other.answeredBy || null, answeredAt: other.answeredAt || null, usedAt: null, usedIn: null };
+        }
+        keep = {
+          ...keep,
+          touches: [...new Set([...(keep.touches || []), ...(other.touches || [])])],
+          merged: [...(keep.merged || []), { id: other.id, question: other.question, raisedBy: other.raisedBy, kind: other.kind }, ...(other.merged || [])]
+        };
+        const gone = { ...other, mergedInto: keep.id };
+        await store.saveQuestion(gone);
+        all.set(gone.id, gone);
+        done.push(gone.id);
+      }
+      await store.saveQuestion(keep);
+      all.set(keep.id, keep);
+    }
+    if (done.length) {
+      traceEvent("questions merged", { merged: done.length });
+      emit(run.id, { type: "merged", questions: done, into: [...new Set(done.map(id => all.get(id).mergedInto))] });
+    }
+    return done;
+  }
 
   function graphFor(run) {
     const s = state(run.id);
@@ -263,7 +312,7 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
   async function writeAll(run) {
     const s = state(run.id);
     emit(run.id, { type: "writing" });
-    const before = store.questionsOf(run.id);
+    const before = asked(run.id);
     const written = await superviseEntries({
       clientFor: clientFor(run),
       credentialIsGateway: viaGateway(),
@@ -275,7 +324,8 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
       sources: run.modules.map(m => m.source)
     });
     await raise(run, written.questions, null);
-    const questions = store.questionsOf(run.id);
+    await applyMerges(run, written.merges);
+    const questions = asked(run.id);
     const document = draftCatalog({ run, modules: run.modules, library: run.library, entries: written.entries, questions });
     const kept = await addCatalog({ org: run.org, document, by: run.startedBy });
     run.catalogVersion = kept.version;
@@ -310,7 +360,7 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
     s.writing = s.writing.then(async () => {
       const run = runOf(id);
       if (!run?.catalogVersion) return;
-      const pending = store.questionsOf(id).filter(q => q.answer != null && !q.usedAt);
+      const pending = asked(id).filter(q => q.answer != null && !q.usedAt);
       if (!pending.length) return;
       const sources = [...new Set(pending.flatMap(q => q.touches))];
       let entries = [];
@@ -320,13 +370,14 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
           const written = await traceDiscovery({ runId: id, org: run.org, repo: run.repos?.[0]?.repo, commit: run.repos?.[0]?.commit, user: run.startedBy, kind: "answers" }, async trace => {
             const out = await superviseEntries({
               clientFor: clientFor(run), credentialIsGateway: viaGateway(), budget: s.budget, org: run.orgName,
-              modules: run.modules, library: run.library, questions: store.questionsOf(id), sources
+              modules: run.modules, library: run.library, questions: asked(id), sources
             });
             trace.set({ answers: pending.length, entries: sources.length });
             return out;
           });
           // Questions it raises now go out too, and entries resting on them say so.
           await raise(run, written.questions, null);
+          await applyMerges(run, written.merges);
           entries = written.entries.filter(e => sources.includes(e.source));
         } catch (err) {
           run.spend = s.budget.spend();
@@ -338,7 +389,7 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
       }
       let version = run.catalogVersion;
       const current = catalogAt(run.org, version);
-      const document = rewriteEntries(structuredClone(current), { modules: run.modules, entries, questions: store.questionsOf(id), library: run.library });
+      const document = rewriteEntries(structuredClone(current), { modules: run.modules, entries, questions: asked(id), library: run.library });
       const status = catalogsOf(run.org).find(c => c.version === version)?.status;
       if (status === "draft") await updateDraft({ org: run.org, version, document });
       else version = (await addCatalog({ org: run.org, document, by: run.startedBy })).version;
@@ -349,7 +400,7 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
       await save(id);
       emit(id, { type: "answers_used", questions: pending.map(q => q.id), sources, catalog: { version } });
       // An answer that changed while this pass ran is still pending: one more pass.
-      if (store.questionsOf(id).some(q => q.answer != null && !q.usedAt)) useAnswers(id);
+      if (asked(id).some(q => q.answer != null && !q.usedAt)) useAnswers(id);
     }).catch(err => {
       // Kept, never lost: the answers stay pending and the next pass uses them. Said on
       // the run's events and in the API's log, which holds no content of the library.
@@ -443,7 +494,7 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
       run.finishedAt = new Date(now()).toISOString();
       run.spend = s.budget.spend();
       await save(run.id);
-      emit(run.id, { type: "finished", catalog: { version: run.catalogVersion }, open: store.questionsOf(run.id).filter(q => q.answer == null).length });
+      emit(run.id, { type: "finished", catalog: { version: run.catalogVersion }, open: asked(run.id).filter(q => q.answer == null).length });
       // Any answer that came while the entries were being written.
       await useAnswers(run.id);
     } catch (err) {
@@ -469,7 +520,7 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
 
   /** What a run's trace says of it at the end: counts and money, never words. */
   function runOutcome(run, s) {
-    const questions = store.questionsOf(run.id);
+    const questions = asked(run.id);
     const byKind = {};
     for (const q of questions) byKind[`questions_${String(q.kind).replace(/[^a-z_]/g, "")}`] = (byKind[`questions_${String(q.kind).replace(/[^a-z_]/g, "")}`] || 0) + 1;
     return {
@@ -487,8 +538,12 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
   async function answer({ id, questionId, answer: text, by = null }) {
     const run = store.getRun(id);
     if (!run) throw new DiscoveryNotFound(id);
-    const q = store.getQuestion(questionId);
+    let q = store.getQuestion(questionId);
     if (!q || q.discovery !== id) throw new QuestionNotFound(questionId);
+    // A question merged into another (one still on someone's screen): the answer is the
+    // one it was merged into's.
+    for (let hops = 0; q?.mergedInto && hops < 10; hops++) q = store.getQuestion(q.mergedInto);
+    if (!q) throw new QuestionNotFound(questionId);
     const value = String(text ?? "").trim();
     if (!value || value.length > ANSWER_LIMIT) throw Object.assign(new Error("an answer is one of the options, or a sentence of your own"), { code: "BAD_ANSWER" });
     const saved = await store.saveQuestion({ ...q, answer: value, answeredBy: by, answeredAt: new Date(now()).toISOString(), usedAt: null, usedIn: null });
@@ -531,7 +586,7 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
     subscribe,
     get: id => summary(store.getRun(id)),
     list: org => store.runsOf(org).map(summary),
-    questions: id => store.questionsOf(id).map(publicQuestion),
+    questions: id => asked(id).map(publicQuestion),
     record: id => store.getRun(id),
     /** For tests: resolves when the run, and any answers it is using, are done. */
     settled: async id => {

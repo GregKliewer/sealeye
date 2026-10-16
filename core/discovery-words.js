@@ -38,6 +38,8 @@ export function discoveryEventLine(event) {
       return `Draft catalog ${event.catalog?.version} written${event.open ? `, resting on ${plural(event.open, "question", "questions")} not yet answered` : ""}`;
     case "answered":
       return `Answer taken: ${event.question?.answer}`;
+    case "merged":
+      return `${plural((event.questions || []).length, "question", "questions")} merged into one that asks the same thing`;
     case "answers_used":
       return `Answers written into draft catalog ${event.catalog?.version}`;
     case "answer_not_used":

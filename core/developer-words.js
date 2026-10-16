@@ -96,11 +96,12 @@ export function forbiddenWords(text) {
 
 /**
  * Where in a catalog a developer reads its words, or hears them through the interview:
- * each module's line, short line, when, skip line and guidance, and each input's line;
- * each need kind's line and what each profile expects of it; each profile's line, and
- * what its patterns say. Not a module's signals (they describe code, which may well say
- * Terraform) nor a rule's own words (they are for whoever approves the catalog, with
- * where they were found).
+ * each module's line, short line, when and skip line, and each input's line; each need
+ * kind's line and what each profile expects of it; each profile's line, and what its
+ * patterns say. Not a module's signals (they describe code, which may well say
+ * Terraform), its guidance (the planner's, in the library's own terms on purpose: a
+ * rule keeps the names the platform team uses), nor a rule's own words (for whoever
+ * approves the catalog, with where they were found).
  *
  * @returns {{ where: string, module?: string, text: string }[]}
  */
@@ -111,7 +112,7 @@ export function developerTexts(doc) {
   };
   for (const m of Array.isArray(doc?.modules) ? doc.modules : []) {
     if (!m || typeof m.id !== "string") continue;
-    for (const field of ["line", "short_line", "when", "skip_line", "guidance"]) add(`${m.id}: ${field.replace("_", " ")}`, m[field], m.id);
+    for (const field of ["line", "short_line", "when", "skip_line"]) add(`${m.id}: ${field.replace("_", " ")}`, m[field], m.id);
     for (const [name, spec] of Object.entries(m.inputs || {})) add(`${m.id}: input ${name}`, spec?.line, m.id);
   }
   for (const n of Array.isArray(doc?.need_kinds) ? doc.need_kinds : []) {

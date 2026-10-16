@@ -49,6 +49,7 @@ async function askQuestion(q, { screen, label = "" }) {
     `${c.prompt("?")} ${q.question}${label ? c.dim(`  ${label}`) : ""}`,
     ...(q.evidence || []).map(e => step(`${e.file}${e.line ? `:${e.line}` : ""}: ${e.shows}`)),
     ...(q.touches?.length ? [step(`touches ${q.touches.join(", ")}`)] : []),
+    ...(q.merged?.length ? [step(`also asked as: ${q.merged.map(m => `"${m.question}"`).join("; ")}`)] : []),
     c.dim("  The first choice is the run's guess. Arrow keys and Enter.")
   ];
   const choice = await pick([...choicesFor(q), SOMETHING_ELSE, LATER], { screen, header });
@@ -326,9 +327,11 @@ async function followLive({ apiBaseUrl, run, say }) {
   const askAll = async () => {
     while (queue.length) {
       const q = queue.shift();
-      // Answered already, by someone else or on the page: nothing to ask.
-      const fresh = (await getDiscovery({ apiBaseUrl, id: run.discoveryId }).catch(() => null))?.questions?.find(x => x.id === q.id);
-      if (fresh && !isOpen(fresh)) continue;
+      // Answered already, by someone else or on the page, or merged into another that
+      // asks the same thing: nothing to ask.
+      const latest = await getDiscovery({ apiBaseUrl, id: run.discoveryId }).catch(() => null);
+      const fresh = latest?.questions?.find(x => x.id === q.id);
+      if (latest && (!fresh || !isOpen(fresh))) continue;
       current = q;
       const reply = await askQuestion(fresh || q, { screen });
       current = null;
@@ -357,6 +360,8 @@ async function followLive({ apiBaseUrl, run, say }) {
         if (progress.over && !overAt) overAt = Date.now();
         if (progress.drafted || progress.over) watch.start();
         if (event.type === "question") return enqueue(event.question);
+        // Questions merged into another leave the queue; the one kept is asked once.
+        if (event.type === "merged") for (let i = queue.length - 1; i >= 0; i--) if ((event.questions || []).includes(queue[i].id)) queue.splice(i, 1);
         if (["finished", "stopped", "failed", "reading"].includes(event.type)) return;
         const line = discoveryEventLine(event);
         if (!line) return;

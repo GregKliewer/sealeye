@@ -567,3 +567,44 @@ test("the supervisor is bounded by the run's cap, not a reader's, so a late answ
   const full = createBudget({ workerCap: 0.1, runCap: 3, spend: { supervisor: { cost: 3 } } });
   assert.throws(() => full.check("supervisor"), err => err.scope === "run");
 });
+
+test("questions the supervisor says ask the same thing are merged: one kept, touching what each did, with who asked each", async () => {
+  const model = scripted({ libraryQuestion: true });
+  const create = model.client.messages.create;
+  // The supervisor's first write merges the library reader's question into the cache's.
+  model.client.messages.create = async params => {
+    const reply = await create(params);
+    if (!params.tools.some(t => t.name === "write_catalog") || model.calls.filter(c => c.tools.includes("write_catalog")).length > 1) return reply;
+    const opening = text(params.messages[0].content);
+    const asked = JSON.parse(opening.slice(opening.indexOf("Questions so far, with any answers:") + 35));
+    const keep = asked.find(q => q.kind === "deprecated");
+    const other = asked.find(q => q.question.startsWith("Does perf"));
+    reply.content[0].input.merges = [{ keep: keep.id, merged: [other.id, "q_not_this_runs"] }];
+    return reply;
+  };
+  const service = createDiscoveryService({ client: model.client, readLibrary: readFolder(library()) });
+  const events = [];
+  const started = await service.start({ caller, repos: [{ owner: "acme", repo: "platform" }] });
+  service.subscribe(started.discoveryId, 0, e => e && events.push(e));
+  await service.settled(started.discoveryId);
+
+  const questions = service.questions(started.discoveryId);
+  assert.ok(!questions.some(q => q.question.startsWith("Does perf")), "the merged one is not asked again");
+  const kept = questions.find(q => q.kind === "deprecated");
+  assert.deepEqual(kept.merged, [{ question: "Does perf come from staging?", raisedBy: "supervisor" }]);
+  assert.deepEqual(kept.touches, ["modules/cache"]);
+  const merged = events.find(e => e.type === "merged");
+  assert.equal(merged.questions.length, 1);
+
+  // The draft rests on the one kept, and the catalog no longer on the merged one.
+  const run = service.get(started.discoveryId);
+  const draft = catalogAt("acme", run.catalog.version);
+  assert.equal(draft.discovery.open, undefined);
+  assert.deepEqual(draft.modules.find(m => m.id === "cache").open, [kept.id]);
+
+  // An answer to the merged question, still on someone's screen, answers the one kept.
+  const answered = await service.answer({ id: started.discoveryId, questionId: merged.questions[0], answer: "No", by: "lee@acme.test" });
+  assert.equal(answered.id, kept.id);
+  await service.settled(started.discoveryId);
+  assert.equal(service.questions(started.discoveryId).find(q => q.id === kept.id).answer, "No");
+});

@@ -34,5 +34,10 @@ ask that, naming both. Ask only when the answer changes an entry. Do not repeat 
 question a reader already raised. Never ask what the findings already settle, whether a
 rule is enforced, or about tidying the library.
 
+Questions so far that are the same issue in different words (three readers each asking
+about the caches, say): merge them in `merges`, keeping the clearest and naming the ids
+it covers. seaLeye keeps who asked each, and an answer already given to any of them. Only
+merge questions one answer would settle together.
+
 Keep every rule's own names. When a reader's rule names a stage, a topic, a team or an
 approval (an on-call topic's name, say), the guidance names it the same way.

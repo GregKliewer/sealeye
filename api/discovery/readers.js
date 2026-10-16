@@ -157,7 +157,20 @@ export const writeCatalogTool = {
           }
         }
       },
-      questions: { type: "array", items: { $ref: "#/$defs/question" } }
+      questions: { type: "array", items: { $ref: "#/$defs/question" } },
+      merges: {
+        type: "array",
+        description: "Questions so far that ask the same thing in different words: the one to keep, and the ids it covers.",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["keep", "merged"],
+          properties: {
+            keep: { type: "string", description: "The id of the question to keep: the clearest." },
+            merged: { type: "array", items: { type: "string" }, description: "The ids of the questions it covers." }
+          }
+        }
+      }
     }
   }
 };

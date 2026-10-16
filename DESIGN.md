@@ -3279,8 +3279,12 @@ organization plans and refuses against. Each as recommended, except where it say
   is answered: otherwise its guess would go live.
 - **The words a developer reads block, not warn** (Greg). Product names of the cloud
   (`core/developer-words.js`), and sizes and counts, in each module's line, short line,
-  when, skip line, guidance and inputs' lines. A rule's own words and a module's signals
-  are not checked: the first is for whoever approves, the second describes code.
+  when, skip line and inputs' lines, the need kinds', the profiles' and the patterns',
+  for every module the catalog offers, built yet or not: one waiting only for an
+  executor is built the day there is one, with no self-test between. Not checked: a
+  module's guidance, which is the planner's and keeps the library's own terms on
+  purpose (the supervisor is told to keep a rule's names), its signals, which describe
+  code, and a rule's own words, which are for whoever approves.
 - **A second organization, `juniper`, on the server.** A catalog discovered from Juniper
   Mutual's library builds nothing until the Terraform executor (Step 9), and every
   token today is in `default`, so making it live there would refuse every developer's
@@ -3296,7 +3300,12 @@ organization plans and refuses against. Each as recommended, except where it say
 - **Traces hold the shape, never the content**, as the interview's do: for each worker
   its module, the files it read by path and size, tokens and cost; how many questions
   of which kind. No file contents, no prompt, no reply.
-- **The supervisor merges questions that ask the same thing** by naming the readers'
-  questions it merges; code applies it, keeping who asked each and any answer given.
+- **The supervisor merges questions that ask the same thing** (`merges` in
+  write_catalog: the one to keep and the ids it covers); code checks and applies it. Both
+  must be the run's and not merged already, and two different answers are never merged.
+  The one kept touches every module either did, takes an answer only the other had, and
+  lists each merged question as it was asked and by whom; a merged question keeps its
+  record, saying which it went into, and an answer to it answers the one kept. The
+  supervisor's prompt changed, so the run is measured before and after.
 - **The rough edges of the discovery screens** are a step of their own after this one,
   once approving and making live are on them too.
