@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import Anthropic from "@anthropic-ai/sdk";
 
-import { askModel, createWithOneRetry } from "../api/interview/model.js";
+import { askModel, createWithOneRetry, watchedFetch } from "../api/interview/model.js";
 import { withCallerToken } from "../api/gateway-token.js";
 
 const servers = [];
@@ -17,7 +17,7 @@ after(() => servers.forEach(s => s.close()));
 const sse = (res, type, data) => res.write(`event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`);
 
 /** A stand-in model that writes `chunks` pieces of text, `gapMs` apart, or stops after `stallAfter`. */
-async function standIn({ chunks = 5, gapMs = 20, stallAfter = null, onRequest = () => {} } = {}) {
+async function standIn({ chunks = 5, gapMs = 20, stallAfter = null, pings = 0, onRequest = () => {} } = {}) {
   let calls = 0;
   const server = http.createServer(async (req, res) => {
     calls += 1;
@@ -25,6 +25,11 @@ async function standIn({ chunks = 5, gapMs = 20, stallAfter = null, onRequest = 
     req.resume();
     res.writeHead(200, { "content-type": "text/event-stream" });
     sse(res, "message_start", { message: { id: "msg_1", type: "message", role: "assistant", model: "claude-sonnet-5", content: [], stop_reason: null, usage: { input_tokens: 10, output_tokens: 0 } } });
+    // Thinking before it writes: only pings, which the SDK drops.
+    for (let i = 0; i < pings; i++) {
+      await new Promise(r => setTimeout(r, gapMs));
+      res.write("event: ping\ndata: {\"type\": \"ping\"}\n\n");
+    }
     sse(res, "content_block_start", { index: 0, content_block: { type: "text", text: "" } });
     for (let i = 0; i < chunks; i++) {
       if (stallAfter !== null && i >= stallAfter && calls === 1) return; // goes quiet, connection left open
@@ -82,4 +87,32 @@ test("a streamed call through the gateway carries its own signed token", async (
 test("a stand-in with no stream is called the old way", async () => {
   const reply = await askModel({ messages: { create: async () => ({ content: [{ type: "text", text: "old" }] }) } }, params);
   assert.equal(reply.content[0].text, "old");
+});
+
+test("a model thinking before it writes is still answering: its pings count (Greg's run, Oct 16)", async () => {
+  // Pings for longer than the quiet limit, then the reply.
+  const model = await standIn({ chunks: 2, gapMs: 50, pings: 10 });
+  const watched = new Anthropic({ apiKey: "test", baseURL: model.url, maxRetries: 0, fetch: watchedFetch() });
+  const reply = await askModel(watched, params, { idleMs: 200 });
+  assert.equal(reply.content[0].text.trim(), "part0 part1");
+
+  // Without it, the SDK's events alone took the thinking for silence: the old fault.
+  const unwatched = new Anthropic({ apiKey: "test", baseURL: model.url, maxRetries: 0 });
+  await assert.rejects(askModel(unwatched, params, { idleMs: 200 }), err => err instanceof Anthropic.APIConnectionTimeoutError);
+});
+
+test("the mark that ties a call to its watch is never sent on", async () => {
+  const seen = [];
+  const model = await standIn({ chunks: 1, onRequest: req => seen.push(Object.keys(req.headers)) });
+  const watched = new Anthropic({ apiKey: "test", baseURL: model.url, maxRetries: 0, fetch: watchedFetch() });
+  await askModel(watched, params);
+  assert.ok(!seen[0].includes("x-sealeye-watch"));
+});
+
+test("silence before the reply starts is given the longer wait", async () => {
+  const model = await standIn({ chunks: 1, gapMs: 300 });
+  const watched = new Anthropic({ apiKey: "test", baseURL: model.url, maxRetries: 0, fetch: watchedFetch() });
+  // The first byte comes at once (headers), so this checks the start wait does not end a slow first event.
+  const reply = await askModel(watched, params, { idleMs: 500, startMs: 2000 });
+  assert.equal(reply.content[0].text.trim(), "part0");
 });

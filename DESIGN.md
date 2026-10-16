@@ -3622,3 +3622,12 @@ same wall.
   stand-in model, not the gateway.
 - Not done here, and still worth doing: finding why this plan is so long (Juniper's
   postgres entry saying two things is the likeliest reason).
+
+**Every byte counts as answering (the same evening).** Greg's next run, with debugging
+on, gave up the payment events plan with "the model sent nothing for 60 s", twice. The
+model was thinking before it wrote, and the model API keeps such a connection alive with
+ping events, which the SDK drops without passing them on, so the watch took thinking for
+silence. The model client's fetch (`watchedFetch`) now tells the watch of every byte
+that arrives, pings included, matched to its call by a mark it takes off before the
+request is sent. The wait for the reply to start is the longer one (120 s); after that,
+60 s of nothing at all.

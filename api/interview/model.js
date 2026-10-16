@@ -1,6 +1,7 @@
 // api/interview/model.js
 // Talking to the model: the client, the system prompt, one turn retried once, and
 // reading what a turn said. The graph (graph.js) decides what happens between turns.
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -88,7 +89,7 @@ export function modelCredential() {
  */
 export function modelClient(credential) {
   const baseURL = setting("MODEL_URL");
-  const options = { timeout: TIMEOUT_MS, maxRetries: 0, ...(baseURL ? { baseURL } : {}) };
+  const options = { timeout: TIMEOUT_MS, maxRetries: 0, fetch: watchedFetch(), ...(baseURL ? { baseURL } : {}) };
   if (credential && typeof credential === "object" && credential.gatewayKey) {
     // No model credential at all. `apiKey: null` and `authToken: null` keep the SDK
     // from reading ANTHROPIC_API_KEY and ANTHROPIC_AUTH_TOKEN; GatewayClient keeps it from
@@ -322,29 +323,72 @@ function asUserFacing(err) {
  * retried like any other. A client without `messages.stream` (a test's stand-in) is
  * called the old way.
  */
-export async function askModel(client, params, { idleMs = IDLE_MS } = {}) {
+export async function askModel(client, params, { idleMs = IDLE_MS, startMs = TIMEOUT_MS } = {}) {
   if (typeof client?.messages?.stream !== "function") return client.messages.create(params);
   const controller = new AbortController();
-  let quiet = false;
+  let quiet = null;
   let timer;
-  const wait = () => {
+  const wait = (ms = idleMs) => {
     clearTimeout(timer);
     timer = setTimeout(() => {
-      quiet = true;
+      quiet = ms;
       controller.abort();
-    }, idleMs);
+    }, ms);
   };
-  wait();
+  // Until the reply starts, the longer wait; after that, silence.
+  wait(startMs);
+  const id = crypto.randomUUID();
+  watchers.set(id, () => wait());
   try {
-    const stream = client.messages.stream(params, { signal: controller.signal });
-    stream.on("streamEvent", wait);
+    const stream = client.messages.stream(params, { signal: controller.signal, headers: { [WATCH_HEADER]: id } });
+    // A client without watchedFetch (a test's own) is watched by the SDK's events only.
+    stream.on("streamEvent", () => wait());
     return await stream.finalMessage();
   } catch (err) {
-    if (quiet) throw new Anthropic.APIConnectionTimeoutError({ message: `the model sent nothing for ${Math.round(idleMs / 1000)} s` });
+    if (quiet !== null) throw new Anthropic.APIConnectionTimeoutError({ message: `the model sent nothing for ${Math.round(quiet / 1000)} s` });
     throw err;
   } finally {
     clearTimeout(timer);
+    watchers.delete(id);
   }
+}
+
+// What counts as the model still answering is every byte that arrives, not only the
+// events the SDK passes on. While the model thinks before it writes, the model API
+// keeps the connection alive with ping events, which the SDK drops without a word, so a
+// model thinking for a minute looked silent and was given up (Greg's run, Oct 16, 2026,
+// Juniper's payment events processor: "the model sent nothing for 60 s", twice).
+const WATCH_HEADER = "x-sealeye-watch";
+const watchers = new Map();
+
+/**
+ * The fetch the model client uses: a call askModel marks (WATCH_HEADER, never sent on)
+ * tells it each time bytes arrive. Any other call is fetched as it is.
+ */
+export function watchedFetch(base = globalThis.fetch) {
+  return async (url, init = {}) => {
+    const headers = new Headers(init.headers || {});
+    const id = headers.get(WATCH_HEADER);
+    if (!id) return base(url, init);
+    headers.delete(WATCH_HEADER);
+    const res = await base(url, { ...init, headers });
+    const tick = watchers.get(id);
+    if (!tick || !res.body) return res;
+    tick();
+    const reader = res.body.getReader();
+    const body = new ReadableStream({
+      async pull(out) {
+        const { done, value } = await reader.read();
+        if (done) return out.close();
+        tick();
+        out.enqueue(value);
+      },
+      cancel(reason) {
+        return reader.cancel(reason);
+      }
+    });
+    return new Response(body, { status: res.status, statusText: res.statusText, headers: res.headers });
+  };
 }
 
 export async function createWithOneRetry(client, params, onStep, turn = 0, { traceAs = "interview", idleMs = IDLE_MS } = {}) {
