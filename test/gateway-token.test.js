@@ -25,6 +25,7 @@ import {
   withCallerToken
 } from "../api/gateway-token.js";
 import { freePort } from "./helpers/free-port.js";
+import { answerModel } from "./helpers/model-reply.js";
 
 const root = path.resolve(import.meta.dirname, "..");
 const { privateKey, publicKey } = crypto.generateKeyPairSync("ed25519");
@@ -110,15 +111,15 @@ const issue = (email, name, ...flags) =>
 before(async () => {
   home = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-gateway-token-"));
   gateway = http.createServer((req, res) => {
-    req.resume();
+    let body = "";
+    req.on("data", d => (body += d));
     req.on("end", () => {
       seen.push({ authorization: req.headers.authorization, gatewayKey: req.headers["x-sealeye-gateway-key"], apiKey: req.headers["x-api-key"] });
-      res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({
-        id: "msg_standin", type: "message", role: "assistant", model: "claude-sonnet-5",
+      answerModel(res, {
+        id: "msg_standin",
         content: [{ type: "text", text: "This version of the platform cannot build this app." }],
         stop_reason: "end_turn", usage: { input_tokens: 10, output_tokens: 5 }
-      }));
+      }, body);
     });
   });
   await new Promise(r => gateway.listen(0, "127.0.0.1", r));

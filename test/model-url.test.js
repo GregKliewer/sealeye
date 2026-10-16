@@ -6,6 +6,7 @@ import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
+import { answerModel } from "./helpers/model-reply.js";
 
 const root = path.resolve(import.meta.dirname, "..");
 const home = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-model-url-"));
@@ -31,16 +32,12 @@ before(async () => {
         authorization: req.headers.authorization,
         body: JSON.parse(body || "{}")
       });
-      res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({
+      answerModel(res, {
         id: "msg_standin",
-        type: "message",
-        role: "assistant",
-        model: "claude-sonnet-5",
         content: [{ type: "text", text: "This version of the platform cannot build this app." }],
         stop_reason: "end_turn",
         usage: { input_tokens: 10, output_tokens: 5 }
-      }));
+      }, body);
     });
   });
   await new Promise(r => server.listen(0, "127.0.0.1", r));

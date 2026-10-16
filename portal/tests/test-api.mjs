@@ -9,6 +9,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
+import { answerModel } from "../../test/helpers/model-reply.js";
 
 export const TEST_TOKEN = `sl_${"t".repeat(43)}`;
 export const OTHER_ORG_TOKEN = `sl_${"o".repeat(43)}`;
@@ -218,14 +219,12 @@ const model = http.createServer((req, res) => {
       const opening = String(sent.messages?.[0]?.content || "");
       const sources = (opening.match(/Write the entries for these modules: (.+)\./)?.[1] || "").split(", ").filter(Boolean);
       const entries = sources.map(source => ({ source, line: `What ${source} gives your app.`, when: "When the app needs it.", signals: [], role: "optional", availability: "available", guidance: "As answered.", open: [] }));
-      res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({ id: `msg_${Date.now()}`, type: "message", role: "assistant", model: "claude-sonnet-5", usage: { input_tokens: 10, output_tokens: 10 }, stop_reason: "tool_use", content: [toolUse("w1", "write_catalog", { entries, questions: [] })] }));
+      answerModel(res, { usage: { input_tokens: 10, output_tokens: 10 }, stop_reason: "tool_use", content: [toolUse("w1", "write_catalog", { entries, questions: [] })] }, sent);
       return;
     }
     // An app that would read forever, each reply costing $0.40: the run's cap stops it.
     if (body.includes("looping-api")) {
-      res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({ id: `msg_${Date.now()}`, type: "message", role: "assistant", model: "claude-sonnet-5", usage: { input_tokens: 200000, output_tokens: 0 }, stop_reason: "tool_use", content: [toolUse(`l${Date.now()}`, "list_files", { path: "." })] }));
+      answerModel(res, { usage: { input_tokens: 200000, output_tokens: 0 }, stop_reason: "tool_use", content: [toolUse(`l${Date.now()}`, "list_files", { path: "." })] }, sent);
       return;
     }
     const turn = Math.floor(((sent.messages || []).length - 1) / 2);
@@ -243,8 +242,7 @@ const model = http.createServer((req, res) => {
           { content: [toolUse("t3", "submit_plan", { plan: readyPlan, summary: "An orders API.", assumptions: ["It listens on PORT."] })], stop_reason: "tool_use" }
         ];
     const reply = turns[turn] || { content: [{ type: "text", text: "Done." }], stop_reason: "end_turn" };
-    res.writeHead(200, { "content-type": "application/json" });
-    res.end(JSON.stringify({ id: `msg_${Date.now()}`, type: "message", role: "assistant", model: "claude-sonnet-5", usage: { input_tokens: 10, output_tokens: 10 }, ...reply }));
+    answerModel(res, { usage: { input_tokens: 10, output_tokens: 10 }, ...reply }, sent);
   });
 });
 await new Promise(r => model.listen(0, "127.0.0.1", r));
