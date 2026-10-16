@@ -310,7 +310,7 @@ function DraftTable({ draft, version, questions, tick, onChanged }: { draft: Dra
                 </TableRow>
                 {editable && editing === m.id ? (
                   <TableRow data-testid="edit-panel">
-                    <TableCell colSpan={5}><EditWords key={JSON.stringify(editableFieldsOf(m))} version={version!} module={m} onChanged={onChanged} /></TableCell>
+                    <TableCell colSpan={5}><EditWords key={m.id} version={version!} module={m} onChanged={onChanged} /></TableCell>
                   </TableRow>
                 ) : null}
                 </Fragment>
@@ -492,6 +492,14 @@ function SelfTestResult({ version, result, message, done }: { version: number; r
 function EditWords({ version, module, onChanged }: { version: number; module: DraftModule; onChanged: () => void }) {
   const fields = editableFieldsOf(module) as { field: string; label: string; text: string }[];
   const [texts, setTexts] = useState<Record<string, string>>(() => Object.fromEntries(fields.map(f => [f.field, f.text])));
+  // The boxes refill when the entry beneath them changes (a save read back, a late
+  // answer's rewrite), so stale words are never saved back as a person's. The panel
+  // stays mounted, so the self-test a save just ran stays shown (it was lost when the
+  // panel was remounted on every change, and GitHub's runner caught it).
+  const fieldsNow = JSON.stringify(fields.map(f => [f.field, f.text]));
+  useEffect(() => {
+    setTexts(Object.fromEntries((JSON.parse(fieldsNow) as [string, string][])));
+  }, [fieldsNow]);
   const [busy, setBusy] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [result, setResult] = useState<SelfTest | null>(null);

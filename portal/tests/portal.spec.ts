@@ -721,6 +721,9 @@ test("Edit words: a draft entry's line changed on the page, the self-test run ag
   await expect(row).toContainText("A relational database for your app, below staging.");
   await expect(row).toContainText("edited");
   await expect(panel).toContainText("edited by lead@example.com");
+  // Once the draft is read back, the panel still shows what the save's self-test said.
+  await expect(panel.getByTestId("self-test-summary")).toHaveText("Catalog 1 passed its self-test.");
+  await expect(panel.getByLabel("What it gives an app")).toHaveValue("A relational database for your app, below staging.");
 });
 
 // Fixing what blocks approval, as `sealeye catalog fix` does (DESIGN.md, "What blocks
