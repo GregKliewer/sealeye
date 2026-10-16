@@ -423,7 +423,10 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
 - `npm run eval:interview` before and after any change to `prompts/`. It runs the
   interview graph in-process on each sample app, grades the plans, and records a
   LangFuse dataset run; it needs ANTHROPIC_API_KEY and LangFuse keys, and deploys
-  nothing.
+  nothing. It runs two sets (`--set starter` or `--set juniper` for one): the
+  starter's, and Juniper Mutual's, planned against a snapshot of its live catalog
+  (`test/fixtures/juniper-catalog-3.json`, cases in `test/fixtures/eval-juniper/`)
+  with its Terraform modules treated as built for the eval only (`treatAsBuilt`).
 - `npm start` runs the API from the repo root; `npm link` from the repo root installs
   `sealeye`. The command talks to https://api.sealeye.online unless `SEALEYE_API` or
   `--api` says otherwise, so point it at `http://localhost:3000` for a local API.

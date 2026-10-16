@@ -197,7 +197,8 @@ gateway's own span in that trace moved to Phase 4. Routes come with Step 8.*
   2026. Step 7, the self-test, approving and making live on both surfaces, a second
   organization (`juniper`), discovery's traces, merged questions and the eval graded
   twice, built Oct 16, 2026. The rough-edges step, with Q21's rule for platform words,
-  built Oct 16, 2026.
+  built Oct 16, 2026. Step 8, the interview eval planning against Juniper Mutual's
+  live catalog, built Oct 16, 2026.
 - LangFuse self-hosted in ca-central-1 (answers Q13; moved here from Phase 3 on Oct 13,
   2026), before the first run on an organization's real code (Greg, Oct 14, 2026:
   Phase 4's own runs read seaLeye's templates, a made-up organization and public
