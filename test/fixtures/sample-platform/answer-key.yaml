@@ -303,7 +303,7 @@ catalog:
       availability: available
       builds_with: terraform
       role: optional
-      line: A cache in front of something slower, encrypted at rest and on the way.
+      line: A cache in front of something slower, encrypted when stored and on the way.
       inputs:
         name: { required: true, line: Your app's name. }
         stage: { required: true, line: Which stage on the path to production. }

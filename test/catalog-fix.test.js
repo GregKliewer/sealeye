@@ -192,3 +192,14 @@ test("in quotes, the words to change; after them, what they are, only when that 
   assert.deepEqual(shown("Behind an ALB, with logs in log groups."), ['"ALB" (load balancer)', '"log groups"']);
   assert.deepEqual(shown("Holds 20 GiB."), ['"20 GiB" (a size)']);
 });
+
+test("a setting and an unspelled acronym block approval, saying what to write instead (Q21)", () => {
+  const doc = draft();
+  doc.modules[1].when = "When your app needs a multi-AZ database in a VPC.";
+  const result = selfTest({ document: doc, version: 1 });
+  const words = result.checks.find(c => c.id === "words");
+  assert.equal(words.passed, false);
+  assert.match(words.problems.join(" "), /postgres: when says "multi-AZ" \(write "keeps running if one data centre fails"\) and "VPC" \(write "Virtual Private Cloud \(VPC\)"\)/);
+  assert.deepEqual(wordFixesOf(result).find(f => f.module === "postgres").words,
+    ['"multi-AZ" (write "keeps running if one data centre fails")', '"VPC" (write "Virtual Private Cloud (VPC)")']);
+});
