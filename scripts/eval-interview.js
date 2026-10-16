@@ -27,6 +27,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import YAML from "yaml";
 
 import { DEFAULT_MODEL, loadSystemPrompt, resolveApiKey } from "../api/interview/model.js";
 import { addCatalog, approveCatalog, liveCatalog, makeLive, openCatalogs } from "../api/catalogs.js";
@@ -208,7 +209,7 @@ async function ensureDataset() {
  *
  * @returns {Promise<object[]>} one graded row per app
  */
-export async function evaluate({ cases, runName, model, clientFor, log = () => {} }) {
+export async function evaluate({ cases, runName, model, clientFor, outDir = null, log = () => {} }) {
   const datasetId = await ensureDataset();
   const experimentId = newExperimentId();
 
@@ -251,6 +252,9 @@ export async function evaluate({ cases, runName, model, clientFor, log = () => {
             },
             ...(clientFor ? { client: clientFor(app) } : {})
           });
+          // What it planned and why, kept on this machine for reading a run that went
+          // wrong (eval-results/ is never committed). The sample apps are seaLeye's own.
+          if (outDir) keepResult(outDir, name, result, asked);
           return {
             app: name, traceId: result.traceId, turns: result.turns, spent: result.spent, asked,
             ...(result.status === "stopped" && result.message ? { stopped: oneLine(result.message) } : {}),
@@ -267,6 +271,7 @@ export async function evaluate({ cases, runName, model, clientFor, log = () => {
       }
     } catch (err) {
       row = { app: name, error: err.message };
+      if (outDir) keepResult(outDir, name, { status: "error", error: err.message }, asked);
     }
 
     rows.push(row);
@@ -275,6 +280,26 @@ export async function evaluate({ cases, runName, model, clientFor, log = () => {
 
   await flushScores(10_000);
   return rows;
+}
+
+/** One run's plan, summary, assumptions and questions, as a YAML file in `outDir`. */
+function keepResult(outDir, name, result, asked) {
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    const kept = {
+      app: name,
+      status: result.status,
+      ...(result.error ? { error: result.error } : {}),
+      ...(result.message ? { message: result.message } : {}),
+      asked,
+      ...(result.plan ? { plan: result.plan } : {}),
+      ...(result.summary ? { summary: result.summary } : {}),
+      ...(result.assumptions ? { assumptions: result.assumptions } : {})
+    };
+    fs.writeFileSync(path.join(outDir, `${name}.yaml`), YAML.stringify(kept));
+  } catch {
+    // Keeping it is a convenience; the run's grade does not depend on it.
+  }
 }
 
 /** One line per app, for the terminal. */
@@ -527,7 +552,8 @@ async function main() {
 
   // The interview runs in this process, the way the API runs it, with the plan checked
   // in-process too: there is no API to start.
-  const rows = await evaluate({ cases, runName, model, log: line => console.log(`  ${line}`) });
+  const outDir = path.resolve("eval-results", `interview-${stamp.replace(/[ :]/g, "-")}`);
+  const rows = await evaluate({ cases, runName, model, outDir, log: line => console.log(`  ${line}`) });
 
   console.log("");
   for (const line of summaryLines(rows)) console.log(line);
@@ -541,6 +567,7 @@ async function main() {
   for (const line of costLines(spent, model)) console.log(line);
 
   console.log("");
+  console.log(`Each run's plan, summary and questions: ${outDir}`);
   console.log(`In LangFuse: Datasets, ${DATASET}, Experiments, then this run.`);
 
   process.exitCode = rows.every(allCorrect) ? 0 : 1;

@@ -468,3 +468,21 @@ test("modules not as expected say what was planned, what was missing, and what s
   assert.match(lines, /missing: postgres, secrets/);
   assert.match(lines, /should not have: postgres_cluster/);
 });
+
+test("each run's plan, summary and questions are kept as a file, and a run that could not finish says why", async () => {
+  assert.equal(startTracing({ exporter }), true);
+  useLangfuseTransport((method, apiPath) => (apiPath === "/api/public/v2/datasets" ? { id: "ds_1" } : {}));
+  const outDir = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-eval-out-"));
+  const byApp = plans();
+  const broken = { messages: { create: async () => { throw Object.assign(new Error("connection dropped"), { status: 400 }); } } };
+  await evaluate({
+    cases: loadCases(), runName: "kept run", model: "claude-sonnet-5", outDir,
+    clientFor: app => (app === "static-website" ? broken : clientFor(byApp[app]))
+  });
+  const kept = YAML.parse(fs.readFileSync(path.join(outDir, "beneficiary-lookup-api.yaml"), "utf8"));
+  assert.equal(kept.status, "submitted");
+  assert.ok(kept.plan.modules.length, "the plan as submitted");
+  assert.ok(Array.isArray(kept.asked));
+  const failed = YAML.parse(fs.readFileSync(path.join(outDir, "static-website.yaml"), "utf8"));
+  assert.ok(failed.status === "error" || failed.message, JSON.stringify(failed));
+});
