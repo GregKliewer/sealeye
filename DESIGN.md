@@ -3345,3 +3345,22 @@ again with the same meaning in plain words, with a plain line for each input nam
 new entries replace the old. Once only: if the call cannot be made, or the words still
 fail, the entries stay as they are and the self-test says what to change. It costs one
 frontier call for just those entries, against the run's cap, and only when it is needed.
+
+**After Greg's measured run** (Oct 16, 2026: both passes "Not as expected", $0.27 and
+$0.41). Three changes:
+- **A wider question widens the first instead of being dropped.** A reader asked about
+  cache-valkey's standing alone. The supervisor's question naming cache-redis as well
+  was dropped by code as a repeat, so no question touched both caches, and the scripted
+  answer never fired. Now a repeat that names modules the first left out widens the
+  first (while it is unanswered), and the entries it touches rest on it. The
+  supervisor is told to ask naming both even when a reader asked about one.
+- **An input's line still unplain after the fix-up is left out.** The fix-up ran ($0.09
+  of the supervisor's spend), but five input lines kept the library's own "subnet". The
+  fix-up now shows the model each failing line as it stands, and names the
+  `input_lines` field to write. A line that still fails is left out, and the input is
+  shown by its name alone (`withoutUnplainInputLines`). A module's own words are never
+  left out: the self-test names them.
+- **The no-answers pass grades approval as waiting, not failing.** A question about the
+  whole catalog (how perf is built) rightly holds up approval until it is answered. In
+  that pass, the self-test's question check is listed as pending, and every other
+  check must pass. With the key's answers, all of them must.

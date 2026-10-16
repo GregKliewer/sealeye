@@ -23,8 +23,8 @@ import { addCatalog, catalogAt, catalogsOf, updateDraft } from "../catalogs.js";
 import { claimsFor, signerFromSettings, withCallerToken } from "../gateway-token.js";
 import { modelClient, modelCredential } from "../interview/model.js";
 import { switchOffLangSmith } from "../interview/service.js";
-import { draftCatalog, rewriteEntries } from "./draft.js";
-import { developerWordProblems } from "../../core/developer-words.js";
+import { draftCatalog, rewriteEntries, withoutUnplainInputLines } from "./draft.js";
+import { developerTexts, developerWordProblems } from "../../core/developer-words.js";
 import { libraryRepos, repoName } from "./github.js";
 import { readLibrary as readFromGitHub } from "./library.js";
 import { ANSWER_LIMIT } from "../../core/discovery-words.js";
@@ -156,7 +156,21 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
       const touches = [...new Set([...(touchesDefault ? [touchesDefault] : []), ...(Array.isArray(q.touches) ? q.touches : [])].map(t => sourceFor(run, t)).filter(Boolean))];
       // The supervisor sees the readers' questions and may ask one again in its own
       // words; the prompt says not to, and code makes sure (Greg, Oct 15, 2026).
-      if (!touchesDefault && repeats({ kind: QUESTION_KINDS.includes(q.kind) ? q.kind : "other", question: String(q.question || ""), touches }, store.questionsOf(run.id))) continue;
+      const same = touchesDefault ? null : repeats({ kind: QUESTION_KINDS.includes(q.kind) ? q.kind : "other", question: String(q.question || ""), touches }, store.questionsOf(run.id));
+      if (same) {
+        // The supervisor sees across modules where a reader saw one: asked again naming a
+        // module the first left out, the first is widened to touch it too, rather than
+        // the wider one dropped (Greg's run, Oct 16, 2026: a reader asked about
+        // cache-valkey alone, and the supervisor's question naming cache-redis as well
+        // was dropped as a repeat).
+        const wider = touches.filter(t => !(same.touches || []).includes(t));
+        if (wider.length && same.answer == null && !same.mergedInto && (same.touches || []).length) {
+          const widened = { ...same, touches: [...same.touches, ...wider] };
+          await store.saveQuestion(widened);
+          emit(run.id, { type: "widened", question: publicQuestion(widened) });
+        }
+        continue;
+      }
       const options = (q.options || []).map(String).slice(0, 4);
       const question = {
         id: `q_${crypto.randomBytes(6).toString("hex")}`,
@@ -184,7 +198,8 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
   }
 
   /**
-   * Whether a question asks again what one already asked does: it touches nothing the
+   * The question one asks again, if it does, or undefined: one asks again what another
+   * does when it touches nothing the
    * other does not (both touching no module counts), and it is the same kind (other than
    * "other") or mostly the same words; or it shares a module with the other and is in
    * nearly the same words, even if it names one more (the third measured run). Answered
@@ -194,7 +209,7 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
   function repeats(q, existing) {
     const words = t => new Set(String(t).toLowerCase().match(/[a-z0-9]+/g)?.filter(w => w.length > 3) || []);
     const mine = words(q.question);
-    return existing.some(e => {
+    return existing.find(e => {
       const theirs = words(e.question);
       const shared = [...mine].filter(w => theirs.has(w)).length;
       const overlap = shared / Math.max(1, new Set([...mine, ...theirs]).size);
@@ -335,7 +350,14 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
     const problems = developerWordProblems(offered).filter(p => p.module && sourceOf.has(p.module));
     if (!problems.length) return entries;
     const again = [...new Set(problems.map(p => sourceOf.get(p.module)))];
-    const lines = problems.map(p => `${sourceOf.get(p.module)}: ${p.where.slice(p.where.indexOf(": ") + 2)} uses ${p.term}`);
+    // Each place with what it says now, so the model sees the words to replace: an
+    // input's line is often the library's own variable description, which it never wrote.
+    const textAt = new Map(developerTexts(offered).map(t => [t.where, t.text]));
+    const lines = problems.map(p => {
+      const place = p.where.slice(p.where.indexOf(": ") + 2);
+      const input = place.startsWith("input ") ? place.slice(6) : null;
+      return `${sourceOf.get(p.module)}: ${place} uses ${p.term}${textAt.has(p.where) ? ` (now: "${String(textAt.get(p.where)).replace(/\s+/g, " ").slice(0, 200)}")` : ""}${input ? `; write input_lines.${input}` : ""}`;
+    });
     emit(run.id, { type: "plain_words", sources: again });
     const s = state(run.id);
     try {
@@ -372,7 +394,7 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
     const entries = await inPlainWords(run, written.entries || [], run.modules.map(m => m.source),
       list => draftCatalog({ run, modules: run.modules, library: run.library, entries: list, questions: asked(run.id) }));
     const questions = asked(run.id);
-    const document = draftCatalog({ run, modules: run.modules, library: run.library, entries, questions });
+    const document = withoutUnplainInputLines(draftCatalog({ run, modules: run.modules, library: run.library, entries, questions }));
     const kept = await addCatalog({ org: run.org, document, by: run.startedBy });
     run.catalogVersion = kept.version;
     run.spend = s.budget.spend();
@@ -444,7 +466,7 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
       }
       let version = run.catalogVersion;
       const current = catalogAt(run.org, version);
-      const document = rewriteEntries(structuredClone(current), { modules: run.modules, entries, questions: asked(id), library: run.library });
+      const document = withoutUnplainInputLines(rewriteEntries(structuredClone(current), { modules: run.modules, entries, questions: asked(id), library: run.library }));
       const status = catalogsOf(run.org).find(c => c.version === version)?.status;
       // Approved meanwhile (between reading its status and writing it): a new draft, as
       // for one approved earlier, so the answer is not left stuck (the review).

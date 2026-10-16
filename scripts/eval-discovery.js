@@ -223,11 +223,18 @@ export function gradeCatalog(candidate, key, { questions = null, selfTest = null
   // The self-test a catalog passes before it is approved (api/self-test.js): it passes,
   // and refuses what the key says must be refused.
   if (selfTest) {
+    // With no answers given, a question about the whole catalog rightly holds up its
+    // approval (DESIGN.md, Step 7): that check waits on the answer, and every other must
+    // pass (Greg's run, Oct 16, 2026). With the key's answers, all of them must.
+    const failing = selfTest.checks.filter(c => !c.passed);
+    const waiting = !scripted ? failing.filter(c => c.id === "questions") : [];
+    const blocking = failing.filter(c => !waiting.includes(c));
     hardCases.push({
       case: "self-test",
-      ok: selfTest.passed,
-      why: selfTest.passed ? "passes: it could be approved" : selfTest.checks.filter(c => !c.passed).flatMap(c => c.problems).join("; ")
+      ok: blocking.length === 0,
+      why: !failing.length ? "passes: it could be approved" : blocking.length ? blocking.flatMap(c => c.problems).join("; ") : "passes, but for the questions about the whole catalog"
     });
+    for (const c of waiting) pending.push({ case: "approval", waits: `the answers to ${c.problems.length} ${c.problems.length === 1 ? "question" : "questions"} about the whole catalog`, what: c.problems.map(p => p.replace(/^A question about the whole catalog is not answered yet: /, "")).join("; ") });
     const refusal = source => {
       const m = bySource.get(source);
       return m ? selfTest.refused.find(r => r.id === m.id) : null;
@@ -410,19 +417,23 @@ export async function runDiscovery(libraryDir, key, out, { scripted = false, cli
   const started = Date.now();
   const { discoveryId } = await service.start({ caller, repos: [{ owner, repo }] });
   const given = [];
+  const answeredIds = new Set();
   service.subscribe(discoveryId, 0, e => {
     if (!e) return;
     if (e.type === "read") console.log(`  read     ${e.source}`);
     if (e.type === "not_read") console.log(`  NOT READ ${e.source}: ${e.why}`);
-    if (e.type === "question") {
-      console.log(`  asked    ${e.question.question} (guess: ${e.question.guess})`);
-      const answer = scripted ? scriptedAnswer(e.question, key, "as_asked") : null;
+    if (e.type === "question" || e.type === "widened") {
+      console.log(e.type === "question" ? `  asked    ${e.question.question} (guess: ${e.question.guess})` : `  widened  to touch ${e.question.touches.join(", ")}: ${e.question.question}`);
+      const answer = scripted && !answeredIds.has(e.question.id) ? scriptedAnswer(e.question, key, "as_asked") : null;
+      if (answer) answeredIds.add(e.question.id);
       if (answer) {
         given.push(service.answer({ id: discoveryId, questionId: e.question.id, answer, by: "eval@sealeye" }).catch(() => {}));
         console.log(`  answered ${answer}`);
       }
     }
     if (e.type === "merged") console.log(`  merged   ${e.questions.length} into one`);
+    if (e.type === "plain_words") console.log(`  plain    writing again in plain words: ${e.sources.join(", ")}`);
+    if (e.type === "plain_words_not_done") console.log(`  NOT PLAIN ${e.sources.join(", ")}: ${e.why}`);
     if (e.type === "writing") console.log("  writing the catalog");
   });
   await service.settled(discoveryId);
