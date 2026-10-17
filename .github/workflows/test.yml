@@ -107,6 +107,11 @@ jobs:
             exit 0
           fi
           # The Dockerfile runs npm test again inside the build, on the server's processor.
-          docker build -t "$IMAGE" .
+          # A failed build leaves its last lines as a note on the run, which can be read
+          # where the job's log cannot (a coding session), as the test job's failures are.
+          if ! docker build --progress=plain -t "$IMAGE" . 2>&1 | tee build-output.txt; then
+            grep -E '^#[0-9]+ [0-9.]+ not ok|ERROR' build-output.txt | head -20 | while IFS= read -r line; do echo "::error title=image build::${line}"; done
+            exit 1
+          fi
           docker push "$IMAGE"
           echo "Built ${IMAGE}. deploy/release.sh on this commit puts it live." >> "$GITHUB_STEP_SUMMARY"

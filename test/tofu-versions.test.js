@@ -21,7 +21,12 @@ test("the image's OpenTofu and provider are the executor's", () => {
   // be fetched from anywhere.
   assert.match(dockerfile, /filesystem_mirror/);
   assert.doesNotMatch(dockerfile, /\bdirect\s*\{/);
-  // And the job that runs real OpenTofu runs this one.
-  const workflow = fs.readFileSync(path.join(root, ".github/workflows/tofu.yml"), "utf8");
+});
+
+// The image is built without .github (.dockerignore), and runs npm test inside the build,
+// so this is checked where the repository is whole: on a laptop and in GitHub Actions.
+const workflowFile = path.join(root, ".github/workflows/tofu.yml");
+test("the job that runs real OpenTofu runs the image's version", { skip: !fs.existsSync(workflowFile) && "no .github here (the image's build)" }, () => {
+  const workflow = fs.readFileSync(workflowFile, "utf8");
   assert.match(workflow, new RegExp(`tofu_version: ${TOFU_VERSION.replace(/\./g, "\\.")}\\b`));
 });
