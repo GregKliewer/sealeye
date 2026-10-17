@@ -196,6 +196,13 @@ test("a run reads every module in parallel, raises questions as they come, and w
   assert.deepEqual(byId.db.inputs, { name: { required: true, line: "The app's name." }, size: { required: false, default: "small" } });
   assert.equal(byId.db.builds_with, "terraform");
   assert.equal(byId.cache.availability, "deprecated");
+  // What code read of each module reaches its entry: none of these takes an app, and
+  // none would run anything (PHASE4-PLAN Step 9; lost on the way once, Oct 17, 2026).
+  for (const m of draft.modules) {
+    assert.deepEqual(m.runs, [], m.id);
+    assert.equal(m.delivers, null, m.id);
+    assert.deepEqual(m.outputs, {}, m.id);
+  }
   assert.equal(draft.discovery.library[0].repo, "acme/platform");
 
   // Questions went out as events, and the entries resting on them say so.
@@ -337,6 +344,16 @@ test("Juniper Mutual: given good words, the draft passes the answer key's checks
   assert.deepEqual(graded.extra, []);
   assert.deepEqual(graded.problems, []);
   assert.ok(graded.hardCases.every(h => h.ok), JSON.stringify(graded.hardCases));
+
+  // And the Terraform executor builds from it what takes an app, once the platform gives
+  // the permissions boundary: http-api and static-site, and nothing else yet.
+  const byId = Object.fromEntries(draft.modules.map(m => [m.id, m]));
+  assert.equal(byId.http_api.delivers.kind, "package");
+  assert.equal(byId.static_site.delivers.kind, "files");
+  assert.ok(draft.modules.every(m => Array.isArray(m.runs) && m.runs.length === 0));
+  const { isBuildable } = await import("../core/catalog.js");
+  const settled = { ...draft, modules: draft.modules.map(({ open, ...m }) => m), platform: { names: ["permissions_boundary_arn"] } };
+  assert.deepEqual(settled.modules.filter(m => isBuildable(m.id, settled)).map(m => m.id).sort(), ["http_api", "static_site"]);
 });
 
 test("an answer that comes while the entries are being written is a late answer: one more pass", async () => {

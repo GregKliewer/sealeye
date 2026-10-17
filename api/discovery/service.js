@@ -353,7 +353,10 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
       })
       .addNode("supervise", async st => {
         const modules = st.modules.map(m => ({ ...m, ...(st.found[m.source] || {}) }));
-        run.modules = modules.map(m => ({ source: m.source, id: m.id, repo: m.repo, hash: m.hash, inputs: m.inputs, status: m.failed ? "not_read" : "read", finding: m.finding || null, failed: m.failed || null }));
+        // What code read of each module goes with it into the draft: its inputs and
+        // outputs, how it takes an app, what it would run (PHASE4-PLAN Step 9). Leaving
+        // them out leaves the Terraform executor nothing to build (found Oct 17, 2026).
+        run.modules = modules.map(m => ({ source: m.source, id: m.id, repo: m.repo, hash: m.hash, inputs: m.inputs, outputs: m.outputs, delivers: m.delivers ?? null, runs: m.runs, status: m.failed ? "not_read" : "read", finding: m.finding || null, failed: m.failed || null }));
         run.library = st.library;
         await save(run.id);
         await writeAll(run);
