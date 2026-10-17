@@ -394,7 +394,7 @@ export async function followStack(record, { plan, appPath, stackName, child, set
  *
  * @returns {string[]} the sibling ids that were closed
  */
-function closeSiblings(record) {
+export function closeSiblings(record) {
   if (!record.stackName) return [];
 
   const closed = [];

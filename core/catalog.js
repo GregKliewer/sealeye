@@ -187,7 +187,10 @@ export function isBuildable(id, catalog = loadCatalog()) {
   // The view the API sends a client (buildableView) has already asked, and says so.
   if (m.buildable === true) return true;
   const builds = typeof m.builds_with === "string" && Object.hasOwn(EXECUTORS, m.builds_with) ? EXECUTORS[m.builds_with] : [];
-  return builds.includes(m.id);
+  // An executor says which modules it builds by id, or by looking at the entry and the
+  // catalog it is in (Terraform's, which also reads the organization's platform values
+  // the API puts beside the catalog: core/terraform-modules.js).
+  return typeof builds === "function" ? builds(m, catalog) === true : builds.includes(m.id);
 }
 
 /** The modules a plan against this catalog may name, in the catalog's order. */
@@ -227,7 +230,9 @@ export function buildableView(catalog = loadCatalog()) {
     // What builds a module is the platform's to know, and its name is an AWS term; the
     // client is told only that the platform builds it.
     // Nor who edited an entry's words (catalog-edits.js): people are GET /team's to name.
-    modules: modules.map(({ builds_with, guidance, edited, ...m }) => ({ ...m, buildable: true })),
+    // Nor what code read of a Terraform module to build it (its outputs, how it takes an
+    // app, what it would run): the platform's to know too.
+    modules: modules.map(({ builds_with, guidance, edited, outputs, delivers, runs, ...m }) => ({ ...m, buildable: true })),
     need_kinds: catalog.need_kinds || [],
     profiles: catalog.profiles || [],
     patterns

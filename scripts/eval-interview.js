@@ -16,9 +16,10 @@
 // Two sets (PHASE4-PLAN Step 8): the starter's, each app planned against seaLeye's own
 // modules, and Juniper Mutual's, each app planned against the catalog discovery wrote
 // for the made-up organization (a snapshot of its live catalog,
-// test/fixtures/juniper-catalog-3.json). Juniper's modules are Terraform, which nothing
-// builds until Step 9, so for this eval only they are treated as built (`treatAsBuilt`):
-// the plans are graded on being right, not on being buildable. `--set starter` or
+// test/fixtures/juniper-catalog-3.json). Juniper's modules are Terraform, and the snapshot
+// was written before discovery recorded what the Terraform executor needs to build one,
+// so for this eval only they are treated as built (`treatAsBuilt`): the plans are graded
+// on being right, not on being buildable. `--set starter` or
 // `--set juniper` runs one.
 //
 // It calls the model and LangFuse, so it is not part of `npm test`, which stays offline.
@@ -113,17 +114,30 @@ export function loadCases(dir = FIXTURES, { set = "starter", org = null } = {}) 
 }
 
 /**
- * For this eval only: what an executor for Terraform will build once there is one
- * (PHASE4-PLAN Step 9), so a catalog of Terraform modules can be planned against and its
- * plans graded on their modules. Each of the catalog's Terraform modules is added to the
- * executor list in this process; whether a module is offered and whether it rests on a
- * question are left to the catalog, as ever. Nothing changes once Step 9 adds the real
- * executor: an executor already there is left alone.
+ * For this eval only: the catalog's Terraform modules are built, so a catalog of them can
+ * be planned against and its plans graded on their modules. The snapshot (catalog 3,
+ * Oct 16, 2026) was written before discovery recorded how a module takes an app and
+ * what it would run, and the eval's organization has no platform values, so the real
+ * executor (PHASE4-PLAN Step 9) would build none of it. So in this process the executor
+ * is the catalog's own list of Terraform modules; whether a module is offered and whether
+ * it rests on a question are left to the catalog, as ever. `builtAsBefore` puts the real
+ * executor back. Once a snapshot of a catalog discovery wrote since, with the eval's
+ * platform values, is in the eval, this goes.
  */
+const realExecutors = new Map();
 export function treatAsBuilt(document, executor = "terraform") {
-  if (EXECUTORS[executor]) return false;
+  if (!realExecutors.has(executor)) realExecutors.set(executor, EXECUTORS[executor]);
   EXECUTORS[executor] = (document.modules || []).filter(m => m?.builds_with === executor).map(m => m.id);
   return true;
+}
+
+/** The real executor again, after treatAsBuilt. */
+export function builtAsBefore(executor = "terraform") {
+  if (!realExecutors.has(executor)) return;
+  const real = realExecutors.get(executor);
+  if (real === undefined) delete EXECUTORS[executor];
+  else EXECUTORS[executor] = real;
+  realExecutors.delete(executor);
 }
 
 /**
