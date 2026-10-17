@@ -29,10 +29,18 @@ function launch() {
     env: { ...process.env, PORT: String(PORT) },
     stdio: "inherit"
   });
+  // The function's runtime never waits for it to end; nor does anything else.
+  app.unref();
   app.on("exit", (code, signal) => {
     exited = signal ? `it stopped (${signal})` : `it exited (${code})`;
     app = null;
   });
+}
+
+/** Stop the app, when the function is shut down (and in seaLeye's own tests). */
+export function stop() {
+  if (app) app.kill();
+  app = null;
 }
 
 /** Whether something answers on the app's port now. */
