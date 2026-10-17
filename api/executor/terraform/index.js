@@ -25,7 +25,7 @@ import { renderReport } from "../report.js";
 import { moduleCode } from "./library.js";
 import { inputsFor, lockedProviders, outputsWanted, rootModule, stateKeyFor, writeRoot } from "./root.js";
 import {
-  AWS_PROVIDER_VERSION, TOFU_VERSION, appliedResources, changeSummary, driftedResources, firstError,
+  AWS_PROVIDER_VERSION, TOFU_VERSION, appliedResources, builtParts, changeSummary, driftDetail, driftedResources, firstError,
   homeFor, lockHeld, runTofu, terraformNotReady, terraformProfile
 } from "./tofu.js";
 
@@ -309,7 +309,7 @@ export async function startTerraformDestroy(record, catalog, options = {}) {
     // Gone only when the state says nothing is left.
     const listed = await runTofu(["state", "list", "-no-color"], { cwd: ready.dir, home: ready.home });
     if (!listed.ok) return fail(`your environment was torn down, and the platform could not read its record afterwards to be sure (${firstError(listed)})`);
-    const left = listed.stdout.split("\n").map(l => l.trim()).filter(Boolean);
+    const left = builtParts(listed.stdout);
     if (left.length) return fail(`the tear-down finished with parts of your environment still there: ${left.join(", ")}`);
     return done();
   } catch (err) {
@@ -335,10 +335,17 @@ export async function checkTerraformNow(record, catalog, options = {}) {
     if (!inited.ok) return { ok: false, error: firstError(inited) };
     const listed = await runTofu(["state", "list", "-no-color"], { cwd: ready.dir, home: ready.home });
     if (!listed.ok) return { ok: false, error: firstError(listed) };
-    const resources = listed.stdout.split("\n").map(l => l.trim()).filter(Boolean);
-    const checked = await runTofu(["plan", "-refresh-only", "-detailed-exitcode", "-lock=false", "-input=false", "-no-color", "-json"], { cwd: ready.dir, home: ready.home });
+    const resources = builtParts(listed.stdout);
+    const checked = await runTofu(["plan", "-refresh-only", "-detailed-exitcode", "-lock=false", "-input=false", "-no-color", "-json", "-out=check.tfplan"], { cwd: ready.dir, home: ready.home });
     if (checked.code !== 0 && checked.code !== 2) return { ok: false, resources, error: firstError(checked) };
-    return { ok: true, resources, drift: checked.code === 2 ? driftedResources(checked.messages) : [] };
+    if (checked.code === 0) return { ok: true, resources, drift: [] };
+    // Which attributes changed, from the saved plan; the part alone if it cannot be read.
+    const shown = await runTofu(["show", "-json", "-no-color", "check.tfplan"], { cwd: ready.dir, home: ready.home });
+    let drift = null;
+    if (shown.ok) {
+      try { drift = driftDetail(JSON.parse(shown.stdout)); } catch {}
+    }
+    return { ok: true, resources, drift: drift && drift.length ? drift : driftedResources(checked.messages) };
   } catch (err) {
     return { ok: false, error: err.message };
   } finally {
