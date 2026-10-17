@@ -541,7 +541,11 @@ function checkedNowTerraform(c) {
   else if (!c.changesOutside.length) lines.push(`- Changes outside seaLeye.run: none, ${c.changesOutsideNote}.`);
   else {
     lines.push(`- Changes outside seaLeye.run: ${c.changesOutside.length}, ${c.changesOutsideNote}:`);
-    for (const x of c.changesOutside) lines.push(`  - ${code(x.address)}${x.action ? `: ${x.action}` : ""}`);
+    for (const x of c.changesOutside) {
+      const what = x.attributes?.length ? `, ${x.attributes.length === 1 ? "its" : "these"} ${x.attributes.map(code).join(", ")}` : "";
+      lines.push(`  - ${code(x.address)}${x.action ? `: ${x.action}` : ""}${what}`);
+    }
+    lines.push("", "A change can be the cloud's own (a stage that deploys itself sets its own deployment, for one) as well as a person's: the attributes say which.");
   }
   return lines.join("\n");
 }
