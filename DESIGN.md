@@ -3808,3 +3808,23 @@ a cloud's nouns, as CloudFormation's reasons always have; and the Terraform role
 sessions last an hour, the most a role reached from the server's own role can have, so a
 site's build or tear-down that takes longer relies on the provider taking a new session
 when one ends, which it does on its own.
+
+## What discovery's code reads reaches the draft, and a catalog that builds nothing still plans
+
+Sat Oct 17, 2026, the first build against Juniper's newly discovered catalog. The
+interview stopped with "modules item 1, id must NOT be valid": it could write no plan.
+
+- **Discovery lost what its code read of each module on the way to the draft.** When
+  the readers finish, the run keeps its modules from a list of named fields, and the
+  three Step 9 added (outputs, `delivers`, `runs`) were not on it. So the draft recorded
+  none of them, and the Terraform executor, which builds nothing it has not been told
+  the shape of, built nothing. Now kept; `test/discovery-run.test.js` checks the draft
+  carries them, and with `SEALEYE_SAMPLE_PLATFORM` that Juniper's http-api and
+  static-site are buildable from it once the permissions boundary is set. The catalog
+  made live before this fix has to be discovered again.
+- **Against a catalog the platform builds nothing from, a plan names no module and is
+  drafted** with at least one need (`contractShape` in `core/schema.js`). Before, the
+  contract asked for one module and allowed none, so no plan could pass and every
+  interview failed; refuse, never shrink, means the app's needs are still the honest
+  record. A catalog that builds something asks for one module, as before, and the
+  starter's contract is unchanged.

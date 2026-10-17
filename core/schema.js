@@ -236,10 +236,16 @@ export const planSchema04 = contractShape({
 });
 
 function contractShape({ versions, moduleIds, needKinds, catalogField }) {
+  // A catalog the platform builds nothing from yet: a plan names no module, and is the
+  // record of what the app needs, drafted. Without this no plan could be written against
+  // it, and every interview failed on the contract (Oct 17, 2026, Juniper's catalog before
+  // discovery recorded what its modules take).
+  const buildsNothing = moduleIds.length === 0;
   return {
     type: "object",
     additionalProperties: false,
-    required: ["planVersion", "app", "profile", "modules", "outputs", ...(catalogField ? ["catalog"] : [])],
+    // With nothing to build, what the app needs is the whole plan: at least one need.
+    required: ["planVersion", "app", "profile", "modules", "outputs", ...(catalogField ? ["catalog"] : []), ...(buildsNothing ? ["needs"] : [])],
     properties: {
       planVersion: { type: "string", enum: versions },
       // The catalog the plan was written against: "starter" for seaLeye's own four
@@ -260,7 +266,7 @@ function contractShape({ versions, moduleIds, needKinds, catalogField }) {
       // knowledge of a library nobody has read, or a promise nobody can keep.
       modules: {
         type: "array",
-        minItems: 1,
+        minItems: buildsNothing ? 0 : 1,
         items: {
           type: "object",
           additionalProperties: false,
@@ -277,6 +283,7 @@ function contractShape({ versions, moduleIds, needKinds, catalogField }) {
       // thing this whole change exists to stop.
       needs: {
         type: "array",
+        ...(buildsNothing ? { minItems: 1 } : {}),
         items: {
           type: "object",
           additionalProperties: false,

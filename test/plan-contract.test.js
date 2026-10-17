@@ -252,3 +252,16 @@ test("sealeye deploy says CATALOG_CHANGED in the platform's words, as the portal
     api.close();
   }
 });
+
+test("against a catalog the platform builds nothing from, a plan names no module and is drafted with what the app needs", async () => {
+  const { checkAgainst } = await import("../api/validate.js");
+  const nothing = { modules: [{ id: "web", availability: "available", builds_with: "terraform", line: "A site." }], need_kinds: [{ key: "file_storage", line: "somewhere to keep files" }] };
+  const base = { planVersion: "0.5", catalog: 3, app: { name: "x", type: "api" }, profile: "dev", modules: [], outputs: [] };
+  const need = { kind: "file_storage", line: "somewhere to keep files", evidence: [{ file: "index.js", shows: "writes uploads" }] };
+  assert.equal(checkAgainst({ ...base, needs: [need], status: "drafted" }, nothing).valid, true);
+  assert.equal(checkAgainst(base, nothing).valid, false, "with nothing to build and nothing needed, there is no plan");
+  assert.equal(checkAgainst({ ...base, modules: [{ id: "web" }], needs: [need] }, nothing).valid, false, "never a module it cannot build");
+  // A catalog that builds something still wants one module, as before.
+  const something = { ...nothing, modules: [{ id: "static_site_edge", availability: "available", builds_with: "cloudformation", line: "A site." }] };
+  assert.equal(checkAgainst({ ...base, needs: [need] }, something).valid, false);
+});
