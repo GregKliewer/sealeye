@@ -160,6 +160,31 @@ export function driftedResources(messages = []) {
     .map(m => ({ address: m.change.resource.addr, action: m.change.action || null }));
 }
 
+/**
+ * What changed outside OpenTofu, part by part, with the attributes that differ, from the
+ * saved refresh-only plan as `tofu show -json` gives it (`resource_drift`). The streamed
+ * messages name only the part; a reader needs to see what changed to tell a person's
+ * change from the cloud's own housekeeping (the first build, Oct 17, 2026: API Gateway
+ * sets a stage's deployment itself when it deploys automatically).
+ */
+export function driftDetail(plan) {
+  const changed = (before, after) => {
+    const b = before && typeof before === "object" ? before : {};
+    const a = after && typeof after === "object" ? after : {};
+    return [...new Set([...Object.keys(b), ...Object.keys(a)])]
+      .filter(k => JSON.stringify(b[k] ?? null) !== JSON.stringify(a[k] ?? null))
+      .sort();
+  };
+  return (plan?.resource_drift || [])
+    .filter(d => d?.address && d?.mode !== "data")
+    .map(d => ({ address: d.address, action: d.change?.actions?.join(", ") || null, attributes: changed(d.change?.before, d.change?.after) }));
+}
+
+/** A `state list`'s lines: what was built, without the data OpenTofu only reads. */
+export function builtParts(stdout) {
+  return String(stdout || "").split("\n").map(l => l.trim()).filter(l => l && !/(^|\.)data\./.test(l));
+}
+
 /** The lock OpenTofu says holds the state, from its error, or null. */
 export function lockHeld(result) {
   const text = `${result?.stderr || ""}\n${(result?.messages || []).map(m => m?.diagnostic ? `${m.diagnostic.summary} ${m.diagnostic.detail || ""}` : "").join("\n")}`;
