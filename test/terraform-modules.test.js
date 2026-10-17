@@ -165,3 +165,17 @@ test("on the server, nothing is built from an organization's modules until the T
   assert.equal(terraformNotReady({ DATABASE_URL: "postgres://x", SEALEYE_TERRAFORM_PROFILE: "sealeye-deploy-terraform" }), null);
   assert.equal(terraformNotReady({}), null, "a laptop API uses what credentials it has");
 });
+
+test("the change record says which attributes changed outside seaLeye, and lists what was built without what is only read", async () => {
+  const { builtParts, driftDetail } = await import("../api/executor/terraform/tofu.js");
+  const plan = {
+    resource_drift: [
+      { address: "module.app.aws_apigatewayv2_stage.default", mode: "managed", change: { actions: ["update"], before: { deployment_id: "a1", name: "$default", tags: { x: "1" } }, after: { deployment_id: "b2", name: "$default", tags: { x: "1" } } } },
+      { address: "module.app.data.aws_iam_policy_document.assume", mode: "data", change: { actions: ["read"], before: {}, after: { json: "{}" } } }
+    ]
+  };
+  assert.deepEqual(driftDetail(plan), [{ address: "module.app.aws_apigatewayv2_stage.default", action: "update", attributes: ["deployment_id"] }]);
+  assert.deepEqual(driftDetail({}), []);
+  assert.deepEqual(builtParts("module.app.data.aws_iam_policy_document.assume\nmodule.app.aws_lambda_function.fn\n\n"), ["module.app.aws_lambda_function.fn"]);
+  assert.deepEqual(builtParts("data.aws_caller_identity.me\naws_s3_bucket.b\n"), ["aws_s3_bucket.b"]);
+});
