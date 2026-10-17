@@ -385,6 +385,15 @@ export const getDiscovery = ({ apiBaseUrl, id }) => discoveryCall(apiBaseUrl, `/
 export const answerDiscovery = ({ apiBaseUrl, id, question, answer }) =>
   discoveryCall(apiBaseUrl, `/discoveries/${encodeURIComponent(id)}/answers`, asJson({ question, answer })).then(r => r.question);
 
+// An organization's platform values (PHASE4-PLAN Step 9): what only its platform team can
+// give a module, by stage. An organization-wide token's only, as discovery is.
+const stageQuery = stage => (stage ? `?stage=${encodeURIComponent(stage)}` : "");
+export const getPlatform = ({ apiBaseUrl, stage }) => discoveryCall(apiBaseUrl, `/platform${stageQuery(stage)}`, { method: "GET" });
+export const setPlatformValue = ({ apiBaseUrl, name, value, stage }) =>
+  discoveryCall(apiBaseUrl, `/platform/values/${encodeURIComponent(name)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ value, ...(stage ? { stage } : {}) }) }).then(r => r.value);
+export const removePlatformValue = ({ apiBaseUrl, name, stage }) =>
+  discoveryCall(apiBaseUrl, `/platform/values/${encodeURIComponent(name)}${stageQuery(stage)}`, { method: "DELETE" });
+
 /** A run's events from `after`: every one so far, then each as it comes, until it ends. */
 export function followDiscovery({ apiBaseUrl, id, onEvent, after = 0 }) {
   return followEvents({

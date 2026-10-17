@@ -102,6 +102,10 @@ export function Control() {
   // environment's own team may (an organization-wide token sees other teams' too).
   const code = latest.kind === "static" ? null : env.deploys.find(d => d.packaged) || null;
   const ownTeam = !person || person.auth === "off" || (latest.teamId || "default") === person.team;
+  // What this environment offers, by operation id, from what built it (core/operations.js,
+  // environmentOperations): a card or button shows only when it is offered. A record from
+  // an API older than the list says nothing, and offers everything, as it always did.
+  const offers = (id: string) => !Array.isArray(latest.operations) || latest.operations.includes(id);
 
   return (
     <>
@@ -153,30 +157,30 @@ export function Control() {
           <CardHeader><CardTitle>Actions</CardTitle></CardHeader>
           <CardContent className="space-y-5 text-sm">
             {locked ? <Locked text={locked} /> : null}
-            {code && ownTeam ? (
+            {code && ownTeam && offers("deploy-again") ? (
               <div className="space-y-1.5" data-testid="deploy-again">
                 <DeployAgain app={env.app} fromDeployment={code.deploymentId} packagedBy={code.packagedBy || code.deploymentId} locked={Boolean(locked)} onDone={deployments.reload} />
                 <CommandHint op="deploy-again" target={env.app} />
               </div>
             ) : null}
-            {latest.kind !== "static" && latest.stackName && !["destroyed", "destroying"].includes(latest.status) ? (
+            {latest.kind !== "static" && latest.stackName && offers("pause") && offers("resume") && !["destroyed", "destroying"].includes(latest.status) ? (
               <PauseRow deploymentId={latest.deploymentId} app={env.app} pauses={env.deploys.flatMap(d => d.pauses || [])} locked={Boolean(locked)} onDone={deployments.reload} />
             ) : null}
-            <div className="space-y-1.5" data-testid="teardown">
+            {offers("teardown") ? <div className="space-y-1.5" data-testid="teardown">
               {canTearDown ? (<>
                 <TearDown app={env.app} deploymentId={(env.deploys.find(d => d.stackName) || latest).deploymentId} locked={Boolean(locked)} onDone={deployments.reload} />
                 <CommandHint op="teardown" target={env.app} />
               </>) : (
                 <p className="text-dim">{latest.status === "drafted" ? "Nothing was built for a drafted plan, so there is nothing to tear down." : "There is nothing standing to tear down."}</p>
               )}
-            </div>
+            </div> : null}
           </CardContent>
         </Card>
       </div>
 
-      {latest.kind !== "static" && hasSettingsAndCosts(person ?? {}) ? <Settings app={env.app} team={latest.teamId || "default"} moving={moving} /> : null}
+      {latest.kind !== "static" && offers("settings") && hasSettingsAndCosts(person ?? {}) ? <Settings app={env.app} team={latest.teamId || "default"} moving={moving} /> : null}
 
-      {latest.kind !== "static" && code && ownTeam ? (
+      {latest.kind !== "static" && code && ownTeam && offers("config") ? (
         <Configure app={env.app} fromDeployment={code.deploymentId} locked={locked} onDone={deployments.reload} />
       ) : null}
 
@@ -208,14 +212,14 @@ export function Control() {
                   <TableCell>{who(d.requestedBy)}</TableCell>
                   <TableCell className="text-dim">{d.surface === "portal" ? "Portal" : "Command line"}</TableCell>
                   <TableCell className="space-x-2 whitespace-nowrap text-right">
-                    <Button variant="ghost" size="sm" aria-label={`Plan and report for ${d.deploymentId}`} onClick={() => {
+                    {offers("plan") ? <Button variant="ghost" size="sm" aria-label={`Plan and report for ${d.deploymentId}`} onClick={() => {
                       setPlanFor(d.deploymentId);
                       document.getElementById("plan")?.scrollIntoView({ behavior: "smooth", block: "start" });
-                    }}>Plan</Button>
-                    <Button variant="ghost" size="sm" aria-label={`Evidence for ${d.deploymentId}`} onClick={() => {
+                    }}>Plan</Button> : null}
+                    {offers("evidence") ? <Button variant="ghost" size="sm" aria-label={`Evidence for ${d.deploymentId}`} onClick={() => {
                       setEvidenceFor(d.deploymentId);
                       document.getElementById("evidence")?.scrollIntoView({ behavior: "smooth", block: "start" });
-                    }}>Evidence</Button>
+                    }}>Evidence</Button> : null}
                   </TableCell>
                 </TableRow>
               );
@@ -224,13 +228,13 @@ export function Control() {
         </Table>
       </Card>
 
-      <PlanCard dep={env.deploys.find(d => d.deploymentId === planFor) || latest} latest={!planFor || planFor === latest.deploymentId} />
+      {offers("plan") ? <PlanCard dep={env.deploys.find(d => d.deploymentId === planFor) || latest} latest={!planFor || planFor === latest.deploymentId} /> : null}
 
-      {latest.kind !== "static" && env.deploys.some(d => d.stackName) ? <PerformanceCard app={env.app} deploymentId={(env.deploys.find(d => d.stackName) || latest).deploymentId} /> : null}
+      {latest.kind !== "static" && offers("perf") && env.deploys.some(d => d.stackName) ? <PerformanceCard app={env.app} deploymentId={(env.deploys.find(d => d.stackName) || latest).deploymentId} /> : null}
 
-      {latest.kind !== "static" && env.deploys.some(d => d.stackName) ? <LogsCard app={env.app} deploymentId={(env.deploys.find(d => d.stackName) || latest).deploymentId} /> : null}
+      {latest.kind !== "static" && offers("logs") && env.deploys.some(d => d.stackName) ? <LogsCard app={env.app} deploymentId={(env.deploys.find(d => d.stackName) || latest).deploymentId} /> : null}
 
-      <EvidenceCard key={evidenceFor || latest.deploymentId} deploymentId={evidenceFor || latest.deploymentId} latest={!evidenceFor || evidenceFor === latest.deploymentId} />
+      {offers("evidence") ? <EvidenceCard key={evidenceFor || latest.deploymentId} deploymentId={evidenceFor || latest.deploymentId} latest={!evidenceFor || evidenceFor === latest.deploymentId} /> : null}
     </>
   );
 }

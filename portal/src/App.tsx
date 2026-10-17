@@ -12,6 +12,7 @@ import { NewEnvironment } from "./pages/NewEnvironment";
 import { TeamPage } from "./pages/Team";
 import { CostsPage } from "./pages/Costs";
 import { DiscoveryPage } from "./pages/Discovery";
+import { PlatformPage } from "./pages/Platform";
 
 function SignedIn({ children }: { children: React.ReactNode }) {
   const { person, checked } = useSession();
@@ -38,6 +39,7 @@ export function App() {
           <Route path="costs" element={<CostsPage />} />
           <Route path="team" element={<TeamPage />} />
           <Route path="discovery" element={<DiscoveryPage />} />
+          <Route path="platform" element={<PlatformPage />} />
           <Route path="health" element={<Health />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

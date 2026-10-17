@@ -1,0 +1,117 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  The network the made-up organization's modules are built into (PHASE4-PLAN Step 9;
+  Greg, Oct 17, 2026, decision 2): what Juniper Mutual's platform team would have
+  already, so its modules can be given the values only a platform gives. Deploy as
+  platform-sealeye-foundation in the account its environments live in, then set each
+  output as one of the organization's platform values (deploy/README.md, "The Terraform
+  executor"). A Virtual Private Cloud (VPC) with two private subnets in two data
+  centres, subnet groups for databases and caches, security groups for each, and a topic
+  for alarms. No NAT gateway and no endpoints, so it costs nothing while nothing is built
+  in it: a module that needs to reach the internet from inside it (a container pulling
+  its image) waits until one is added.
+
+Parameters:
+  CidrBlock:
+    Description: The network's address range
+    Type: String
+    Default: 10.42.0.0/16
+    AllowedPattern: "^\\d+\\.\\d+\\.\\d+\\.\\d+/16$"
+
+Resources:
+  Network:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref CidrBlock
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags: [{ Key: Name, Value: platform-sealeye-foundation }]
+
+  PrivateA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Network
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: !Select [0, !Cidr [!Ref CidrBlock, 4, 12]]
+      MapPublicIpOnLaunch: false
+      Tags: [{ Key: Name, Value: platform-sealeye-private-a }]
+
+  PrivateB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Network
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: !Select [1, !Cidr [!Ref CidrBlock, 4, 12]]
+      MapPublicIpOnLaunch: false
+      Tags: [{ Key: Name, Value: platform-sealeye-private-b }]
+
+  DatabaseSubnets:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupName: platform-sealeye-databases
+      DBSubnetGroupDescription: Where the organization's databases go
+      SubnetIds: [!Ref PrivateA, !Ref PrivateB]
+
+  CacheSubnets:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      CacheSubnetGroupName: platform-sealeye-caches
+      Description: Where the organization's caches go
+      SubnetIds: [!Ref PrivateA, !Ref PrivateB]
+
+  # Apps reach databases and caches from inside the network only.
+  AppsGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: seaLeye apps inside the network
+      VpcId: !Ref Network
+      Tags: [{ Key: Name, Value: platform-sealeye-apps }]
+
+  DatabasesGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: seaLeye databases, reached by apps only
+      VpcId: !Ref Network
+      SecurityGroupIngress:
+        - { IpProtocol: tcp, FromPort: 5432, ToPort: 5432, SourceSecurityGroupId: !Ref AppsGroup }
+      Tags: [{ Key: Name, Value: platform-sealeye-databases }]
+
+  CachesGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: seaLeye caches, reached by apps only
+      VpcId: !Ref Network
+      SecurityGroupIngress:
+        - { IpProtocol: tcp, FromPort: 6379, ToPort: 6379, SourceSecurityGroupId: !Ref AppsGroup }
+      Tags: [{ Key: Name, Value: platform-sealeye-caches }]
+
+  Alarms:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: platform-sealeye-alarms
+
+Outputs:
+  VpcId:
+    Description: platform value vpc_id
+    Value: !Ref Network
+  SubnetIds:
+    Description: platform value subnet_ids (a list of two)
+    Value: !Join [" ", [!Ref PrivateA, !Ref PrivateB]]
+  DatabaseSubnetGroup:
+    Description: platform values postgres.subnet_group_name and postgres_cluster.subnet_group_name
+    Value: !Ref DatabaseSubnets
+  CacheSubnetGroup:
+    Description: platform values cache_valkey.subnet_group_name and cache_redis.subnet_group_name
+    Value: !Ref CacheSubnets
+  AppsSecurityGroup:
+    Description: platform value security_group_ids, for apps (container_service, internal_entry)
+    Value: !Ref AppsGroup
+  DatabasesSecurityGroup:
+    Description: platform values postgres.security_group_ids and postgres_cluster.security_group_ids
+    Value: !Ref DatabasesGroup
+  CachesSecurityGroup:
+    Description: platform values cache_valkey.security_group_ids and cache_redis.security_group_ids
+    Value: !Ref CachesGroup
+  AlarmTopicArn:
+    Description: platform value alarm_topic_arn
+    Value: !Ref Alarms

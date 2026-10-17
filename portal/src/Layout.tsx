@@ -18,6 +18,8 @@ const NAV = [
   { to: "/team", label: label("team"), end: false },
   // A platform engineer's: shown only to an organization-wide token (Greg, Oct 15, 2026).
   { to: "/discovery", label: label("discover"), end: false, orgWide: true },
+  // The organization's platform values (PHASE4-PLAN Step 9): a platform engineer's too.
+  { to: "/platform", label: label("platform"), end: false, orgWide: true },
   { to: "/health", label: label("doctor"), end: false }
 ];
 

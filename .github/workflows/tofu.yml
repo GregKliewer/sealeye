@@ -1,0 +1,46 @@
+# PHASE4-PLAN Step 9. The root modules the Terraform executor writes, checked by real
+# OpenTofu: `init`, `validate` and `plan` on each module in test/fixtures/tofu, building
+# nothing and reaching no AWS account (scripts/tofu-check.js). `npm test` uses a stand-in
+# for OpenTofu, as it does for the AWS CLI; this is where the real one runs.
+name: tofu
+
+on:
+  push:
+    paths:
+      - "api/executor/terraform/**"
+      - "api/discovery/terraform.js"
+      - "core/terraform-modules.js"
+      - "core/names.js"
+      - "scripts/tofu-check.js"
+      - "test/fixtures/tofu/**"
+      - ".github/workflows/tofu.yml"
+  pull_request:
+    paths:
+      - "api/executor/terraform/**"
+      - "api/discovery/terraform.js"
+      - "core/terraform-modules.js"
+      - "core/names.js"
+      - "scripts/tofu-check.js"
+      - "test/fixtures/tofu/**"
+      - ".github/workflows/tofu.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  tofu:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      # The version the image pins (Dockerfile, api/executor/terraform/tofu.js).
+      - uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: 1.12.6
+          tofu_wrapper: false
+      - run: node scripts/tofu-check.js

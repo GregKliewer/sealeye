@@ -46,6 +46,7 @@ export const OPERATIONS = Object.freeze([
   { id: "catalog-approve", command: "catalog approve", aliases: [], label: "Approve" },
   { id: "catalog-live", command: "catalog live", aliases: [], label: "Make live" },
   { id: "discover", command: "discover", aliases: [], label: "Discovery" },
+  { id: "platform", command: "platform", aliases: [], label: "Platform" },
   { id: "needs", command: "needs", aliases: [], label: "Needs" },
   { id: "costs", command: "costs", aliases: [], label: "Costs" },
   { id: "team", command: "team", aliases: [], label: "Team" },

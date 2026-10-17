@@ -15,6 +15,7 @@
 #   deploy/server.sh gateway-calls [run|email] [n]   the record of model calls, 90 days of it
 #   deploy/server.sh settings-sources    live environments still taking settings from a developer's .env
 #   deploy/server.sh library-check       read each named platform library as discovery will, and say what was read
+#   deploy/server.sh tofu-unlock <dep_...> [--release]  what holds a Terraform environment's lock, and release it
 set -euo pipefail
 
 REGION="${AWS_REGION:-ca-central-1}"
@@ -119,6 +120,11 @@ case "${1:-}" in
       "set -euo pipefail; cd /opt/sealeye; docker compose restart api >/dev/null; for i in \$(seq 1 30); do sleep 2; [ \"\$(docker compose ps --format '{{.Health}}' api)\" = healthy ] && { echo 'The API restarted and is answering.'; exit 0; }; done; echo 'The API restarted but is not answering yet; see deploy/server.sh logs.'; exit 1" ;;
   settings-sources)
     run_on_server "seaLeye settings sources" "cd /opt/sealeye && docker compose exec -T api node deploy/with-settings.mjs scripts/settings-sources.js" ;;
+  tofu-unlock)
+    DEP="${2:?usage: deploy/server.sh tofu-unlock <dep_...> [--release]}"
+    [[ "$DEP" =~ ^dep_[0-9a-f]+$ ]] || { echo "Name a deployment: dep_..."; exit 1; }
+    RELEASE=""; [ "${3:-}" = "--release" ] && RELEASE="--release"
+    run_on_server "seaLeye tofu unlock" "cd /opt/sealeye && docker compose exec -T api node deploy/with-settings.mjs scripts/tofu-unlock.js ${DEP} ${RELEASE}" ;;
   library-check)
     run_on_server "seaLeye library check" "cd /opt/sealeye && docker compose exec -T api node deploy/with-settings.mjs scripts/library-check.js" ;;
   logs)
@@ -138,5 +144,5 @@ case "${1:-}" in
     [[ "$LIMIT" =~ ^[0-9]{1,5}$ ]] || { echo "The number of calls must be a whole number."; exit 1; }
     run_on_server "seaLeye gateway calls" "cd /opt/sealeye && bash gateway.sh calls '${WHO}' ${LIMIT}" ;;
   *)
-    sed -n '2,17p' "$0"; exit 1 ;;
+    sed -n '2,18p' "$0"; exit 1 ;;
 esac
