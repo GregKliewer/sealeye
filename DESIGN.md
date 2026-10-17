@@ -3828,3 +3828,27 @@ interview stopped with "modules item 1, id must NOT be valid": it could write no
   interview failed; refuse, never shrink, means the app's needs are still the honest
   record. A catalog that builds something asks for one module, as before, and the
   starter's contract is unchanged.
+
+## A tear-down carries on in the background
+
+Sat Oct 17, 2026. Greg: tear-downs take longer now that environments are built from an
+organization's own modules, so `sealeye teardown` should hand the terminal back the way
+`run` and `deploy` do. He chose background by default with `--watch` to stay (over an
+opt-in `--background`), and reusing the notifier taught tear-downs (over handing back
+with no notification).
+
+- **The API already tore down in the background** (DELETE answers 202), and the portal
+  already did not wait. Only the command stayed on a spinner to the end. Now it shows
+  the tear-down's steps for the same few seconds `run` does, then says "Tearing down in
+  the background" and leaves `cli/bin/notify-when-done.js` watching with `--teardown`.
+  A tear-down that ends inside those seconds is reported there and nothing is left
+  watching. `--json` still answers at once; the confirmation is unchanged.
+- **One rule for every long change:** a developer is handed back the terminal, and told
+  when it is done. `--watch` with `run`, `deploy` or `teardown` stays until it is.
+- **A tear-down's end is said in the same words wherever it is seen:** "Everything
+  seaLeye.run created for <app> is gone", or "Tear-down failed: <reason>". A record
+  that failed after a tear-down was asked for (`destroyRequestedBy`) failed at the
+  tear-down, so it never says "was not created" and is never scored as the
+  interview's plan failing to build.
+- **`sealeye watch` ends on a tear-down.** It counted `destroyed` as still going, so
+  watching a tear-down never ended; found while making this change.

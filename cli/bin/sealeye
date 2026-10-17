@@ -133,7 +133,7 @@ Usage:
   ${product.command} validate --file <plan.yaml> [--api <url>] [--json]
   ${product.command} status [app | deploymentId] [--api <url>] [--json]
   ${product.command} watch [app | deploymentId] [--api <url>]
-  ${product.command} teardown [app | deploymentId] [--api <url>]
+  ${product.command} teardown [app | deploymentId] [--watch] [--api <url>]
   ${product.command} list [--deployments] [--all] [--api <url>] [--json]
   ${product.command} evidence [app | deploymentId] [--json] [--out <file>] [--api <url>]
   ${product.command} plan [app | deploymentId] [--report] [--out <folder>] [--json] [--api <url>]
@@ -179,8 +179,8 @@ Options:
       --again     with deploy: deploy the code an earlier deployment packaged again,
                   with its plan or the one --file names; settings come from the
                   store. No folder is uploaded
-      --watch     with run or deploy: stay on the live panel until the deployment
-                  finishes, instead of watching in the background and notifying you
+      --watch     with run, deploy or teardown: stay until it finishes, instead
+                  of carrying on in the background and notifying you
       --no-trace  with run: record nothing about this run in LangFuse, even when its
                   keys are set. SEALEYE_TRACING=off does the same for every run
       --all       with list: include environments you have torn down
@@ -1366,44 +1366,9 @@ async function main() {
       return;
     }
 
-    let lastStep = null;
-
-    // Tear-down runs about half a minute and changes step barely at all, so something
-    // has to move while it does. The spinner carries the step the platform is on now,
-    // and each step settles into its plain line when the next one starts, so the same
-    // words are never on the screen twice.
-    let wait = spinner("tearing down your environment");
-    const settled = () => (lastStep ? step(lastStep) : undefined);
-
-    while (true) {
-      const dep = await getDeployment({ apiBaseUrl, deploymentId });
-
-      // Each new plain-language line once, as it happens.
-      if (dep.step && dep.step !== lastStep) {
-        wait.stop(settled());
-        lastStep = dep.step;
-        wait = spinner(dep.step);
-      }
-
-      if (dep.status === "destroyed") {
-        wait.stop(settled());
-        console.log("");
-        console.log(c.ok(`Everything seaLeye.run created for ${dep.app?.name} is gone`));
-        if (dep.note) say(dep.note);
-        if (dep.removedArtifacts?.length) say(`Removed ${dep.removedArtifacts.length} local build file(s)`);
-        break;
-      }
-
-      if (dep.status === "failed") {
-        wait.stop(settled());
-        console.log("");
-        console.log(c.fail(`Tear-down failed: ${dep.failureReason || "no reason reported"}`));
-        process.exitCode = 1;
-        break;
-      }
-
-      await sleep(1000);
-    }
+    // A tear-down hands the terminal back the way run and deploy do: a few seconds on
+    // the screen, then a notification when it is done. --watch stays until it is.
+    await followTeardown({ apiBaseUrl, deploymentId, background: !watchFlag });
 
     return;
   }
@@ -2153,7 +2118,9 @@ async function runWatch({ apiBaseUrl, deploymentId }) {
     // The dots are motion for a terminal. In a pipe they would turn every poll into a
     // change and print the panel again for nothing.
     const dots = animations() ? formatDots(tick++) : "";
-    const live = dep.status !== "succeeded" && dep.status !== "failed";
+    // A tear-down ends at destroyed, or at failed. Before Oct 17, 2026 destroyed
+    // counted as still going, and watch never ended on one.
+    const live = dep.status !== "succeeded" && dep.status !== "failed" && dep.status !== "destroyed";
 
     const panel = [
       ...deploymentSummaryLines(dep, { step: !(live && animations()) }),
@@ -2170,6 +2137,14 @@ async function runWatch({ apiBaseUrl, deploymentId }) {
     } else if (panel.join("\n") !== lastPanel) {
       lastPanel = panel.join("\n");
       for (const line of panel) console.log(line);
+    }
+
+    if (!live && teardownFinished(dep)) {
+      // A tear-down's end, in teardown's own words, and never scored: the score is
+      // whether the interview's plan built, which a tear-down says nothing about.
+      if (wait) wait.stop();
+      reportTeardown(dep);
+      return dep;
     }
 
     if (!live) {
@@ -2201,6 +2176,64 @@ async function runWatch({ apiBaseUrl, deploymentId }) {
 
     await sleep(500); // refresh twice per second
   }
+}
+
+// A tear-down's end, in the same words wherever it is seen: teardown, watch, and the
+// notifier (cli/bin/notify-when-done.js) once the terminal has been handed back.
+// A record the platform was asked to tear down that then failed failed at that, not
+// at being built.
+const teardownAsked = dep => Boolean(dep.destroyRequestedBy);
+const teardownFinished = dep => dep.status === "destroyed" || (dep.status === "failed" && teardownAsked(dep));
+
+function reportTeardown(dep) {
+  console.log("");
+  if (dep.status === "destroyed") {
+    console.log(c.ok(`Everything seaLeye.run created for ${dep.app?.name} is gone`));
+    if (dep.note) say(dep.note);
+    if (dep.removedArtifacts?.length) say(`Removed ${dep.removedArtifacts.length} local build file(s)`);
+    return;
+  }
+  console.log(c.fail(`Tear-down failed: ${dep.failureReason || "no reason reported"}`));
+  process.exitCode = 1;
+}
+
+// Follows a tear-down already asked for. The spinner carries the step the platform is
+// on now, and each step settles into its plain line when the next one starts, so the
+// same words are never on the screen twice. In the background (the default), it does
+// that for BACKGROUND_WINDOW_MS, then hands the terminal back and leaves a detached
+// notifier watching, as runBackground does for a build. A tear-down that ends inside
+// the window is reported here and nothing is left behind.
+async function followTeardown({ apiBaseUrl, deploymentId, background }) {
+  const deadline = background ? Date.now() + BACKGROUND_WINDOW_MS : Infinity;
+  let lastStep = null;
+  let wait = spinner("tearing down your environment");
+  const settled = () => (lastStep ? step(lastStep) : undefined);
+  let dep;
+
+  while (true) {
+    dep = await getDeployment({ apiBaseUrl, deploymentId });
+
+    if (dep.step && dep.step !== lastStep) {
+      wait.stop(settled());
+      lastStep = dep.step;
+      wait = spinner(dep.step);
+    }
+
+    if (teardownFinished(dep)) {
+      wait.stop(settled());
+      reportTeardown(dep);
+      return dep;
+    }
+
+    if (Date.now() >= deadline) break;
+    await sleep(background ? BACKGROUND_POLL_MS : 1000);
+  }
+
+  wait.stop(settled());
+  console.log("");
+  say("Tearing down in the background. I'll let you know when it's complete.");
+  spawnNotifier({ deploymentId, apiBaseUrl, appPath: null, appName: dep.app?.name, teardown: true });
+  return dep;
 }
 
 // The default once "Deploy this? [y/N]" is answered y: show the same panel runWatch
@@ -2283,11 +2316,12 @@ async function runBackground({ apiBaseUrl, deploymentId, appPath, plan }) {
  * notification still has `sealeye status` and `sealeye list`, both of which read the
  * same truth the notifier is polling.
  */
-function spawnNotifier({ deploymentId, apiBaseUrl, appPath, appName }) {
+function spawnNotifier({ deploymentId, apiBaseUrl, appPath, appName, teardown = false }) {
   const script = path.join(cliDir, "notify-when-done.js");
 
   try {
     const args = [script, "--deployment-id", deploymentId, "--api", apiBaseUrl];
+    if (teardown) args.push("--teardown");
     if (appPath) args.push("--app", appPath);
     if (appName) args.push("--app-name", appName);
 
