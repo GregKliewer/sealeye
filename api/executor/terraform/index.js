@@ -26,7 +26,7 @@ import { moduleCode } from "./library.js";
 import { inputsFor, lockedProviders, outputsWanted, rootModule, stateKeyFor, writeRoot } from "./root.js";
 import {
   AWS_PROVIDER_VERSION, TOFU_VERSION, appliedResources, changeSummary, driftedResources, firstError,
-  homeFor, lockHeld, runTofu, terraformProfile
+  homeFor, lockHeld, runTofu, terraformNotReady, terraformProfile
 } from "./tofu.js";
 
 const now = () => new Date().toISOString();
@@ -156,6 +156,8 @@ export async function startTerraformDeployment(record, plan, appPath, catalog, o
   const step = line => set(record.status, { step: line });
   try {
     set("packaging", { step: "Reading your plan and your organization's module" });
+    const notReady = terraformNotReady();
+    if (notReady) throw new Error(notReady);
     const { entry, planModule } = checkBuildable(plan, catalog);
     const again = record.source === "again";
     record.backend = "terraform";
@@ -284,6 +286,8 @@ export async function startTerraformDestroy(record, catalog, options = {}) {
   try {
     set("destroying", { step: "Checking what is still there" });
     if (!record.terraform?.stateKey || !record.terraform?.inputValues) return done("Nothing was ever built for this deployment.");
+    const notReady = terraformNotReady();
+    if (notReady) return fail(notReady.replace("nothing was built", "nothing was torn down"));
     const { entry, planModule } = builtModuleOf(record, catalog);
     const ready = await prepare(record, catalog, { entry, planModule, inputs: record.terraform.inputValues, reader: options.reader });
     const inited = await init(ready.dir, ready.home);

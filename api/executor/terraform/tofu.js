@@ -35,6 +35,19 @@ export function terraformProfile(env = process.env) {
   return env.SEALEYE_TERRAFORM_PROFILE || env.AWS_PROFILE || null;
 }
 
+/**
+ * Why the platform cannot build from an organization's modules here, or null when it
+ * can. On the server (an API with a database) the Terraform deploy role must be set up:
+ * falling back to the CloudFormation role would fail part-way through a build, for a
+ * reason no developer can act on (the review, Oct 17, 2026).
+ */
+export function terraformNotReady(env = process.env) {
+  if (env.DATABASE_URL && !env.SEALEYE_TERRAFORM_PROFILE) {
+    return "This platform is not set up to build from your organization's own modules yet, so nothing was built. Your platform team sets it up (SEALEYE_TERRAFORM_ROLE_ARN, deploy/README.md).";
+  }
+  return null;
+}
+
 const KEEP = [
   "PATH", "TMPDIR", "LANG", "LC_ALL",
   "HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY", "https_proxy", "http_proxy", "no_proxy",

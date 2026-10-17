@@ -14,8 +14,9 @@ import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.SEALEYE_APP_PORT) || 8080;
-// How long the app may take to start answering. The function's own start-up may take
-// ten seconds; a request waiting on a slow start waits within the function's time.
+// How long the app may take to start answering. The wait is while the function starts
+// up (below), which may take ten seconds, not within a request, whose time the module
+// sets and may be three seconds (the review, Oct 17, 2026).
 const READY_MS = Number(process.env.SEALEYE_READY_MS) || 9000;
 const HOP = new Set(["connection", "keep-alive", "transfer-encoding", "upgrade", "proxy-connection"]);
 
@@ -67,8 +68,10 @@ export async function ready() {
   throw new Error(`the app did not answer on port ${PORT} within ${READY_MS / 1000} s of starting`);
 }
 
-// Started while the function itself starts, so the first request does not wait for it.
+// Started, and waited for, while the function itself starts: its start-up has time of
+// its own, so the first request does not spend its time waiting for the app.
 const starting = ready().catch(err => err);
+if (process.env.AWS_LAMBDA_FUNCTION_NAME) await starting;
 
 /** One request, from the function's event to the app and back. */
 export async function forward(event) {

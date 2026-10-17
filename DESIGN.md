@@ -3796,3 +3796,15 @@ Sat Oct 17, 2026, Greg (Step 9's decision 5 and the small decisions).
 - **Static sites are served through the content network** for Terraform environments,
   as Juniper's `static-site` does: the "No CloudFront" limit is the CloudFormation
   executor's.
+
+**The independent review (the same day)** found nothing that had to change before
+merging, and three things worth doing, done here: a Terraform deploy or tear-down on the
+server is refused (503 NOT_SET_UP) until the Terraform deploy role is set up, rather than
+going through the CloudFormation role and failing part-way; and the adapter waits for the
+app while the function starts up, which has ten seconds of its own, not within the first
+request, whose time Juniper's module leaves at three. Kept as they are, knowingly:
+OpenTofu's first error is the failure a developer reads, in its own words, which can name
+a cloud's nouns, as CloudFormation's reasons always have; and the Terraform role's
+sessions last an hour, the most a role reached from the server's own role can have, so a
+site's build or tear-down that takes longer relies on the provider taking a new session
+when one ends, which it does on its own.

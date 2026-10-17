@@ -9,6 +9,7 @@ import { backendMappings } from "./mappings.js";
 import { putDeployment, getDeployment, listDeployments, storeFile, count, openStore, flushStore, onDeploymentSaved } from "./store.js";
 import { startDeployment, startDestroy } from "./executor/index.js";
 import { builtWithTerraform, checkBuildable, startTerraformDeployment, startTerraformDestroy } from "./executor/terraform/index.js";
+import { terraformNotReady } from "./executor/terraform/tofu.js";
 import { entryPointFor, namingFor, sharedWithAnotherTeam } from "./executor/compose.js";
 import { acceptSent, MAX_STORED_BYTES, storableName, storeFolder } from "./executor/settings.js";
 import { deleteStoredSetting, listStoredSettings, putStoredSetting } from "./executor/cfn.js";
@@ -382,6 +383,8 @@ async function deployAgain(req, res) {
   }
 
   if (terraform) {
+    const notReady = terraformNotReady();
+    if (notReady) return res.status(503).json({ error: { code: "NOT_SET_UP", message: notReady } });
     let found;
     try {
       found = checkBuildable(plan, againCatalog);
@@ -665,6 +668,8 @@ async function deployNew(req, res) {
   const terraform = builtWithTerraform(plan, catalog);
   if (callerOrg(req) !== "default" && !terraform) return notForThisOrganization(res, "Deploys");
   if (terraform) {
+    const notReady = terraformNotReady();
+    if (notReady) return res.status(503).json({ error: { code: "NOT_SET_UP", message: notReady } });
     try {
       checkBuildable(plan, catalog);
     } catch (err) {

@@ -158,3 +158,10 @@ test("an environment built from the organization's modules offers fewer operatio
     assert.ok(!environmentOperations("terraform").includes(id));
   }
 });
+
+test("on the server, nothing is built from an organization's modules until the Terraform role is set up", async () => {
+  const { terraformNotReady } = await import("../api/executor/terraform/tofu.js");
+  assert.match(terraformNotReady({ DATABASE_URL: "postgres://x", AWS_PROFILE: "sealeye-deploy" }), /not set up to build from your organization's own modules yet/);
+  assert.equal(terraformNotReady({ DATABASE_URL: "postgres://x", SEALEYE_TERRAFORM_PROFILE: "sealeye-deploy-terraform" }), null);
+  assert.equal(terraformNotReady({}), null, "a laptop API uses what credentials it has");
+});
