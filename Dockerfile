@@ -38,11 +38,11 @@ RUN set -eu; \
 # api/executor/terraform/tofu.js (test/tofu-versions.test.js); deploy/pin-tofu.sh writes
 # the checksums in after a version changes, and the build stops until it has.
 ARG TOFU_VERSION=1.12.6
-ARG TOFU_SHA256_ARM64=unpinned
-ARG TOFU_SHA256_AMD64=unpinned
+ARG TOFU_SHA256_ARM64=e573979ba68a17fe7b881752051a694a7efcd970e39521f6a25775197861ed4d
+ARG TOFU_SHA256_AMD64=5dc43da4f750f33873dc25e94587128709e819e544b7be9016b255316153c3a8
 ARG AWS_PROVIDER_VERSION=5.100.0
-ARG AWS_PROVIDER_SHA256_ARM64=unpinned
-ARG AWS_PROVIDER_SHA256_AMD64=unpinned
+ARG AWS_PROVIDER_SHA256_ARM64=6330766f1d85f01ae6ea90d1b214b8b74cc8c1badc4696b165b36ddd4cc15f7b
+ARG AWS_PROVIDER_SHA256_AMD64=1589a2266af699cbd5d80737a0fe02e54ec9cf2ca54e7e00ac51c7359056f274
 RUN set -eu; \
     case "$(uname -m)" in \
       aarch64) arch=arm64; tofu_sum="${TOFU_SHA256_ARM64}"; aws_sum="${AWS_PROVIDER_SHA256_ARM64}" ;; \
