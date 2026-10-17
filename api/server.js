@@ -8,6 +8,8 @@ import { catalogOfPlan, checkPlan, checkUpgraded, noLongerBuilt } from "./valida
 import { backendMappings } from "./mappings.js";
 import { putDeployment, getDeployment, listDeployments, storeFile, count, openStore, flushStore, onDeploymentSaved } from "./store.js";
 import { startDeployment, startDestroy } from "./executor/index.js";
+import { builtWithTerraform, checkBuildable, startTerraformDeployment, startTerraformDestroy } from "./executor/terraform/index.js";
+import { terraformNotReady } from "./executor/terraform/tofu.js";
 import { entryPointFor, namingFor, sharedWithAnotherTeam } from "./executor/compose.js";
 import { acceptSent, MAX_STORED_BYTES, storableName, storeFolder } from "./executor/settings.js";
 import { deleteStoredSetting, listStoredSettings, putStoredSetting } from "./executor/cfn.js";
@@ -39,11 +41,14 @@ import { databaseUrl, closeDb } from "./db.js";
 import { startTracing } from "../core/tracing.js";
 import { authMode, callerFor, callerForSession, endSession, SESSION_COOKIE, SESSION_HOURS, startSession } from "./tokens.js";
 import { buildableView, needKinds, orgName } from "../core/catalog.js";
-import { approveCatalog, catalogAt, catalogsOf, changeDraft, liveCatalog, makeLive, openCatalogs } from "./catalogs.js";
+import { approveCatalog, catalogAt, catalogOfRecord, catalogsOf, changeDraft, liveCatalog, makeLive, openCatalogs } from "./catalogs.js";
 import { applyEdit } from "../core/catalog-edits.js";
 import { selfTest } from "./self-test.js";
 import { environmentsDropped } from "./catalog-use.js";
 import { selfTestSummary } from "../core/discovery-words.js";
+import { environmentOperations } from "../core/operations.js";
+import { openPlatform, platformValues, removePlatformValue, setPlatformValue, stageOf, withPlatform, PlatformValueRefused } from "./platform.js";
+import { DEVELOPER_STAGE, STAGES as PLATFORM_STAGES, platformWanted } from "../core/terraform-modules.js";
 
 const app = express();
 
@@ -199,7 +204,9 @@ app.delete("/sessions", async (req, res) => {
 // The organization a request is made for: the token's, or "default" on a laptop API.
 const callerOrg = req => req.caller?.org || "default";
 // The catalog the organization plans and refuses against now (api/catalogs.js).
-const catalogOf = req => liveCatalog(callerOrg(req)).document;
+// With the organization's platform values beside it (api/platform.js): what it builds
+// depends on them.
+const catalogOf = req => withPlatform(callerOrg(req), liveCatalog(callerOrg(req)).document);
 // The catalog a plan was written against (planVersion 0.5), in the caller's organization:
 // what its files and its record read. Asked only of a plan that has passed the contract,
 // which already refused one naming a catalog the organization does not have.
@@ -219,6 +226,27 @@ const catalogChanged = lines => ({
   }
 });
 
+// A Terraform environment (PHASE4-PLAN Step 9) offers deploy, deploy again, status,
+// history, plan and report, evidence and tear down; what else an environment offers is
+// not built for one yet, and is refused rather than tried against AWS for a stack that
+// is not there (DESIGN.md, "A Terraform environment's names, status and operations").
+const builtByTerraform = dep => dep?.backend === "terraform";
+const notForThisEnvironment = (res, what) =>
+  res.status(409).json({ error: { code: "NOT_FOR_THIS_ENVIRONMENT", message: `${what} is not available for an environment built from your organization's own modules yet.` } });
+// The catalog a record was planned against, as the platform builds from it now.
+const recordCatalog = dep => withPlatform(orgOf(dep), catalogOfRecord(dep));
+// An environment is built one way: a plan for it built the other way is refused until
+// it is torn down, rather than building a second environment under the same name.
+function builtAnotherWay(environment, terraform) {
+  const latest = listDeployments().find(r => (r.stackName || r.environment) === environment && r.status !== "drafted" && r.backend);
+  if (!latest || latest.status === "destroyed") return false;
+  return (latest.backend === "terraform") !== terraform;
+}
+const ANOTHER_WAY = {
+  error: { code: "ENVIRONMENT_BUILT_ANOTHER_WAY", message: "This app's environment was built another way than this plan builds it. Tear it down first, then deploy this plan." }
+};
+const cannotBuild = message => ({ error: { code: "CANNOT_BUILD", message: `${message[0].toUpperCase()}${message.slice(1)}.`.replace(/\.\.$/, ".") } });
+
 // GET /catalog: what the platform can build, and the fixed list of needs it cannot yet,
 // in the words of the organization's live catalog, or the starter catalog
 // (prompts/module-catalog.yaml) when it has none. `catalog` says which; added Oct 14, 2026.
@@ -227,7 +255,8 @@ const catalogChanged = lines => ({
 // clients draw a plan from it, the command's card and DEPLOYMENT_PLAN.md: only what the
 // platform builds, the need kinds, the profiles and their patterns. Added Oct 15, 2026.
 app.get("/catalog", (req, res) => {
-  const live = liveCatalog(callerOrg(req));
+  const live = { ...liveCatalog(callerOrg(req)) };
+  live.document = withPlatform(callerOrg(req), live.document);
   let chosen = live;
   if (req.query.version !== undefined) {
     const raw = String(req.query.version);
@@ -314,6 +343,7 @@ async function deployAgain(req, res) {
   if (source.kind === "static") {
     return refuse(409, "NOTHING_TO_DEPLOY_AGAIN", "A static site's files are not kept after it is deployed, so it cannot be deployed again from here. Run sealeye run in its folder.");
   }
+  const againTerraform = builtByTerraform(source);
   if (!source.artifactKey) {
     return refuse(409, "NOTHING_TO_DEPLOY_AGAIN", "That deployment never got as far as packaging its code, so there is nothing to deploy again. Choose one that did, or run sealeye run in the app's folder.");
   }
@@ -338,8 +368,12 @@ async function deployAgain(req, res) {
   // A deploy reads its app's settings from the store, kept by team and not yet by
   // organization, so outside the default organization it would read another's: refused
   // there, once the catalog has had its say, until the organization is in the store's
-  // path (the review, Oct 16, 2026). A drafted plan is saved before this.
-  if (callerOrg(req) !== "default") return notForThisOrganization(res, "Deploys");
+  // path (the review, Oct 16, 2026). A drafted plan is saved before this. A plan built
+  // from the organization's own modules reads no settings (PHASE4-PLAN Step 9).
+  const againCatalog = planCatalog(req, plan).document;
+  const terraform = builtWithTerraform(plan, againCatalog);
+  if (callerOrg(req) !== "default" && !terraform) return notForThisOrganization(res, "Deploys");
+  if (terraform !== againTerraform) return res.status(409).json(ANOTHER_WAY);
 
   // One change at a time: the environment this goes to must not be changing now.
   {
@@ -348,13 +382,27 @@ async function deployAgain(req, res) {
     if (busy) return res.status(409).json(busyRefusal(busy));
   }
 
-  if (!(plan.modules || []).some(m => m && m.enabled !== false && m.id === "http_api_serverless")) {
-    return refuse(409, "DIFFERENT_APP", "That deployment's code is an API, and this plan does not describe one.");
-  }
-  const entryNow = entryPointFor(plan);
-  const entryThen = source.plan ? entryPointFor(upgradePlan(source.plan)) : null;
-  if (entryThen && entryNow !== entryThen) {
-    return refuse(409, "DIFFERENT_ENTRY_POINT", `This plan starts the app with ${entryNow}, and that deployment's code was packaged to start with ${entryThen}. Run sealeye run in the app's folder to package it again.`);
+  if (terraform) {
+    const notReady = terraformNotReady();
+    if (notReady) return res.status(503).json({ error: { code: "NOT_SET_UP", message: notReady } });
+    let found;
+    try {
+      found = checkBuildable(plan, againCatalog);
+    } catch (err) {
+      return res.status(409).json(cannotBuild(err.message));
+    }
+    if (found.entry.id !== source.terraform?.module?.id || found.entry.delivers?.kind !== "package") {
+      return refuse(409, "DIFFERENT_APP", "That deployment's code was packaged for another module than this plan uses. Run sealeye run in the app's folder to package it again.");
+    }
+  } else {
+    if (!(plan.modules || []).some(m => m && m.enabled !== false && m.id === "http_api_serverless")) {
+      return refuse(409, "DIFFERENT_APP", "That deployment's code is an API, and this plan does not describe one.");
+    }
+    const entryNow = entryPointFor(plan);
+    const entryThen = source.plan ? entryPointFor(upgradePlan(source.plan)) : null;
+    if (entryThen && entryNow !== entryThen) {
+      return refuse(409, "DIFFERENT_ENTRY_POINT", `This plan starts the app with ${entryNow}, and that deployment's code was packaged to start with ${entryThen}. Run sealeye run in the app's folder to package it again.`);
+    }
   }
 
   // Settings: every one comes from the store, or was the plan's own placeholder before.
@@ -416,7 +464,10 @@ async function deployAgain(req, res) {
     // stack, and a record without one has nothing in AWS to tear down or describe.
     environment: naming.stackName,
     fromDeployment: source.deploymentId,
-    backend,
+    // What builds it, said by the catalog, never the request (PHASE4-PLAN Step 9).
+    backend: terraform ? "terraform" : backend,
+    ...(terraform && source.entryPoint ? { entryPoint: source.entryPoint } : {}),
+    ...(terraform && source.resourceName ? { resourceName: source.resourceName } : {}),
     planVersion: plan.planVersion,
     app: plan.app,
     // No folder was read: the code is the earlier artifact (the report says so).
@@ -448,7 +499,7 @@ async function deployAgain(req, res) {
     finishedAt: null
   });
 
-  startDeployment(record, plan, null, {}).catch(err => {
+  (terraform ? startTerraformDeployment(record, plan, null, againCatalog) : startDeployment(record, plan, null, {})).catch(err => {
     record.status = "failed";
     record.failureReason = err.message;
     record.finishedAt = new Date().toISOString();
@@ -610,8 +661,28 @@ async function deployNew(req, res) {
   // A deploy reads its app's settings from the store, kept by team and not yet by
   // organization, so outside the default organization it would read another's: refused
   // there, once the catalog has had its say, until the organization is in the store's
-  // path (the review, Oct 16, 2026). A drafted plan is saved before this.
-  if (callerOrg(req) !== "default") return notForThisOrganization(res, "Deploys");
+  // path (the review, Oct 16, 2026). A drafted plan is saved before this. A plan built
+  // from the organization's own modules reads no settings, so it goes ahead anywhere
+  // (PHASE4-PLAN Step 9).
+  const catalog = planCatalog(req, plan).document;
+  const terraform = builtWithTerraform(plan, catalog);
+  if (callerOrg(req) !== "default" && !terraform) return notForThisOrganization(res, "Deploys");
+  if (terraform) {
+    const notReady = terraformNotReady();
+    if (notReady) return res.status(503).json({ error: { code: "NOT_SET_UP", message: notReady } });
+    try {
+      checkBuildable(plan, catalog);
+    } catch (err) {
+      return res.status(409).json(cannotBuild(err.message));
+    }
+    if (!uploaded && callerOrg(req) !== "default") {
+      return res.status(400).json({ error: { code: "MISSING_UPLOAD", message: "An app built from your organization's modules arrives as an upload (zip)." } });
+    }
+  }
+  {
+    const target = namingFor({ app: plan.app?.name, org: req.caller?.org || "default", team: req.caller?.team || "default", records: listDeployments() }).stackName;
+    if (builtAnotherWay(target, terraform)) return res.status(409).json(ANOTHER_WAY);
+  }
 
   // An uploaded copy is unpacked now, so a bad upload is a 400 and never a queued
   // deployment that fails later.
@@ -677,7 +748,8 @@ async function deployNew(req, res) {
     status: "queued",
     source: uploaded ? "upload" : "folder",
     environment: naming.stackName,
-    backend,
+    // What builds it, said by the catalog, never the request (PHASE4-PLAN Step 9).
+    backend: terraform ? "terraform" : backend,
     planVersion: plan.planVersion,
     app: plan.app,
     appPath: resolvedAppPath,
@@ -712,7 +784,7 @@ async function deployNew(req, res) {
     ? req.body.expectStored.filter(n => storableName(n)).slice(0, 200)
     : [];
 
-  startDeployment(record, plan, packageFrom, sent)
+  (terraform ? startTerraformDeployment(record, plan, packageFrom, catalog) : startDeployment(record, plan, packageFrom, sent))
     .catch(err => {
       record.status = "failed";
       record.failureReason = err.message;
@@ -746,6 +818,9 @@ app.get("/deployments", (req, res) => {
     failureReason: dep.failureReason || null,
     interrupted: dep.interrupted === true,
     kind: dep.kind || null,
+    // What this environment offers, by operation id (core/operations.js): one built from
+    // the organization's own modules offers less, for now (PHASE4-PLAN Step 9).
+    operations: environmentOperations(dep.backend),
     profile: dep.plan?.profile || null,
     requestedBy: dep.requestedBy || null,
     surface: dep.surface || "cli",
@@ -881,7 +956,8 @@ app.get("/deployments/:deploymentId", (req, res) => {
   const replacedBy = replacements(listDeployments()).get(dep.deploymentId);
   // The plan's files are served at /plan, not here: this route is polled every few
   // seconds while a change is watched.
-  const { planFiles: _files, ...shown } = dep;
+  const { planFiles: _files, ...withFiles } = dep;
+  const shown = { ...withFiles, operations: environmentOperations(dep.backend) };
   if (!replacedBy) return res.status(200).json(shown);
   return res.status(200).json({ ...shown, replaced: true, replacedBy: canSee(req, getDeployment(replacedBy)) ? replacedBy : null });
 });
@@ -937,6 +1013,7 @@ function runsAnotherTeams(req, res, dep) {
 app.get("/deployments/:deploymentId/logs", async (req, res) => {
   const dep = getDeployment(req.params.deploymentId);
   if (!canSee(req, dep)) return res.status(404).json({ error: { code: "NOT_FOUND", message: "deploymentId not found" } });
+  if (builtByTerraform(dep)) return notForThisEnvironment(res, "Reading logs");
   if (runsAnotherTeams(req, res, dep)) return;
   const { status, body } = await readLogs(dep, { window: typeof req.query.since === "string" ? req.query.since : "1h" });
   return res.status(status).json(body);
@@ -948,6 +1025,7 @@ app.get("/deployments/:deploymentId/logs", async (req, res) => {
 app.get("/deployments/:deploymentId/paused", async (req, res) => {
   const dep = getDeployment(req.params.deploymentId);
   if (!canSee(req, dep)) return res.status(404).json({ error: { code: "NOT_FOUND", message: "deploymentId not found" } });
+  if (builtByTerraform(dep)) return notForThisEnvironment(res, "Pausing");
   if (runsAnotherTeams(req, res, dep)) return;
   const { status, body } = await pausedState(dep);
   return res.status(status).json(body);
@@ -956,6 +1034,7 @@ for (const [action, paused] of [["pause", true], ["resume", false]]) {
   app.post(`/deployments/:deploymentId/${action}`, async (req, res) => {
     const dep = getDeployment(req.params.deploymentId);
     if (!canSee(req, dep)) return res.status(404).json({ error: { code: "NOT_FOUND", message: "deploymentId not found" } });
+    if (builtByTerraform(dep)) return notForThisEnvironment(res, paused ? "Pausing" : "Resuming");
     if (runsAnotherTeams(req, res, dep)) return;
     const busy = changeUnderWay(dep.stackName || dep.environment);
     if (busy) return res.status(409).json(busyRefusal(busy));
@@ -970,6 +1049,7 @@ for (const [action, paused] of [["pause", true], ["resume", false]]) {
 app.get("/deployments/:deploymentId/performance", async (req, res) => {
   const dep = getDeployment(req.params.deploymentId);
   if (!canSee(req, dep)) return res.status(404).json({ error: { code: "NOT_FOUND", message: "deploymentId not found" } });
+  if (builtByTerraform(dep)) return notForThisEnvironment(res, "Reading performance");
   if (runsAnotherTeams(req, res, dep)) return;
   const { status, body } = await readPerformance(dep, { window: typeof req.query.since === "string" ? req.query.since : "1d" });
   return res.status(status).json(body);
@@ -1050,7 +1130,7 @@ app.delete("/deployments/:deploymentId", (req, res) => {
   }
   putDeployment(dep);
 
-  startDestroy(dep).catch(err => {
+  (builtByTerraform(dep) ? startTerraformDestroy(dep, recordCatalog(dep)) : startDestroy(dep)).catch(err => {
     dep.status = "failed";
     dep.failureReason = err.message;
     putDeployment(dep);
@@ -1301,8 +1381,9 @@ startTracing();
 sweepUploads();
 // Records first: nothing is served until the store has everything it knew.
 const opened = await openStore();
-// Each organization's catalogs, after the migrations openStore ran.
+// Each organization's catalogs, and its platform values, after the migrations openStore ran.
 await openCatalogs();
+await openPlatform();
 // Then whatever was in flight when the API last stopped is picked up again: deployments,
 // and, with a database, interviews.
 const resumed = resumeInFlight();
@@ -1345,7 +1426,8 @@ const questionTextFor = document => id => {
   return (discoveries.questions(runId) || []).find(q => q.id === id)?.question || null;
 };
 
-const runSelfTest = (org, row) => selfTest({ document: row.document, version: row.version, questionText: questionTextFor(row.document) });
+// Tested as the platform would build from it: with the organization's platform values.
+const runSelfTest = (org, row) => selfTest({ document: withPlatform(org, row.document), version: row.version, questionText: questionTextFor(row.document) });
 
 /** What a list of catalogs says of each: never its document. */
 function catalogSummary(org, row, liveVersion) {
@@ -1473,7 +1555,7 @@ app.post("/catalogs/:version/live", async (req, res) => {
       gate: row => {
         tested = runSelfTest(org, row);
         if (!tested.passed) throw Object.assign(new Error("self-test failed"), { code: "SELF_TEST_FAILED", body: selfTestFailed("made live", tested) });
-        const environments = environmentsDropped({ org, document: row.document, records: listDeployments() });
+        const environments = environmentsDropped({ org, document: withPlatform(org, row.document), records: listDeployments() });
         if (environments.length) {
           throw Object.assign(new Error("in use"), {
             code: "CATALOG_IN_USE",
@@ -1491,6 +1573,61 @@ app.post("/catalogs/:version/live", async (req, res) => {
     return res.status(200).json({ catalog: made, selfTest: tested });
   } catch (err) {
     return catalogChangeRefused(res, err);
+  }
+});
+
+// An organization's platform values (PHASE4-PLAN Step 9; DESIGN.md, "An organization's
+// platform values"): what only its platform team can give a module, by stage. An
+// organization-wide token's only, as discovery is. Identifiers, never secrets.
+const platformForbidden = res =>
+  res.status(403).json({ error: { code: "ORG_WIDE_ONLY", message: "Platform values are for your platform team: they need an organization-wide token." } });
+const platformRefused = (res, err) => {
+  if (err instanceof PlatformValueRefused) return res.status(400).json({ error: { code: err.code, message: err.message } });
+  throw err;
+};
+
+// GET /platform?stage=dev: the organization's values at a stage, and, for the live
+// catalog's Terraform modules, each input only the platform can give, with the value that
+// fills it or none (`wanted`), so a platform engineer sees what a module still lacks.
+app.get("/platform", (req, res) => {
+  if (!mayDiscover(req.caller)) return platformForbidden(res);
+  const org = callerOrg(req);
+  let stage;
+  try { stage = stageOf(req.query.stage); } catch (err) { return platformRefused(res, err); }
+  const values = platformValues(org, stage);
+  const live = liveCatalog(org);
+  return res.status(200).json({
+    stage,
+    stages: PLATFORM_STAGES,
+    developerStage: DEVELOPER_STAGE,
+    values: Object.entries(values).map(([name, v]) => ({ name, value: v.value, setBy: v.setBy, setAt: v.setAt })),
+    catalog: { version: live.version, source: live.source },
+    wanted: platformWanted(live.document, Object.keys(values))
+  });
+});
+
+// PUT /platform/values/{name} ({ value, stage? }): set one value, replacing any before it.
+app.put("/platform/values/:name", async (req, res) => {
+  if (!mayDiscover(req.caller)) return platformForbidden(res);
+  try {
+    const stage = stageOf(req.body?.stage ?? req.query.stage);
+    const kept = await setPlatformValue({ org: callerOrg(req), stage, name: req.params.name, value: req.body?.value, by: req.caller?.email || null });
+    return res.status(200).json({ value: kept });
+  } catch (err) {
+    return platformRefused(res, err);
+  }
+});
+
+// DELETE /platform/values/{name}?stage=: remove one. An environment that used it says so
+// at its next deploy; nothing stops the removal (DESIGN.md).
+app.delete("/platform/values/:name", async (req, res) => {
+  if (!mayDiscover(req.caller)) return platformForbidden(res);
+  try {
+    const stage = stageOf(req.query.stage);
+    const removed = await removePlatformValue({ org: callerOrg(req), stage, name: req.params.name });
+    return res.status(200).json(removed);
+  } catch (err) {
+    return platformRefused(res, err);
   }
 });
 

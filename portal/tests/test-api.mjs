@@ -14,6 +14,10 @@ import { answerModel } from "../../test/helpers/model-reply.js";
 export const TEST_TOKEN = `sl_${"t".repeat(43)}`;
 export const OTHER_ORG_TOKEN = `sl_${"o".repeat(43)}`;
 export const ORG_WIDE_TOKEN = `sl_${"z".repeat(43)}`;
+// A team whose one environment was built from an organization's own modules, and a
+// platform engineer in the second organization, whose live catalog has two of them.
+export const LOOKUP_TOKEN = `sl_${"l".repeat(43)}`;
+export const JUNIPER_WIDE_TOKEN = `sl_${"j".repeat(43)}`;
 const PORT = Number(process.env.SEALEYE_TEST_API_PORT || 3999);
 
 const root = path.resolve(import.meta.dirname, "..", "..");
@@ -25,6 +29,8 @@ const ago = ms => new Date(now - ms).toISOString();
 fs.writeFileSync(path.join(home, "tokens.json"), JSON.stringify([
   { tokenId: "tok_greg", tokenHash: hash(TEST_TOKEN), email: "greg@example.com", name: "Greg Kliewer", org: "default", team: "default", createdAt: ago(0), revokedAt: null, lastUsedAt: null },
   { tokenId: "tok_wide", tokenHash: hash(ORG_WIDE_TOKEN), email: "lead@example.com", name: "Lee Admin", org: "default", team: "default", scope: "org", createdAt: ago(0), revokedAt: null, lastUsedAt: null },
+  { tokenId: "tok_lookup", tokenHash: hash(LOOKUP_TOKEN), email: "bo@example.com", name: "Bo Lindqvist", org: "default", team: "lookup", createdAt: ago(0), revokedAt: null, lastUsedAt: null },
+  { tokenId: "tok_juniper", tokenHash: hash(JUNIPER_WIDE_TOKEN), email: "pat@juniper.example", name: "Pat Juniper", org: "juniper", team: "platform", scope: "org", createdAt: ago(0), revokedAt: null, lastUsedAt: null },
   { tokenId: "tok_other", tokenHash: hash(OTHER_ORG_TOKEN), email: "x@other.example", name: "Other Org", org: "other-org", team: "default", createdAt: ago(0), revokedAt: null, lastUsedAt: null }
 ]));
 
@@ -75,6 +81,12 @@ fs.writeFileSync(path.join(home, "deployments.json"), JSON.stringify([
   { ...base, deploymentId: "dep_ggggggggggg0", app: { name: "inventory-api" }, kind: "api", status: "succeeded", stackName: "sealeye-inventory-api",
     plan: apiPlan("inventory-api"), artifactKey: "sealeye-inventory-api/dep_ggggggggggg0.zip", outputs: { ApiUrl: "https://inv456.lambda-url.ca-central-1.on.aws/" }, requestedBy: by("Ana Pereira", "ana@example.com"),
     startedAt: ago(26 * 3600_000), finishedAt: ago(26 * 3600_000 - 90_000) },
+  // Built from the organization's own modules (PHASE4-PLAN Step 9): it offers deploy
+  // again, state, history, plan and report, evidence and tear down, and nothing else yet.
+  { ...base, backend: "terraform", teamId: "lookup", deploymentId: "dep_lllllllllll1", app: { name: "beneficiary-lookup" }, kind: "api", status: "succeeded",
+    environment: "sealeye-lookup-beneficiary-lookup-1a2b3c", stackName: "sealeye-lookup-beneficiary-lookup-1a2b3c",
+    plan: apiPlan("beneficiary-lookup"), artifactKey: "sealeye-lookup-beneficiary-lookup-1a2b3c/dep_lllllllllll1.zip", outputs: { ApiUrl: "https://lookup321.execute-api.ca-central-1.amazonaws.com/" },
+    requestedBy: by("Bo Lindqvist", "bo@example.com"), startedAt: ago(5 * 3600_000), finishedAt: ago(5 * 3600_000 - 120_000) },
   { ...base, orgId: "other-org", deploymentId: "dep_fffffffffff1", app: { name: "not-yours" }, kind: "api", status: "succeeded", stackName: "sealeye-not-yours",
     plan: { profile: "dev" }, outputs: {}, requestedBy: by("Other Org", "x@other.example"), startedAt: ago(3600_000) }
 ]));
@@ -148,7 +160,42 @@ const draftModule = (id, source, extra = {}) => ({
   id, source, availability: "available", builds_with: "terraform", role: "optional",
   line: `What ${source} gives your app.`, inputs: { name: { required: true, line: "Your app's name." } }, ...extra
 });
-fs.writeFileSync(path.join(home, "catalogs.json"), JSON.stringify([{
+// Juniper's live catalog, for the Platform page: a module that runs an app and still
+// lacks a value only the platform can give, and one that takes no app's code.
+const juniperModule = (id, source, extra = {}) => ({
+  id, source, availability: "available", builds_with: "terraform", role: "optional", runs: [],
+  line: `What ${source} gives your app.`, ...extra
+});
+const juniperCatalog = {
+  org: "juniper", version: 3, status: "live", createdBy: "pat@juniper.example", createdAt: ago(86400_000),
+  approvedBy: "pat@juniper.example", approvedAt: ago(86000_000), madeLiveBy: "pat@juniper.example", madeLiveAt: ago(85000_000),
+  document: {
+    catalogVersion: "discovery-dsc_0000000000000009",
+    discovery: { run: "dsc_0000000000000009", library: [{ repo: "juniper/platform-modules", commit: "9a8b7c6".padEnd(40, "0") }] },
+    modules: [
+      juniperModule("http_api", "modules/http-api", {
+        delivers: { kind: "package", package: "package_path", handler: "handler" },
+        inputs: {
+          name: { required: true, line: "Your app's name." },
+          package_path: { required: true, line: "The zipped app." },
+          handler: { required: true, line: "The function to call." },
+          subnet_ids: { required: true, line: "The subnets the function runs in." },
+          security_group_ids: { required: true, line: "The security groups the function runs in." },
+          permissions_boundary: { required: false, line: "The boundary on the function's role." }
+        }
+      }),
+      juniperModule("postgres", "modules/postgres", {
+        inputs: { name: { required: true, line: "Your app's name." }, subnet_ids: { required: true, line: "The subnets the database runs in." } }
+      })
+    ],
+    need_kinds: starter.need_kinds, profiles: starter.profiles
+  }
+};
+// One value Juniper's platform team has set already, a list of subnets for dev.
+fs.writeFileSync(path.join(home, "platform-values.json"), JSON.stringify([
+  { org: "juniper", stage: "dev", name: "subnet_ids", value: ["subnet-0a1b2c3d", "subnet-4e5f6a7b"], setBy: "pat@juniper.example", setAt: ago(2 * 3600_000) }
+]));
+fs.writeFileSync(path.join(home, "catalogs.json"), JSON.stringify([juniperCatalog, {
   org: "default", version: 1, status: "draft", createdBy: "lead@example.com", createdAt: ago(3600_000), approvedBy: null, approvedAt: null,
   document: {
     catalogVersion: "discovery-dsc_0000000000000001",

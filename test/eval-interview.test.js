@@ -389,29 +389,30 @@ test("every Juniper case is a sample app, and names only modules its catalog has
   assert.ok(!JSON.stringify(doc).includes("@"), "the snapshot holds no one's address");
 });
 
-test("treated as built for the eval only: a Terraform module is planned, and an executor already there is left alone", async () => {
-  const { treatAsBuilt } = await import("../scripts/eval-interview.js");
+test("treated as built for the eval only: a Terraform module is planned, and the real executor comes back after", async () => {
+  const { builtAsBefore, treatAsBuilt } = await import("../scripts/eval-interview.js");
   const { EXECUTORS } = await import("../core/schema.js");
   const { buildableModules } = await import("../core/catalog.js");
+  const real = EXECUTORS.terraform;
   const doc = { modules: [
     { id: "web", availability: "available", builds_with: "terraform" },
     { id: "old", availability: "deprecated", builds_with: "terraform" },
     { id: "guess", availability: "available", builds_with: "terraform", open: ["q_1"] }
   ] };
+  // The real executor builds none of it: nothing says how a module takes an app.
   assert.deepEqual(buildableModules(doc), []);
   try {
     assert.equal(treatAsBuilt(doc), true);
     assert.deepEqual(buildableModules(doc).map(m => m.id), ["web"], "still not what is deprecated or rests on a question");
-    assert.equal(treatAsBuilt({ modules: [{ id: "other", builds_with: "terraform" }] }), false);
     assert.deepEqual(EXECUTORS.terraform, ["web", "old", "guess"]);
   } finally {
-    delete EXECUTORS.terraform;
+    builtAsBefore();
   }
+  assert.equal(EXECUTORS.terraform, real, "the real executor is back");
 });
 
 test("Juniper's set plans each app against its live catalog, graded on Juniper's modules", async () => {
-  const { prepareSets, promptFor } = await import("../scripts/eval-interview.js");
-  const { EXECUTORS } = await import("../core/schema.js");
+  const { builtAsBefore, prepareSets, promptFor } = await import("../scripts/eval-interview.js");
   assert.equal(startTracing({ exporter }), true);
   const requests = [];
   useLangfuseTransport((method, apiPath, body) => {
@@ -451,7 +452,7 @@ test("Juniper's set plans each app against its live catalog, graded on Juniper's
     assert.deepEqual(items.map(b => b.id), rows.map(r => `${DATASET}-${r.app}`));
     assert.ok(items.every(b => b.input.catalog === "juniper"));
   } finally {
-    delete EXECUTORS.terraform;
+    builtAsBefore();
     if (before === undefined) delete process.env.SEALEYE_HOME;
     else process.env.SEALEYE_HOME = before;
   }

@@ -61,7 +61,7 @@ The plan has four parts, in the order the dependencies force.
 | D5 | Which models the swarm uses | Workers read with the small model (`claude-haiku-5-5`); the supervisor and the rule writer use the frontier model (`claude-sonnet-5`). Both through the gateway on the Anthropic route, as named routes: the non-Bedrock half of Phase 3 Step 8, brought forward | Step 5 | Greg, Wed Oct 14: as recommended |
 | D6 | A discovery run's caps | A cap per worker and per run, set from a measured run on the made-up organization, as Phase 3 sized the interview's dollar. Placeholder until measured: a dollar a worker, twenty a run | Step 6 | Greg, Wed Oct 14: as recommended. Set Thu Oct 15 from the first measured run (US$0.18, no worker over half a cent): ten cents a worker, three dollars a run |
 | D7 | Where a platform engineer answers the swarm's questions | Both surfaces, one operation: `sealeye discover` and a Discovery page, on an endpoint first (parity). The run pauses with `interrupt()` and waits in Postgres, as the interview does | Step 6 | Greg, Thu Oct 15 (Q19, reopened Oct 14): the run never pauses. Questions go out on the run's events as they arise and sit on the draft with a guess; an answer is used if it comes before its entry is written, and re-runs only the entries it touches if it comes later. A guess never goes live. Both surfaces, one operation, as first written (DESIGN.md, "A discovery run never pauses") |
-| D8 | The Terraform executor's scope | One root module per environment that calls the organization's module by source and version; state in an S3 bucket with a lock file, in the account the environment is built in; `terraform` run by the API like the AWS CLI. Only modules discovery marked buildable, with their inputs from the catalog | Step 9 | Greg, Wed Oct 14: as recommended |
+| D8 | The Terraform executor's scope | One root module per environment that calls the organization's module by source and version; state in an S3 bucket with a lock file, in the account the environment is built in; `terraform` run by the API like the AWS CLI. Only modules discovery marked buildable, with their inputs from the catalog | Step 9 | Greg, Wed Oct 14: as recommended. Sat Oct 17, its details (DESIGN.md, "A Terraform executor builds an organization's own modules" and the four entries after it): OpenTofu; a role of its own; platform values by stage on both surfaces; a foundation network; how a module takes an app read by code; settings and modules that run commands refused; versions and connecting modules in a second pull request |
 | D9 | What the made-up organization is | A private repository, `sealeye-sample-platform`, of 10 to 15 Terraform modules and a few pipeline files, with an answer key in a file discovery never reads. Built at the start of Part B | Step 4 | Greg, Wed Oct 14: as recommended, with modules that are commonly assembled into the same kind of application (a backend API, a website, or another), so a sample app can be planned from several of them together |
 
 ## Part A: one catalog becomes many
@@ -258,6 +258,20 @@ not in it (Greg).
   made-up organization's modules create, and nothing else.
 - Built for the made-up organization's modules first. CloudFormation stays for the four
   built-ins.
+
+Built Sat Oct 17, 2026, the first of two pull requests (DESIGN.md, "A Terraform executor
+builds an organization's own modules", "What a Terraform module needs before seaLeye
+builds it", "An organization's platform values", "An app that listens reaches a module
+that calls a function" and "A Terraform environment's names, status and operations"):
+OpenTofu 1.12.6 in the image with the AWS provider from a folder of its own; a plan of
+one module, the one that takes the app's code (`http-api`, `static-site`); the
+organization's platform values on both surfaces (`sealeye platform`, the Platform page);
+the Terraform deploy role and the foundation network (`deploy/terraform-role.yaml`,
+`deploy/foundation.yaml`); a stand-in `tofu` in `npm test` and the real one in
+`.github/workflows/tofu.yml`. The first real build is on the pilot, after the steps in
+deploy/README.md, "The Terraform executor". The second pull request: each module's
+version from the library's tags, and connecting modules through what the library offers
+(a module's access outputs to another's inputs), with the sample library given both.
 
 ## Part D: what was asked for, and writing it down
 

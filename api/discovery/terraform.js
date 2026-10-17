@@ -137,3 +137,154 @@ export function idFor(source) {
   const id = base.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
   return /^[a-z]/.test(id) ? id : `m_${id || "module"}`;
 }
+
+// ---------------------------------------------------------------------------
+// What a module does with an app, and what it would run (PHASE4-PLAN Step 9; DESIGN.md,
+// "What a Terraform module needs before seaLeye builds it"). Read by code, so the
+// catalog says it exactly and whoever approves the catalog sees it.
+// ---------------------------------------------------------------------------
+
+/** HCL without its comments, strings kept, so a word in a comment is never read as code. */
+export function withoutComments(text) {
+  let out = "";
+  let inString = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inString) {
+      out += c;
+      if (c === "\\") out += text[++i] ?? "";
+      else if (c === '"') inString = false;
+      continue;
+    }
+    if (c === '"') { inString = true; out += c; continue; }
+    if (c === "#" || (c === "/" && text[i + 1] === "/")) {
+      const end = text.indexOf("\n", i);
+      i = end === -1 ? text.length : end - 1;
+      continue;
+    }
+    if (c === "/" && text[i + 1] === "*") {
+      const end = text.indexOf("*/", i + 2);
+      i = end === -1 ? text.length : end + 1;
+      continue;
+    }
+    out += c;
+  }
+  return out;
+}
+
+const codeOf = dir => tfFiles(dir).map(f => withoutComments(fs.readFileSync(path.join(dir, f), "utf8"))).join("\n");
+
+/** The body of each top-level `<kind> "name" { ... }` block, braces balanced. */
+function blocksOf(text, kind) {
+  const blocks = [];
+  const re = new RegExp(`^${kind}\\s+"([A-Za-z0-9_-]+)"\\s*\\{`, "gm");
+  let m;
+  while ((m = re.exec(text))) {
+    let depth = 1;
+    let i = re.lastIndex;
+    let inString = false;
+    for (; i < text.length && depth > 0; i++) {
+      const c = text[i];
+      if (inString) {
+        if (c === "\\") i++;
+        else if (c === '"') inString = false;
+      } else if (c === '"') inString = true;
+      else if (c === "{") depth++;
+      else if (c === "}") depth--;
+    }
+    blocks.push({ name: m[1], body: text.slice(re.lastIndex, i - 1) });
+    re.lastIndex = i;
+  }
+  return blocks;
+}
+
+/**
+ * A module's outputs: each one's name and its description, the platform team's own line.
+ *
+ * @returns {Record<string, { line?: string }>}
+ */
+export function moduleOutputs(moduleDir) {
+  const outputs = {};
+  for (const file of tfFiles(moduleDir)) {
+    const text = fs.readFileSync(path.join(moduleDir, file), "utf8");
+    for (const { name, body } of blocksOf(text, "output")) {
+      const description = body.match(/^\s*description\s*=\s*"((?:[^"\\]|\\.)*)"/m);
+      outputs[name] = description ? { line: JSON.parse(`"${description[1]}"`) } : {};
+    }
+  }
+  return outputs;
+}
+
+// The names a module gives the input that takes a zipped app, and the one naming the
+// function the platform calls in it.
+const PACKAGE_INPUT = /^(?:package|package_path|package_file|package_zip|zip|zip_path|zip_file|artifact|artifact_path|filename|source_zip)$/;
+const HANDLER_INPUT = /^handler$/;
+// An output a site's files are uploaded to: named for a bucket, and saying the files go there.
+const FILES_OUTPUT = /^(?:bucket|bucket_name|site_bucket|files_bucket|site_bucket_name)$/;
+const FILES_LINE = /\b(?:upload|files?\b)/i;
+// The output that is the app's address.
+const ADDRESS_OUTPUT = /^(?:url|address|site_url|api_url|endpoint)$/;
+
+/**
+ * How a module takes an app, from its inputs and outputs, or null when it takes none:
+ *
+ * - { kind: "package", package, handler, address? }: a zipped app, and the function to call;
+ * - { kind: "files", output, address? }: an output to upload a site's files to.
+ *
+ * `address` names the output that is the app's address, when there is one.
+ */
+export function deliversOf(inputs = {}, outputs = {}) {
+  const address = Object.keys(outputs).find(n => ADDRESS_OUTPUT.test(n));
+  const pkg = Object.keys(inputs).find(n => PACKAGE_INPUT.test(n));
+  const handler = Object.keys(inputs).find(n => HANDLER_INPUT.test(n));
+  if (pkg && handler) return { kind: "package", package: pkg, handler, ...(address ? { address } : {}) };
+  const files = Object.entries(outputs).find(([n, o]) => FILES_OUTPUT.test(n) && FILES_LINE.test(o?.line || ""));
+  if (files) return { kind: "files", output: files[0], ...(address ? { address } : {}) };
+  return null;
+}
+
+/**
+ * What a module's code would run on the platform's own server, or reach beyond the
+ * library, in words: a provisioner, the `external` data source, another state, any
+ * provider but AWS, or a nested module from outside the library. Empty when there is
+ * nothing. A nested module inside the library is read too, as it would run.
+ *
+ * @param {string} libraryDir  the library's root
+ * @param {string} source      the module's folder in it
+ * @returns {string[]}
+ */
+export function moduleRuns(libraryDir, source) {
+  const root = path.resolve(libraryDir);
+  const found = new Set();
+  const seen = new Set();
+  const visit = rel => {
+    const dir = path.resolve(root, rel);
+    if (seen.has(dir)) return;
+    seen.add(dir);
+    const code = codeOf(dir);
+    for (const m of code.matchAll(/\bprovisioner\s+"([A-Za-z0-9_-]+)"/g)) found.add(`a provisioner (${m[1]})`);
+    if (/\bdata\s+"external"/.test(code)) found.add("the external data source");
+    if (/\bdata\s+"terraform_remote_state"/.test(code)) found.add("another environment's state (terraform_remote_state)");
+    // Providers named in required_providers, and any resource or data source of one.
+    for (const m of code.matchAll(/^\s*([A-Za-z0-9_-]+)\s*=\s*\{[^}]*source\s*=\s*"([^"]+)"/gm)) {
+      const src = m[2].toLowerCase().replace(/^registry\.(?:opentofu|terraform)\.io\//, "");
+      if (src !== "hashicorp/aws") found.add(`the ${src} provider`);
+    }
+    for (const m of code.matchAll(/^\s*(?:resource|data)\s+"([a-z0-9]+)_[A-Za-z0-9_]+"/gm)) {
+      if (m[1] !== "aws" && m[1] !== "terraform") found.add(`the ${m[1]} provider`);
+    }
+    for (const { name, body } of blocksOf(code, "module")) {
+      const src = body.match(/^\s*source\s*=\s*"([^"]*)"/m)?.[1];
+      const target = src ? path.resolve(dir, src) : null;
+      if (!src || !/^\.\.?\//.test(src) || !target || !(target === root || target.startsWith(root + path.sep))) {
+        found.add(`a module from outside the library (${name}${src ? `: ${src}` : ""})`);
+      } else if (fs.existsSync(target)) {
+        visit(path.relative(root, target));
+      } else {
+        found.add(`a module that is not in the library (${name}: ${src})`);
+      }
+    }
+  };
+  visit(source);
+  return [...found].sort();
+}

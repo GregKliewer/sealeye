@@ -31,7 +31,7 @@ import { readLibrary as readFromGitHub } from "./library.js";
 import { ANSWER_LIMIT } from "../../core/discovery-words.js";
 import { createBudget, readLibraryLevel, readModule, SpendingLimit, superviseEntries } from "./readers.js";
 import * as store from "./store.js";
-import { idFor, listModules, moduleHash, moduleInputs } from "./terraform.js";
+import { deliversOf, idFor, listModules, moduleHash, moduleInputs, moduleOutputs, moduleRuns } from "./terraform.js";
 
 // Set from the first measured run on the made-up organization, Oct 15, 2026 (PHASE4-PLAN
 // D6): its most expensive worker spent half a cent and the whole run eighteen cents;
@@ -607,7 +607,11 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
           let id = idFor(source);
           while (ids.has(id)) id = `${id}_${repo + 2}`;
           ids.add(id);
-          modules.push({ source, id, repo, hash: moduleHash(snap.dir, source), inputs: moduleInputs(path.join(snap.dir, source)) });
+          // What code reads of it, exactly: its inputs and outputs, how it takes an app,
+          // and anything it would run on the platform's server (core/terraform-modules.js).
+          const inputs = moduleInputs(path.join(snap.dir, source));
+          const outputs = moduleOutputs(path.join(snap.dir, source));
+          modules.push({ source, id, repo, hash: moduleHash(snap.dir, source), inputs, outputs, delivers: deliversOf(inputs, outputs), runs: moduleRuns(snap.dir, source) });
         }
       });
       run.modules = modules.map(m => ({ ...m, status: "reading" }));

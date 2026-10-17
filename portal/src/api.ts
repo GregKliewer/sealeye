@@ -105,6 +105,11 @@ export interface DeploymentSummary {
   // reader can see it.
   replaced?: boolean;
   replacedBy?: string | null;
+  // What built it (the record's `backend`), and what it offers, by operation id
+  // (core/operations.js, environmentOperations). A record from an older API has neither,
+  // and offers everything, as it always did.
+  backend?: string;
+  operations?: string[];
 }
 
 export interface DeploymentRecord extends DeploymentSummary {
@@ -134,6 +139,20 @@ export interface AppSetting {
   changedBy: { name: string | null; email: string | null; surface: string; action: "set" | "removed" } | null;
 }
 export interface AppSettings { app: string; team: string; settings: AppSetting[] }
+
+// An organization's platform values (PHASE4-PLAN Step 9; DESIGN.md, "An organization's
+// platform values"): by stage, an organization-wide token's only. A value is a word or a
+// list of words, never a secret.
+export type PlatformWord = string | string[];
+export interface PlatformValue { name: string; value: PlatformWord; setBy: string | null; setAt: string }
+export interface PlatformWanted {
+  module: string; source: string | null; builds: boolean; why: string | null;
+  inputs: { input: string; required: boolean; line: string | null; filledBy: string | null }[];
+}
+export interface Platform {
+  stage: string; stages: string[]; developerStage: string; values: PlatformValue[];
+  catalog: { version: number | "starter"; source: string }; wanted: PlatformWanted[];
+}
 
 // GET /health: whether the platform answers, and the version it runs. No sign-in needed.
 export interface Health { ok: boolean; version: string }
@@ -306,6 +325,12 @@ export const api = {
     return () => source.close();
   },
   needs: () => request<NeedsLedger>("/needs"),
+  // The organization's platform values, as `sealeye platform` reads and sets them.
+  platform: (stage: string) => request<Platform>(`/platform?stage=${encodeURIComponent(stage)}`),
+  setPlatformValue: (name: string, value: PlatformWord, stage: string) =>
+    request<{ value: PlatformValue & { stage: string } }>(`/platform/values/${encodeURIComponent(name)}`, { method: "PUT", body: { value, stage } }).then(r => r.value),
+  removePlatformValue: (name: string, stage: string) =>
+    request<{ stage: string; name: string; removed: boolean }>(`/platform/values/${encodeURIComponent(name)}?stage=${encodeURIComponent(stage)}`, { method: "DELETE" }),
   settings: (app: string, team: string) => request<AppSettings>(settingsPath(app, team)),
   setSetting: (app: string, team: string, name: string, value: string) =>
     request<{ set: boolean }>(settingsPath(app, team, name), { method: "PUT", body: { value } }),

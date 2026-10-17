@@ -780,7 +780,7 @@ test("Catalogs: the self-test, approving a draft, and making live refused while 
   await one.getByRole("button", { name: "Self-test" }).click();
   await expect(card.getByTestId("self-test-summary")).toHaveText("Catalog 1 passed its self-test.");
   await expect(card.getByTestId("self-test-check")).toHaveCount(5);
-  await expect(card.getByTestId("self-test")).toContainText("postgres: nothing the platform has builds it yet");
+  await expect(card.getByTestId("self-test")).toContainText("postgres: its code has not been checked for commands it would run");
   await expect(card.getByTestId("self-test")).toContainText("It builds nothing yet");
 
   await one.getByTestId("catalog-approve").click();
@@ -831,4 +831,103 @@ test("Edit words reaches any draft from the Catalogs card, not only the latest r
   await panel.getByRole("button", { name: "Save" }).first().click();
   await expect(entry).toContainText("A queue your app puts work on.");
   await expect(entry).toContainText("edited");
+});
+
+// An organization's platform values (PHASE4-PLAN Step 9): a platform engineer's page,
+// as `sealeye platform` is. Juniper's live catalog in the test API has a module that runs
+// an app and still lacks a security group, and subnets set for dev.
+async function signInAs(page: Page, token: string, name: string) {
+  await page.goto("/sign-in");
+  await page.fill("#token", token);
+  await page.click("button[type=submit]");
+  await expect(page.getByTestId("person")).toHaveText(name);
+}
+const JUNIPER_WIDE = `sl_${"j".repeat(43)}`;
+const LOOKUP = `sl_${"l".repeat(43)}`;
+
+test("a team's token sees no Platform page, and is sent home from its address", async ({ page }) => {
+  await signIn(page);
+  await expect(page.getByRole("navigation", { name: "Sections" })).not.toContainText("Platform");
+  await page.goto("/platform");
+  await expect(page).toHaveURL(/\/$/);
+});
+
+test("Platform lists the values at a stage and what each module still needs", async ({ page }) => {
+  await signInAs(page, JUNIPER_WIDE, "Pat Juniper");
+  await page.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: "Platform" }).click();
+  await expect(page.getByRole("heading", { name: "Platform" })).toBeVisible();
+  await expect(page.getByTestId("developer-stage")).toContainText("built as dev, so only dev's values are used today");
+  await expect(page.getByLabel("Stage")).toHaveValue("dev");
+  const row = page.getByTestId("platform-value").filter({ hasText: "subnet_ids" });
+  await expect(row.getByTestId("platform-words")).toHaveText("subnet-0a1b2c3dsubnet-4e5f6a7b");
+  await expect(row).toContainText("pat@juniper.example");
+  await expect(page.getByTestId("command-hint").first()).toHaveText(/sealeye platform/);
+
+  const api = page.getByTestId("wanted-module").filter({ hasText: "http_api" });
+  await expect(api.getByTestId("wanted-builds")).toHaveText("Not built yet");
+  await expect(api.getByTestId("wanted-why")).toContainText("no value for its security_group_ids input");
+  await expect(api.getByTestId("wanted-input").filter({ hasText: "subnet_ids" }).getByTestId("filled-by")).toHaveText("subnet_ids");
+  await expect(api.getByTestId("wanted-input").filter({ hasText: "security_group_ids" }).getByTestId("no-value")).toHaveText("no value");
+  // seaLeye's own inputs and the app's code are not the platform's to give.
+  await expect(api.getByTestId("wanted-input").filter({ hasText: "package_path" })).toHaveCount(0);
+  const db = page.getByTestId("wanted-module").filter({ hasText: "postgres" });
+  await expect(db.getByTestId("wanted-why")).toContainText("does not take an app's code");
+  await expect(page.locator("body")).not.toContainText(/Terraform|OpenTofu|CloudFormation|—/);
+
+  // Another stage has values of its own.
+  await page.getByLabel("Stage").selectOption("sit");
+  await expect(page.getByTestId("no-values")).toHaveText("No values are set for sit.");
+  await expect(page.getByTestId("command-hint").first()).toHaveText(/sealeye platform --stage sit/);
+});
+
+test("Platform sets a value for a module's input, refuses a secret in its words, and removes one", async ({ page }) => {
+  await signInAs(page, JUNIPER_WIDE, "Pat Juniper");
+  await page.goto("/platform");
+  const api = page.getByTestId("wanted-module").filter({ hasText: "http_api" });
+  await api.getByRole("button", { name: "Set security_group_ids for http_api only" }).click();
+  await expect(page.getByLabel("Value name")).toHaveValue("http_api.security_group_ids");
+  await expect(page.getByLabel("Value", { exact: true })).toBeFocused();
+
+  // A secret is refused with the platform's own words, and not left on the page.
+  await page.getByLabel("Value", { exact: true }).fill("ghp_0123456789abcdefghijABCDEFGHIJ0123456789");
+  await page.getByRole("button", { name: "Set it for dev" }).click();
+  await expect(page.getByRole("alert")).toHaveText("http_api.security_group_ids's value looks like a secret, so it was not kept. Platform values are ids and addresses; a secret goes in the organization's store.");
+  await expect(page.getByLabel("Value", { exact: true })).toHaveValue("");
+  expect(await page.content()).not.toContain("ghp_0123");
+
+  await page.getByLabel("Value", { exact: true }).fill("sg-0123abcd\nsg-4567efab");
+  await expect(page.getByTestId("platform-form").getByTestId("command-hint")).toHaveText(/sealeye platform set http_api.security_group_ids sg-0123abcd sg-4567efab/);
+  await page.getByRole("button", { name: "Set it for dev" }).click();
+  await expect(page.getByTestId("platform-done")).toHaveText("http_api.security_group_ids is set for dev.");
+  const row = page.getByTestId("platform-value").filter({ hasText: "http_api.security_group_ids" });
+  await expect(row.getByTestId("platform-words")).toHaveText("sg-0123abcdsg-4567efab");
+  await expect(row).toContainText("pat@juniper.example");
+  // With its last value set, the module is built.
+  await expect(api.getByTestId("wanted-builds")).toHaveText("The platform builds it");
+  await expect(api.getByTestId("wanted-input").filter({ hasText: "security_group_ids" }).getByTestId("filled-by")).toHaveText("http_api.security_group_ids");
+
+  await row.getByRole("button", { name: "Remove http_api.security_group_ids" }).click();
+  await expect(page.getByTestId("platform-done")).toHaveText("http_api.security_group_ids is no longer set for dev.");
+  await expect(page.getByTestId("platform-value").filter({ hasText: "http_api.security_group_ids" })).toHaveCount(0);
+  await expect(api.getByTestId("wanted-builds")).toHaveText("Not built yet");
+});
+
+test("an environment built from the organization's own modules shows only what it offers", async ({ page }) => {
+  await signInAs(page, LOOKUP, "Bo Lindqvist");
+  await page.getByRole("link", { name: "beneficiary-lookup", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "beneficiary-lookup" })).toBeVisible();
+  await expect(page.getByTestId("status")).toHaveText("Live");
+  // What it offers: deploy again, tear down, plan and report, evidence.
+  await expect(page.getByTestId("deploy-again")).toBeVisible();
+  await expect(page.getByTestId("teardown")).toBeVisible();
+  await expect(page.getByTestId("evidence")).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Plan and report for/ })).toHaveCount(1);
+  // And nothing it does not.
+  await expect(page.getByTestId("pause")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Pause", exact: true })).toHaveCount(0);
+  await expect(page.getByTestId("logs")).toHaveCount(0);
+  await expect(page.getByTestId("performance")).toHaveCount(0);
+  await expect(page.getByTestId("configure")).toHaveCount(0);
+  await expect(page.getByTestId("settings")).toHaveCount(0);
+  await expect(page.locator("body")).not.toContainText(/Terraform|OpenTofu|CloudFormation/);
 });

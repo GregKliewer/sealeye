@@ -11,6 +11,7 @@
 // names only the four modules the executor deploys, and everything else the app turns
 // out to need is recorded as a NEED: a sentence about the app, with the code that
 // shows it. A plan carrying needs is a draft.
+import { terraformBuilds } from "./terraform-modules.js";
 
 /**
  * The four modules seaLeye's own executor deploys, from templates/: the starter
@@ -26,10 +27,15 @@ export const MODULE_IDS = [
 
 /**
  * What the platform has an executor for, by the name a catalog module gives in
- * `builds_with`, and which modules that executor builds. CloudFormation builds the four
- * modules it has templates for. A Terraform executor joins in PHASE4-PLAN Step 9.
+ * `builds_with`, and which modules that executor builds: a list of ids, or a test of a
+ * catalog's entry. CloudFormation builds the four modules it has templates for.
+ * OpenTofu builds an organization's Terraform module when it has everything it needs
+ * (PHASE4-PLAN Step 9, core/terraform-modules.js).
  */
-export const EXECUTORS = { cloudformation: MODULE_IDS };
+export const EXECUTORS = {
+  cloudformation: MODULE_IDS,
+  terraform: (entry, catalog) => terraformBuilds(entry, catalog?.platform).builds
+};
 
 /** The catalog a plan names when it was written against seaLeye's own four modules. */
 export const STARTER_VERSION = "starter";

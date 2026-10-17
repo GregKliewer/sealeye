@@ -3642,3 +3642,169 @@ silence. The model client's fetch (`watchedFetch`) now tells the watch of every 
 that arrives, pings included, matched to its call by a mark it takes off before the
 request is sent. The wait for the reply to start is the longer one (120 s); after that,
 60 s of nothing at all.
+
+## A Terraform executor builds an organization's own modules
+
+Sat Oct 17, 2026, Greg, PHASE4-PLAN Step 9 (D8). His answers to the decisions Step 9
+needed, given the evening before; built in two pull requests, this one first: the
+executor for a plan of one module, with what it needs around it. Versions of modules and
+connecting modules to each other are the second.
+
+- **OpenTofu, not Terraform** (Greg, over Terraform's own binary): under an open
+  licence, and the same language. `tofu` 1.12.6 is in the API's image, pinned by version
+  and by the sha256 of its release for each architecture, as gitleaks is. So is the one
+  provider a module may use, AWS 5.100.0 (the last of the 5 series Juniper's modules ask
+  for), from a folder in the image: `tofu` is told to install providers from there and
+  nowhere else, so a deploy fetches nothing, and a module that needs any other provider
+  fails before anything is built. `deploy/pin-tofu.sh`, run once on a machine that can
+  reach the releases, writes the checksums in. Neither release can be reached from where
+  this was built, so its tests use a stand-in for `tofu`, as they do for the AWS CLI,
+  and a GitHub Actions job (`.github/workflows/tofu.yml`) runs the real one: `init`,
+  `validate` and `plan` on root modules seaLeye writes, building nothing.
+- **One root module per environment, written by code** (`api/executor/terraform/`):
+  `main.tf.json`, which calls the organization's module by its folder in the library,
+  with its inputs, a backend and the pinned provider. Never a template a person edits,
+  and never text a model wrote.
+- **The module's code is the library at the catalog's commit**: the commit discovery
+  read, which the catalog names, fetched through the same reader discovery uses
+  (`api/discovery/github.js`), read-only. Unlike discovery's copy it is not redacted: it
+  is code that runs, not words a model reads, and no model sees it.
+- **State in S3, with a lock file**, under `tofu-state/<organization>/<environment>`
+  in the platform's bucket, in the account the environment is built in. One state per
+  environment.
+- **Through a role of its own** (Greg, over widening the deploy role):
+  `sealeye-deploy-terraform-<suffix>`, in `deploy/terraform-role.yaml`. It can create
+  what Juniper's modules create, under seaLeye's names, and read and write its state,
+  and nothing else; a role it creates carries the platform's boundary. The CloudFormation
+  role is unchanged. `tofu` and the AWS CLI calls a Terraform environment needs run as
+  that role (`AWS_PROFILE=sealeye-deploy-terraform`, written at start as the other is).
+- **The catalog says which executor builds a plan**, never the request. Both clients
+  send `backend: cloudformation`, as they always have; the API builds a plan whose
+  modules say `builds_with: terraform` with this executor, and the record says which
+  built it (`backend`). A plan of modules from both is refused.
+
+## What a Terraform module needs before seaLeye builds it
+
+Sat Oct 17, 2026, Greg (Step 9's decisions 1, 7 and 10). Juniper's modules ask for
+values only the platform can give: subnets, security groups, a permissions boundary.
+The plan contract leaves inputs free, so until now a plan without them passed and would
+have failed in the middle of a build.
+
+- **Every required input has a source, or the module is not buildable**
+  (`terraformBuilds` in `core/terraform-modules.js`, which `isBuildable` asks). There are
+  three sources: seaLeye's own (`name`, `stage`, `tags`), the app's code (below), and the
+  organization's platform values (the next entry). A module with a required input none
+  of them fills is a need, as any other module the platform cannot build is: refuse,
+  never shrink. The self-test says which input is missing.
+- **How the app's code reaches a module is read from the module, by code** (Greg, over a
+  field a platform engineer fills in). Discovery records each module's outputs and how
+  it takes an app (`delivers`): a package, when it takes a zipped app and the function to
+  call (`package_path` and `handler`, or names like them); files, when it has an output
+  to upload a site's files to (`bucket_name`). The catalog shows it, so whoever approves
+  the catalog sees it. A module that takes neither does not run an app.
+- **Until modules can be connected, a plan builds one module, the one that runs the
+  app.** A module that does not take the app's code (a database, a queue, a bucket) is
+  not buildable yet, so an app that needs one is still drafted with that need, and the
+  needs ledger keeps counting it. Connecting modules is the second pull request.
+- **A module that would run commands on the platform's server is never built** (Greg):
+  a provisioner (`local-exec`, `remote-exec`), the `external` data source, any provider
+  but AWS, or a nested module whose source is outside the library. Discovery records
+  what it found in the module's code (`runs`), the self-test refuses a module that has
+  any, and the executor checks the code again before `init`, since the code it fetched
+  is what runs. `tofu` runs with an environment holding only what it needs, as
+  `npm install` does: no API settings, no database address, no model key.
+- **A catalog written before this records none of it**, so its Terraform modules are not
+  buildable until discovery reads the library again. On the pilot that is Juniper's
+  catalog 3: a new run, approved and made live, before the first build.
+- **Settings do not travel to a Terraform environment yet** (Greg). A value passed into
+  a module's inputs is written into its state in plain text. A plan for one that names
+  settings is refused before anything is built, saying so; the store for them is
+  ROADMAP item 10.
+
+## An organization's platform values
+
+Sat Oct 17, 2026, Greg (Step 9's decision 1, chosen over a file on the server or
+supplying only the permissions boundary).
+
+- **Values by stage, set by an organization-wide token**, on both surfaces: GET
+  /platform, PUT /platform/values/{name} and DELETE /platform/values/{name} (with
+  `?stage=`, dev by default), `sealeye platform`, and a Platform page in the portal.
+  Shown only to an organization-wide token, as Discovery is.
+- **A value is named after the input it fills**: `subnet_ids` fills every module's
+  `subnet_ids`; `postgres.security_group_ids` fills only that module's, and wins over
+  the plain name. A value is a word or a list of words: identifiers such as subnets,
+  never secrets. One that looks like a secret is refused, as code is.
+- **They are the organization's, not a catalog's**: a catalog is approved and versioned,
+  and a subnet changes without anyone re-approving what the platform builds. So the
+  catalog the API plans against is read with the organization's platform values beside
+  it, never stored in it, and a module becomes buildable the moment its last value is
+  set. Removing a value an environment uses is not stopped; its next deploy says what is
+  missing.
+- Developers deploy to dev (principle 9), so only dev's values are used for now. The
+  other stages are kept for when promotion comes (Q20).
+
+## An app that listens reaches a module that calls a function
+
+Sat Oct 17, 2026, Greg (Step 9's decision 7). Juniper's `http-api` runs the app as a
+function the platform calls (`handler`), and an app like the beneficiary lookup listens
+on a port, as seaLeye's own template expects. seaLeye's template carries an adapter for
+that; Juniper's module does not take one.
+
+- **seaLeye puts an adapter into the packaged copy** (principle 5: what the platform
+  needs is injected into the artifact, and the developer's folder is never touched):
+  `sealeye-handler.mjs`, from `templates/`. It starts the app as `run.sh` does, on a port
+  of its own, waits until it answers, and hands it each request; the module's `handler`
+  input names it. A folder that already has a file of that name is refused rather than
+  overwritten.
+- **The app's entry point is read from the folder**: package.json's `main`, then a
+  `start` script that runs `node <file>`, then `index.js`, and a folder with none of them
+  is refused before anything is built, in words.
+
+## A Terraform environment's names, status and operations
+
+Sat Oct 17, 2026, Greg (Step 9's decision 5 and the small decisions).
+
+- **Its key is the environment's name**, `sealeye-<team>-<app>-<hash>`, as a stack's is:
+  one change at a time, siblings, history and the needs ledger all work as before. The
+  module is given a shorter `name`, `sealeye-<app>-<hash>`, at most 31 characters,
+  because a module names things after it and the stage (Juniper's site bucket is
+  `juniper-site-<name>-<stage>`, against S3's 63). It starts `sealeye-`, which is what
+  the role reaches.
+- **Always dev** (principle 9): `stage` is `dev`, whatever the profile.
+- **Status is real**: running while `init`, `plan` and `apply` run; succeeded when apply
+  exits cleanly and its outputs have been read back (and, for a site, its files
+  uploaded); failed with the first error OpenTofu reports, in its own words; destroyed
+  when `destroy` exits cleanly. Each step's line says what the platform is doing, in the
+  developer's words.
+- **A restart during a build fails it, honestly**: OpenTofu's apply cannot be picked up
+  again the way a stack can be watched again, so the record says the platform restarted
+  while building and that the environment may be part-built, and keeps the state's lock.
+  `deploy/server.sh tofu-unlock <deployment>` releases it once a person has looked, and
+  the next deploy or tear-down finishes the job. A tear-down is started again, as before.
+- **What works on day one, on both surfaces**: deploy, deploy again, status, history,
+  plan and report, evidence, and tear down. Pause, logs, performance and configure are
+  not offered for a Terraform environment until they are built for one; the API answers
+  409 NOT_FOR_THIS_ENVIRONMENT, and neither surface shows them.
+- **Its evidence** names the module, its folder and the library's commit, the OpenTofu
+  and provider versions, the checksum of the root module, what apply created, changed
+  and destroyed, and the outputs; checked now, it reads the state and asks OpenTofu,
+  read-only, whether anything changed outside seaLeye (`plan -refresh-only`), and makes
+  the one request to the app's address.
+- **Deploys outside the default organization** (Juniper's) are allowed for a plan this
+  executor builds: it reads no settings, so it cannot read another organization's.
+  CloudFormation deploys, settings and costs stay the default organization's.
+- **Static sites are served through the content network** for Terraform environments,
+  as Juniper's `static-site` does: the "No CloudFront" limit is the CloudFormation
+  executor's.
+
+**The independent review (the same day)** found nothing that had to change before
+merging, and three things worth doing, done here: a Terraform deploy or tear-down on the
+server is refused (503 NOT_SET_UP) until the Terraform deploy role is set up, rather than
+going through the CloudFormation role and failing part-way; and the adapter waits for the
+app while the function starts up, which has ten seconds of its own, not within the first
+request, whose time Juniper's module leaves at three. Kept as they are, knowingly:
+OpenTofu's first error is the failure a developer reads, in its own words, which can name
+a cloud's nouns, as CloudFormation's reasons always have; and the Terraform role's
+sessions last an hour, the most a role reached from the server's own role can have, so a
+site's build or tear-down that takes longer relies on the provider taking a new session
+when one ends, which it does on its own.

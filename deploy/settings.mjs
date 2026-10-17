@@ -15,6 +15,8 @@
 //    role from the instance's credentials, and make it the default for everything run
 //    after this. So every `aws` the executor spawns acts through the team's
 //    sealeye-deploy-* role, never the server's own, with no change to the executor.
+//    SEALEYE_TERRAFORM_ROLE_ARN adds a second profile beside it, for the Terraform
+//    executor, which names it on every call it makes (PHASE4-PLAN Step 9).
 //
 // This is the one place outside api/executor/ that runs the AWS CLI: it is the server
 // starting, not the platform acting.
@@ -66,25 +68,38 @@ export function apiSettings(parameters, ssmPath = SSM_PATH) {
   return loaded;
 }
 
-function useDeployRole(roleArn) {
-  if (!/^arn:aws:iam::\d{12}:role\/sealeye-deploy-[A-Za-z0-9+=,.@_-]+$/.test(roleArn)) {
+const ROLE = name => new RegExp(`^arn:aws:iam::\\d{12}:role\\/${name}[A-Za-z0-9+=,.@_-]+$`);
+
+/**
+ * One AWS config file with a profile for each role the API acts through: the deploy
+ * role (the default for everything run after this), and the Terraform deploy role
+ * (PHASE4-PLAN Step 9), which OpenTofu and a Terraform environment's own AWS calls use
+ * by name (SEALEYE_TERRAFORM_PROFILE, read by api/executor/terraform/tofu.js).
+ */
+function useRoles({ deploy, terraform }) {
+  if (deploy && !ROLE("sealeye-deploy-").test(deploy)) {
     throw new Error("SEALEYE_DEPLOY_ROLE_ARN must be the arn of a role named sealeye-deploy-*");
   }
+  if (terraform && !ROLE("sealeye-deploy-terraform-").test(terraform)) {
+    throw new Error("SEALEYE_TERRAFORM_ROLE_ARN must be the arn of a role named sealeye-deploy-terraform-*");
+  }
+  const profile = (name, roleArn) => [
+    `[profile ${name}]`,
+    `role_arn = ${roleArn}`,
+    "credential_source = Ec2InstanceMetadata",
+    "role_session_name = sealeye-api",
+    `region = ${process.env.AWS_REGION || "ca-central-1"}`,
+    ""
+  ];
   const file = path.join(os.tmpdir(), `sealeye-aws-config-${process.pid}`);
   fs.writeFileSync(
     file,
-    [
-      "[profile sealeye-deploy]",
-      `role_arn = ${roleArn}`,
-      "credential_source = Ec2InstanceMetadata",
-      "role_session_name = sealeye-api",
-      `region = ${process.env.AWS_REGION || "ca-central-1"}`,
-      ""
-    ].join("\n"),
+    [...(deploy ? profile("sealeye-deploy", deploy) : []), ...(terraform ? profile("sealeye-deploy-terraform", terraform) : [])].join("\n"),
     { mode: 0o600 }
   );
   process.env.AWS_CONFIG_FILE = file;
-  process.env.AWS_PROFILE = "sealeye-deploy";
+  if (deploy) process.env.AWS_PROFILE = "sealeye-deploy";
+  if (terraform) process.env.SEALEYE_TERRAFORM_PROFILE = "sealeye-deploy-terraform";
 }
 
 /** Read the server's settings into this process, then point it at its database and deploy role. */
@@ -113,8 +128,9 @@ export function applyServerSettings({ quiet = false } = {}) {
   delete process.env.POSTGRES_PASSWORD;
   if (process.env.DATABASE_URL) say("seaLeye API: records and interviews are kept in Postgres");
 
-  if (process.env.SEALEYE_DEPLOY_ROLE_ARN) {
-    useDeployRole(process.env.SEALEYE_DEPLOY_ROLE_ARN);
-    say("seaLeye API: AWS actions go through the deploy role");
+  if (process.env.SEALEYE_DEPLOY_ROLE_ARN || process.env.SEALEYE_TERRAFORM_ROLE_ARN) {
+    useRoles({ deploy: process.env.SEALEYE_DEPLOY_ROLE_ARN, terraform: process.env.SEALEYE_TERRAFORM_ROLE_ARN });
+    if (process.env.SEALEYE_DEPLOY_ROLE_ARN) say("seaLeye API: AWS actions go through the deploy role");
+    if (process.env.SEALEYE_TERRAFORM_ROLE_ARN) say("seaLeye API: environments built from an organization's modules go through the Terraform deploy role");
   }
 }

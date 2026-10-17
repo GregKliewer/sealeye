@@ -41,9 +41,9 @@ test("a discovered catalog passes while it builds nothing, and says so", () => {
   assert.equal(result.passed, true, JSON.stringify(failed(result)));
   assert.deepEqual(result.built, []);
   assert.deepEqual(Object.fromEntries(result.refused.map(r => [r.id, r.why])), {
-    postgres: "nothing the platform has builds it yet",
+    postgres: "its code has not been checked for commands it would run (discovery must read the library again)",
     cache_redis: "the library has deprecated it",
-    cache_valkey: "nothing the platform has builds it yet",
+    cache_valkey: "its code has not been checked for commands it would run (discovery must read the library again)",
     work_queue: "it could not be read"
   });
   assert.match(result.notes.join(" "), /builds nothing yet/);

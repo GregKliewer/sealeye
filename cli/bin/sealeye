@@ -51,6 +51,7 @@ import { RETENTION_CHOICES, retentionOf, withRetention } from "../../core/retent
 import { commandFor, wordsFor } from "../../core/operations.js";
 import { discover } from "../discover.js";
 import { catalogs } from "../catalogs.js";
+import { platform } from "../platform.js";
 
 // Statuses that are history rather than something you can still open: one was torn
 // down, the other was never built because the platform said so.
@@ -153,6 +154,7 @@ Usage:
   ${product.command} catalog fix [<number>] [--json] [--api <url>]
   ${product.command} catalog approve|live <number> [--json] [--api <url>]
   ${product.command} discover [answers|status] [<run>] [--json] [--api <url>]
+  ${product.command} platform [set <name> <word>... [--list] | unset <name>] [--stage <stage>] [--json] [--api <url>]
   ${product.command} login [--api <url>]
   ${product.command} whoami [--json] [--api <url>]
   ${product.command} --version
@@ -1087,6 +1089,15 @@ async function main() {
   if (command === "discover") {
     await sayOrganization();
     return discover({ apiBaseUrl, args: process.argv.slice(3).filter(a => !a.startsWith("--") && a !== getArg("--api")), say, json: jsonOut });
+  }
+
+  // The organization's platform values (PHASE4-PLAN Step 9): what only its platform team
+  // can give a module, by stage. A platform engineer's, as discovery is.
+  if (command === "platform") {
+    await sayOrganization();
+    const stage = getArg("--stage");
+    const words = process.argv.slice(3).filter(a => !a.startsWith("--") && a !== getArg("--api") && a !== stage);
+    return platform({ apiBaseUrl, args: words, stage, list: process.argv.includes("--list"), say, json: jsonOut });
   }
 
   // What the platform can build, and the needs it cannot yet, as the portal's Catalog
@@ -2654,12 +2665,14 @@ function printDeploymentTable(deployments) {
 // about to draw and put the next one on top of it.
 function deploymentSummaryLines(dep, { step: showStep = true } = {}) {
   const lines = [];
-  const row = (label, value) => lines.push(`${label.padEnd(12)}${value}`);
+  const row = (label, value) => lines.push(`${label.padEnd(Math.max(12, label.length + 1))}${value}`);
 
   row("Deployment:", dep.deploymentId);
   row("Status:", statusColour(dep.status));
   row("App:", `${dep.app?.name} (${dep.app?.type})`);
-  if (dep.stackName) row("Stack:", c.dim(`${dep.stackName}${dep.stackStatus ? ` (${dep.stackStatus})` : ""}`));
+  // An environment built from the organization's own modules has no stack: it is named.
+  if (dep.stackName && dep.backend === "terraform") row("Environment:", c.dim(dep.stackName));
+  else if (dep.stackName) row("Stack:", c.dim(`${dep.stackName}${dep.stackStatus ? ` (${dep.stackStatus})` : ""}`));
 
   const url = publicUrl(dep);
   if (url) row("URL:", c.accent(url));

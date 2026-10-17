@@ -14,6 +14,7 @@ import { developerWordProblems, shownWord } from "../core/developer-words.js";
 import { editableFieldsOf, fieldForPlace } from "../core/catalog-edits.js";
 import { SELF_TEST_CHECKS } from "../core/discovery-words.js";
 import { checkAgainst } from "./validate.js";
+import { terraformBuilds } from "../core/terraform-modules.js";
 
 /** Why the platform will not build a module from this catalog, in words, or null when it will. */
 export function whyRefused(m, document) {
@@ -22,6 +23,8 @@ export function whyRefused(m, document) {
   if (m.availability === "deprecated") return "the library has deprecated it";
   if (m.availability !== "available") return `it is ${m.availability || "not marked available"}`;
   if (Array.isArray(m.open) && m.open.length) return "it rests on a question not yet answered";
+  // A Terraform module says what it lacks: an input with no value, code not checked.
+  if (m.builds_with === "terraform") return terraformBuilds(m, document?.platform).why || "nothing the platform has builds it yet";
   return "nothing the platform has builds it yet";
 }
 

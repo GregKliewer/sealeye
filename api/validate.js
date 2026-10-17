@@ -11,6 +11,7 @@ import addFormats from "ajv-formats";
 import { STARTER_VERSION, unlistedNeedProblems, upgradePlan } from "../core/schema.js";
 import { catalogModuleIds, firstSentence, isBuildable, moduleEntry, schemaFor } from "../core/catalog.js";
 import { catalogGoingLive, catalogsOf, catalogAt, liveCatalog } from "./catalogs.js";
+import { withPlatform } from "./platform.js";
 
 const ajv = new Ajv({ allErrors: true });
 addFormats(ajv);
@@ -50,7 +51,7 @@ const isVersion = v => v === STARTER_VERSION || (Number.isInteger(v) && v >= 1);
  */
 export function catalogOfPlan(plan, org = "default") {
   const version = plan?.catalog ?? STARTER_VERSION;
-  if (version === STARTER_VERSION) return { version, source: "starter", document: catalogAt(org, STARTER_VERSION) };
+  if (version === STARTER_VERSION) return { version, source: "starter", document: withPlatform(org, catalogAt(org, STARTER_VERSION)) };
   const row = catalogsOf(org).find(c => c.version === version);
   if (!row) {
     return { error: { code: "CATALOG_UNKNOWN", path: "/catalog", message: `/catalog names version ${version}, and your organization has no catalog of that version` } };
@@ -58,7 +59,8 @@ export function catalogOfPlan(plan, org = "default") {
   if (row.status !== "live" && row.status !== "retired") {
     return { error: { code: "CATALOG_NOT_LIVE", path: "/catalog", message: `/catalog names version ${version}, which has never been your organization's live catalog` } };
   }
-  return { version, source: "organization", document: catalogAt(org, version) };
+  // With the organization's platform values beside it, as the platform builds from it.
+  return { version, source: "organization", document: withPlatform(org, catalogAt(org, version)) };
 }
 
 /**
@@ -79,7 +81,7 @@ export function checkUpgraded(plan, { org = "default" } = {}) {
   // the starter's shape, as any other field is.
   const known = plan && typeof plan === "object" && isVersion(plan.catalog) ? catalogOfPlan(plan, org) : null;
   if (known?.error) return { valid: false, errors: [known.error] };
-  return checkAgainst(plan, known?.document || catalogAt(org, STARTER_VERSION));
+  return checkAgainst(plan, known?.document || withPlatform(org, catalogAt(org, STARTER_VERSION)));
 }
 
 /**
@@ -103,10 +105,11 @@ export function checkAgainst(plan, catalog) {
  * @returns {string[]} each module's line, in the words of the catalog the plan names
  */
 export function noLongerBuilt(plan, org = "default") {
-  const live = liveCatalog(org);
+  const live = { ...liveCatalog(org) };
+  live.document = withPlatform(org, live.document);
   const named = plan?.catalog ?? STARTER_VERSION;
   // A catalog being made live this moment counts as live already (catalogGoingLive).
-  const next = catalogGoingLive(org);
+  const next = withPlatform(org, catalogGoingLive(org)) || null;
   if (named === live.version && !next) return [];
   const then = catalogOfPlan(plan, org).document || live.document;
   return (plan?.modules || [])

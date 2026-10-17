@@ -90,6 +90,12 @@ function entryFor(module, written, finding, questions, library) {
     ...(words.when ? { when: plain(words.when) } : {}),
     ...(Array.isArray(words.signals) && words.signals.length ? { signals: words.signals.map(plain) } : {}),
     inputs,
+    // Read by code, never written by a model: its outputs, how it takes an app, and what
+    // it would run on the platform's server (empty when nothing). A run before these were
+    // read has none of them, and its Terraform modules are not built (Step 9).
+    ...(module.outputs ? { outputs: module.outputs } : {}),
+    ...(module.outputs ? { delivers: module.delivers || null } : {}),
+    ...(Array.isArray(module.runs) ? { runs: module.runs } : {}),
     ...(guidance ? { guidance } : {}),
     // Each rule as found, with where, for whoever approves the catalog (Step 7).
     ...(rules.length ? { rules } : {})

@@ -217,7 +217,9 @@ gateway's own span in that trace moved to Phase 4. Routes come with Step 8.*
   when it passes.
 - The catalog becomes the organization's, and a need becomes buildable when a module
   supports it.
-- A second backend: Terraform, since that is what most platform libraries are.
+- A second backend: Terraform, since that is what most platform libraries are. Built
+  Oct 17, 2026 for a plan of one module, with OpenTofu (PHASE4-PLAN Step 9); versions and
+  connecting modules next.
 - A gap report (added Oct 13, 2026): what developers asked for that the catalog cannot
   build, taken from the needs ledger, with how often and by which teams. Read-only, from
   what discovery and the ledger already hold. Gaps come from demand first; a generic

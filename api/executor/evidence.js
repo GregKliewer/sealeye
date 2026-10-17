@@ -17,6 +17,8 @@ import { patternsFor } from "../../core/catalog.js";
 import { catalogOfRecord } from "../catalogs.js";
 import { listDeployments } from "../store.js";
 import { sourceInWords } from "./settings.js";
+import { checkTerraformNow } from "./terraform/index.js";
+import { withPlatform } from "../platform.js";
 
 const TEMPLATE_PATH = path.join(repoRoot, "prompts", "evidence.md");
 const pkg = JSON.parse(fs.readFileSync(new URL("../../package.json", import.meta.url), "utf8"));
@@ -187,6 +189,55 @@ async function builtOf(record, events) {
 }
 
 /**
+ * What was built for a Terraform environment (PHASE4-PLAN Step 9): the organization's
+ * module, from which commit of its library, by which OpenTofu and provider, from which
+ * root module, and what the apply did, read from the record.
+ */
+function builtOfTerraform(record) {
+  if (record.status === "drafted") return { none: true, sentence: DRAFT_SENTENCE };
+  const t = record.terraform || {};
+  if (!t.module) return { none: true, sentence: "Nothing was built: the deployment stopped before the module was fetched." };
+  return {
+    none: false,
+    terraform: true,
+    environment: record.stackName || NOT_RECORDED,
+    module: { id: t.module.id, source: t.module.source, repo: t.module.repo, commit: t.module.commit },
+    tofuVersion: t.tofuVersion || NOT_RECORDED,
+    providerVersion: t.providerVersion || NOT_RECORDED,
+    rootSha256: t.rootSha256 || NOT_RECORDED,
+    stateKey: t.stateKey || NOT_RECORDED,
+    inputs: (t.inputs || []).map(i => ({ name: i.name, source: i.source, ...(i.from ? { from: i.from } : {}) })),
+    ignoredInputs: t.ignoredInputs || [],
+    artifactKey: record.artifactKey || (record.kind === "static" ? "none: a static site has no artifact" : NOT_RECORDED),
+    artifactSha256: record.artifactSha256 || (record.kind === "static" ? "none: a static site has no artifact" : record.artifactSha256Error ? `not recorded: ${record.artifactSha256Error}` : NOT_RECORDED),
+    entryPoint: record.entryPoint || null,
+    planned: t.planned || "not recorded",
+    applied: t.applied || "not recorded",
+    resources: t.resources || [],
+    secretScan: secretScanOf(record),
+    outputs: record.moduleOutputs || {}
+  };
+}
+
+/** Checked now, for a Terraform environment: the state, and anything changed outside seaLeye. */
+async function checkedNowOfTerraform(record) {
+  if (record.status === "drafted" || !record.terraform?.stateKey) {
+    return { none: true, sentence: "Nothing to check. Nothing was built for this plan." };
+  }
+  const gone = record.status === "destroyed";
+  const checked = gone ? { ok: false, error: "the environment was torn down" } : await checkTerraformNow(record, withPlatform(record.orgId || "default", catalogOfRecord(record)));
+  const answered = !gone ? await probe(publicUrl(record)) : { url: publicUrl(record), error: "the environment was torn down" };
+  return {
+    none: false,
+    terraform: true,
+    state: checked.ok ? { resources: checked.resources } : { error: `not checked: ${checked.error}` },
+    changesOutside: checked.ok ? checked.drift : `not checked: ${checked.error}`,
+    changesOutsideNote: "as OpenTofu finds them by reading each part of the environment now, read-only",
+    answered
+  };
+}
+
+/**
  * How the code was checked for secrets before it was packaged (PHASE3-PLAN Step 2), and
  * what the developer's .sealeye-allow let through: file, line and rule, never a value.
  */
@@ -323,7 +374,8 @@ function historyOf(record) {
 export async function assembleEvidence(record) {
   const generatedAt = new Date().toISOString();
 
-  const events = record.stackName && record.status !== "drafted"
+  const terraform = record.backend === "terraform";
+  const events = !terraform && record.stackName && record.status !== "drafted"
     ? await stackEvents(record.stackName)
     : { ok: false, events: [], error: "no stack" };
 
@@ -333,8 +385,8 @@ export async function assembleEvidence(record) {
     subject: subjectOf(record, generatedAt),
     requested: requestedOf(record),
     approved: approvedOf(record),
-    built: await builtOf(record, events),
-    checkedNow: await checkedNowOf(record, events, siblings),
+    built: terraform ? builtOfTerraform(record) : await builtOf(record, events),
+    checkedNow: terraform ? await checkedNowOfTerraform(record) : await checkedNowOf(record, events, siblings),
     history: historyOf(record)
   };
 
@@ -369,7 +421,7 @@ function whatThisIs(ev) {
   return [
     "## What this is",
     "",
-    `The change record for ${ev.subject.app?.name || "this app"} (environment ${env}), written by seaLeye.run ${ev.subject.sealeyeVersion} at ${ev.subject.generatedAt}. Every value below was read from seaLeye.run's own records and from CloudFormation at the time of generation. Nothing was typed in. Where something could not be read, it says so.`
+    `The change record for ${ev.subject.app?.name || "this app"} (environment ${env}), written by seaLeye.run ${ev.subject.sealeyeVersion} at ${ev.subject.generatedAt}. Every value below was read from seaLeye.run's own records and ${ev.built?.terraform ? "from OpenTofu's record of the environment and from AWS" : "from CloudFormation"} at the time of generation. Nothing was typed in. Where something could not be read, it says so.`
   ].join("\n");
 }
 
@@ -440,9 +492,64 @@ function whatWasApproved(ev) {
   return lines.join("\n");
 }
 
+function whatWasBuiltTerraform(b) {
+  const counts = c => (isStr(c) ? c : `${c.add} to create, ${c.change} to change, ${c.remove} to remove`);
+  const lines = [
+    "## What was built",
+    "",
+    `- Environment: ${code(b.environment)}`,
+    `- Module: ${code(b.module.id)}, the folder ${code(b.module.source)} of ${code(b.module.repo)} at commit ${code(b.module.commit)}`,
+    `- Built by: OpenTofu ${b.tofuVersion}, with the AWS provider ${b.providerVersion}`,
+    `- Root module sha256: ${code(b.rootSha256)}`,
+    `- State: ${code(b.stateKey)}`,
+    `- Artifact: ${code(b.artifactKey)}`,
+    `- Artifact sha256: ${code(b.artifactSha256)}`
+  ];
+  if (b.entryPoint) lines.push(`- Started from: ${code(b.entryPoint)}, through the platform's adapter`);
+  if (b.inputs.length) {
+    lines.push("- Inputs, names and where each came from:");
+    for (const i of b.inputs) lines.push(`  - ${code(i.name)}: ${i.source}${i.from ? ` (${code(i.from)})` : ""}`);
+  }
+  if (b.ignoredInputs.length) lines.push(`- Inputs the plan named that seaLeye or the platform gives instead: ${b.ignoredInputs.map(code).join(", ")}`);
+  if (isStr(b.secretScan)) lines.push(`- Checked for secrets: ${b.secretScan}`);
+  else if (b.secretScan) {
+    lines.push(`- Checked for secrets by ${b.secretScan.by}${b.secretScan.scannedBy ? `, when ${code(b.secretScan.scannedBy)} packaged this code` : ""}.`);
+    if (b.secretScan.allowed.length) {
+      lines.push(`- Let through on the developer's word, in ${code(".sealeye-allow")} (file, line, rule; values are never recorded):`);
+      for (const a of b.secretScan.allowed) lines.push(`  - ${code(a)}`);
+    } else lines.push("- Nothing was let through by .sealeye-allow.");
+  }
+  lines.push(`- Planned: ${counts(b.planned)}`, `- Applied: ${counts(b.applied)}`);
+  const outs = Object.entries(b.outputs);
+  if (outs.length) {
+    lines.push("- Outputs:");
+    for (const [k, v] of outs) lines.push(`  - ${k}: ${typeof v === "object" ? JSON.stringify(v) : v}`);
+  }
+  lines.push("", "What the apply did, part by part:", "");
+  if (!b.resources.length) lines.push("Nothing was recorded.");
+  else lines.push(table(["Part", "Done"], b.resources.map(r => [r.address, r.action || ""])));
+  return lines.join("\n");
+}
+
+function checkedNowTerraform(c) {
+  const lines = ["## Checked now", ""];
+  if (c.state.error) lines.push(`- State: ${c.state.error}.`);
+  else lines.push(`- State: ${c.state.resources.length ? `holds ${c.state.resources.map(code).join(", ")}` : "holds nothing"}.`);
+  if (c.answered.error) lines.push(`- Answered: no. ${c.answered.url ? code(c.answered.url) + " " : ""}${c.answered.error}.`);
+  else lines.push(`- Answered: ${c.answered.status} in ${(c.answered.ms / 1000).toFixed(1)} s from ${code(c.answered.url)}. One request was made and nothing else.`);
+  if (isStr(c.changesOutside)) lines.push(`- Changes outside seaLeye.run: ${c.changesOutside}.`);
+  else if (!c.changesOutside.length) lines.push(`- Changes outside seaLeye.run: none, ${c.changesOutsideNote}.`);
+  else {
+    lines.push(`- Changes outside seaLeye.run: ${c.changesOutside.length}, ${c.changesOutsideNote}:`);
+    for (const x of c.changesOutside) lines.push(`  - ${code(x.address)}${x.action ? `: ${x.action}` : ""}`);
+  }
+  return lines.join("\n");
+}
+
 function whatWasBuilt(ev) {
   const b = ev.built;
   if (b.none) return ["## What was built", "", b.sentence].join("\n");
+  if (b.terraform) return whatWasBuiltTerraform(b);
 
   const lines = [
     "## What was built",
@@ -486,6 +593,7 @@ function whatWasBuilt(ev) {
 function checkedNow(ev) {
   const c = ev.checkedNow;
   if (c.none) return ["## Checked now", "", c.sentence].join("\n");
+  if (c.terraform) return checkedNowTerraform(c);
 
   const lines = ["## Checked now", "", `- Stack status: ${c.stack.status}${c.stack.error ? ` (${c.stack.error})` : ""}`];
 

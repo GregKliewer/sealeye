@@ -46,6 +46,7 @@ export const OPERATIONS = Object.freeze([
   { id: "catalog-approve", command: "catalog approve", aliases: [], label: "Approve" },
   { id: "catalog-live", command: "catalog live", aliases: [], label: "Make live" },
   { id: "discover", command: "discover", aliases: [], label: "Discovery" },
+  { id: "platform", command: "platform", aliases: [], label: "Platform" },
   { id: "needs", command: "needs", aliases: [], label: "Needs" },
   { id: "costs", command: "costs", aliases: [], label: "Costs" },
   { id: "team", command: "team", aliases: [], label: "Team" },
@@ -55,6 +56,21 @@ export const OPERATIONS = Object.freeze([
 ]);
 
 const BY_ID = new Map(OPERATIONS.map(op => [op.id, op]));
+
+/**
+ * What an environment offers, by operation id, from what built it (the record's
+ * `backend`). One built from the organization's own modules (PHASE4-PLAN Step 9) offers
+ * deploy again, state, history, plan and report, evidence and tear down until the rest
+ * are built for it; both surfaces show only what is here.
+ */
+const ENVIRONMENT_OPERATIONS = ["deploy-again", "status", "watch", "teardown", "pause", "resume", "config", "settings", "logs", "perf", "evidence", "plan", "online"];
+const ORGANIZATION_MODULE_OPERATIONS = ["deploy-again", "status", "watch", "teardown", "evidence", "plan", "online"];
+export function environmentOperations(backend) {
+  return [...(backend === "terraform" ? ORGANIZATION_MODULE_OPERATIONS : ENVIRONMENT_OPERATIONS)];
+}
+
+/** Whether an environment offers an operation, from what built it. */
+export const offers = (backend, id) => environmentOperations(backend).includes(id);
 
 /** The operation called `id`. An id not in the list is a mistake in our code, not input. */
 export function operation(id) {

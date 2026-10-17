@@ -171,6 +171,8 @@ flowchart LR
     validate["<b>validate.js, needs.js</b><br/>The plan contract,<br/>the needs ledger"]
     catalogs["<b>catalogs.js</b><br/>Each organization's catalog,<br/>or the starter"]
     executor["<b>executor/</b><br/>compose, package, uploads,<br/>settings, report, evidence, resume"]
+    terraform["<b>executor/terraform/</b><br/>the organization's module,<br/>root module, OpenTofu"]
+    platform["<b>platform.js</b><br/>Each organization's<br/>platform values"]
     cfn["<b>executor/cfn.js</b><br/>Every AWS call but the<br/>artifact upload"]
     dayTwo["<b>logs, performance, costs,<br/>pause, team, setting-changes</b>"]
     store["<b>store.js, db.js</b><br/>Records in memory,<br/>written through to Postgres"]
@@ -199,6 +201,13 @@ flowchart LR
   interview --> scan
   interview --> validate
   executor --> cfn
+  executor --> terraform
+  terraform --> cfn
+  terraform --> discovery
+  terraform --> platform
+  validate --> platform
+  server --> platform
+  platform --> store
   dayTwo --> cfn
   executor --> store
   dayTwo --> store
@@ -590,7 +599,20 @@ erDiagram
     timestamptz created_at
   }
   DISCOVERIES ||--o{ DISCOVERY_QUESTIONS : "asks"
+  PLATFORM_VALUES {
+    text org_id PK
+    text stage PK "dev, sit, uat, staging, perf or prod"
+    text name PK "an input's name, or module.input"
+    jsonb value "a word or a list of words: ids, never a secret"
+    text set_by
+    timestamptz set_at
+  }
 ```
+
+`PLATFORM_VALUES` holds what only an organization's platform team can give a Terraform
+module (PHASE4-PLAN Step 9): read beside a catalog to say what it builds, never stored in
+one. A Terraform environment's state is in S3, `tofu-state/<org>/<environment>.tfstate`
+in the platform's bucket, with OpenTofu's lock file beside it.
 
 `DEPLOYMENTS` and `SETTING_CHANGES` are joined to people through `org_id`, `team_id`
 and the person's email, not by a foreign key, so a record outlives a revoked token.
@@ -740,8 +762,8 @@ The decisions that shaped the architecture, by DESIGN.md heading.
 | One API process; the store reads from memory | One pilot server | Staged hosting (PHASE2-PLAN, "Owed after this plan"): a managed database, then containers when downtime matters |
 | One shared AWS account and deploy role | The pilot is one organization | Phase 5: a role per team, in the team's account |
 | Tokens instead of sign-in | A handful of people | Phase 5: Cognito (Q16) |
-| Four modules, CloudFormation only | The demo platform | Phase 4: the organization's own modules, Terraform |
-| ca-central-1, Node 20, no CloudFront | The pilot's scope | Phase 7 |
+| An organization's Terraform modules build one at a time, at the dev stage, with no settings | Connecting modules needs the library to offer it, and settings would be kept in plain text in state | Phase 4 Step 9's second pull request: versions and connections; ROADMAP item 10 for settings |
+| ca-central-1, Node 20, no CloudFront from seaLeye's own templates | The pilot's scope | Phase 7 |
 | Traces in LangFuse Cloud (US) | Sample apps only; off for any pilot on real code | Phase 4: self-hosted in ca-central-1, before discovery reads an organization's code |
 | No promotion past dev | Developers deploy to dev | Phase 5 |
 | The model gateway knows the API, not the person or the run | One agent, one box; each run has its own cap in seaLeye's graph, and the gateway holds the model key and the outer budget (Phase 3 Step 5) | Phase 3 Step 6: a short-lived token for each call, naming the person, team, run and worker; then routing (Step 8) |
