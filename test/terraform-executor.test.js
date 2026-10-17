@@ -252,6 +252,11 @@ test("an API is built from the organization's module: packaged with the adapter,
   assert.equal(ev.body.evidence.built.module.commit, COMMIT);
   assert.deepEqual(ev.body.evidence.checkedNow.changesOutside, []);
   assert.match(ev.body.markdown, /Built by: OpenTofu 1\.12\.6, with the AWS provider 5\.100\.0/);
+  // The summary both surfaces print above it reads this shape too (it once did not).
+  const { evidenceSummary } = await import("../core/evidence-summary.js");
+  const summary = evidenceSummary(ev.body.evidence);
+  assert.match(summary.title, /\(environment sealeye-payments-lookup-[0-9a-f]{6}, profile dev\)/);
+  assert.match(summary.rows.find(r => r.label === "Built").text, /^modules\/http-api at 5e63aa573473, artifact /);
   assert.match(ev.body.markdown, /`permissions_boundary_arn`: platform value/);
   assert.ok(!ev.body.markdown.includes(BOUNDARY), "inputs by name and source, not value");
 
