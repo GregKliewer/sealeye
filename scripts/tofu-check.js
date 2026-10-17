@@ -81,12 +81,15 @@ export async function main() {
   for (const source of listModules(LIBRARY)) {
     const r = await check(source);
     console.log(`ok  ${r.source}: takes ${r.delivers}; plan creates ${r.plan.add}; inputs ${r.inputs.join(", ")}`);
+    // An annotation, which can be read where the job's log cannot.
+    if (process.env.GITHUB_ACTIONS) console.log(`::notice title=tofu-check::${r.source}: valid; plan creates ${r.plan.add}`);
   }
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch(err => {
     console.error(err.message);
+    if (process.env.GITHUB_ACTIONS) console.log(`::error title=tofu-check::${String(err.message).split("\n")[0].slice(0, 900)}`);
     process.exitCode = 1;
   });
 }

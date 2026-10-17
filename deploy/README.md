@@ -17,6 +17,9 @@ in to the seaLeye account as someone who can create IAM roles.
 | `server.sh` | The server's own jobs, run from your Mac: backup, restore check, importing records, restart, logs. |
 | `ci-role.yaml` | The role GitHub takes to store the image it builds. Stack `platform-sealeye-ci`. |
 | `backup.sh`, `restore-check.sh` | The server's half of those jobs. |
+| `terraform-role.yaml` | The `sealeye-deploy-terraform-*` role an organization's own modules are built through, and their functions' boundary. Stack `platform-sealeye-terraform-role`. |
+| `foundation.yaml` | The network the made-up organization's modules are built into. Stack `platform-sealeye-foundation`. |
+| `pin-tofu.sh` | Writes OpenTofu's and the AWS provider's checksums into the Dockerfile. Run on your Mac after either version changes. |
 
 Platform stacks are named `platform-sealeye-*`, never `sealeye-*`, so the deploy role,
 which may only touch `sealeye-*` stacks, can never touch them.
@@ -531,6 +534,90 @@ Success looks like this for Juniper Mutual: its full commit and "read with the G
 `modules/postgres/examples/restore-from-snapshot/terraform.tfvars` held back, and one
 line replaced, `modules/postgres/examples/restore-from-snapshot/main.tf:11
 (assigned-secret)`.
+
+## Once: the Terraform executor (an organization's own modules)
+
+PHASE4-PLAN Step 9 (DESIGN.md, "A Terraform executor builds an organization's own
+modules"). seaLeye builds Juniper Mutual's `http-api` and `static-site` with OpenTofu, in
+the API's image, through a role of its own. In order:
+
+**1. Pin OpenTofu and the provider into the image.** On your Mac, from the repo root:
+
+```bash
+deploy/pin-tofu.sh
+git diff Dockerfile
+```
+
+It downloads OpenTofu 1.12.6 and the AWS provider 5.100.0 for arm64 and amd64, writes
+each file's sha256 into the Dockerfile's `ARG` lines, and checks each against its
+project's own published sums. Commit the diff. Until then the image does not build: its
+OpenTofu step stops and says to run this.
+
+**2. The Terraform deploy role**, beside the deploy role, in the same account:
+
+```bash
+SERVER_ROLE=$(aws cloudformation describe-stacks --region ca-central-1 --stack-name platform-sealeye-server \
+  --query "Stacks[0].Outputs[?OutputKey=='ServerRoleArn'].OutputValue" --output text)
+BUCKET=$(aws ssm get-parameter --region ca-central-1 --name /sealeye/SEALEYE_BUCKET --query Parameter.Value --output text)
+aws cloudformation deploy --region ca-central-1 --capabilities CAPABILITY_NAMED_IAM \
+  --template-file deploy/terraform-role.yaml --stack-name platform-sealeye-terraform-role \
+  --parameter-overrides ServerRoleArn="$SERVER_ROLE" ArtifactBucket="$BUCKET"
+out() { aws cloudformation describe-stacks --region ca-central-1 --stack-name platform-sealeye-terraform-role \
+  --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" --output text; }
+aws ssm put-parameter --region ca-central-1 --name /sealeye/SEALEYE_TERRAFORM_ROLE_ARN --type String --overwrite \
+  --value "$(out TerraformRoleArn)" >/dev/null && echo saved
+out FunctionBoundaryArn    # step 4 sets this as a platform value
+```
+
+The server's role may already become any `sealeye-deploy-*` role, so `server.yaml` does
+not change. State goes under `tofu-state/` in the platform's bucket, which the role may
+read and write and nothing else of.
+
+**3. The foundation**, the network Juniper's modules are built into. It costs nothing
+while nothing is built in it (no NAT gateway):
+
+```bash
+aws cloudformation deploy --region ca-central-1 --template-file deploy/foundation.yaml \
+  --stack-name platform-sealeye-foundation
+aws cloudformation describe-stacks --region ca-central-1 --stack-name platform-sealeye-foundation \
+  --query "Stacks[0].Outputs" --output table
+```
+
+Each output's description says which platform value it is. Today's two modules need
+none of them; connecting modules (the next pull request) will.
+
+**4. Release, then discover Juniper's library again.** Catalog 3 was written before
+discovery recorded how a module takes an app and what it would run, so the executor
+builds none of it (`sealeye catalog test 3` says so). After `deploy/release.sh`:
+
+```bash
+sealeye discover                 # with Juniper's organization-wide token: a new draft
+sealeye catalog fix              # if its words need it
+sealeye catalog approve <n>
+sealeye catalog live <n>
+```
+
+**5. Juniper's platform values.** With the same token:
+
+```bash
+sealeye platform set permissions_boundary_arn <FunctionBoundaryArn from step 2>
+sealeye platform                 # http_api and static_site should say "built"
+```
+
+**6. The first build.** With a Juniper developer's token, in `apps/beneficiary-lookup-api`
+and then `apps/static-website`: `sealeye run`, yes, then `sealeye status`, the URL,
+`sealeye evidence` and `sealeye teardown`. A site takes several minutes to build and
+longer to tear down: the content network is slow to change.
+
+**If the API restarts in the middle of a build,** the deployment fails saying so, and
+the environment's state keeps its lock. Look at what is there, then:
+
+```bash
+deploy/server.sh tofu-unlock dep_...            # what holds the lock
+deploy/server.sh tofu-unlock dep_... --release  # release it
+```
+
+The developer's next deploy, or a tear-down, finishes what the build left.
 
 ## Every release
 

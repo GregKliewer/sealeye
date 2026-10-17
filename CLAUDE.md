@@ -28,7 +28,8 @@ Two surfaces, one product: **seaLeye.run** is the `sealeye` command, and
 cli/        the sealeye command: bin/sealeye, client.js (talks to the API), interview/
             (follow.js streams the interview; render.js), discover.js (a discovery run,
             its questions answered as they come; discover-screen.js draws its window),
-            catalogs.js (`sealeye catalog versions|test|edit|fix|approve|live`), doctor.js,
+            catalogs.js (`sealeye catalog versions|test|edit|fix|approve|live`), platform.js
+            (`sealeye platform`, the organization's platform values), doctor.js,
             store-offer.js (moving .env values into the store),
             brand.js (the only place terminal colours live)
 api/        the API: server.js, store.js, db.js, migrations/, catalogs.js (each organization's
@@ -41,10 +42,15 @@ api/        the API: server.js, store.js, db.js, migrations/, catalogs.js (each 
             library: github.js fetches one commit, tar.js reads it, library.js walks and
             scans it; terraform.js finds modules and their inputs; readers.js the
             workers and the supervisor; draft.js the draft catalog; service.js the run;
-            store.js its records and questions), interview/
+            store.js its records and questions), platform.js (each organization's
+            platform values, by stage), interview/
             (the LangGraph graph, the model, the tools, the service), executor/
-            (compose, package, deploy, poll, report, evidence)
+            (compose, package, deploy, poll, report, evidence; terraform/ the
+            Terraform executor: tofu.js the only file that spawns `tofu`, library.js
+            the module's code at the catalog's commit, root.js the root module,
+            index.js the lifecycle)
 core/       what cli/ and api/ must agree on: schema.js (the plan contract), catalog.js,
+            terraform-modules.js (what a Terraform module needs before it is built),
             config.js (settings and paths), names.js, secrets.js (which files hold
             secrets), scan.js (which values look like secrets, .sealeye-allow, and
             the words for a finding), upload.js and upload-rules.js (what travels to the API, the
@@ -67,10 +73,12 @@ core/       what cli/ and api/ must agree on: schema.js (the plan contract), cat
             so the portal imports them too
 prompts/    system prompt and the starter's passages for it (interview-starter.yaml), plan
             contract, plan, report and evidence templates, catalog
-templates/  one CloudFormation template per buildable module, plus run.sh and
-            sealeye-settings.mjs (the settings reader run.sh loads first)
+templates/  one CloudFormation template per buildable module, plus run.sh,
+            sealeye-settings.mjs (the settings reader run.sh loads first) and
+            sealeye-handler.mjs (the adapter a module that calls a function gets)
 deploy/     the pilot server: Dockerfile's start script, its CloudFormation (server,
-            deploy role), compose, Caddy, and the release scripts. deploy/README.md
+            deploy role, Terraform role, foundation), compose, Caddy, and the release
+            scripts. deploy/README.md
 portal/     seaLeye.online: React, TypeScript, Vite, Tailwind, shadcn-style components in
             src/components/ui. Its own package.json. Calls the API at /api and nothing
             else. tests/ holds the Playwright tests and the test API they run against
@@ -162,7 +170,7 @@ in `core/` or behind an endpoint.
 - Settings are `SEALEYE_<NAME>` (ACCOUNT, BUCKET, LWA_VERSION, FUNCTION_BOUNDARY_ARN, REGION, MODEL, DEBUG,
   HOME, TRACING, MODEL_URL, API, PORTAL, TOKEN, AUTH, RUN_CAP, GATEWAY_KEY, GATEWAY_BUDGET,
   GATEWAY_SIGNING_KEY, LIBRARY_REPOS, GITHUB_APP_ID, GITHUB_APP_KEY, GITHUB_READ_TOKEN,
-  DISCOVERY_WORKER_CAP, DISCOVERY_RUN_CAP),
+  DISCOVERY_WORKER_CAP, DISCOVERY_RUN_CAP, TERRAFORM_ROLE_ARN, TOFU),
   read through `setting()` in
   `core/config.js`. SEALEYE_TOKEN is a secret: it lives in `~/.sealeye/config` (0600),
   is never printed, logged or put on a record. SEALEYE_GATEWAY_KEY is a secret too: the
@@ -186,9 +194,13 @@ planVersion 0.5 (`core/schema.js`). A plan names its catalog (`catalog: starter`
 the version of one of the organization's catalogs that is or was live), and its module
 ids and need kinds are checked against that catalog (`schemaFor` in `core/catalog.js`,
 `api/validate.js`). A module is buildable when its catalog marks it `availability:
-available` and an executor builds what its `builds_with` names (`EXECUTORS`, today
-cloudformation and the starter's four: static_site_edge, http_api_serverless,
-observability_basic, config_basic), and no question it rests on is still open (`open`). 0.2, 0.3 and 0.4 plans are read as 0.5 against the
+available` and an executor builds what its `builds_with` names (`EXECUTORS`:
+cloudformation and the starter's four, static_site_edge, http_api_serverless,
+observability_basic, config_basic; terraform, a module whose every required input has a
+source, that takes the app's code and runs no commands, `terraformBuilds` in
+`core/terraform-modules.js`), and no question it rests on is still open (`open`). What a
+catalog builds is read with the organization's platform values beside it
+(`withPlatform` in `api/platform.js`), never stored in it. 0.2, 0.3 and 0.4 plans are read as 0.5 against the
 starter: a planned module in a 0.2 or 0.3 plan is read as the need it described and the
 plan becomes a draft. The interview's model writes the 0.4 shape with its catalog's
 modules (`interviewContract`; `planSchema04` for the starter) and never a catalog: the
@@ -226,7 +238,10 @@ answered with the interview and its findings), POST
 DELETE /interviews/{id}, GET /whoami, GET /team (people with tokens, never a token), GET /costs (by tag), GET /catalog (the organization's live catalog, or the starter, and which; ?version= the one a plan names; `document` is it as clients draw a plan from it, only what the platform builds), GET /apps/{app}/settings, PUT
 /apps/{app}/settings/{name} ({ value }) and DELETE /apps/{app}/settings/{name} (an app's
 settings in the store: names out, values in, never back), POST /sessions ({ token }) and
-DELETE /sessions (the portal's sign-in and sign-out), POST /discoveries (a run over the
+DELETE /sessions (the portal's sign-in and sign-out), GET /platform (?stage=; the
+organization's platform values and what each Terraform module still needs), PUT and
+DELETE /platform/values/{name} ({ value, stage? }: a word or a list of words, never a
+secret), an organization-wide token's only, POST /discoveries (a run over the
 library the server names), GET /discoveries, GET /discoveries/{id} (the run and its
 questions, and whether an answer is being written into the draft), GET /discoveries/{id}/events (server-sent events), GET
 /discoveries/{id}/catalog (its draft), POST /discoveries/{id}/answers ({ question, answer },
@@ -249,7 +264,13 @@ time per environment: a deploy, deploy again, tear-down, pause or resume while a
 change to it is queued, packaging, running or tearing down is refused with 409
 ENVIRONMENT_BUSY (`api/busy.js`), naming what is under way; drafted plans are still
 saved. GET /deployments marks a success a later success replaced (`replaced`,
-`replacedBy`) and carries the live `step`. A deploy whose code looks like it holds a
+`replacedBy`) and carries the live `step`, and each record says what its environment
+offers (`operations`, `environmentOperations` in `core/operations.js`). A deploy whose
+plan's catalog says `builds_with: terraform` is built by the Terraform executor, whatever
+`backend` the request names; one that executor cannot build is refused with 409
+CANNOT_BUILD, and an environment built one way is not built the other until it is torn
+down (409 ENVIRONMENT_BUILT_ANOTHER_WAY). Logs, pause, resume and performance answer 409
+NOT_FOR_THIS_ENVIRONMENT for a Terraform environment. A deploy whose code looks like it holds a
 secret is refused with 422 SECRETS_FOUND (file, line and rule, nothing kept); when the
 scan itself cannot finish, an interview or a deploy is refused with 503 SCAN_FAILED.
 Keep existing endpoints and commands working; add, do not break.
@@ -282,6 +303,20 @@ Keep existing endpoints and commands working; add, do not break.
   deployment's own operation is visibly under way. A static deploy succeeds only after
   the sync. ROLLBACK_COMPLETE is deleted; UPDATE_ROLLBACK_COMPLETE is not.
 - Static destroy empties the bucket before delete-stack.
+- **The Terraform executor** (`api/executor/terraform/`, PHASE4-PLAN Step 9) builds a
+  plan of one module from the organization's library at the commit its catalog names,
+  fetched read-only with discovery's reader and checked again for anything it would
+  run. It writes `main.tf.json` (the module by its folder, inputs from seaLeye, the
+  app's code and the platform values, the plan's own optional inputs; S3 state under
+  `tofu-state/<org>/<environment>.tfstate` with a lock file; AWS provider 5.100.0), then
+  `init`, `plan`, `apply`, `output`, with `tofu` given only what it needs
+  (`tofuEnv`) and acting through the Terraform deploy role (SEALEYE_TERRAFORM_PROFILE).
+  Status is OpenTofu's exit and the outputs read back; a site's files are synced after,
+  through the same role. A restart during a build fails it, keeping the state's lock
+  for `deploy/server.sh tofu-unlock`. The module's `name` is `moduleName` in
+  `core/names.js` (at most 31 characters), its stage always dev; settings never travel
+  to it. `npm test` uses a stand-in `tofu` (SEALEYE_TOFU); `.github/workflows/tofu.yml`
+  runs the real one (`scripts/tofu-check.js`).
 
 ## Interview
 
@@ -355,9 +390,11 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
 
 ## Current limits (change through ROADMAP.md, not ad hoc)
 
-- One backend: CloudFormation. No Terraform, GitHub Actions or CodePipeline yet.
+- Two backends: CloudFormation for the starter's four, and OpenTofu for an
+  organization's own Terraform modules, one module a plan until modules can be
+  connected. No GitHub Actions or CodePipeline yet.
 - Region ca-central-1 (`SEALEYE_REGION` is an explicit opt-out). Runtime nodejs20.x.
-  No CloudFront.
+  No CloudFront from seaLeye's own templates; an organization's module may use it.
 - The API runs on one pilot server (https://api.sealeye.online, `deploy/`), with
   records and interviews in Postgres, or locally with a JSON file and interviews in
   memory (no `DATABASE_URL`). No sign-in yet: each person has a token, issued with
@@ -366,7 +403,9 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   `juniper` (`deploy/server.sh token add ... --org juniper`), where Juniper Mutual's
   discovered catalog may go live. An app's settings and costs are kept by team, not yet
   by organization, so they answer 409 NOT_FOR_THIS_ORGANIZATION to any organization
-  but default. A token is for one team, or issued `--org-wide` to see every team's.
+  but default; a plan built from the organization's own modules deploys in any
+  organization, since it reads no settings. A token is for one team, or issued
+  `--org-wide` to see every team's.
   The store reads from memory, written through to Postgres: one API process only.
   Every model call on the server goes through agentgateway, a container beside the API
   (`deploy/gateway.yaml`, `deploy/gateway.sh`), which holds the model key and a money
@@ -388,8 +427,8 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   code the platform has), Catalog (modules and the needs ledger), Costs, Team, Health,
   and Discovery (Edit words on its draft, and its Catalogs card: the self-test, Edit
   words on any other draft, Fix what blocks approval, Approve,
-  Make live), shown only
-  to an organization-wide token. Costs and the Settings card are shown only to an
+  Make live), and Platform (the organization's platform values), shown only
+  to an organization-wide token. Control shows only what an environment offers. Costs and the Settings card are shown only to an
   organization whose settings and costs are kept (`hasSettingsAndCosts` in
   `core/token.js`); the header names the token's own organization. Integrations is
   drawn in the archived mock-up only (Phase 5); the portal shows nothing it cannot do.
