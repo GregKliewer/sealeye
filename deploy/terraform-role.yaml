@@ -156,9 +156,12 @@ Resources:
                 Resource: "*"
               # http-api: its HTTPS address. API Gateway names nothing in an ARN, as the
               # CloudFormation role's statement says too.
+              # Every part of it is tagged as it is made (the provider's default tags), and
+              # API Gateway asks for its own tagging actions for that, beside the method
+              # ones: without them a stage cannot be made (the first build, Oct 17, 2026).
               - Sid: HttpApis
                 Effect: Allow
-                Action: [apigateway:GET, apigateway:POST, apigateway:PUT, apigateway:PATCH, apigateway:DELETE]
+                Action: [apigateway:GET, apigateway:POST, apigateway:PUT, apigateway:PATCH, apigateway:DELETE, apigateway:TagResource, apigateway:UntagResource]
                 Resource:
                   - !Sub "arn:aws:apigateway:${AWS::Region}::/apis"
                   - !Sub "arn:aws:apigateway:${AWS::Region}::/apis/*"
