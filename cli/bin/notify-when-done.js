@@ -4,7 +4,8 @@
 // The detached watcher `cli/bin/sealeye` spawns once it has handed the terminal back.
 // It has no terminal of its own and nobody is reading its stdout: it polls the
 // platform the same way runWatch's live panel does, and when the deployment reaches
-// succeeded or failed, it fires one macOS notification and exits.
+// succeeded or failed, it fires one macOS notification and exits. With --teardown it
+// follows a tear-down instead, which ends at destroyed or failed (added Oct 17, 2026).
 //
 // It never writes to deployments.json. The server's own executor is the only writer,
 // exactly as it is for the live panel; this file only reads GET /deployments/:id,
@@ -17,7 +18,8 @@ import { getDeployment } from "../client.js";
 import { DEFAULT_API, setting } from "../../core/config.js";
 import { scoreDeploymentOutcome, flushScores } from "../../core/tracing.js";
 
-const POLL_MS = 5000;
+// Tests shorten the wait (test/teardown-background.test.js); nothing else sets it.
+const POLL_MS = Number(process.env.SEALEYE_TEST_NOTIFY_POLL_MS) || 5000;
 // An hour of five-second polls, then stop rather than keep a process alive forever
 // for a deployment that was destroyed, or a demo machine left running overnight.
 const MAX_TICKS = 720;
@@ -138,12 +140,20 @@ function notifyWithOsascript({ title, subtitle, message, sound }) {
   });
 }
 
+// A tear-down's end, in the words `sealeye teardown` prints when it sees it itself.
+function teardownMessage(dep, appName) {
+  if (dep.status === "destroyed") return `Everything seaLeye.run created for ${appName} is gone.`;
+  const reason = (dep.failureReason || "").replace(/\s+/g, " ").trim().replace(/\.$/, "");
+  return reason ? `Tear-down failed: ${reason}.` : "Tear-down failed, and no reason was reported.";
+}
+
 async function main() {
   const deploymentId = getArg("--deployment-id");
   const apiBaseUrl = getArg("--api") || setting("API") || DEFAULT_API;
   const appPath = getArg("--app");
   const appNameArg = getArg("--app-name");
   const fallbackAppName = appNameArg || appPath?.split("/").filter(Boolean).pop();
+  const teardown = process.argv.includes("--teardown");
 
   if (!deploymentId) return;
 
@@ -157,7 +167,20 @@ async function main() {
       // solve. Try again on the next tick rather than giving up on one bad request.
     }
 
-    if (dep && (dep.status === "succeeded" || dep.status === "failed")) {
+    if (teardown && dep && (dep.status === "destroyed" || dep.status === "failed")) {
+      // Never scored, and no report written: a tear-down says nothing about whether the
+      // interview's plan built, and leaves nothing in the developer's folder.
+      const appName = dep.app?.name || fallbackAppName || "your app";
+      await notify({
+        title: "seaLeye.run",
+        subtitle: `${appName} · ${deploymentId}`,
+        message: teardownMessage(dep, appName),
+        sound: dep.status === "destroyed" ? "Glass" : "Basso"
+      });
+      return;
+    }
+
+    if (!teardown && dep && (dep.status === "succeeded" || dep.status === "failed")) {
       if (dep.status === "succeeded") writeReport(dep, appPath);
 
       // The outcome, against the interview that produced it. This is where most runs
