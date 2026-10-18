@@ -171,23 +171,53 @@ export function driftedResources(messages = []) {
  *   or an empty word are the same (the provider writes `null` and reads back `{}` or `[]`);
  * - the deployment of an API stage that deploys itself (`auto_deploy`): API Gateway sets
  *   `deployment_id` each time it deploys.
+ * - the policies a role reads back that the environment's own attachments put on it: a
+ *   module that attaches a policy as a part of its own (`aws_iam_role_policy_attachment`)
+ *   sees it again in the role's `managed_policy_arns`. A policy nothing in the
+ *   environment attached is still a change.
  * A part with nothing left is not a change.
  */
 export function driftDetail(plan) {
   const empty = v => v == null || v === "" || (Array.isArray(v) && !v.length) || (typeof v === "object" && !Array.isArray(v) && !Object.keys(v).length);
   const same = (x, y) => (empty(x) && empty(y)) || JSON.stringify(x ?? null) === JSON.stringify(y ?? null);
-  const cloudSets = (type, after, key) => type === "aws_apigatewayv2_stage" && key === "deployment_id" && after?.auto_deploy === true;
+  const attached = attachedPolicies(plan);
+  const ownPolicies = (b, a) => {
+    const mine = attached.get(a?.name || b?.name) || new Set();
+    const rest = v => (Array.isArray(v) ? v : []).filter(arn => !mine.has(arn)).sort();
+    return same(rest(b?.managed_policy_arns), rest(a?.managed_policy_arns));
+  };
+  const cloudSets = (type, before, after, key) =>
+    (type === "aws_apigatewayv2_stage" && key === "deployment_id" && after?.auto_deploy === true) ||
+    (type === "aws_iam_role" && key === "managed_policy_arns" && ownPolicies(before, after));
   const changed = (type, before, after) => {
     const b = before && typeof before === "object" ? before : {};
     const a = after && typeof after === "object" ? after : {};
     return [...new Set([...Object.keys(b), ...Object.keys(a)])]
-      .filter(k => !same(b[k], a[k]) && !cloudSets(type, a, k))
+      .filter(k => !same(b[k], a[k]) && !cloudSets(type, b, a, k))
       .sort();
   };
   return (plan?.resource_drift || [])
     .filter(d => d?.address && d?.mode !== "data")
     .map(d => ({ address: d.address, action: d.change?.actions?.join(", ") || null, attributes: changed(d.type || d.address.split(".").at(-2), d.change?.before, d.change?.after) }))
     .filter(d => d.attributes.length);
+}
+
+/** Each role's policies the environment attached itself, by role name, from a plan's state. */
+function attachedPolicies(plan) {
+  const out = new Map();
+  const walk = mod => {
+    for (const r of mod?.resources || []) {
+      if (r?.type !== "aws_iam_role_policy_attachment" || r.mode === "data") continue;
+      const { role, policy_arn: arn } = r.values || {};
+      if (!role || !arn) continue;
+      if (!out.has(role)) out.set(role, new Set());
+      out.get(role).add(arn);
+    }
+    for (const c of mod?.child_modules || []) walk(c);
+  };
+  walk(plan?.prior_state?.values?.root_module);
+  walk(plan?.planned_values?.root_module);
+  return out;
 }
 
 /** A `state list`'s lines: what was built, without the data OpenTofu only reads. */

@@ -185,6 +185,16 @@ test("the change record says which attributes changed outside seaLeye, and lists
   ] };
   // A policy someone attached is still a change.
   assert.deepEqual(driftDetail(fresh), [{ address: "module.app.aws_iam_role.fn", action: "update", attributes: ["managed_policy_arns"] }]);
+  // The role reads back the policy the environment's own attachment put on it: not a change.
+  // One more, that nothing in the environment attached, still is.
+  const basic = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole";
+  const role = extra => ({ resource_drift: [
+    { address: "module.app.aws_iam_role.fn", type: "aws_iam_role", mode: "managed", change: { actions: ["update"], before: { name: "sealeye-x-dev-api", managed_policy_arns: [] }, after: { name: "sealeye-x-dev-api", managed_policy_arns: [basic, ...extra] } } }
+  ], prior_state: { values: { root_module: { child_modules: [{ resources: [
+    { type: "aws_iam_role_policy_attachment", mode: "managed", values: { role: "sealeye-x-dev-api", policy_arn: basic } }
+  ] }] } } } });
+  assert.deepEqual(driftDetail(role([])), []);
+  assert.deepEqual(driftDetail(role(["arn:aws:iam::aws:policy/AdministratorAccess"])), [{ address: "module.app.aws_iam_role.fn", action: "update", attributes: ["managed_policy_arns"] }]);
   assert.deepEqual(builtParts("module.app.data.aws_iam_policy_document.assume\nmodule.app.aws_lambda_function.fn\n\n"), ["module.app.aws_lambda_function.fn"]);
   assert.deepEqual(builtParts("data.aws_caller_identity.me\naws_s3_bucket.b\n"), ["aws_s3_bucket.b"]);
 });
