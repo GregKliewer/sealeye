@@ -232,7 +232,7 @@ async function checkedNowOfTerraform(record) {
     terraform: true,
     state: checked.ok ? { resources: checked.resources } : { error: `not checked: ${checked.error}` },
     changesOutside: checked.ok ? checked.drift : `not checked: ${checked.error}`,
-    changesOutsideNote: "as OpenTofu finds them by reading each part of the environment now, read-only",
+    changesOutsideNote: "as OpenTofu finds them by reading each part of the environment now, read-only, leaving out what the cloud sets itself (an empty value read back as an empty list, and the deployment of a stage that deploys itself)",
     answered
   };
 }
@@ -545,7 +545,6 @@ function checkedNowTerraform(c) {
       const what = x.attributes?.length ? `, ${x.attributes.length === 1 ? "its" : "these"} ${x.attributes.map(code).join(", ")}` : "";
       lines.push(`  - ${code(x.address)}${x.action ? `: ${x.action}` : ""}${what}`);
     }
-    lines.push("", "A change can be the cloud's own (a stage that deploys itself sets its own deployment, for one) as well as a person's: the attributes say which.");
   }
   return lines.join("\n");
 }

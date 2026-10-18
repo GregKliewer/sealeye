@@ -176,6 +176,15 @@ test("the change record says which attributes changed outside seaLeye, and lists
   };
   assert.deepEqual(driftDetail(plan), [{ address: "module.app.aws_apigatewayv2_stage.default", action: "update", attributes: ["deployment_id"] }]);
   assert.deepEqual(driftDetail({}), []);
+  // The first fresh build's five: empty read back as empty, and a stage that deploys itself.
+  const fresh = { resource_drift: [
+    { address: "module.app.aws_apigatewayv2_integration.fn", type: "aws_apigatewayv2_integration", mode: "managed", change: { actions: ["update"], before: { request_parameters: null, request_templates: null }, after: { request_parameters: {}, request_templates: {} } } },
+    { address: "module.app.aws_lambda_function.fn", type: "aws_lambda_function", mode: "managed", change: { actions: ["update"], before: { layers: null, memory_size: 128 }, after: { layers: [], memory_size: 128 } } },
+    { address: "module.app.aws_iam_role.fn", type: "aws_iam_role", mode: "managed", change: { actions: ["update"], before: { managed_policy_arns: [] }, after: { managed_policy_arns: ["arn:aws:iam::aws:policy/AdministratorAccess"] } } },
+    { address: "module.app.aws_apigatewayv2_stage.default", type: "aws_apigatewayv2_stage", mode: "managed", change: { actions: ["update"], before: { auto_deploy: true, deployment_id: "", stage_variables: null }, after: { auto_deploy: true, deployment_id: "x9", stage_variables: {} } } }
+  ] };
+  // A policy someone attached is still a change.
+  assert.deepEqual(driftDetail(fresh), [{ address: "module.app.aws_iam_role.fn", action: "update", attributes: ["managed_policy_arns"] }]);
   assert.deepEqual(builtParts("module.app.data.aws_iam_policy_document.assume\nmodule.app.aws_lambda_function.fn\n\n"), ["module.app.aws_lambda_function.fn"]);
   assert.deepEqual(builtParts("data.aws_caller_identity.me\naws_s3_bucket.b\n"), ["aws_s3_bucket.b"]);
 });
