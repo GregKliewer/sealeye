@@ -92,6 +92,8 @@ catalog:
         handler: { default: index.handler, line: Where your code starts. }
         environment: { default: {}, line: Settings your app reads, never a secret. }
         permissions_boundary_arn: { required: true, line: The platform's limit on what your app may do. }
+        policy_arns: { default: [], line: What your app may read and write, as each module it uses offers it. }
+        secret_arns: { default: [], line: The secrets your app may read while it runs. }
         tags: { default: {}, line: Extra labels on everything it makes. }
       guidance: >-
         Every function carries the platform's permissions boundary. An app that holds a
