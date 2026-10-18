@@ -3845,7 +3845,10 @@ change: a policy attached by hand is still reported. The evidence says what is l
 The next build left one: the role's `managed_policy_arns`, which reads back the logging
 policy the module attaches as a part of its own (`aws_iam_role_policy_attachment`). So a
 role's policies that the environment's own attachments account for, read from the plan's
-state, are left out too; any other policy on the role is still a change.
+state, are left out too; any other policy on the role is still a change. The site's first build
+showed the same thing on its bucket: the bucket's `policy` reads back what the module's
+own `aws_s3_bucket_policy` set, and is left out when it is that policy; a policy changed
+by hand still shows, as a change to the bucket policy part itself.
 
 ## A tear-down carries on in the background
 

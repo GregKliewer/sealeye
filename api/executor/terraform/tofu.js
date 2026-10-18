@@ -175,12 +175,21 @@ export function driftedResources(messages = []) {
  *   module that attaches a policy as a part of its own (`aws_iam_role_policy_attachment`)
  *   sees it again in the role's `managed_policy_arns`. A policy nothing in the
  *   environment attached is still a change.
+ * - a bucket's `policy` read back from the environment's own bucket policy part
+ *   (`aws_s3_bucket_policy`). A policy changed by hand still shows, as a change to that
+ *   part.
  * A part with nothing left is not a change.
  */
 export function driftDetail(plan) {
   const empty = v => v == null || v === "" || (Array.isArray(v) && !v.length) || (typeof v === "object" && !Array.isArray(v) && !Object.keys(v).length);
   const same = (x, y) => (empty(x) && empty(y)) || JSON.stringify(x ?? null) === JSON.stringify(y ?? null);
   const attached = attachedPolicies(plan);
+  const bucketPolicies = ownParts(plan, "aws_s3_bucket_policy", v => [v.bucket, v.policy]);
+  const sameJson = (x, y) => {
+    if (empty(x) || empty(y)) return false;
+    const norm = v => { try { return JSON.stringify(sortKeys(JSON.parse(v))); } catch { return String(v); } };
+    return norm(x) === norm(y);
+  };
   const ownPolicies = (b, a) => {
     const mine = attached.get(a?.name || b?.name) || new Set();
     const rest = v => (Array.isArray(v) ? v : []).filter(arn => !mine.has(arn)).sort();
@@ -188,7 +197,8 @@ export function driftDetail(plan) {
   };
   const cloudSets = (type, before, after, key) =>
     (type === "aws_apigatewayv2_stage" && key === "deployment_id" && after?.auto_deploy === true) ||
-    (type === "aws_iam_role" && key === "managed_policy_arns" && ownPolicies(before, after));
+    (type === "aws_iam_role" && key === "managed_policy_arns" && ownPolicies(before, after)) ||
+    (type === "aws_s3_bucket" && key === "policy" && empty(before?.policy) && sameJson(after?.policy, bucketPolicies.get(after?.bucket || after?.id)));
   const changed = (type, before, after) => {
     const b = before && typeof before === "object" ? before : {};
     const a = after && typeof after === "object" ? after : {};
@@ -200,6 +210,25 @@ export function driftDetail(plan) {
     .filter(d => d?.address && d?.mode !== "data")
     .map(d => ({ address: d.address, action: d.change?.actions?.join(", ") || null, attributes: changed(d.type || d.address.split(".").at(-2), d.change?.before, d.change?.after) }))
     .filter(d => d.attributes.length);
+}
+
+const sortKeys = v => Array.isArray(v) ? v.map(sortKeys)
+  : v && typeof v === "object" ? Object.fromEntries(Object.keys(v).sort().map(k => [k, sortKeys(v[k])])) : v;
+
+/** One kind of the environment's own parts, from a plan's state, as a map of `pick`'s [key, value]. */
+function ownParts(plan, type, pick) {
+  const out = new Map();
+  const walk = mod => {
+    for (const r of mod?.resources || []) {
+      if (r?.type !== type || r.mode === "data" || !r.values) continue;
+      const [k, v] = pick(r.values);
+      if (k && v != null && !out.has(k)) out.set(k, v);
+    }
+    for (const c of mod?.child_modules || []) walk(c);
+  };
+  walk(plan?.prior_state?.values?.root_module);
+  walk(plan?.planned_values?.root_module);
+  return out;
 }
 
 /** Each role's policies the environment attached itself, by role name, from a plan's state. */

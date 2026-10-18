@@ -195,6 +195,16 @@ test("the change record says which attributes changed outside seaLeye, and lists
   ] }] } } } });
   assert.deepEqual(driftDetail(role([])), []);
   assert.deepEqual(driftDetail(role(["arn:aws:iam::aws:policy/AdministratorAccess"])), [{ address: "module.app.aws_iam_role.fn", action: "update", attributes: ["managed_policy_arns"] }]);
+  // The bucket reads back the policy its own bucket policy part set: not a change. A
+  // different one is.
+  const own = JSON.stringify({ Version: "2012-10-17", Statement: [{ Effect: "Allow", Action: "s3:GetObject" }] });
+  const bucket = policy => ({ resource_drift: [
+    { address: "module.app.aws_s3_bucket.site", type: "aws_s3_bucket", mode: "managed", change: { actions: ["update"], before: { bucket: "juniper-site-x-dev", policy: "" }, after: { bucket: "juniper-site-x-dev", policy } } }
+  ], prior_state: { values: { root_module: { child_modules: [{ resources: [
+    { type: "aws_s3_bucket_policy", mode: "managed", values: { bucket: "juniper-site-x-dev", policy: own } }
+  ] }] } } } });
+  assert.deepEqual(driftDetail(bucket(JSON.stringify({ Statement: [{ Action: "s3:GetObject", Effect: "Allow" }], Version: "2012-10-17" }))), []);
+  assert.deepEqual(driftDetail(bucket(JSON.stringify({ Version: "2012-10-17", Statement: [{ Effect: "Allow", Action: "s3:*" }] }))), [{ address: "module.app.aws_s3_bucket.site", action: "update", attributes: ["policy"] }]);
   assert.deepEqual(builtParts("module.app.data.aws_iam_policy_document.assume\nmodule.app.aws_lambda_function.fn\n\n"), ["module.app.aws_lambda_function.fn"]);
   assert.deepEqual(builtParts("data.aws_caller_identity.me\naws_s3_bucket.b\n"), ["aws_s3_bucket.b"]);
 });
