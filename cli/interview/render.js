@@ -133,8 +133,9 @@ function cardContent(plan, catalog) {
     .map(m => ({
       key: `module:${m.id}`,
       id: m.id,
-      text: shortLine(entryFor(m.id).line),
-      signature: stableJson(m.inputs || {})
+      // A module the app uses says where the app finds it (planVersion 0.6).
+      text: `${shortLine(entryFor(m.id).line)}${m.connect && Object.keys(m.connect).length ? `, which your app finds through ${Object.values(m.connect).join(" and ")}` : ""}`,
+      signature: stableJson({ inputs: m.inputs || {}, ...(m.connect ? { connect: m.connect } : {}) })
     }));
 
   const variables = Object.keys(moduleById(plan, "config_basic")?.inputs?.variables || {});

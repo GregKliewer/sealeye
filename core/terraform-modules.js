@@ -71,11 +71,14 @@ export function terraformBuilds(entry, platform = {}) {
   // its release (core/module-versions.js).
   if (entry.unreleased) return no(`your organization's library has not released it yet (a release is a tag such as ${String(entry.source || "").split("/").pop() || "its-folder"}/v1.0.0)`);
   const delivers = entry.delivers;
-  if (!delivers || (delivers.kind !== "package" && delivers.kind !== "files")) {
-    return no("it does not take an app's code, and the platform does not connect modules to each other yet");
+  // A module an app uses rather than one that runs it: built beside the app's module and
+  // connected to it through what it offers (isPart). It must grant what the app needs.
+  const part = !delivers && isPart(entry);
+  if (!part && (!delivers || (delivers.kind !== "package" && delivers.kind !== "files"))) {
+    return no("it does not take an app's code, and offers an app nothing it can connect to");
   }
-  if (delivers.kind === "package" && codeInputs(entry).length !== 2) return no("it does not say which input takes the app and which the function to call");
-  if (delivers.kind === "files" && !(typeof delivers.output === "string" && delivers.output)) return no("it does not say where a site's files go");
+  if (delivers?.kind === "package" && codeInputs(entry).length !== 2) return no("it does not say which input takes the app and which the function to call");
+  if (delivers?.kind === "files" && !(typeof delivers.output === "string" && delivers.output)) return no("it does not say where a site's files go");
 
   const names = new Set(Array.isArray(platform?.names) ? platform.names : []);
   const own = new Set([...SEALEYE_INPUTS, ...codeInputs(entry)]);
@@ -86,7 +89,36 @@ export function terraformBuilds(entry, platform = {}) {
   if (missing.length) {
     return no(`the platform has no value for its ${missing.join(", ")} input${missing.length === 1 ? "" : "s"}`, missing);
   }
-  return { builds: true, why: null, missing: [] };
+  const later = part ? notConnectedYet(entry) : null;
+  if (later) return no(later);
+  return { builds: true, why: null, missing: [], ...(part ? { part: true } : {}) };
+}
+
+/**
+ * Whether a module is one an app uses (a table, a bucket, a queue, a database) and can
+ * be connected to: it offers a policy granting the app access, or a secret the app reads
+ * (api/discovery/terraform.js, connectsOf).
+ */
+export function isPart(entry) {
+  const o = entry?.offers;
+  return Boolean(o && (o.access || (Array.isArray(o.secrets) && o.secrets.length)));
+}
+
+/**
+ * Why a module an app uses is not connected yet, or null. A database is reached over the
+ * private network, and the platform does not put an app's module in that network yet
+ * (docs/OPEN-QUESTIONS.md, Q23).
+ */
+export function notConnectedYet(entry) {
+  if (!isPart(entry)) return null;
+  if (!entry.offers.access) return "an app reaches it over the private network, and the platform does not connect an app to that network yet";
+  return null;
+}
+
+/** What a module that runs an app takes of the modules it uses, or null when nothing. */
+export function acceptsOf(entry) {
+  const a = entry?.accepts;
+  return a && (a.policies || a.secrets) ? a : null;
 }
 
 /**
@@ -130,4 +162,57 @@ export function platformInputs(entry, values = {}) {
     if (from) out[input] = { from, value: values[from] };
   }
   return out;
+}
+
+const SETTING = /^[A-Z][A-Z0-9_]{0,63}$/;
+
+/**
+ * What is wrong with how a plan connects the modules its app uses to the app's module
+ * (DESIGN.md, "Modules are connected through what the library offers"), as the plan
+ * check's problems ({ code: "CONNECTION", path, message }), for the model to put right.
+ * Empty for a plan that uses none. Code wires them (api/executor/terraform/root.js);
+ * the plan says only which modules, and the setting each value reaches the app under.
+ *
+ * @param {object} plan
+ * @param {object} catalog  the catalog the plan names
+ */
+export function connectionProblems(plan, catalog) {
+  const problems = [];
+  const say = (path, message) => problems.push({ code: "CONNECTION", path, message });
+  const entries = new Map((catalog?.modules || []).map(m => [m?.id, m]));
+  const used = (plan?.modules || []).map((m, i) => ({ m, i })).filter(({ m }) => m && m.enabled !== false);
+  const parts = used.filter(({ m }) => isPart(entries.get(m.id)) && !entries.get(m.id)?.delivers);
+  for (const { m, i } of used) {
+    if (m.connect && !parts.some(p => p.m === m)) say(`/modules/${i}/connect`, `/modules/${i} (${m.id}) is not a module the app uses, so it connects nothing: leave connect out`);
+  }
+  if (!parts.length) return problems;
+
+  const apps = used.filter(({ m }) => entries.get(m.id)?.delivers);
+  if (apps.length !== 1) {
+    say("/modules", `a plan that uses ${parts.map(p => p.m.id).join(", ")} needs exactly one module that runs the app, to connect ${parts.length === 1 ? "it" : "them"} to`);
+    return problems;
+  }
+  const app = entries.get(apps[0].m.id);
+  const takes = acceptsOf(app);
+  const settings = new Map(Object.keys(apps[0].m.inputs?.environment || {}).map(k => [k, `/modules/${apps[0].i}/inputs/environment`]));
+
+  for (const { m, i } of parts) {
+    const offers = entries.get(m.id).offers;
+    const where = `/modules/${i}`;
+    if (offers.access && !takes?.policies) say(where, `${app.id} cannot be given what the app needs to use ${m.id}: it takes no policies`);
+    if (offers.secrets?.length && !takes?.secrets) say(where, `${app.id} cannot be given ${m.id}'s secret: it takes no secrets`);
+    const connect = m.connect || {};
+    const values = offers.values || [];
+    if (values.length && !Object.keys(connect).length) {
+      say(`${where}/connect`, `${where} (${m.id}) must say the setting the app reads each of its values from, in connect: ${values.join(", ")}`);
+    }
+    for (const [value, setting] of Object.entries(connect)) {
+      if (!values.includes(value)) say(`${where}/connect/${value}`, `${m.id} offers no value called ${value}; it offers ${values.join(", ") || "none"}`);
+      if (!SETTING.test(String(setting))) say(`${where}/connect/${value}`, `${setting} is not a setting's name: upper-case letters, digits and underscores`);
+      else if (settings.has(setting)) say(`${where}/connect/${value}`, `${setting} is already a setting the app reads, at ${settings.get(setting)}; give this value its own`);
+      else settings.set(setting, `${where}/connect/${value}`);
+    }
+    if (Object.keys(connect).length && !takes?.environment) say(`${where}/connect`, `${app.id} cannot hand the app settings: it takes no environment`);
+  }
+  return problems;
 }

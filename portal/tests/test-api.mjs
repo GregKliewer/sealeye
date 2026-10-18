@@ -86,7 +86,9 @@ fs.writeFileSync(path.join(home, "deployments.json"), JSON.stringify([
   { ...base, backend: "terraform", teamId: "lookup", deploymentId: "dep_lllllllllll1", app: { name: "beneficiary-lookup" }, kind: "api", status: "succeeded",
     environment: "sealeye-lookup-beneficiary-lookup-1a2b3c", stackName: "sealeye-lookup-beneficiary-lookup-1a2b3c",
     plan: apiPlan("beneficiary-lookup"), artifactKey: "sealeye-lookup-beneficiary-lookup-1a2b3c/dep_lllllllllll1.zip", outputs: { ApiUrl: "https://lookup321.execute-api.ca-central-1.amazonaws.com/" },
-    requestedBy: by("Bo Lindqvist", "bo@example.com"), startedAt: ago(5 * 3600_000), finishedAt: ago(5 * 3600_000 - 120_000) },
+    requestedBy: by("Bo Lindqvist", "bo@example.com"), startedAt: ago(5 * 3600_000), finishedAt: ago(5 * 3600_000 - 120_000),
+    // With a table it uses, built beside it (planVersion 0.6).
+    terraform: { module: { id: "http_api", source: "modules/http-api" }, parts: [{ id: "document_table", source: "modules/document-table", line: "A table of documents your app finds by key." }], settings: { BENEFICIARIES_TABLE: "document_table.table_name" } } },
   { ...base, orgId: "other-org", deploymentId: "dep_fffffffffff1", app: { name: "not-yours" }, kind: "api", status: "succeeded", stackName: "sealeye-not-yours",
     plan: { profile: "dev" }, outputs: {}, requestedBy: by("Other Org", "x@other.example"), startedAt: ago(3600_000) }
 ]));

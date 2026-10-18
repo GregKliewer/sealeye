@@ -191,14 +191,24 @@ function selectedModules({ plan, catalog }) {
       const entry = catalog.modules.find(m => m.id === module.id);
       const role = entry?.role === "core" ? "Core" : entry?.role === "shared" ? "Observability" : "Optional";
       const line = entry?.line?.trim() || "";
-      return `### ${module.id} - ${role}\n${line}${inputLines(module)}`;
+      return `### ${module.id} - ${role}\n${line}${inputLines(module)}${connectLines(module)}`;
     })
     .join("\n\n");
+}
+
+/** The setting each value a module the app uses reaches the app under (planVersion 0.6). */
+const idWords = ids => (ids.length < 2 ? ids.join("") : `${ids.slice(0, -1).join(", ")} and ${ids[ids.length - 1]}`);
+
+function connectLines(module) {
+  const pairs = Object.entries(module.connect || {});
+  if (!pairs.length) return "";
+  return `\n${pairs.map(([value, setting]) => `- Your app reads its ${value.replace(/_/g, " ")} from ${setting}.`).join("\n")}`;
 }
 
 function whatWillBeCreated({ plan }) {
   const core = coreModule(plan);
   const steps = [];
+  const connected = enabledModules(plan).filter(m => m.connect && Object.keys(m.connect).length);
 
   if (core?.id === "static_site_edge") {
     steps.push("Your files are uploaded exactly as they are, with nothing added to your folder.");
@@ -224,6 +234,13 @@ function whatWillBeCreated({ plan }) {
       names.length
         ? `The settings your app reads from its environment are passed to it when it runs: ${names.join(", ")}.`
         : "The settings your app reads from its environment are passed to it when it runs."
+    );
+  }
+
+  if (connected.length) {
+    steps.push(
+      `${idWords(connected.map(m => m.id))} ${connected.length === 1 ? "is" : "are"} built beside your app, and your app is given what it needs to use ${connected.length === 1 ? "it" : "them"}, ` +
+      `with ${connected.flatMap(m => Object.values(m.connect)).join(", ")} set to where to find ${connected.length === 1 ? "it" : "them"}.`
     );
   }
 

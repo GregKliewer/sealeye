@@ -930,4 +930,8 @@ test("an environment built from the organization's own modules shows only what i
   await expect(page.getByTestId("configure")).toHaveCount(0);
   await expect(page.getByTestId("settings")).toHaveCount(0);
   await expect(page.locator("body")).not.toContainText(/Terraform|OpenTofu|CloudFormation/);
+  // Tearing it down says the table it uses goes too, before anything is asked.
+  await page.getByTestId("teardown").getByRole("button", { name: "Tear down" }).click();
+  await expect(page.getByTestId("teardown-data")).toHaveText("This also deletes a table of documents your app finds by key, and everything in it.");
+  await page.getByRole("button", { name: "Keep it" }).click();
 });

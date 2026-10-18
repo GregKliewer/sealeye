@@ -190,7 +190,10 @@ in `core/` or behind an endpoint.
 
 ## The plan contract
 
-planVersion 0.5 (`core/schema.js`). A plan names its catalog (`catalog: starter`, or
+planVersion 0.5 (`core/schema.js`), or 0.6 when it connects modules: a module the app
+uses (one that offers it access, `isPart` in `core/terraform-modules.js`) says in
+`connect` the setting each value it offers reaches the app under, and code wires the
+rest (`connectionProblems`, `connectionInputs` in `api/executor/terraform/root.js`). A plan names its catalog (`catalog: starter`, or
 the version of one of the organization's catalogs that is or was live), and its module
 ids and need kinds are checked against that catalog (`schemaFor` in `core/catalog.js`,
 `api/validate.js`). A module is buildable when its catalog marks it `availability:
@@ -393,8 +396,10 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
 ## Current limits (change through ROADMAP.md, not ad hoc)
 
 - Two backends: CloudFormation for the starter's four, and OpenTofu for an
-  organization's own Terraform modules, one module a plan until modules can be
-  connected. No GitHub Actions or CodePipeline yet.
+  organization's own Terraform modules: one module that runs the app a plan, with the
+  modules it uses (a table, a bucket, a queue) connected to it through what the library
+  offers, never a resource of seaLeye's own. A database waits on the network (Q23). No
+  GitHub Actions or CodePipeline yet.
 - Region ca-central-1 (`SEALEYE_REGION` is an explicit opt-out). Runtime nodejs20.x.
   No CloudFront from seaLeye's own templates; an organization's module may use it.
 - The API runs on one pilot server (https://api.sealeye.online, `deploy/`), with

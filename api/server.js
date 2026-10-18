@@ -853,6 +853,9 @@ app.get("/deployments", (req, res) => {
     // What this environment offers, by operation id (core/operations.js): one built from
     // the organization's own modules offers less, for now (PHASE4-PLAN Step 9).
     operations: environmentOperations(dep.backend),
+    // What a tear-down of it deletes that holds the app's data, in the catalog's words
+    // (core/plan-report-words.js): the modules the app uses, built beside it.
+    ...(dep.terraform?.parts?.length ? { terraform: { parts: dep.terraform.parts.map(({ id, line }) => ({ id, line: line || null })) } } : {}),
     profile: dep.plan?.profile || null,
     requestedBy: dep.requestedBy || null,
     surface: dep.surface || "cli",

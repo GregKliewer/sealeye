@@ -243,6 +243,53 @@ export function deliversOf(inputs = {}, outputs = {}) {
   return null;
 }
 
+// What a module offers an app that uses it (PHASE4-PLAN Step 9, connecting modules;
+// DESIGN.md, "Modules are connected through what the library offers"): a policy granting
+// access, made by the module itself, and a narrower one beside it; a secret the app may
+// read; and the values the app looks each one up by.
+const ACCESS_OUTPUT = /^access_policy_arn$/;
+const POLICY_OUTPUT = /_policy_arn$/;
+const SECRET_OUTPUT = /_secret_arn$/;
+// What an app module takes of them.
+const POLICIES_INPUT = /^policy_arns$/;
+const SECRETS_INPUT = /^secret_arns$/;
+const ENVIRONMENT_INPUT = /^environment$/;
+
+/**
+ * How a module connects to another, from its inputs and outputs, by code:
+ *
+ * - `offers`, for a module an app uses: `access` (the output granting what the app needs),
+ *   `narrower` (other policies), `secrets` (secrets the app may read) and `values` (what
+ *   the app looks it up by: a name, an address), each by output name. Only a module that
+ *   grants access or a secret offers anything: an app cannot use the rest.
+ * - `accepts`, for a module that runs an app: the inputs that take policies, secrets and
+ *   the settings the app reads.
+ *
+ * @returns {{ offers?: object, accepts?: object }}
+ */
+export function connectsOf(inputs = {}, outputs = {}) {
+  const names = Object.keys(outputs);
+  const access = names.find(n => ACCESS_OUTPUT.test(n)) || null;
+  const secrets = names.filter(n => SECRET_OUTPUT.test(n)).sort();
+  const out = {};
+  if (access || secrets.length) {
+    out.offers = {
+      access,
+      narrower: names.filter(n => POLICY_OUTPUT.test(n) && n !== access).sort(),
+      secrets,
+      values: names.filter(n => !/_arns?$|_ids?$/.test(n) && n !== "role_name").sort()
+    };
+  }
+  const takes = Object.keys(inputs);
+  const policies = takes.find(n => POLICIES_INPUT.test(n));
+  const secretsIn = takes.find(n => SECRETS_INPUT.test(n));
+  const environment = takes.find(n => ENVIRONMENT_INPUT.test(n));
+  if (policies || secretsIn) {
+    out.accepts = { ...(policies ? { policies } : {}), ...(secretsIn ? { secrets: secretsIn } : {}), ...(environment ? { environment } : {}) };
+  }
+  return out;
+}
+
 /**
  * What a module's code would run on the platform's own server, or reach beyond the
  * library, in words: a provisioner, the `external` data source, another state, any

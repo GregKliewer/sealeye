@@ -33,6 +33,13 @@ function juniperCatalog() {
   const http = doc.modules.find(m => m.id === "http_api");
   http.outputs = { url: { line: "The API's address." }, role_name: { line: "The function's role." } };
   http.delivers = { kind: "package", package: "package_path", handler: "handler", address: "url" };
+  // What code reads of how modules connect (api/discovery/terraform.js, connectsOf).
+  http.inputs.policy_arns = { required: false, default: [] };
+  http.inputs.secret_arns = { required: false, default: [] };
+  http.accepts = { policies: "policy_arns", secrets: "secret_arns", environment: "environment" };
+  const table = doc.modules.find(m => m.id === "document_table");
+  table.outputs = { table_name: { line: "The table." }, table_arn: { line: "The table." }, access_policy_arn: { line: "Reads and writes it." }, read_only_policy_arn: { line: "Reads it." } };
+  table.offers = { access: "access_policy_arn", narrower: ["read_only_policy_arn"], secrets: [], values: ["table_name"] };
   const site = doc.modules.find(m => m.id === "static_site");
   site.outputs = { bucket_name: { line: "Upload the site's files here." }, url: { line: "The site's address." } };
   site.delivers = { kind: "files", output: "bucket_name", address: "url" };
@@ -90,6 +97,7 @@ function writeLibrary(home) {
   put("modules/static-site/main.tf", 'resource "aws_s3_bucket" "site" {}\n');
   put("modules/static-site/variables.tf", 'variable "name" {}\nvariable "stage" {}\n');
   put("modules/postgres/main.tf", 'resource "aws_db_instance" "db" {}\n');
+  put("modules/document-table/main.tf", 'resource "aws_dynamodb_table" "table" {}\n');
   put(".complete", `${REPO}@${COMMIT}\n`);
 }
 
@@ -139,7 +147,9 @@ async function appZip(files) {
   return Buffer.from(zip).toString("base64");
 }
 
-const planFor = (app, type, modules) => ({ planVersion: "0.5", catalog: 3, app: { name: app, type }, profile: "dev", modules, outputs: ["public_url"] });
+const planFor = (app, type, modules) => ({
+  planVersion: modules.some(m => m.connect) ? "0.6" : "0.5", catalog: 3, app: { name: app, type }, profile: "dev", modules, outputs: ["public_url"]
+});
 
 async function waitFor(id, tok, done = s => ["succeeded", "failed", "destroyed"].includes(s)) {
   for (let i = 0; i < 200; i++) {
@@ -335,7 +345,7 @@ test("what the Terraform executor cannot build is refused before anything is bui
   const two = await post(planFor("both", "api", [{ id: "http_api" }, { id: "static_site" }]));
   assert.equal(two.status, 409);
   assert.equal(two.body.error.code, "CANNOT_BUILD");
-  assert.match(two.body.error.message, /does not connect your organization's modules to each other yet/);
+  assert.match(two.body.error.message, /more than one module that runs the app/);
 
   const settings = await post(planFor("withenv", "api", [{ id: "http_api", inputs: { environment: { DB_HOST: "x" } } }]));
   assert.equal(settings.status, 201);
@@ -388,4 +398,61 @@ test("the default organization's CloudFormation deploys are as they were, and an
   const list = await h.call("/deployments", { token: OTHER });
   const row = list.body.deployments.find(d => d.deploymentId === res.body.deploymentId);
   assert.ok(row.operations.includes("logs") && row.operations.includes("pause"));
+});
+
+test("an app and the table it uses are built as one environment, connected through what the library offers", async () => {
+  const zip = await appZip({ "package.json": JSON.stringify({ name: "orders", main: "index.js" }), "index.js": "1" });
+  const post = plan => h.call("/deployments", { token: DEV, method: "POST", body: { backend: "cloudformation", plan, zip, appPath: "orders" } });
+
+  // The checks a connected plan meets, before anything is recorded.
+  const check = plan => h.call("/plans/validate", { token: DEV, method: "POST", body: plan });
+  const unnamed = await check(planFor("orders", "api", [{ id: "http_api" }, { id: "document_table" }]));
+  assert.match(JSON.stringify(unnamed.body.errors), /must say the setting the app reads each of its values from, in connect: table_name/);
+  const wrong = await check(planFor("orders", "api", [{ id: "http_api" }, { id: "document_table", connect: { table_arn: "ORDERS_TABLE" } }]));
+  assert.match(JSON.stringify(wrong.body.errors), /offers no value called table_arn; it offers table_name/);
+  const alone = await check(planFor("orders", "api", [{ id: "document_table", connect: { table_name: "ORDERS_TABLE" } }]));
+  assert.match(JSON.stringify(alone.body.errors), /needs exactly one module that runs the app/);
+  const old = await check({ ...planFor("orders", "api", [{ id: "http_api" }, { id: "document_table", connect: { table_name: "ORDERS_TABLE" } }]), planVersion: "0.5" });
+  assert.match(JSON.stringify(old.body.errors), /a plan that connects modules is planVersion 0\.6/);
+
+  const plan = planFor("orders", "api", [{ id: "http_api" }, { id: "document_table", inputs: { key: "orderId" }, connect: { table_name: "ORDERS_TABLE" } }]);
+  assert.equal((await check(plan)).body.valid, true);
+  const res = await post(plan);
+  assert.equal(res.status, 201, JSON.stringify(res.body));
+  const done = await waitFor(res.body.deploymentId, DEV);
+  assert.equal(done.status, "succeeded", done.failureReason);
+
+  const root = lastRoot();
+  assert.deepEqual(Object.keys(root.module).sort(), ["app", "document_table"], "the app's module stays app; the table goes by its id");
+  assert.equal(root.module.document_table.source, "./library/modules/document-table");
+  assert.equal(root.module.document_table.name, done.resourceName);
+  assert.equal(root.module.document_table.stage, "dev");
+  assert.equal(root.module.document_table.key, "orderId", "an optional input the plan gives is passed on");
+  assert.deepEqual(root.module.app.policy_arns, ["${module.document_table.access_policy_arn}"], "the library's own policy, never one seaLeye writes");
+  assert.deepEqual(root.module.app.environment, { ORDERS_TABLE: "${module.document_table.table_name}" });
+  assert.equal(root.resource, undefined, "the root makes nothing of its own");
+  assert.equal(root.data, undefined);
+
+  assert.equal(done.terraform.parts.length, 1);
+  const part = done.terraform.parts[0];
+  assert.deepEqual([part.id, part.source, part.repo, part.commit], ["document_table", "modules/document-table", REPO, COMMIT]);
+  assert.ok(part.line, "the catalog's own words for it, for the report and a tear-down");
+  assert.deepEqual(done.terraform.settings, { ORDERS_TABLE: "document_table.table_name" });
+  assert.deepEqual(done.terraform.inputs.find(i => i.name === "policy_arns"), { name: "policy_arns", source: "the modules your app uses", from: "document_table" });
+  assert.match(done.report, /which your app finds through `ORDERS_TABLE`\. Your app is given what it needs to use it, and nothing more\./);
+  assert.doesNotMatch(done.report, /policy|Terraform|DynamoDB/i, "the report says what the app got, in its words");
+  const { teardownDataWords } = await import("../core/plan-report-words.js");
+  const listed = (await h.call("/deployments", { token: DEV })).body.deployments.find(d => d.deploymentId === done.deploymentId);
+  assert.equal(teardownDataWords(listed).length, 1, "the list carries what a tear-down would delete");
+  assert.match(teardownDataWords(listed)[0], /^This also deletes .+, and everything in it\.$/);
+  const ev = await h.call(`/deployments/${done.deploymentId}/evidence`, { token: DEV });
+  assert.match(ev.body.markdown, /- Connected: `document_table`, the folder `modules\/document-table` at commit/);
+  assert.match(ev.body.markdown, /`ORDERS_TABLE` is `document_table\.table_name` \(names only\)/);
+
+  // Torn down together, from the same root.
+  fs.rmSync(path.join(logDir, "main.tf.json"), { force: true });
+  await h.call(`/deployments/${done.deploymentId}`, { token: DEV, method: "DELETE" });
+  const gone = await waitFor(done.deploymentId, DEV, st => ["destroyed", "failed"].includes(st));
+  assert.equal(gone.status, "destroyed", gone.failureReason);
+  assert.deepEqual(Object.keys(lastRoot().module).sort(), ["app", "document_table"]);
 });

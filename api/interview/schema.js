@@ -25,7 +25,8 @@ export function submitPlanInputSchemaFor(catalog = starterCatalog(), { starter =
       plan: {
         ...interviewContract({
           moduleIds: schema.properties.modules.items.properties.id.enum || [],
-          needKinds: schema.properties.needs.items.properties.kind.enum.filter(k => k !== "unlisted")
+          needKinds: schema.properties.needs.items.properties.kind.enum.filter(k => k !== "unlisted"),
+          connects: Boolean(schema.properties.modules.items.properties.connect)
         }),
         description: interviewPassages(catalog, { starter }).plan_description
       },

@@ -46,7 +46,7 @@ import { runDoctor } from "../doctor.js";
 import { writeInterviewFiles, decisionCard } from "../interview/render.js";
 import { catalogSentence, plainValidationErrors } from "../../core/plan-words.js";
 import { evidenceSummary } from "../../core/evidence-summary.js";
-import { noReportWords, planOrigin } from "../../core/plan-report-words.js";
+import { noReportWords, planOrigin, teardownDataWords } from "../../core/plan-report-words.js";
 import { RETENTION_CHOICES, retentionOf, withRetention } from "../../core/retention.js";
 import { commandFor, wordsFor } from "../../core/operations.js";
 import { discover } from "../discover.js";
@@ -1357,6 +1357,10 @@ async function main() {
 
     const { deploymentId, label } = resolved;
 
+    // What it deletes that holds the app's data, said before it is asked for.
+    try {
+      for (const line of teardownDataWords(await getDeployment({ apiBaseUrl, deploymentId }))) console.log(c.prompt(line));
+    } catch {}
     say(`Asking seaLeye.run to tear down ${label}`);
     const started = await refusedInWords(() => destroyDeployment({ apiBaseUrl, deploymentId }));
     if (!started) return;

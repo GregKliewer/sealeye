@@ -26,3 +26,18 @@ export function noReportWords({ status, failureReason, reportError } = {}) {
     default: return "This deployment has no report.";
   }
 }
+
+/**
+ * What a tear-down deletes that holds an app's data, in the catalog's words: each module
+ * the app uses that was built beside it (a table, a bucket, a queue, a database), from
+ * the record. Empty for an environment with none. A tear-down still runs: it is dev
+ * (Greg, Oct 17, 2026, W6). Both surfaces say it before asking the platform.
+ */
+export function teardownDataWords(record) {
+  const parts = Array.isArray(record?.terraform?.parts) ? record.terraform.parts : [];
+  return parts.map(p => {
+    const what = String(p?.line || "").trim().replace(/[.!?]+$/, "");
+    const named = what ? what.charAt(0).toLowerCase() + what.slice(1) : `the module ${p?.id || ""}`.trim();
+    return `This also deletes ${named}, and everything in it.`;
+  });
+}
