@@ -3842,6 +3842,11 @@ change. What `tofu show` read decides even when it leaves nothing; the streamed 
 which name only the part, are used only when it could not be read. Anything else stays a
 change: a policy attached by hand is still reported. The evidence says what is left out.
 
+The next build left one: the role's `managed_policy_arns`, which reads back the logging
+policy the module attaches as a part of its own (`aws_iam_role_policy_attachment`). So a
+role's policies that the environment's own attachments account for, read from the plan's
+state, are left out too; any other policy on the role is still a change.
+
 ## A tear-down carries on in the background
 
 Sat Oct 17, 2026. Greg: tear-downs take longer now that environments are built from an
