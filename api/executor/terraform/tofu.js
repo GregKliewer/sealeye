@@ -163,21 +163,31 @@ export function driftedResources(messages = []) {
 /**
  * What changed outside OpenTofu, part by part, with the attributes that differ, from the
  * saved refresh-only plan as `tofu show -json` gives it (`resource_drift`). The streamed
- * messages name only the part; a reader needs to see what changed to tell a person's
- * change from the cloud's own housekeeping (the first build, Oct 17, 2026: API Gateway
- * sets a stage's deployment itself when it deploys automatically).
+ * messages name only the part; a reader needs to see what changed.
+ *
+ * Two kinds of difference are the cloud's own and are left out (the first builds, Oct 17,
+ * 2026, where a fresh environment showed five "changes" nobody made):
+ * - an empty value read back as another empty one: nothing, an empty list, an empty map
+ *   or an empty word are the same (the provider writes `null` and reads back `{}` or `[]`);
+ * - the deployment of an API stage that deploys itself (`auto_deploy`): API Gateway sets
+ *   `deployment_id` each time it deploys.
+ * A part with nothing left is not a change.
  */
 export function driftDetail(plan) {
-  const changed = (before, after) => {
+  const empty = v => v == null || v === "" || (Array.isArray(v) && !v.length) || (typeof v === "object" && !Array.isArray(v) && !Object.keys(v).length);
+  const same = (x, y) => (empty(x) && empty(y)) || JSON.stringify(x ?? null) === JSON.stringify(y ?? null);
+  const cloudSets = (type, after, key) => type === "aws_apigatewayv2_stage" && key === "deployment_id" && after?.auto_deploy === true;
+  const changed = (type, before, after) => {
     const b = before && typeof before === "object" ? before : {};
     const a = after && typeof after === "object" ? after : {};
     return [...new Set([...Object.keys(b), ...Object.keys(a)])]
-      .filter(k => JSON.stringify(b[k] ?? null) !== JSON.stringify(a[k] ?? null))
+      .filter(k => !same(b[k], a[k]) && !cloudSets(type, a, k))
       .sort();
   };
   return (plan?.resource_drift || [])
     .filter(d => d?.address && d?.mode !== "data")
-    .map(d => ({ address: d.address, action: d.change?.actions?.join(", ") || null, attributes: changed(d.change?.before, d.change?.after) }));
+    .map(d => ({ address: d.address, action: d.change?.actions?.join(", ") || null, attributes: changed(d.type || d.address.split(".").at(-2), d.change?.before, d.change?.after) }))
+    .filter(d => d.attributes.length);
 }
 
 /** A `state list`'s lines: what was built, without the data OpenTofu only reads. */

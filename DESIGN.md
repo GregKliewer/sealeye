@@ -3828,3 +3828,16 @@ interview stopped with "modules item 1, id must NOT be valid": it could write no
   interview failed; refuse, never shrink, means the app's needs are still the honest
   record. A catalog that builds something asks for one module, as before, and the
   starter's contract is unchanged.
+
+## What the cloud sets itself is not a change outside seaLeye
+
+Oct 17, 2026. The first fresh build from Juniper's http-api showed five changes outside
+seaLeye.run minutes after it was made. Four were the provider writing nothing and reading
+back an empty list or map (`request_parameters`, `layers`, `managed_policy_arns`,
+`stage_variables`); one was the `deployment_id` API Gateway sets on a stage that deploys
+itself. A check that alarms on every environment teaches its reader to ignore it, so
+`driftDetail` (api/executor/terraform/tofu.js) treats every empty value as the same and
+leaves out a self-deploying stage's deployment, and a part with nothing left is not a
+change. What `tofu show` read decides even when it leaves nothing; the streamed messages,
+which name only the part, are used only when it could not be read. Anything else stays a
+change: a policy attached by hand is still reported. The evidence says what is left out.

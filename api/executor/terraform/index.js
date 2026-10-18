@@ -345,7 +345,9 @@ export async function checkTerraformNow(record, catalog, options = {}) {
     if (shown.ok) {
       try { drift = driftDetail(JSON.parse(shown.stdout)); } catch {}
     }
-    return { ok: true, resources, drift: drift && drift.length ? drift : driftedResources(checked.messages) };
+    // What `show` read decides, even when it leaves nothing: the streamed messages count
+    // the cloud's own differences as changes too.
+    return { ok: true, resources, drift: drift ?? driftedResources(checked.messages) };
   } catch (err) {
     return { ok: false, error: err.message };
   } finally {
