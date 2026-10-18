@@ -3873,3 +3873,29 @@ with no notification).
   interview's plan failing to build.
 - **`sealeye watch` ends on a tear-down.** It counted `destroyed` as still going, so
   watching a tear-down never ended; found while making this change.
+
+## Each module is built at the version its library released
+
+Oct 17, 2026. PHASE4-PLAN Step 9, the second pull request, first half (Greg: V1a, V2a,
+V3a, V4 as recommended).
+
+- **A library releases each module on its own, by tag**: `<folder>/v<major>.<minor>.<patch>`,
+  such as `http-api/v1.1.0`, as Juniper's library now does, each module with a
+  `CHANGELOG.md`. A pre-release (`v2.0.0-rc1`) is not a release
+  (`core/module-versions.js`).
+- **Discovery reads each released module at the commit its newest release points to**
+  (`atReleases` in `api/discovery/library.js`, from GitHub's list of tags), so the
+  catalog describes exactly what is built, and records each module's `version`, `tag`
+  and `commit`. The rest of the library is read where its branch is. A clone read from
+  disk (the eval) is read as one commit.
+- **In a library that releases any of its modules, one with no release is not built**:
+  `unreleased`, "your organization's library has not released it yet", and an app that
+  needs it is drafted. A library that releases none is read and built at one commit, as
+  before.
+- **An environment keeps its module's version until a newer catalog goes live.** A
+  deploy, or deploy again, builds the live catalog's release of the same module
+  (`withLiveReleases` in `api/executor/terraform/versions.js`); the report and the
+  evidence say "from 1.0.0 to 1.1.0" with the changelog's lines. A new major version is
+  refused, 409 MAJOR_VERSION, since it may take what the app gives it differently, and
+  `sealeye run` plans against it again. A tear-down uses the code that was built.
+- The client's catalog carries a module's version and never its tag or commit.

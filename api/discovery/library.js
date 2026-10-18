@@ -31,6 +31,7 @@ import { collectFolder } from "../../core/upload.js";
 import { redactScanned, scanApp } from "../secret-scan.js";
 import { githubReader, repoName } from "./github.js";
 import { untar } from "./tar.js";
+import { newestReleases, releaseFor } from "../../core/module-versions.js";
 
 const RULES = rulesOf("discovery");
 
@@ -46,6 +47,8 @@ const RULES = rulesOf("discovery");
  * @typedef {object} LibrarySnapshot
  * @property {string} repo         owner/repo
  * @property {string|null} commit  the full commit read (null for a folder read from disk)
+ * @property {Object<string, { version: string, tag: string, commit: string }>} releases  each released module's, by folder
+ * @property {boolean} tagged      whether the library releases its modules by tag
  * @property {string} via          "app", "token" or "folder"
  * @property {string} dir          the folder a worker may read
  * @property {number} files
@@ -58,18 +61,51 @@ const RULES = rulesOf("discovery");
  */
 export async function readLibrary(target, { scratchBase, reader, ...readerOptions } = {}) {
   const github = reader?.archive ? reader : await githubReader(target, reader || readerOptions);
+  const name = repoName(target);
+  const unpack = gz => untar(gz, { maxBytes: RULES.maxBytes, maxFiles: RULES.maxFiles, subject: `The library ${name}` });
   let commit;
-  let gz;
+  let files;
+  let releases = {};
   try {
     commit = await github.commitOf(target.ref || null);
-    gz = await github.archive(commit, { maxBytes: RULES.maxBytes });
+    files = unpack(await github.archive(commit, { maxBytes: RULES.maxBytes }));
+    // Each module at the commit its newest release points to, so the catalog describes
+    // what will be built (core/module-versions.js). A reader with no tags (a test's)
+    // reads one commit, as before.
+    const tagged = typeof github.tags === "function" ? newestReleases(await github.tags()) : new Map();
+    ({ files, releases } = await atReleases(files, tagged, commit, sha => github.archive(sha, { maxBytes: RULES.maxBytes }).then(unpack)));
   } finally {
     await github.close?.();
   }
-  const name = repoName(target);
-  const files = untar(gz, { maxBytes: RULES.maxBytes, maxFiles: RULES.maxFiles, subject: `The library ${name}` });
   const walked = await collectUpload(treeFromPaths(target.repo, files), { purpose: "discovery", ignore });
-  return settle({ repo: name, commit, via: github.via, folderName: target.repo, walked, scratchBase });
+  return settle({ repo: name, commit, via: github.via, folderName: target.repo, walked, scratchBase, releases });
+}
+
+/** The folders that hold a module: any with a .tf file in it, by its path. */
+const moduleFolders = files => new Set(files.filter(f => /\.tf$/.test(f.path)).map(f => f.path.split("/").slice(0, -1).join("/")).filter(Boolean));
+
+/**
+ * The library's files with each released module's folder taken from the commit its
+ * newest release points to, and which release each folder is (`releases`, by folder;
+ * empty when the library tags none). A folder whose release is the commit read already
+ * keeps its files.
+ */
+export async function atReleases(files, tagged, commit, archiveAt) {
+  if (!tagged.size) return { files, releases: {} };
+  const folders = moduleFolders(files);
+  const releases = {};
+  const byCommit = new Map();
+  let out = files;
+  for (const folder of folders) {
+    const release = releaseFor(tagged, folder);
+    if (!release) continue;
+    releases[folder] = release;
+    if (release.commit === commit) continue;
+    if (!byCommit.has(release.commit)) byCommit.set(release.commit, await archiveAt(release.commit));
+    const there = byCommit.get(release.commit).filter(f => f.path.startsWith(`${folder}/`));
+    out = [...out.filter(f => !f.path.startsWith(`${folder}/`)), ...there];
+  }
+  return { files: out, releases };
 }
 
 /**
@@ -81,7 +117,7 @@ export async function readLibraryFolder(dir, { repo = path.basename(path.resolve
   return settle({ repo, commit: null, via: "folder", folderName: path.basename(path.resolve(dir)), walked, scratchBase });
 }
 
-async function settle({ repo, commit, via, folderName, walked, scratchBase }) {
+async function settle({ repo, commit, via, folderName, walked, scratchBase, releases = {} }) {
   const base = scratchBase || os.tmpdir();
   fs.mkdirSync(base, { recursive: true, mode: 0o700 });
   const root = fs.mkdtempSync(path.join(base, "library-"));
@@ -108,6 +144,10 @@ async function settle({ repo, commit, via, folderName, walked, scratchBase }) {
       repo,
       commit,
       via,
+      // Each module's release, by folder, and whether the library releases modules at
+      // all: in one that does, a module without a release is not built.
+      releases,
+      tagged: Object.keys(releases).length > 0,
       dir,
       files: walked.files,
       bytes: walked.bytes,

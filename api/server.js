@@ -9,6 +9,7 @@ import { backendMappings } from "./mappings.js";
 import { putDeployment, getDeployment, listDeployments, storeFile, count, openStore, flushStore, onDeploymentSaved } from "./store.js";
 import { startDeployment, startDestroy } from "./executor/index.js";
 import { builtWithTerraform, checkBuildable, startTerraformDeployment, startTerraformDestroy } from "./executor/terraform/index.js";
+import { majorVersionWords, versionBuilt, versionMove, withLiveReleases } from "./executor/terraform/versions.js";
 import { terraformNotReady } from "./executor/terraform/tofu.js";
 import { entryPointFor, namingFor, sharedWithAnotherTeam } from "./executor/compose.js";
 import { acceptSent, MAX_STORED_BYTES, storableName, storeFolder } from "./executor/settings.js";
@@ -231,6 +232,19 @@ const catalogChanged = lines => ({
 // not built for one yet, and is refused rather than tried against AWS for a stack that
 // is not there (DESIGN.md, "A Terraform environment's names, status and operations").
 const builtByTerraform = dep => dep?.backend === "terraform";
+
+// Which release of the organization's module a deploy builds (DESIGN.md, "Each module is
+// built at the version its library released"): the live catalog's release of the same
+// module, so an environment moves to a newer version when a newer catalog goes live,
+// never before. A new major version is refused: it may take different inputs, and the
+// plan is written again with sealeye run. Returns the catalog to build from, or a refusal.
+function releaseToBuild(req, plan, planDoc, environment) {
+  const catalog = withLiveReleases(planDoc, catalogOf(req));
+  const { entry } = checkBuildable(plan, catalog);
+  const move = versionMove(versionBuilt(environment), entry);
+  if (move?.major) return { refusal: { error: { code: "MAJOR_VERSION", message: majorVersionWords(entry, move), details: { module: entry.source, from: move.from, to: move.to } } } };
+  return { catalog };
+}
 const notForThisEnvironment = (res, what) =>
   res.status(409).json({ error: { code: "NOT_FOR_THIS_ENVIRONMENT", message: `${what} is not available for an environment built from your organization's own modules yet.` } });
 // The catalog a record was planned against, as the platform builds from it now.
@@ -372,6 +386,7 @@ async function deployAgain(req, res) {
   // from the organization's own modules reads no settings (PHASE4-PLAN Step 9).
   const againCatalog = planCatalog(req, plan).document;
   const terraform = builtWithTerraform(plan, againCatalog);
+  let againBuild = againCatalog;
   if (callerOrg(req) !== "default" && !terraform) return notForThisOrganization(res, "Deploys");
   if (terraform !== againTerraform) return res.status(409).json(ANOTHER_WAY);
 
@@ -393,6 +408,14 @@ async function deployAgain(req, res) {
     }
     if (found.entry.id !== source.terraform?.module?.id || found.entry.delivers?.kind !== "package") {
       return refuse(409, "DIFFERENT_APP", "That deployment's code was packaged for another module than this plan uses. Run sealeye run in the app's folder to package it again.");
+    }
+    try {
+      const target = namingFor({ app: plan.app.name, org: req.caller?.org || "default", team: req.caller?.team || "default", records: listDeployments() }).stackName;
+      const release = releaseToBuild(req, plan, againCatalog, target);
+      if (release.refusal) return res.status(409).json(release.refusal);
+      againBuild = release.catalog;
+    } catch (err) {
+      return res.status(409).json(cannotBuild(err.message));
     }
   } else {
     if (!(plan.modules || []).some(m => m && m.enabled !== false && m.id === "http_api_serverless")) {
@@ -499,7 +522,7 @@ async function deployAgain(req, res) {
     finishedAt: null
   });
 
-  (terraform ? startTerraformDeployment(record, plan, null, againCatalog) : startDeployment(record, plan, null, {})).catch(err => {
+  (terraform ? startTerraformDeployment(record, plan, null, againBuild) : startDeployment(record, plan, null, {})).catch(err => {
     record.status = "failed";
     record.failureReason = err.message;
     record.finishedAt = new Date().toISOString();
@@ -664,7 +687,7 @@ async function deployNew(req, res) {
   // path (the review, Oct 16, 2026). A drafted plan is saved before this. A plan built
   // from the organization's own modules reads no settings, so it goes ahead anywhere
   // (PHASE4-PLAN Step 9).
-  const catalog = planCatalog(req, plan).document;
+  let catalog = planCatalog(req, plan).document;
   const terraform = builtWithTerraform(plan, catalog);
   if (callerOrg(req) !== "default" && !terraform) return notForThisOrganization(res, "Deploys");
   if (terraform) {
@@ -682,6 +705,15 @@ async function deployNew(req, res) {
   {
     const target = namingFor({ app: plan.app?.name, org: req.caller?.org || "default", team: req.caller?.team || "default", records: listDeployments() }).stackName;
     if (builtAnotherWay(target, terraform)) return res.status(409).json(ANOTHER_WAY);
+    if (terraform) {
+      try {
+        const release = releaseToBuild(req, plan, catalog, target);
+        if (release.refusal) return res.status(409).json(release.refusal);
+        catalog = release.catalog;
+      } catch (err) {
+        return res.status(409).json(cannotBuild(err.message));
+      }
+    }
   }
 
   // An uploaded copy is unpacked now, so a bad upload is a 400 and never a queued

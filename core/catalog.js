@@ -231,8 +231,9 @@ export function buildableView(catalog = loadCatalog()) {
     // client is told only that the platform builds it.
     // Nor who edited an entry's words (catalog-edits.js): people are GET /team's to name.
     // Nor what code read of a Terraform module to build it (its outputs, how it takes an
-    // app, what it would run): the platform's to know too.
-    modules: modules.map(({ builds_with, guidance, edited, outputs, delivers, runs, ...m }) => ({ ...m, buildable: true })),
+    // app, what it would run), nor which commit its release is: the platform's to know
+    // too. Its version is the developer's to read.
+    modules: modules.map(({ builds_with, guidance, edited, outputs, delivers, runs, tag, commit, unreleased, ...m }) => ({ ...m, buildable: true })),
     need_kinds: catalog.need_kinds || [],
     profiles: catalog.profiles || [],
     patterns
