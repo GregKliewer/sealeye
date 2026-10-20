@@ -265,3 +265,20 @@ export function stillSaysWords(found, keep = "press Enter") {
 
 /** What a refused approval asks when editing words can fix it. */
 export const FIX_OFFER = "Fix these now?";
+
+/**
+ * A module by its id and, when its library releases it, the version the platform builds:
+ * "http_api 1.1.0". Both surfaces say it the same way (DESIGN.md, "Each module is built at
+ * the version its library released").
+ */
+export function withVersion(id, version) {
+  return version ? `${id} ${version}` : String(id);
+}
+
+/** What a catalog builds, by module and version, from its self-test: one line, or null. */
+export function builtWords(result) {
+  const built = Array.isArray(result?.built) ? result.built : [];
+  if (!built.length) return null;
+  const versions = result.versions || {};
+  return `Built from this catalog: ${built.map(id => withVersion(id, versions[id])).join(", ")}.`;
+}

@@ -90,7 +90,7 @@ function wordFixes(document, byPlace) {
 export function selfTest({ document, version, questionText = () => null }) {
   const shape = catalogProblems(document);
   if (shape.length) {
-    return { version, passed: false, checks: [check("shape", shape)], refused: [], built: [], notes: [] };
+    return { version, passed: false, checks: [check("shape", shape)], refused: [], built: [], versions: {}, notes: [] };
   }
 
   // A question that touches no one module has no entry to hold back, so its guess
@@ -149,5 +149,7 @@ export function selfTest({ document, version, questionText = () => null }) {
     check("accepted", acceptedProblems),
     check("words", words, wordFixes(document, byPlace))
   ];
-  return { version, passed: checks.every(c => c.passed), checks, refused, built, notes };
+  // Each module's release, by id, where its library releases it (core/module-versions.js).
+  const versions = Object.fromEntries(modules.filter(m => typeof m.version === "string" && m.version).map(m => [m.id, m.version]));
+  return { version, passed: checks.every(c => c.passed), checks, refused, built, versions, notes };
 }

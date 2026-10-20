@@ -16,7 +16,7 @@ import { CommandHint } from "../Command";
 import { commandLine, label } from "../../../core/operations.js";
 import { editableFieldsOf, EDIT_LIMIT } from "../../../core/catalog-edits.js";
 import { forbiddenWords } from "../../../core/developer-words.js";
-import { choicesFor, discoveryEventLine, discoveryStateWords, isOpen, activityWords, answerStateWords, elapsedWords, modulesDone, nextProgress, progressSummary, SOMETHING_ELSE, ANSWER_LIMIT, approvedWords, catalogStatusWords, catalogSummaryWords, madeLiveWords, nextCatalogStep, RESTS_ON_QUESTION, selfTestSummary, avoidWords, stillSaysWords, FIX_OFFER, fixableByEditing, fixedWords, fixPlaceWords, notFixedByEditing, wordFixesOf } from "../../../core/discovery-words.js";
+import { choicesFor, discoveryEventLine, discoveryStateWords, isOpen, activityWords, answerStateWords, elapsedWords, modulesDone, nextProgress, progressSummary, SOMETHING_ELSE, ANSWER_LIMIT, approvedWords, catalogStatusWords, catalogSummaryWords, madeLiveWords, nextCatalogStep, RESTS_ON_QUESTION, selfTestSummary, avoidWords, stillSaysWords, FIX_OFFER, fixableByEditing, fixedWords, fixPlaceWords, notFixedByEditing, wordFixesOf, builtWords, withVersion } from "../../../core/discovery-words.js";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -470,10 +470,11 @@ function SelfTestResult({ version, result, message, done }: { version: number; r
           </li>
         ))}
       </ul>
+      {builtWords(result) ? <p className="mt-3 text-sm" data-testid="self-test-built">{builtWords(result)}</p> : null}
       {result.refused.length ? (
         <div className="mt-3 text-sm">
           <p>Never built from catalog {version}:</p>
-          <ul className="mt-1 space-y-0.5 text-xs text-dim">{result.refused.map(r => <li key={r.id}><span className="font-mono">{r.id}</span>: {r.why}</li>)}</ul>
+          <ul className="mt-1 space-y-0.5 text-xs text-dim">{result.refused.map(r => <li key={r.id}><span className="font-mono">{withVersion(r.id, result.versions?.[r.id])}</span>: {r.why}</li>)}</ul>
         </div>
       ) : null}
       {result.notes.map((n, i) => <p key={i} className="mt-3 text-sm text-dim">{n}</p>)}
