@@ -800,6 +800,9 @@ it, signs in once, and runs:
 
 ```bash
 curl -fsSL https://sealeye.run/install | sh
+```
+
+```bash
 sealeye login
 ```
 
