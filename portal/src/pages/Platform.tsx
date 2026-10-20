@@ -81,14 +81,15 @@ function PlatformValues() {
       setName("");
       setText("");
       setList(false);
-      return `${kept.name} is set for ${kept.stage}.`;
+      return `${kept.name} is set for ${kept.stage}${kept.organization ? ` in ${kept.organization}` : ""}.`;
     });
   }
 
   function remove(v: PlatformValue) {
     act(async () => {
       const r = await api.removePlatformValue(v.name, shown);
-      return r.removed ? `${r.name} is no longer set for ${r.stage}.` : `${r.name} was not set for ${r.stage}.`;
+      const where = r.organization ? ` in ${r.organization}` : "";
+      return r.removed ? `${r.name} is no longer set for ${r.stage}${where}.` : `${r.name} was not set for ${r.stage}${where}.`;
     });
   }
 
