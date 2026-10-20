@@ -154,7 +154,7 @@ flowchart TB
 |---|---|---|---|
 | `sealeye` command | `cli/`, `core/` | the API only | Holds a token (`~/.sealeye/config`, 0600), never a model key or AWS credentials for deploying. Installed from seaLeye.run. |
 | Portal | `portal/` | the API only, at `/api` on its own origin | Imports a few browser-safe `core/` files so both surfaces say the same words. Every value on a page comes from an API call. |
-| Caddy | `deploy/Caddyfile` | the API, static files | Certificates for sealeye.online, api.sealeye.online, sealeye.run, sealeye.org. Passes the interview's event stream through unbuffered. |
+| Caddy | `deploy/Caddyfile` | the API, static files Certificates for sealeye.online, api.sealeye.online and sealeye.run (sealeye.org is GitHub Pages). Passes the interview's event stream through unbuffered. |
 | API | `api/`, `core/`, `prompts/`, `templates/` | Postgres, AWS (CLI), the model gateway, LangFuse | The only part that reaches AWS. One process. On the server it holds a key for the gateway, not a model key; on a laptop, with no `SEALEYE_GATEWAY_KEY`, it calls Anthropic with its own key. |
 | Model gateway | `deploy/gateway.yaml`, `deploy/gateway.sh` | Anthropic | agentgateway, pinned by digest. The only part on the server that holds the model key. Lets through only the API's key with a token the API signed for that call (person, team, run, worker, surface), and logs those names; keeps a money budget for each 30-day period and a record of every call (90 days, read by `deploy/server.sh gateway-calls`) in its own SQLite file, and a per-run token limit in memory; logs no prompts or replies. On a network of its own that only the API joins; no published port. |
 | Postgres | `api/migrations/` | | Reachable only from the API, on the server's own network. |
@@ -259,7 +259,7 @@ flowchart TB
   end
 
   subgraph acct["AWS account, ca-central-1"]
-    dns["<b>Route 53</b><br/>sealeye.online, sealeye.run,<br/>sealeye.org"]
+    dns["<b>Route 53</b><br/>sealeye.online, sealeye.run,<br/>sealeye.org (to GitHub Pages)"]
     ecr[("<b>ECR</b><br/>sealeye-api images,<br/>immutable tags")]
     config[("<b>Config bucket</b><br/>server config, sites,<br/>nightly backups (30 days)")]
     ssmp[("<b>Parameter Store /sealeye/</b><br/>API settings and secrets;<br/>gateway/ holds the model key")]

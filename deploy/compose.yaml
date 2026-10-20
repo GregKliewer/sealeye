@@ -77,7 +77,6 @@ services:
       API_DOMAIN: ${API_DOMAIN:-api.sealeye.online}
       PORTAL_DOMAIN: ${PORTAL_DOMAIN:-sealeye.online}
       RUN_DOMAIN: ${RUN_DOMAIN:-sealeye.run}
-      ORG_DOMAIN: ${ORG_DOMAIN:-sealeye.org}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./sites:/srv:ro

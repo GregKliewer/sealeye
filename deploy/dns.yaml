@@ -20,10 +20,19 @@ Parameters:
       server's Caddy serves or redirects each of seaLeye's domains). Leave empty for none.
     Type: String
     Default: ""
+  GitHubPages:
+    Description: >-
+      "true" for a domain served by GitHub Pages rather than the pilot server (sealeye.org):
+      the domain gets GitHub's four addresses and www a CNAME to GitHub, and SiteAddress
+      is ignored.
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
 
 Conditions:
   HasApi: !Not [!Equals [!Ref ApiAddress, ""]]
-  HasSite: !Not [!Equals [!Ref SiteAddress, ""]]
+  IsPages: !Equals [!Ref GitHubPages, "true"]
+  HasSite: !And [!Not [!Equals [!Ref SiteAddress, ""]], !Not [!Condition IsPages]]
 
 Resources:
   Zone:
@@ -65,6 +74,31 @@ Resources:
       TTL: "300"
       ResourceRecords:
         - !Ref SiteAddress
+
+  PagesRecord:
+    Type: AWS::Route53::RecordSet
+    Condition: IsPages
+    Properties:
+      HostedZoneId: !Ref Zone
+      Name: !Ref DomainName
+      Type: A
+      TTL: "300"
+      ResourceRecords:
+        - 185.199.108.153
+        - 185.199.109.153
+        - 185.199.110.153
+        - 185.199.111.153
+
+  PagesWwwRecord:
+    Type: AWS::Route53::RecordSet
+    Condition: IsPages
+    Properties:
+      HostedZoneId: !Ref Zone
+      Name: !Sub "www.${DomainName}"
+      Type: CNAME
+      TTL: "300"
+      ResourceRecords:
+        - gregkliewer.github.io
 
 Outputs:
   NameServers:
