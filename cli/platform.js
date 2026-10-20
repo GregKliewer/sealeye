@@ -63,13 +63,14 @@ export async function platform({ apiBaseUrl, args, stage = null, list = false, s
     const value = words.length > 1 || list ? words : words[0];
     const kept = await setPlatformValue({ apiBaseUrl, name, value, stage });
     if (json) return console.log(JSON.stringify(kept, null, 2));
-    return say(`${kept.name} is set for ${kept.stage}: ${shown(kept.value)}.`);
+    return say(`${kept.name} is set for ${kept.stage}${kept.organization ? ` in ${kept.organization}` : ""}: ${shown(kept.value)}.`);
   }
   if (sub === "unset") {
     if (!name) throw userError(`Name the value to remove: ${commandLine("platform", null, ["unset", "<name>"])}`);
     const removed = await removePlatformValue({ apiBaseUrl, name, stage });
     if (json) return console.log(JSON.stringify(removed, null, 2));
-    return say(removed.removed ? `${removed.name} is removed for ${removed.stage}.` : `${removed.name} was not set for ${removed.stage}, so nothing changed.`);
+    const where = removed.organization ? ` in ${removed.organization}` : "";
+    return say(removed.removed ? `${removed.name} is removed for ${removed.stage}${where}.` : `${removed.name} was not set for ${removed.stage}${where}, so nothing changed.`);
   }
   throw userError(`sealeye platform takes set or unset, or nothing to list the values, not ${sub}.`);
 }

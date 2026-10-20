@@ -6,7 +6,7 @@ import path from "node:path";
 
 import { c } from "../brand.js";
 import { normalizeProfile, MODULE_IDS } from "../../core/schema.js";
-import { loadCatalog, moduleEntry, patternsFor, unsupportedNeeds } from "../../core/catalog.js";
+import { loadCatalog, moduleEntry, patternsFor, planOffers, unsupportedNeeds } from "../../core/catalog.js";
 import { CONFIG_FILE } from "../../core/names.js";
 import { appTypeLabel, coreModule, enabledModules, isEnabled, moduleById, PLAN_FILE, renderPlanMarkdown, renderPlanYaml } from "../../core/plan-files.js";
 
@@ -150,8 +150,8 @@ function cardContent(plan, catalog) {
   const outputs = plan.outputs || [];
   const kept = moduleById(plan, "observability_basic")?.inputs?.retention_days;
   const collected = [
-    outputs.includes("logs") ? "Your logs" : null,
-    outputs.includes("metrics") ? "basic metrics" : null
+    outputs.includes("logs") && planOffers(plan, catalog, "logs") ? "Your logs" : null,
+    outputs.includes("metrics") && planOffers(plan, catalog, "perf") ? "basic metrics" : null
   ].filter(Boolean);
 
   const back = [];

@@ -14,7 +14,7 @@ import path from "node:path";
 import YAML from "yaml";
 
 import { normalizeProfile, LEGACY_MODULE_IDS, MODULE_IDS, moduleIdSource } from "./schema.js";
-import { buildableModules, catalogModuleIds, isBuildable, loadCatalog, unsupportedNeeds } from "./catalog.js";
+import { buildableModules, catalogModuleIds, isBuildable, loadCatalog, planOffers, unsupportedNeeds } from "./catalog.js";
 import { repoRoot } from "./config.js";
 import { CONFIG_FILE } from "./names.js";
 
@@ -267,17 +267,19 @@ function whatWillBeCreated({ plan }) {
   return numbered;
 }
 
-function expectedOutput({ plan }) {
+function expectedOutput({ plan, catalog }) {
   const outputs = plan.outputs || [];
   const lines = [];
 
   if (outputs.includes("public_url")) {
     lines.push("Public URL: generated when the deployment finishes, HTTPS included. Shareable immediately.");
   }
-  if (outputs.includes("logs") || outputs.includes("log_stream")) {
+  // Only what the environment then offers: one built from the organization's own module
+  // keeps its logs where that module puts them, and seaLeye does not read them back.
+  if ((outputs.includes("logs") || outputs.includes("log_stream")) && planOffers(plan, catalog, "logs")) {
     lines.push("Logs: everything your app prints, from the first request, with no setup.");
   }
-  if (outputs.includes("metrics") || outputs.includes("metrics_dashboard")) {
+  if ((outputs.includes("metrics") || outputs.includes("metrics_dashboard")) && planOffers(plan, catalog, "perf")) {
     lines.push("Metrics: requests, errors and response times, tracked automatically.");
   }
 
