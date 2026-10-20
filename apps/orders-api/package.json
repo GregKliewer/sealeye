@@ -1,0 +1,24 @@
+{
+  "name": "orders-api",
+  "version": "1.0.0",
+  "description": "Branch supply orders, kept in a table",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git.northline.internal/branch-operations/orders-api"
+  },
+  "author": "Branch Operations, Northline Bank",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">= 18"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.700.0",
+    "@aws-sdk/lib-dynamodb": "^3.700.0",
+    "express": "^5.1.0"
+  }
+}

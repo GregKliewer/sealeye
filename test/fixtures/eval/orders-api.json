@@ -1,0 +1,28 @@
+{
+  "answers": [
+    {
+      "when": ["orders_table", "table", "where", "store", "stored", "database", "keep"],
+      "answer": "A document table the platform provides. The app reads its name from ORDERS_TABLE. We don't bring our own."
+    },
+    {
+      "when": ["setting", "environment", "api key", "anything else", "credentials", "region"],
+      "answer": "Only ORDERS_TABLE, the table's name. Nothing else."
+    },
+    {
+      "when": ["reach", "internal", "public", "inside", "network", "private", "who uses", "who will use", "who calls"],
+      "answer": "The branch supplies screen calls it over HTTPS. It doesn't need to be private."
+    },
+    {
+      "when": ["stay", "running", "warm", "connection", "long-running", "start fresh"],
+      "answer": "No, it answers each request on its own. Nothing has to stay running between them."
+    },
+    {
+      "when": ["is that right", "right?", "looks like", "what does your app do", "when it runs", "does it", "serve", "listen"],
+      "answer": "Yes, that's right. It answers requests and keeps orders in a table."
+    }
+  ],
+  "expected": {
+    "status": "drafted",
+    "needs": ["document_database"]
+  }
+}

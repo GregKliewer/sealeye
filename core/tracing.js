@@ -608,6 +608,9 @@ const SCORES = {
   outcome_correct: "BOOLEAN",
   modules_correct: "BOOLEAN",
   needs_correct: "BOOLEAN",
+  // Whether the plan wires each value a module the app uses gives to the setting the
+  // app reads it from, as the fixture says it does.
+  connect_correct: "BOOLEAN",
   // Only discovery's graded runs (scripts/eval-discovery.js, PHASE4-PLAN Step 7) post
   // these: a draft against Juniper Mutual's answer key.
   catalog_correct: "BOOLEAN",

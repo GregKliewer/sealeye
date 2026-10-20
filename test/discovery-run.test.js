@@ -346,14 +346,16 @@ test("Juniper Mutual: given good words, the draft passes the answer key's checks
   assert.ok(graded.hardCases.every(h => h.ok), JSON.stringify(graded.hardCases));
 
   // And the Terraform executor builds from it what takes an app, once the platform gives
-  // the permissions boundary: http-api and static-site, and nothing else yet.
+  // the permissions boundary, and the modules an app uses that offer it access (the
+  // table, the bucket and the queue, since the library's 1.1.0 releases); a database
+  // waits on the network (Q23), and nothing else runs an app.
   const byId = Object.fromEntries(draft.modules.map(m => [m.id, m]));
   assert.equal(byId.http_api.delivers.kind, "package");
   assert.equal(byId.static_site.delivers.kind, "files");
   assert.ok(draft.modules.every(m => Array.isArray(m.runs) && m.runs.length === 0));
   const { isBuildable } = await import("../core/catalog.js");
   const settled = { ...draft, modules: draft.modules.map(({ open, ...m }) => m), platform: { names: ["permissions_boundary_arn"] } };
-  assert.deepEqual(settled.modules.filter(m => isBuildable(m.id, settled)).map(m => m.id).sort(), ["http_api", "static_site"]);
+  assert.deepEqual(settled.modules.filter(m => isBuildable(m.id, settled)).map(m => m.id).sort(), ["document_table", "file_bucket", "http_api", "static_site", "work_queue"]);
 });
 
 test("an answer that comes while the entries are being written is a late answer: one more pass", async () => {
