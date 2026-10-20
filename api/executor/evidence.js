@@ -234,7 +234,7 @@ async function checkedNowOfTerraform(record) {
     terraform: true,
     state: checked.ok ? { resources: checked.resources } : { error: `not checked: ${checked.error}` },
     changesOutside: checked.ok ? checked.drift : `not checked: ${checked.error}`,
-    changesOutsideNote: "as OpenTofu finds them by reading each part of the environment now, read-only, leaving out what the cloud sets itself (an empty value read back as an empty list, the deployment of a stage that deploys itself, and a policy the environment's own parts set, read back on its role or bucket)",
+    changesOutsideNote: "as OpenTofu finds them by reading each part of the environment now, read-only, leaving out what the cloud sets itself (an empty value read back as an empty list, the deployment of a stage that deploys itself, a policy the environment's own parts set, read back on its role or bucket, and a policy's count of the environment's own attachments of it)",
     answered
   };
 }

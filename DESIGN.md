@@ -3850,6 +3850,12 @@ showed the same thing on its bucket: the bucket's `policy` reads back what the m
 own `aws_s3_bucket_policy` set, and is left out when it is that policy; a policy changed
 by hand still shows, as a change to the bucket policy part itself.
 
+The first connected build (Oct 20, 2026, the orders app and its table) showed the same
+thing the other way round: the table's access policy, made by the table's module and
+attached to the app's role by the root, read back `attachment_count` 1. So a policy's
+count is left out when it equals the environment's own attachments of that policy, read
+from the same state; a policy that something else attached as well is still a change.
+
 ## A tear-down carries on in the background
 
 Sat Oct 17, 2026. Greg: tear-downs take longer now that environments are built from an
