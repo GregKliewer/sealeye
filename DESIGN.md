@@ -3892,6 +3892,34 @@ Oct 17, 2026, from the first builds of Juniper's own modules on the pilot.
   surfaces (`organization` on the answers of PUT and DELETE /platform/values/{name}, and
   on GET /platform). A value set with another organization's token had landed there
   without a word.
+
+## Parking the pilot between bursts of work
+
+Oct 20, 2026. Greg's work on seaLeye will come in bursts once his new job starts, so the
+pilot should cost little between them and come back quickly. `deploy/server.sh park`
+and `unpark` (deploy/README.md, "Parking between bursts of work").
+
+- **Stop the server; never delete it.** Stopped, the pilot costs its disk, its fixed
+  address and its DNS zone, about $6 a month against about $20, and keeps everything:
+  the database on its disk, its address (so no DNS change), its certificates, tokens
+  and settings. Deleting it as well would save another $5 a month, for a restore from a
+  backup and new certificates after weeks away; not worth the risk for a pilot.
+- **Nothing is parked while anything stands.** An environment left up keeps costing,
+  unseen. `scripts/standing-environments.js` reads the records of every organization:
+  an environment stands while its newest record is live or under way, or failed with
+  something left (a Terraform build part-built, a failed update of a stack that was
+  up). Park refuses, listing them.
+- **A backup that outlasts the pause.** The nightly dumps expire after 30 days and none
+  are taken while stopped, so park takes one and copies it to `parked/`, which no rule
+  expires.
+- **The foundation network stays; its paid endpoints go.** The network costs nothing,
+  and making it again would change the subnet and security group ids the organization's
+  platform values name. What costs by the hour beside it lives in a stack of its own,
+  `platform-sealeye-endpoints`, which park deletes and unpark makes again.
+- **Unpark updates before it says ready**: the system's packages, a restart for a new
+  kernel, then `/health`, and whether the server runs the newest release.
+- The marker that it is parked is `/sealeye-pilot/PARKED`, outside `/sealeye/`, whose
+  every parameter the API reads as a setting.
     
 ## A save made while a record is being written is never lost
 

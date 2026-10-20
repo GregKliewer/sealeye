@@ -648,6 +648,48 @@ platform` says `document_table`, `file_bucket` and `work_queue` are built, and w
 reads a table's name from its environment: `sealeye run` should enable `http_api` and
 `document_table`, naming the setting; then the URL, `sealeye evidence` (its parts and
 settings) and `sealeye teardown`, which says the table and everything in it go too.
+## Parking between bursts of work
+
+When you will be away from the pilot for a while, park it. Parked, it costs about $6 a
+month (its disk, its fixed address and its DNS zone) instead of about $20, and nothing
+it knows is lost: the database stays on the server's disk, and its address,
+certificates, tokens and settings stay as they are. From the repo root on your Mac, on
+an up-to-date main, with the AWS CLI signed in:
+
+```bash
+deploy/server.sh park --dry-run    # what it would do, changing nothing
+deploy/server.sh park
+```
+
+It stops, changing nothing, while any environment in any organization is still
+standing, and lists each with its organization, team and app. Tear those down first
+with a token of their organization (`sealeye teardown <app>`; `sealeye list --all`
+shows yours). Then it:
+
+1. backs up the database and keeps that backup in the config bucket's `parked/`
+   folder, which nothing expires (the nightly `backups/` are kept 30 days, and none
+   are taken while it is parked);
+2. deletes the network's paid endpoints, `platform-sealeye-endpoints`, when there are
+   any. The foundation network itself stays: it costs nothing, and making it again
+   would change the ids its platform values name;
+3. stops the server, and notes that it is parked (`/sealeye-pilot/PARKED`).
+
+Coming back, from the same place:
+
+```bash
+git switch main && git pull
+deploy/server.sh unpark
+```
+
+It starts the server, makes the paid endpoints again if park removed any, applies the
+system's updates (restarting the server once more if a new kernel came with them),
+and waits until `https://api.sealeye.online/health` answers. It says which version the
+server runs; if this copy of the repository is newer, run `deploy/release.sh` next.
+Then `sealeye doctor` from any app folder checks the rest.
+
+The backup park kept stays until you delete it (`aws s3 rm s3://<config bucket>/parked/<file>`).
+For a pause of many months, deleting the server too would save another $5 a month, at
+the cost of a restore from that backup and new certificates; park does not do that.
 
 ## Every release
 
