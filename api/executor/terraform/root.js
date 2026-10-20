@@ -15,7 +15,7 @@ import path from "node:path";
 
 import { region } from "../../../core/config.js";
 import { safeName } from "../../../core/names.js";
-import { DEVELOPER_STAGE, SEALEYE_INPUTS, codeInputs, platformInputs } from "../../../core/terraform-modules.js";
+import { DEVELOPER_STAGE, NETWORK_INPUTS, SEALEYE_INPUTS, codeInputs, inNetwork, platformInputs } from "../../../core/terraform-modules.js";
 import { AWS_PROVIDER_VERSION, IMAGE_LOCK_FILE } from "./tofu.js";
 
 /** The function the adapter seaLeye puts into an app's package exports (templates/sealeye-handler.mjs). */
@@ -42,10 +42,12 @@ export function stateKeyFor({ org = "default", environment }) {
  * @param {Record<string,string>} p.tags
  * @param {Record<string, string | string[]>} p.platform  the organization's values at dev
  * @param {{ package?: string }} [p.code]  the packaged app, for a module that takes one
+ * @param {{ key: string, entry: object }[]} [p.parts]  the modules the app uses: when one is in
+ *        the private network, the app's module joins it with the platform's network values
  * @returns {{ inputs: Record<string, any>, sources: { name: string, source: string, from?: string }[], ignored: string[] }}
  * @throws Error naming what the plan asks that cannot be given
  */
-export function inputsFor({ entry, planModule, name, tags, platform = {}, code = {}, connected = new Set() }) {
+export function inputsFor({ entry, planModule, name, tags, platform = {}, code = {}, connected = new Set(), parts = [] }) {
   const declared = entry.inputs || {};
   const inputs = {};
   const sources = [];
@@ -63,7 +65,13 @@ export function inputsFor({ entry, planModule, name, tags, platform = {}, code =
     give(d.package, code.package, "your app's code");
     give(d.handler, ADAPTER_HANDLER, "seaLeye");
   }
-  for (const [input, { from, value }] of Object.entries(platformInputs(entry, platform))) give(input, value, "platform value", from);
+  const network = parts.some(p => inNetwork(p.entry));
+  for (const [input, { from, value }] of Object.entries(platformInputs(entry, platform, { network }))) give(input, value, "platform value", from);
+  if (network) {
+    const lacking = NETWORK_INPUTS.filter(i => !(i in inputs));
+    const inside = parts.filter(p => inNetwork(p.entry)).map(p => p.entry.id).join(", ");
+    if (lacking.length) throw new Error(`the platform has no value for ${lacking.join(" and ")}, which ${entry.id} needs to join the private network and reach ${inside}, so nothing was built. Ask your platform team.`);
+  }
 
   // What the plan asks for itself: an optional input the module takes, with a plain
   // value. seaLeye's own inputs and the platform's are never the plan's to set, so a
@@ -93,7 +101,9 @@ export function inputsFor({ entry, planModule, name, tags, platform = {}, code =
  * connected through what the library offers"): each one's access policy in the inputs
  * that take policies, each secret in the one that takes secrets, and each value the plan
  * names a setting for in the app's settings, as references OpenTofu resolves. Nothing
- * here makes a resource: the library's modules made every policy.
+ * here makes a resource: the library's modules made every policy. A module that grants
+ * access keeps its secret: an app signs in to a database with its own identity, and
+ * never reads the master password (Greg, Oct 20, 2026).
  *
  * @param {object} appEntry
  * @param {{ key: string, entry: object, planModule: object }[]} parts
@@ -108,7 +118,7 @@ export function connectionInputs(appEntry, parts) {
   for (const { key, entry, planModule } of parts) {
     const o = entry.offers || {};
     if (o.access) policies.push(`\${module.${key}.${o.access}}`);
-    for (const secret of o.secrets || []) secrets.push(`\${module.${key}.${secret}}`);
+    if (!o.access) for (const secret of o.secrets || []) secrets.push(`\${module.${key}.${secret}}`);
     for (const [value, setting] of Object.entries(planModule.connect || {})) {
       environment[setting] = `\${module.${key}.${value}}`;
       settings[setting] = `${entry.id}.${value}`;
@@ -117,7 +127,7 @@ export function connectionInputs(appEntry, parts) {
   const inputs = {};
   const sources = [];
   if (policies.length && takes.policies) { inputs[takes.policies] = policies; sources.push({ name: takes.policies, source: "the modules your app uses", from: parts.filter(p => p.entry.offers?.access).map(p => p.entry.id).join(", ") }); }
-  if (secrets.length && takes.secrets) { inputs[takes.secrets] = secrets; sources.push({ name: takes.secrets, source: "the modules your app uses", from: parts.filter(p => p.entry.offers?.secrets?.length).map(p => p.entry.id).join(", ") }); }
+  if (secrets.length && takes.secrets) { inputs[takes.secrets] = secrets; sources.push({ name: takes.secrets, source: "the modules your app uses", from: parts.filter(p => p.entry.offers?.secrets?.length && !p.entry.offers.access).map(p => p.entry.id).join(", ") }); }
   if (Object.keys(environment).length && takes.environment) { inputs[takes.environment] = environment; sources.push({ name: takes.environment, source: "the modules your app uses", from: Object.keys(environment).sort().join(", ") }); }
   return { inputs, sources, settings };
 }

@@ -337,3 +337,61 @@ test("the interview hears how to connect modules only from a catalog that has th
   assert.match(connected.module_guidance, /- document_table gives the app \W*table_name/);
   assert.match(connected.plan_description, /with connect naming the setting the app reads each of its values from/);
 });
+
+test("an app reaches a database in the private network: its module joins the network only then, and never reads the master password", async () => {
+  const { NETWORK_INPUTS, connectionProblems, inNetwork, joinsNetwork, platformInputs, terraformBuilds: builds } = await import("../core/terraform-modules.js");
+  const { connectionInputs } = await import("../api/executor/terraform/root.js");
+  const joining = api({ inputs: { ...api().inputs, policy_arns: { required: false }, secret_arns: { required: false }, subnet_ids: { required: false }, security_group_ids: { required: false } }, accepts: { policies: "policy_arns", secrets: "secret_arns", environment: "environment" } });
+  const db = {
+    id: "postgres", builds_with: "terraform", availability: "available", runs: [], delivers: null,
+    inputs: { name: { required: true }, stage: { required: true }, subnet_group_name: { required: true }, security_group_ids: { required: true }, permissions_boundary_arn: { required: false } },
+    outputs: { address: {}, port: {}, database_name: {}, database_user: {}, access_policy_arn: {}, password_secret_arn: {} },
+    offers: { access: "access_policy_arn", narrower: [], secrets: ["password_secret_arn"], values: ["address", "database_name", "database_user", "port"] }
+  };
+  const table = { id: "table", delivers: null, inputs: { name: { required: true } }, offers: { access: "access_policy_arn", narrower: [], secrets: [], values: ["table_name"] } };
+  const vault = { id: "vault", delivers: null, inputs: { name: { required: true } }, offers: { access: null, narrower: [], secrets: ["password_secret_arn"], values: ["address"] } };
+  assert.equal(inNetwork(db), true);
+  assert.equal(inNetwork(table), false);
+  assert.equal(inNetwork(joining), false, "a module that runs an app is never a part in the network");
+  assert.equal(joinsNetwork(joining), true);
+  assert.equal(joinsNetwork(api()), false);
+
+  // Built only once the platform has the network values for the module that runs the app,
+  // and only when it lets the app sign in with its own identity.
+  const own = ["postgres.subnet_group_name", "postgres.security_group_ids"];
+  assert.match(builds({ ...db, offers: { ...db.offers, access: null } }, { names: [...own, "subnet_ids", "security_group_ids"] }).why, /signs in with its own identity, which this module does not offer/);
+  assert.match(builds(db, { names: own }).why, /^an app reaches it over the private network, and the platform has no subnet_ids and security_group_ids value/);
+  assert.deepEqual(builds(db, { names: own }).missing, ["subnet_ids", "security_group_ids"]);
+  assert.match(builds(db, { names: [...own, "subnet_ids"] }).why, /no security_group_ids value/);
+  assert.equal(builds(db, { names: [...own, "http_api.subnet_ids", "http_api.security_group_ids"] }).builds, true, "one module's own network values count");
+  assert.equal(builds(db, { names: [...own, "subnet_ids", "security_group_ids"] }).builds, true);
+
+  // The app's module is given the network inputs only when the plan has a part in the network.
+  const values = { permissions_boundary_arn: "b", subnet_ids: ["subnet-a", "subnet-b"], security_group_ids: ["sg-apps"], "postgres.subnet_group_name": "dbs", "postgres.security_group_ids": ["sg-dbs"] };
+  assert.deepEqual(Object.keys(platformInputs(joining, values)), ["permissions_boundary_arn"]);
+  assert.deepEqual(Object.keys(platformInputs(joining, values, { network: true })).sort(), ["permissions_boundary_arn", "security_group_ids", "subnet_ids"]);
+  assert.deepEqual(platformInputs(db, values).security_group_ids, { from: "postgres.security_group_ids", value: ["sg-dbs"] }, "a part's own group is its own required input, whatever the plan");
+  const outside = inputsFor({ entry: joining, planModule: { id: "http_api" }, name: "n", tags: {}, platform: values, code: { package: "p" }, parts: [{ key: "table", entry: table }] });
+  assert.equal("subnet_ids" in outside.inputs, false, "an app that uses a table stays outside the network");
+  const inside = inputsFor({ entry: joining, planModule: { id: "http_api" }, name: "n", tags: {}, platform: values, code: { package: "p" }, parts: [{ key: "postgres", entry: db }] });
+  assert.deepEqual(inside.inputs.subnet_ids, ["subnet-a", "subnet-b"]);
+  assert.deepEqual(inside.sources.find(s => s.name === "security_group_ids"), { name: "security_group_ids", source: "platform value", from: "security_group_ids" });
+  const { subnet_ids: _s, ...noNetwork } = values;
+  assert.throws(() => inputsFor({ entry: joining, planModule: { id: "http_api" }, name: "n", tags: {}, platform: noNetwork, code: { package: "p" }, parts: [{ key: "postgres", entry: db }] }), /no value for subnet_ids, which http_api needs to join the private network and reach postgres/);
+
+  // A module that grants access keeps its secret; one that only has a secret hands it over.
+  const wired = connectionInputs(joining, [{ key: "postgres", entry: db, planModule: { connect: { address: "DATABASE_HOST" } } }, { key: "vault", entry: vault, planModule: { connect: { address: "VAULT" } } }]);
+  assert.deepEqual(wired.inputs.secret_arns, ["${module.vault.password_secret_arn}"]);
+  assert.deepEqual(wired.inputs.policy_arns, ["${module.postgres.access_policy_arn}"]);
+  assert.equal(wired.sources.find(s => s.name === "secret_arns").from, "vault");
+
+  // The plan check says what the network needs, in the catalog's words.
+  const noSecrets = { ...joining, inputs: { ...api().inputs, policy_arns: {}, subnet_ids: {}, security_group_ids: {} }, accepts: { policies: "policy_arns", environment: "environment" } };
+  const cannotJoin = { ...joining, inputs: { ...api().inputs, policy_arns: {} }, accepts: { policies: "policy_arns", environment: "environment" } };
+  const plan = { modules: [{ id: "http_api" }, { id: "postgres", connect: { address: "H", port: "P", database_name: "D", database_user: "U" } }] };
+  const words = (app, names) => connectionProblems(plan, { modules: [app, db], platform: { names } }).map(p => p.message);
+  assert.deepEqual(words(noSecrets, [...own, "subnet_ids", "security_group_ids"]), [], "a database that grants access needs no secrets input on the app's module");
+  assert.match(words(cannotJoin, [...own, "subnet_ids", "security_group_ids"])[0], /postgres is in the private network, and http_api cannot join it: it takes no subnet_ids and security_group_ids/);
+  assert.match(words(noSecrets, own)[0], /the platform has no subnet_ids and security_group_ids value for http_api to join the private network with, which using postgres needs/);
+  assert.deepEqual(NETWORK_INPUTS, ["subnet_ids", "security_group_ids"]);
+});

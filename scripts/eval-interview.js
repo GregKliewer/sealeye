@@ -33,7 +33,7 @@ import YAML from "yaml";
 import { DEFAULT_MODEL, loadSystemPrompt, resolveApiKey } from "../api/interview/model.js";
 import { addCatalog, approveCatalog, liveCatalog, makeLive, openCatalogs } from "../api/catalogs.js";
 import { openPlatform, platformValues, setPlatformValue } from "../api/platform.js";
-import { DEVELOPER_STAGE, platformWanted } from "../core/terraform-modules.js";
+import { DEVELOPER_STAGE, NETWORK_INPUTS, inNetwork, platformWanted } from "../core/terraform-modules.js";
 import { CONFIG_FILE, LEGACY_CONFIG_FILE } from "../core/names.js";
 import { runInterview } from "../api/interview/service.js";
 import { loadEnv, loadUserConfig, repoRoot, setting } from "../core/config.js";
@@ -128,6 +128,15 @@ export async function seedPlatformValues({ org, document }) {
     for (const { input, required, filledBy } of inputs) {
       if (!required || filledBy || names.includes(input)) continue;
       await setPlatformValue({ org, stage: DEVELOPER_STAGE, name: input, value: `eval-placeholder-${input.replace(/_/g, "-")}`, by: "eval@sealeye" });
+      names.push(input);
+    }
+  }
+  // An app that uses a module in the private network joins it with the network values,
+  // which no module requires on its own.
+  if ((document?.modules || []).some(inNetwork)) {
+    for (const input of NETWORK_INPUTS) {
+      if (names.includes(input) || Object.keys(platformValues(org, DEVELOPER_STAGE)).includes(input)) continue;
+      await setPlatformValue({ org, stage: DEVELOPER_STAGE, name: input, value: [`eval-placeholder-${input.replace(/_/g, "-")}`], by: "eval@sealeye" });
       names.push(input);
     }
   }

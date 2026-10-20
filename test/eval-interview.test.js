@@ -405,8 +405,9 @@ test("the eval's organization gets a placeholder value for every required input 
     assert.ok(names.includes("permissions_boundary_arn") && names.includes("subnet_ids"));
     assert.ok(!names.includes("environment") && !names.includes("policy_arns"), "an optional input is left to the plan and the wiring");
     // What the server builds from catalog 8: the modules that run an app, and the modules
-    // an app uses that offer it access. A database waits on the network (Q23); a container
-    // service, secrets and the rest run no app and offer none.
+    // an app uses that offer it access. Its database offers only a password, which an
+    // app in the private network never holds (Q23); a container service, secrets and the
+    // rest run no app and offer none.
     assert.deepEqual(buildableModules(withPlatform("eval-juniper", doc)).map(m => m.id).sort(), ["document_table", "file_bucket", "http_api", "static_site", "work_queue"]);
     assert.deepEqual(await seedPlatformValues({ org: "eval-juniper", document: doc }), [], "a second seeding sets nothing again");
   } finally {
