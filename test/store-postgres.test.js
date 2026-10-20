@@ -193,3 +193,32 @@ test("a token's scope in Postgres: team unless issued organization-wide, and old
   assert.match(r.refused, /scope is team or org/);
   assert.match(r.checked, /check constraint/, "the database itself refuses any other scope");
 });
+
+test("a change saved while the record's last write is under way reaches the database", { skip: !pgAvailable && "no SEALEYE_TEST_DATABASE_URL" }, async () => {
+  const url = await freshDatabase();
+  // A Terraform build: its success is saved, and its report a moment later, while the
+  // first write is still talking to Postgres. That second save was lost: the first
+  // write marked the record saved when it finished (Oct 17, 2026).
+  await inChild(url, `
+    import { openStore, putDeployment, flushStore } from "./api/store.js";
+    await openStore();
+    const record = { deploymentId: "dep_000000000009", status: "running", app: { name: "site" }, startedAt: "2026-10-17T21:08:00Z" };
+    putDeployment(record);
+    await flushStore();
+    Object.assign(record, { status: "succeeded" });
+    putDeployment(record);
+    await null;
+    record.report = "# the report";
+    putDeployment(record);
+    await flushStore();
+    process.exit(0);
+  `);
+  const out = await inChild(url, `
+    import { openStore, getDeployment } from "./api/store.js";
+    await openStore();
+    const d = getDeployment("dep_000000000009");
+    console.log(JSON.stringify({ status: d.status, report: d.report ?? null }));
+    process.exit(0);
+  `);
+  assert.deepEqual(JSON.parse(out), { status: "succeeded", report: "# the report" });
+});
