@@ -2826,7 +2826,8 @@ dropped, and a plan file saying it refused.
 Thu Oct 15, 2026, PHASE4-PLAN Step 4 (D1, D2, D9). Greg chose the design with three
 changes for the path to production, and Q20 recorded.
 
-- **The library** is the private repository `GregKliewer/sealeye-sample-platform`:
+- **The library** is the repository `GregKliewer/sealeye-sample-platform` (private until
+  Oct 20, 2026; see "The sample platform is public" below):
   Juniper Mutual, a fictional credit union, and its platform team's thirteen Terraform
   modules for websites and backend APIs (static site, custom domain, HTTP API,
   container service, internal entry, two relational databases, document table, work
@@ -4100,3 +4101,14 @@ that commit yet). The Dockerfile now runs `chmod -R a+rX /app` after the copy, s
 the API reads is readable in every image, built anywhere. Git keeps no file modes but
 the executable bit, so the Mac's copy is fixed by hand (`chmod 644`). A deployment whose
 report could not be written keeps that message; the next build of it gets a report.
+
+## The sample platform is public
+
+Tue Oct 20, 2026, with the release of seaLeye under AGPL-3.0 and seaLeye.org.
+`GregKliewer/sealeye-sample-platform` went public the same day, under MIT with a NOTICE
+of its own, so anyone who clones seaLeye can run `npm run eval:discovery --library` and
+point discovery at a library without a token or an invitation. Nothing in it is drawn
+from a real organization, which is what made the decision easy. The planted password
+stays: the library's README and NOTICE say it is planted for the scanner tests, so a
+scanner bot or a reader has no reason to report it. The answer key stays here, not in
+the library, as before; a public library changes nothing about what discovery may read.
