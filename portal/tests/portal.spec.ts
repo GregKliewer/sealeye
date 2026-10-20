@@ -898,7 +898,7 @@ test("Platform sets a value for a module's input, refuses a secret in its words,
   await page.getByLabel("Value", { exact: true }).fill("sg-0123abcd\nsg-4567efab");
   await expect(page.getByTestId("platform-form").getByTestId("command-hint")).toHaveText(/sealeye platform set http_api.security_group_ids sg-0123abcd sg-4567efab/);
   await page.getByRole("button", { name: "Set it for dev" }).click();
-  await expect(page.getByTestId("platform-done")).toHaveText("http_api.security_group_ids is set for dev.");
+  await expect(page.getByTestId("platform-done")).toHaveText("http_api.security_group_ids is set for dev in juniper.");
   const row = page.getByTestId("platform-value").filter({ hasText: "http_api.security_group_ids" });
   await expect(row.getByTestId("platform-words")).toHaveText("sg-0123abcdsg-4567efab");
   await expect(row).toContainText("pat@juniper.example");
@@ -907,7 +907,7 @@ test("Platform sets a value for a module's input, refuses a secret in its words,
   await expect(api.getByTestId("wanted-input").filter({ hasText: "security_group_ids" }).getByTestId("filled-by")).toHaveText("http_api.security_group_ids");
 
   await row.getByRole("button", { name: "Remove http_api.security_group_ids" }).click();
-  await expect(page.getByTestId("platform-done")).toHaveText("http_api.security_group_ids is no longer set for dev.");
+  await expect(page.getByTestId("platform-done")).toHaveText("http_api.security_group_ids is no longer set for dev in juniper.");
   await expect(page.getByTestId("platform-value").filter({ hasText: "http_api.security_group_ids" })).toHaveCount(0);
   await expect(api.getByTestId("wanted-builds")).toHaveText("Not built yet");
 });

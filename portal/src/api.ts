@@ -328,9 +328,9 @@ export const api = {
   // The organization's platform values, as `sealeye platform` reads and sets them.
   platform: (stage: string) => request<Platform>(`/platform?stage=${encodeURIComponent(stage)}`),
   setPlatformValue: (name: string, value: PlatformWord, stage: string) =>
-    request<{ value: PlatformValue & { stage: string } }>(`/platform/values/${encodeURIComponent(name)}`, { method: "PUT", body: { value, stage } }).then(r => r.value),
+    request<{ value: PlatformValue & { stage: string; organization?: string } }>(`/platform/values/${encodeURIComponent(name)}`, { method: "PUT", body: { value, stage } }).then(r => r.value),
   removePlatformValue: (name: string, stage: string) =>
-    request<{ stage: string; name: string; removed: boolean }>(`/platform/values/${encodeURIComponent(name)}?stage=${encodeURIComponent(stage)}`, { method: "DELETE" }),
+    request<{ stage: string; name: string; removed: boolean; organization?: string }>(`/platform/values/${encodeURIComponent(name)}?stage=${encodeURIComponent(stage)}`, { method: "DELETE" }),
   settings: (app: string, team: string) => request<AppSettings>(settingsPath(app, team)),
   setSetting: (app: string, team: string, name: string, value: string) =>
     request<{ set: boolean }>(settingsPath(app, team, name), { method: "PUT", body: { value } }),

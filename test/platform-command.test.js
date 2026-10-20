@@ -45,9 +45,9 @@ test("sealeye platform lists the values and what each module still needs, then s
   assert.match(first.stdout, /Set one with: sealeye platform set permissions_boundary_arn <value>/);
 
   const set = await sealeye(["platform", "set", "permissions_boundary_arn", "arn:aws:iam::123456789012:policy/b"], PLAT);
-  assert.match(set.stdout, /permissions_boundary_arn is set for dev: arn:aws:iam::123456789012:policy\/b\./);
+  assert.match(set.stdout, /permissions_boundary_arn is set for dev in juniper: arn:aws:iam::123456789012:policy\/b\./);
   const list = await sealeye(["platform", "set", "subnet_ids", "subnet-1", "subnet-2", "--stage", "staging"], PLAT);
-  assert.match(list.stdout, /subnet_ids is set for staging: subnet-1, subnet-2\./);
+  assert.match(list.stdout, /subnet_ids is set for staging in juniper: subnet-1, subnet-2\./);
 
   const after = await sealeye(["platform"], PLAT);
   assert.match(after.stdout, /permissions_boundary_arn\s+arn:aws:iam::123456789012:policy\/b/);
@@ -56,9 +56,9 @@ test("sealeye platform lists the values and what each module still needs, then s
   assert.deepEqual(staging.values.map(v => [v.name, v.value]), [["subnet_ids", ["subnet-1", "subnet-2"]]]);
 
   const gone = await sealeye(["platform", "unset", "subnet_ids", "--stage", "staging"], PLAT);
-  assert.match(gone.stdout, /subnet_ids is removed for staging\./);
+  assert.match(gone.stdout, /subnet_ids is removed for staging in juniper\./);
   const again = await sealeye(["platform", "unset", "subnet_ids", "--stage", "staging"], PLAT);
-  assert.match(again.stdout, /was not set for staging, so nothing changed/);
+  assert.match(again.stdout, /was not set for staging in juniper, so nothing changed/);
 });
 
 test("sealeye platform says the API's refusal in its own words", async () => {
