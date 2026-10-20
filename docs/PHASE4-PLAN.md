@@ -281,7 +281,12 @@ released" and "Modules are connected through what the library offers"; Greg: V1a
 V3a, V4, W1a to W7): versions from `<module>/vX.Y.Z` tags, read at each release's
 commit, a new major version refused; a table, a bucket and a queue connected to the app
 by their access outputs and the settings the plan names (planVersion 0.6), torn down
-together. The database waits on the network (OPEN-QUESTIONS Q23).
+together. The database came last, Tue Oct 20, 2026 (DESIGN.md, "An app reaches a
+database in the private network"; Greg: private endpoints, never a NAT gateway; the app
+signs in with its own identity, no password): the library's `postgres` makes the app's
+user and database with a one-time setup function of its own, the app's module joins
+the private network only when its plan has a module that lives there, and the platform
+keeps the master password where no app's role can read it.
 
 ## Part D: what was asked for, and writing it down
 

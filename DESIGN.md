@@ -4112,3 +4112,97 @@ from a real organization, which is what made the decision easy. The planted pass
 stays: the library's README and NOTICE say it is planted for the scanner tests, so a
 scanner bot or a reader has no reason to report it. The answer key stays here, not in
 the library, as before; a public library changes nothing about what discovery may read.
+
+## An app reaches a database in the private network
+
+Tue Oct 20, 2026, Greg, closing OPEN-QUESTIONS Q23 (decided in the morning: private
+endpoints, never a NAT gateway, and the app signs in with its own identity; in the
+afternoon: "1. (a) 2. Okay 3. Agreed 4. Agreed 5. Okay"; and later that day, the
+instance size, one endpoint, the secrets rule and the certificate bundle). A database
+lives in the foundation network's private subnets, which have no way out. Built in
+sealeye-sample-platform #4 and #5 (`postgres` and `http-api` at 1.2) and here.
+
+- **The library's database signs the app in with its own identity** (1a). The `postgres`
+  module turns on IAM database authentication, and runs a one-time setup function of
+  its own, inside the network, when the database is made: it signs in as the master
+  user with the password the platform keeps, makes the app's user with `rds_iam` and
+  the app's own database, owned by that user. It is the only thing that ever reads the
+  master password; the app never does. It is invoked by the module at apply
+  (`aws_lambda_invocation`, the AWS provider only), so `moduleRuns` finds nothing it
+  would run on the platform's server; discovery's code read the module and recorded
+  `runs: []`. Rejected: a `postgresql` provider (refused by the executor, and the plan
+  would need the database to validate); the adapter granting at first start (the app's
+  role would read the master secret); dropping IAM sign-in for dev. The module offers
+  `access_policy_arn`, the right to sign in as that user, beside `address`, `port`,
+  `database_name` and `database_user`, the way every data module offers what an app
+  needs. The function's code is committed as a built package in the library
+  (`setup/setup.zip`, built by `setup/build.sh` from its source with its one dependency
+  and AWS's certificate bundle, stored uncompressed with fixed dates, so the library's
+  own check rebuilds it and compares): the `archive` provider would be refused, and the
+  function needs its client bundled in any case. Its security group is its own, which
+  the database admits, so an app's environment never changes a platform group.
+- **No paid endpoint for sign-in** (2), checked against AWS's documentation before
+  building. The RDS user guide says authentication tokens are made with Signature
+  Version 4, last fifteen minutes, and are not logged by CloudTrail or CloudWatch
+  because `generate-db-auth-token` is not a service call: the token is a local presign.
+  The Lambda user guide says `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and
+  `AWS_SESSION_TOKEN` are reserved variables holding the access keys obtained from the
+  function's execution role, set by the runtime, so nothing calls STS. That a
+  function's own log output is delivered by the service and not from inside the
+  network is supported by the same guide (every function runs inside a VPC the Lambda
+  service owns, and attaching it to yours has no effect on that; only Lambda Managed
+  Instances are told the logs service must be routable from the VPC), but AWS states it
+  in no one sentence; the first build on the pilot settles it, since the setup function
+  writes logs and no logs endpoint exists. What does need an endpoint is the setup
+  function reading the master password, once: `platform-sealeye-endpoints`
+  (`deploy/endpoints.yaml`), one secrets endpoint in one data centre (Greg: one for
+  now; cost is controlled by tearing environments down and parking the pilot between
+  bursts of work), which `park` deletes and `unpark` makes again. The free gateway
+  endpoints for tables and buckets are in the foundation, with a route table of its own
+  for the private subnets, so an app inside the network still reaches its table.
+- **A part in the network, and the app's module joins it only then** (3). A module an
+  app uses that takes `subnet_group_name` or `subnet_ids` lives in the private network
+  (`inNetwork` in `core/terraform-modules.js`). A module that runs an app joins it
+  through `subnet_ids` and `security_group_ids` (`NETWORK_INPUTS`, `joinsNetwork`),
+  which the platform's values fill only when the plan has such a part: an app that uses
+  a table stays outside, where it starts faster and needs nothing from the network
+  (`platformInputs` with `network`, `inputsFor` in `api/executor/terraform/root.js`).
+  Inside the network the app signs in with its own identity, so a part there is built
+  only when it offers an access policy; one offering only a password is refused, saying
+  so (`terraformBuilds`), which keeps catalog 8's database refused as before. The plan
+  check and the self-test say in words what the network needs: an app module that can
+  join it, and the platform's `subnet_ids` and `security_group_ids` values
+  (`connectionProblems`); the executor refuses with the same words before anything is
+  built. The foundation's outputs say which value is which.
+- **A module that grants access keeps its secret.** `connectionInputs` hands the app a
+  part's secrets only from a part that offers no access; the database's
+  `password_secret_arn` stays, for restoring by hand, and never reaches an app's role
+  (Greg: agreed, Oct 20).
+- **Minor versions, with the setup function's boundary optional** (4). Juniper's rule is
+  that every function carries the platform's permissions boundary; a required input
+  would have made the module a major version by the library's own rule. `postgres`
+  takes `permissions_boundary_arn` optionally, and the pilot's plain
+  `permissions_boundary_arn` value fills it, so the Terraform role creates the setup
+  role only with the boundary on it. Greg can overturn this for a 2.0.0.
+- **The instance size** (Greg: raise it). The RDS user guide says IAM database
+  authentication needs 300 to 1000 MiB of extra memory on the instance for reliable
+  connections, and the smallest size has 1 GiB in all, so the library's default moved
+  one size up (`postgres/v1.2.1`); a standing database is resized in place.
+- **The role and the boundary widen to the database** (5): the Terraform role may make
+  a database under `sealeye-*-dev` in the foundation's subnet group, with the platform
+  keeping its master password, the setup function and its role
+  (`sealeye-*-dev-db-setup`), and the security group that function connects from, and
+  is denied changing any group tagged `platform-sealeye-*`; the boundary gains joining
+  the network, `rds-db:connect`, and reading a kept master password (`rds!db-*`). Which
+  of these the first build still lacks is found the way the first builds were, from
+  what the pilot says.
+- **The sample app ships the certificate bundle in its folder** (Greg).
+  `apps/account-notes-api` signs in with `@aws-sdk/rds-signer` and `pg`, reading
+  `DATABASE_HOST`, `DATABASE_PORT`, `DATABASE_NAME` and `DATABASE_USER`, and checks the
+  database's certificate against `platform-ca.crt` beside its code, which the platform
+  channel publishes (AWS's global bundle, downloaded once and committed): a `.pem` file
+  is a secret file by name (`core/secrets.js`) and would travel empty. Its eval case in
+  the Juniper set expects the database connected under those four settings; the set
+  plans against `test/fixtures/juniper-catalog-8-with-database.json`, catalog 8's words
+  with the 1.2.0 modules as discovery's code reads them, until the catalog discovered
+  after those releases is live and replaces it.
