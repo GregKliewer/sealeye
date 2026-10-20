@@ -166,8 +166,23 @@ export function outcomeOf(result) {
 }
 
 /**
+ * What a plan connects: each value a module the app uses gives, and the setting the app
+ * reads it from, across every enabled module (`connect` on a 0.6 plan's module). As
+ * "value=SETTING" lines, so a fixture's expectation and a plan's wiring compare alike.
+ */
+function connectionsOf(plan) {
+  return (plan?.modules || [])
+    .filter(m => m && m.enabled !== false && m.connect && typeof m.connect === "object")
+    .flatMap(m => Object.entries(m.connect).map(([value, name]) => `${value}=${name}`))
+    .sort();
+}
+
+/**
  * Compare a run with what its app is known to need. Modules are graded only when the
- * fixture names them: a drafted plan is graded on its needs.
+ * fixture names them: a drafted plan is graded on its needs. What the plan connects is
+ * graded only when the fixture says what the app reads (`connect`, value -> setting):
+ * every connection it names must be in the plan, and none it says the app does not
+ * read (`notConnect`, a list of values).
  */
 export function grade(result, expected) {
   const outcome = outcomeOf(result);
@@ -178,6 +193,13 @@ export function grade(result, expected) {
   const modulesCorrect = expected.modules
     ? expected.modules.every(m => modules.includes(m)) && (expected.notModules || []).every(m => !modules.includes(m))
     : null;
+
+  const connections = connectionsOf(result?.plan);
+  const wantConnect = expected.connect ? Object.entries(expected.connect).map(([value, name]) => `${value}=${name}`) : null;
+  const connectedValues = connections.map(c => c.split("=")[0]);
+  const missingConnect = (wantConnect || []).filter(c => !connections.includes(c));
+  const unwantedConnect = (expected.notConnect || []).filter(value => connectedValues.includes(value));
+  const connectCorrect = wantConnect || expected.notConnect ? missingConnect.length === 0 && unwantedConnect.length === 0 : null;
 
   return {
     outcome,
@@ -190,13 +212,17 @@ export function grade(result, expected) {
     missingModules: (expected.modules || []).filter(m => !modules.includes(m)),
     unwantedModules: (expected.notModules || []).filter(m => modules.includes(m)),
     extraNeeds: needs.filter(n => !wantNeeds.includes(n)),
+    connections,
+    connectCorrect,
+    missingConnect,
+    unwantedConnect,
     questions: result?.questions ?? 0
   };
 }
 
-/** Is the whole row right? Modules count only where they were graded. */
+/** Is the whole row right? Modules and connections count only where they were graded. */
 export function allCorrect(row) {
-  return !row.error && row.outcomeCorrect && row.needsCorrect && row.modulesCorrect !== false;
+  return !row.error && row.outcomeCorrect && row.needsCorrect && row.modulesCorrect !== false && row.connectCorrect !== false;
 }
 
 /** The dataset's id, creating the dataset if it is not there yet. */
@@ -285,6 +311,7 @@ export async function evaluate({ cases, runName, model, clientFor, outDir = null
         scoreTrace(row.traceId, "outcome_correct", row.outcomeCorrect);
         scoreTrace(row.traceId, "needs_correct", row.needsCorrect);
         if (row.modulesCorrect !== null) scoreTrace(row.traceId, "modules_correct", row.modulesCorrect);
+        if (row.connectCorrect !== null) scoreTrace(row.traceId, "connect_correct", row.connectCorrect);
       }
     } catch (err) {
       row = { app: name, error: err.message };
@@ -358,6 +385,13 @@ export function summaryLines(rows) {
       lines.push(`  ${"".padEnd(34)}    planned: ${r.modules.join(", ") || "no modules"}`);
       if (r.missingModules?.length) lines.push(`  ${"".padEnd(34)}    missing: ${r.missingModules.join(", ")}`);
       if (r.unwantedModules?.length) lines.push(`  ${"".padEnd(34)}    should not have: ${r.unwantedModules.join(", ")}`);
+    }
+    // Connections wrong: what the plan wired to which setting, and what was missing or
+    // should not be there.
+    if (r.connectCorrect === false) {
+      lines.push(`  ${"".padEnd(34)}    connected: ${r.connections.join(", ") || "nothing"}`);
+      if (r.missingConnect?.length) lines.push(`  ${"".padEnd(34)}    not connected: ${r.missingConnect.join(", ")}`);
+      if (r.unwantedConnect?.length) lines.push(`  ${"".padEnd(34)}    should not connect: ${r.unwantedConnect.join(", ")}`);
     }
     // Not as expected: what the model asked, how each was answered, and why it stopped,
     // so a run that went wrong can be read without opening its trace.

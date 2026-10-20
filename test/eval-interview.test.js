@@ -458,6 +458,39 @@ test("Juniper's set plans each app against its live catalog, graded on Juniper's
   }
 });
 
+test("what the plan connects is graded only when the fixture says what the app reads, and is named when wrong", () => {
+  const expected = { status: "ready", modules: ["http_api", "document_table"], connect: { table_name: "ORDERS_TABLE" }, needs: [] };
+  const wired = { modules: [{ id: "http_api", enabled: true }, { id: "document_table", enabled: true, connect: { table_name: "ORDERS_TABLE" } }], needs: [] };
+  const row = grade({ status: "submitted", plan: wired, questions: 1 }, expected);
+  assert.equal(row.connectCorrect, true);
+  assert.deepEqual(row.connections, ["table_name=ORDERS_TABLE"]);
+  assert.ok(allCorrect(row));
+
+  // The modules are right, and the table reaches the app under the wrong name.
+  const misnamed = { modules: [{ id: "http_api", enabled: true }, { id: "document_table", enabled: true, connect: { table_name: "TABLE" } }], needs: [] };
+  const wrong = { app: "orders-api", ...grade({ status: "submitted", plan: misnamed, questions: 1 }, expected) };
+  assert.equal(wrong.modulesCorrect, true);
+  assert.equal(wrong.connectCorrect, false);
+  assert.deepEqual(wrong.missingConnect, ["table_name=ORDERS_TABLE"]);
+  assert.ok(!allCorrect(wrong));
+  const lines = summaryLines([wrong]).join("\n");
+  assert.match(lines, /connected: table_name=TABLE/);
+  assert.match(lines, /not connected: table_name=ORDERS_TABLE/);
+
+  // A module switched off connects nothing, and a value the app does not read is named.
+  const off = { modules: [{ id: "http_api", enabled: true }, { id: "document_table", enabled: false, connect: { table_name: "ORDERS_TABLE" } }, { id: "file_bucket", enabled: true, connect: { bucket_name: "FILES" } }], needs: [] };
+  const extra = grade({ status: "submitted", plan: off, questions: 1 }, { ...expected, notConnect: ["bucket_name"] });
+  assert.deepEqual(extra.connections, ["bucket_name=FILES"]);
+  assert.deepEqual(extra.missingConnect, ["table_name=ORDERS_TABLE"]);
+  assert.deepEqual(extra.unwantedConnect, ["bucket_name"]);
+  assert.match(summaryLines([{ app: "orders-api", ...extra }]).join("\n"), /should not connect: bucket_name/);
+
+  // A fixture that says nothing about connections grades none.
+  const ungraded = grade({ status: "submitted", plan: wired, questions: 1 }, { status: "ready", modules: ["http_api"], needs: [] });
+  assert.equal(ungraded.connectCorrect, null);
+  assert.ok(allCorrect(ungraded));
+});
+
 test("modules not as expected say what was planned, what was missing, and what should not be there", () => {
   const expected = { status: "drafted", modules: ["container_service", "postgres", "secrets"], notModules: ["postgres_cluster"], needs: ["event_stream"] };
   const plan = { modules: [{ id: "container_service" }, { id: "postgres_cluster" }, { id: "secrets", enabled: false }], needs: [need("event_stream")] };
