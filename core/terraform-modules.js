@@ -80,6 +80,11 @@ export function terraformBuilds(entry, platform = {}) {
   if (delivers?.kind === "package" && codeInputs(entry).length !== 2) return no("it does not say which input takes the app and which the function to call");
   if (delivers?.kind === "files" && !(typeof delivers.output === "string" && delivers.output)) return no("it does not say where a site's files go");
 
+  // What waits on something only seaLeye can change says so first, before any value the
+  // platform team could set: setting them would build nothing yet.
+  const later = part ? notConnectedYet(entry) : null;
+  if (later) return no(later);
+
   const names = new Set(Array.isArray(platform?.names) ? platform.names : []);
   const own = new Set([...SEALEYE_INPUTS, ...codeInputs(entry)]);
   const missing = Object.entries(entry.inputs || {})
@@ -89,8 +94,6 @@ export function terraformBuilds(entry, platform = {}) {
   if (missing.length) {
     return no(`the platform has no value for its ${missing.join(", ")} input${missing.length === 1 ? "" : "s"}`, missing);
   }
-  const later = part ? notConnectedYet(entry) : null;
-  if (later) return no(later);
   return { builds: true, why: null, missing: [], ...(part ? { part: true } : {}) };
 }
 

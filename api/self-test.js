@@ -8,13 +8,13 @@
 // a plan for each module it builds is accepted, and whether any word a developer reads
 // is one they must never read. A catalog's shape, and any question about the whole
 // catalog still open, are checked first.
-import { PLAN_VERSION } from "../core/schema.js";
+import { CONNECTED_PLAN_VERSION, PLAN_VERSION } from "../core/schema.js";
 import { catalogProblems, isBuildable } from "../core/catalog.js";
 import { developerWordProblems, shownWord } from "../core/developer-words.js";
 import { editableFieldsOf, fieldForPlace } from "../core/catalog-edits.js";
 import { SELF_TEST_CHECKS } from "../core/discovery-words.js";
 import { checkAgainst } from "./validate.js";
-import { terraformBuilds } from "../core/terraform-modules.js";
+import { acceptsOf, isPart, terraformBuilds } from "../core/terraform-modules.js";
 
 /** Why the platform will not build a module from this catalog, in words, or null when it will. */
 export function whyRefused(m, document) {
@@ -37,6 +37,21 @@ export function planNaming(id, version, appType = "api") {
     profile: "dev",
     modules: [{ id, enabled: true }],
     outputs: []
+  };
+}
+
+/**
+ * The smallest plan that uses a module an app uses (a table, a bucket, a queue): with a
+ * module that runs the app, which a developer's plan always has, and a setting for each
+ * value it gives the app (planVersion 0.6). A table named alone is refused, rightly; the
+ * self-test asks what a developer would (catalog 8, Oct 20, 2026).
+ */
+export function planConnecting(part, app, version) {
+  const connect = Object.fromEntries((part.offers?.values || []).map(v => [v, `${part.id}_${v}`.toUpperCase().replace(/[^A-Z0-9_]/g, "_")]));
+  return {
+    ...planNaming(app.id, version),
+    planVersion: CONNECTED_PLAN_VERSION,
+    modules: [{ id: app.id, enabled: true }, { id: part.id, enabled: true, ...(Object.keys(connect).length ? { connect } : {}) }]
   };
 }
 
@@ -91,9 +106,13 @@ export function selfTest({ document, version, questionText = () => null }) {
   const built = [];
   const refusedProblems = [];
   const acceptedProblems = [];
+  // A module that runs an app and takes what another offers: the one a module the app
+  // uses is tried with.
+  const runsApp = modules.find(m => m.delivers?.kind === "package" && acceptsOf(m) && !whyRefused(m, document));
   for (const m of modules) {
     const why = whyRefused(m, document);
-    const result = checkAgainst(planNaming(m.id, version), document);
+    const part = !m.delivers && isPart(m) && runsApp;
+    const result = checkAgainst(part ? planConnecting(m, runsApp, version) : planNaming(m.id, version), document);
     if (why) {
       refused.push({ id: m.id, why });
       if (result.valid) refusedProblems.push(`A plan using ${m.id} was accepted, but ${why}, so it must be refused`);

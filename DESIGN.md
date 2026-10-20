@@ -4006,3 +4006,14 @@ Oct 20, 2026. A release stopped mid-pull with "no space left on device": the ser
 replaced goes: an image a container uses, running or stopped, is never removed, so the
 running release and the database's, the gateway's and Caddy's stay. `deploy/server.sh
 disk` shows what fills the disk, and `--prune` does the same removal by hand.
+
+## The self-test tries a module an app uses as a developer's plan would
+
+Oct 20, 2026, Juniper's catalog 8, the first discovered after modules could be connected:
+its self-test refused to pass, because each module it builds was tried in a plan of its
+own, and a table alone is refused, rightly (it needs a module that runs the app). The
+check that plans using what a catalog builds are accepted now tries a module an app uses
+beside a module that runs the app and takes what it offers, with a setting for each value
+(`planConnecting` in `api/self-test.js`). And a module that waits on something only
+seaLeye can change (a database, reached over the private network, Q23) says that first,
+before the platform values it also lacks: setting them would build nothing yet.

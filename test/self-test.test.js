@@ -179,3 +179,25 @@ test("the guard counts every environment not known to be gone: a failed tear-dow
   assert.deepEqual(named([{ ...rec("d1", "drafted", "1"), stackName: undefined }]), [], "a drafted plan built nothing");
   assert.deepEqual(environmentsDropped({ org: "juniper", document: doc, records: [rec("d1", "succeeded", "1")] }), [], "another organization's");
 });
+
+test("a module an app uses is tried as a developer's plan would use it, beside a module that runs the app", () => {
+  const input = (required = true) => ({ required, line: "What your app is called." });
+  const mod = (source, extra = {}) => ({ source, id: source.split("/").pop().replace(/-/g, "_"), inputs: { name: input(), stage: input() }, outputs: {}, runs: [], ...extra });
+  const modules = [
+    mod("modules/http-api", {
+      inputs: { name: input(), stage: input(), package_path: input(), handler: input(false), environment: input(false), policy_arns: input(false) },
+      delivers: { kind: "package", package: "package_path", handler: "handler", address: "url" },
+      accepts: { policies: "policy_arns", environment: "environment" }
+    }),
+    mod("modules/document-table", { offers: { access: "access_policy_arn", narrower: [], secrets: [], values: ["table_name"] } }),
+    // A database the app reaches over the private network: what it waits on is said
+    // before the values the platform team could set (Q23).
+    mod("modules/postgres", { inputs: { name: input(), stage: input(), subnet_group_name: input() }, offers: { access: null, narrower: [], secrets: ["password_secret_arn"], values: ["address"] } })
+  ];
+  const entries = modules.map(m => ({ source: m.source, line: `A plain line about ${m.id}.`, role: "optional" }));
+  const doc = draftCatalog({ run: { id: "dis_parts", repos: [{ repo: "acme/library", commit: "abc1234" }] }, modules, entries, questions: [] });
+  const result = selfTest({ document: doc, version: 8 });
+  assert.deepEqual(failed(result), {}, "catalog 8: a table named alone was refused, as it must be");
+  assert.deepEqual(result.built.sort(), ["document_table", "http_api"]);
+  assert.match(result.refused.find(r => r.id === "postgres").why, /^an app reaches it over the private network/);
+});
