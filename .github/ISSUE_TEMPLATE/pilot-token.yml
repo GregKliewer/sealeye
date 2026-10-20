@@ -1,0 +1,53 @@
+name: Request a pilot token
+description: Try the hosted pilot at sealeye.online with your own app.
+title: "Pilot token: "
+labels: ["pilot"]
+body:
+  - type: markdown
+    attributes:
+      value: >
+        The pilot runs on one small server in Canada, in a shared AWS account that seaLeye
+        owns. Environments it builds are for trying seaLeye, not for anything real, and
+        may be torn down without notice. A token names you on every record you make.
+  - type: input
+    id: name
+    attributes:
+      label: Your name, as you would like it on records
+    validations:
+      required: true
+  - type: input
+    id: team
+    attributes:
+      label: Team name
+      description: Environments are kept by team. One word or two, lowercase, is easiest.
+    validations:
+      required: true
+  - type: textarea
+    id: app
+    attributes:
+      label: What you want to try it on
+      description: >
+        The kind of app (a website, a backend API, something else), and what it needs
+        (a database, a queue, a bucket). Nothing is built from this description; it
+        says what to expect when you run it.
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where you expect to start
+      options:
+        - The sealeye command (seaLeye.run)
+        - The web portal (seaLeye.online)
+        - Both
+    validations:
+      required: true
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Before a token is issued
+      options:
+        - label: I will not put secrets, customer data or anything production-bound into a pilot environment.
+          required: true
+        - label: I understand the pilot may be paused or shut down without notice, and I can run seaLeye myself from the repo if it is.
+          required: true
