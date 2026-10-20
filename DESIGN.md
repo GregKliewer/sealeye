@@ -4065,3 +4065,14 @@ accepts, which Juniper's catalog 3 (Oct 16) predates.
   says what was not connected or should not be, and records `connect_correct` beside
   `modules_correct`. An app's fixture against the starter, where nothing connects, grades
   none of it; there the orders app drafts with a document database need.
+
+## Every file in the image is readable, whoever built it
+
+Oct 20, 2026. A build on the pilot succeeded, and its report could not be written:
+`EACCES` reading `prompts/report.md`. The image is `COPY . .`, so each file keeps the
+mode it had on the machine that built it, and the API runs as `node`; on Greg's Mac that
+one file was `0600`, and release.sh had built the image there (GitHub had not built
+that commit yet). The Dockerfile now runs `chmod -R a+rX /app` after the copy, so what
+the API reads is readable in every image, built anywhere. Git keeps no file modes but
+the executable bit, so the Mac's copy is fixed by hand (`chmod 644`). A deployment whose
+report could not be written keeps that message; the next build of it gets a report.
