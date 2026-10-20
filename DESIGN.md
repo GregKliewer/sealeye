@@ -3917,3 +3917,14 @@ V3a, V4 as recommended).
   refused, 409 MAJOR_VERSION, since it may take what the app gives it differently, and
   `sealeye run` plans against it again. A tear-down uses the code that was built.
 - The client's catalog carries a module's version and never its tag or commit.
+
+## A release removes the images nothing uses
+
+Oct 20, 2026. A release stopped mid-pull with "no space left on device": the server's
+20 GB disk was full of earlier releases' images. Each release ran `docker image prune
+-f`, which removes only untagged images, and a release's image is tagged
+(`main-<commit>`), so none ever went. `deploy/update.sh` now runs `docker image prune
+-af` before it pulls, so there is room, and after it switches, so the release it
+replaced goes: an image a container uses, running or stopped, is never removed, so the
+running release and the database's, the gateway's and Caddy's stay. `deploy/server.sh
+disk` shows what fills the disk, and `--prune` does the same removal by hand.

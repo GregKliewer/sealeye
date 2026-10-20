@@ -16,6 +16,7 @@
 #   deploy/server.sh settings-sources    live environments still taking settings from a developer's .env
 #   deploy/server.sh library-check       read each named platform library as discovery will, and say what was read
 #   deploy/server.sh tofu-unlock <dep_...> [--release]  what holds a Terraform environment's lock, and release it
+#   deploy/server.sh disk [--prune]     how full the server's disk is, and what fills it; --prune removes unused images
 set -euo pipefail
 
 REGION="${AWS_REGION:-ca-central-1}"
@@ -143,6 +144,14 @@ case "${1:-}" in
     [[ -z "$WHO" || "$WHO" =~ ^[A-Za-z0-9@._+-]+$ ]] || { echo "Name a run (int_...) or a person's email, or nothing."; exit 1; }
     [[ "$LIMIT" =~ ^[0-9]{1,5}$ ]] || { echo "The number of calls must be a whole number."; exit 1; }
     run_on_server "seaLeye gateway calls" "cd /opt/sealeye && bash gateway.sh calls '${WHO}' ${LIMIT}" ;;
+  disk)
+    # Images no container uses, and Docker's build cache, are all --prune removes: the
+    # running containers, their volumes (the database, certificates, the API's home)
+    # and their images stay.
+    PRUNE=""
+    case "${2:-}" in "") ;; --prune) PRUNE="echo 'Removing images no container uses:'; docker image prune -af | tail -1; docker builder prune -af 2>/dev/null | tail -1; echo; echo 'The disk after:'; df -h / | tail -1;" ;; *) echo "usage: deploy/server.sh disk [--prune]"; exit 1 ;; esac
+    run_on_server "seaLeye disk" \
+      "cd /opt/sealeye; echo 'The disk:'; df -h / | tail -1; echo; docker system df; echo; ${PRUNE}" ;;
   *)
-    sed -n '2,18p' "$0"; exit 1 ;;
+    sed -n '2,19p' "$0"; exit 1 ;;
 esac
