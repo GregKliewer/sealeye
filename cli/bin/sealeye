@@ -15,6 +15,7 @@ import {
   listDeployments,
   destroyDeployment,
   getEvidence,
+  getPlan,
   getLogs,
   setPaused,
   getTeam,
@@ -29,9 +30,10 @@ import {
   putSetting,
   deleteSetting,
   NotSignedInError,
-  getCatalog
+  getCatalog,
+  catalogForPlan
 } from "../client.js";
-import { looksLikeToken, seesInWords } from "../../core/token.js";
+import { looksLikeToken, seesInWords, organizationInWords } from "../../core/token.js";
 import { banner, step, ask, answer, typing, typed, c, product, spinner, stopSpinner, animations } from "../brand.js";
 import { safeName, CONFIG_FILE, LEGACY_CONFIG_FILE } from "../../core/names.js";
 import { USER_CONFIG_HINT, setting, loadUserConfig, DEFAULT_API, saveUserSetting, sealeyeHome, portalFor } from "../../core/config.js";
@@ -42,20 +44,29 @@ import { unsupportedNeeds, refusalClosing, orgName } from "../../core/catalog.js
 import { interviewThroughApi } from "../interview/follow.js";
 import { runDoctor } from "../doctor.js";
 import { writeInterviewFiles, decisionCard } from "../interview/render.js";
-import { plainValidationErrors } from "../../core/plan-words.js";
+import { catalogSentence, plainValidationErrors } from "../../core/plan-words.js";
 import { evidenceSummary } from "../../core/evidence-summary.js";
+import { noReportWords, planOrigin, teardownDataWords } from "../../core/plan-report-words.js";
 import { RETENTION_CHOICES, retentionOf, withRetention } from "../../core/retention.js";
+import { commandFor, wordsFor } from "../../core/operations.js";
+import { discover } from "../discover.js";
+import { catalogs } from "../catalogs.js";
+import { platform } from "../platform.js";
+import { withVersion } from "../../core/discovery-words.js";
 
 // Statuses that are history rather than something you can still open: one was torn
 // down, the other was never built because the platform said so.
 const PAST = new Set(["destroyed", "drafted"]);
 
 // `sealeye online` opens the portal; `portal` and `open` are the same command, for
-// whoever reaches for those words first.
-const ONLINE = new Set(["online", "portal", "open"]);
+// whoever reaches for those words first (core/operations.js).
+const ONLINE = new Set(wordsFor("online"));
 
 // --json is machine output: no banner, no colour, nothing but the object.
 const jsonOut = process.argv.includes("--json");
+// `sealeye plan` printed into a file or another command: the file is all of the output,
+// so no banner and no plain-language lines, which go nowhere a person reads them.
+const printingAFile = process.argv[2] === "plan" && !process.argv.includes("--out") && !process.stdout.isTTY;
 
 // --watch opts back into the old behavior: stay on the live panel until the
 // deployment finishes, instead of handing the terminal back and watching in the
@@ -90,7 +101,7 @@ function requestedBy() {
 // One plain-language line of what the platform is doing. Silent in --json mode, which
 // must stay parseable.
 function say(line) {
-  if (!jsonOut) console.log(step(line));
+  if (!jsonOut && !printingAFile) console.log(step(line));
 }
 
 // Printed once at the top of every command.
@@ -100,7 +111,8 @@ function say(line) {
 // So is the address `sealeye online --print` prints for a script to use.
 const pastingARequest =
   (process.argv[2] === "needs" && process.argv.includes("--request") && !process.stdout.isTTY) ||
-  (ONLINE.has(process.argv[2]) && process.argv.includes("--print") && !process.stdout.isTTY);
+  (ONLINE.has(process.argv[2]) && process.argv.includes("--print") && !process.stdout.isTTY) ||
+  printingAFile;
 
 function printBanner() {
   if (jsonOut || pastingARequest) return;
@@ -122,9 +134,10 @@ Usage:
   ${product.command} validate --file <plan.yaml> [--api <url>] [--json]
   ${product.command} status [app | deploymentId] [--api <url>] [--json]
   ${product.command} watch [app | deploymentId] [--api <url>]
-  ${product.command} destroy [app | deploymentId] [--api <url>]
+  ${product.command} teardown [app | deploymentId] [--watch] [--api <url>]
   ${product.command} list [--deployments] [--all] [--api <url>] [--json]
   ${product.command} evidence [app | deploymentId] [--json] [--out <file>] [--api <url>]
+  ${product.command} plan [app | deploymentId] [--report] [--out <folder>] [--json] [--api <url>]
   ${product.command} logs [app | deploymentId] [--since 15m|1h|6h|1d] [--json] [--api <url>]
   ${product.command} config [app | deploymentId] [--retention <days>] [--json] [--api <url>]
   ${product.command} perf [app | deploymentId] [--since 1h|6h|1d|7d] [--json] [--api <url>]
@@ -137,8 +150,15 @@ Usage:
   ${product.command} online [app | deploymentId] [--print] [--json] [--api <url>]
   ${product.command} doctor [--json] [--api <url>]
   ${product.command} catalog [--json] [--api <url>]
+  ${product.command} catalog versions|test [<number>] [--json] [--api <url>]
+  ${product.command} catalog edit <number> <module> [<field> [words | --clear]] [--json] [--api <url>]
+  ${product.command} catalog fix [<number>] [--json] [--api <url>]
+  ${product.command} catalog approve|live <number> [--json] [--api <url>]
+  ${product.command} discover [answers|status] [<run>] [--json] [--api <url>]
+  ${product.command} platform [set <name> <word>... [--list] | unset <name>] [--stage <stage>] [--json] [--api <url>]
   ${product.command} login [--api <url>]
   ${product.command} whoami [--json] [--api <url>]
+  ${product.command} --version
   ${product.command} logout
   ${product.command} settings [--app <path>] [--team <team>] [--json] [--api <url>]
   ${product.command} settings set <NAME> [--app <path>] [--team <team>] [--api <url>]
@@ -160,15 +180,18 @@ Options:
       --again     with deploy: deploy the code an earlier deployment packaged again,
                   with its plan or the one --file names; settings come from the
                   store. No folder is uploaded
-      --watch     with run or deploy: stay on the live panel until the deployment
-                  finishes, instead of watching in the background and notifying you
+      --watch     with run, deploy or teardown: stay until it finishes, instead
+                  of carrying on in the background and notifying you
       --no-trace  with run: record nothing about this run in LangFuse, even when its
                   keys are set. SEALEYE_TRACING=off does the same for every run
       --all       with list: include environments you have torn down
       --deployments
                   with list: every deploy, instead of one row per environment
       --out       with evidence: where to write DEPLOYMENT_EVIDENCE.md (default: the
-                  current folder)
+                  current folder, when its sealeye.yaml plans that app). With plan: a folder to write DEPLOYMENT_PLAN.md,
+                  sealeye.yaml and DEPLOYMENT_REPORT.md into; a file already there is
+                  never replaced
+      --report    with plan: print the deployment's report instead of its plan
       --print     with online: print the portal's address instead of opening it
       --request   with needs: print a module request for one need, ready to paste
                   into a ticket. Takes the kind, or part of the need's own line
@@ -186,7 +209,9 @@ Examples:
   ${product.command} pause my-app
   ${product.command} deploy --again my-app
   ${product.command} evidence my-app
-  ${product.command} destroy my-app
+  ${product.command} plan my-app
+  ${product.command} plan dep_0123456789ab --report
+  ${product.command} teardown my-app
   ${product.command} validate -f plan.yaml
   ${product.command} deploy -f plan.yaml
   ${product.command} online
@@ -265,7 +290,16 @@ function getArg(longFlag, shortFlag) {
 }
 
 async function main() {
-  const [, , command] = process.argv;
+  // An alias (`destroy`, `init`, `portal`, `open`) is handled where its command is:
+  // core/operations.js says which word each one means.
+  const command = commandFor(process.argv[2]);
+
+  // The version and nothing else, for a script or a bug report: no banner (Greg reached
+  // for it, Oct 16, 2026, and found only the banner said it).
+  if (process.argv[2] === "--version" || process.argv[2] === "-v") {
+    console.log(`${product.command} ${version().replace(/^v/, "")}`);
+    return;
+  }
 
   printBanner();
 
@@ -279,10 +313,10 @@ async function main() {
   loadUserConfig();
   const apiBaseUrl = (getArg("--api") || setting("API") || DEFAULT_API).replace(/\/+$/, "");
 
-  // "run" is the documented name; "init" is a hidden alias so rehearsal habits,
+  // "run" is the documented name; "init" is a hidden alias (core/operations.js) so rehearsal habits,
   // --answers fixtures and older muscle memory keep working, with no deprecation
   // notice, since a demo is not the moment to lecture someone about a rename.
-  if (command === "run" || command === "init") {
+  if (command === "run") {
     // This is the only place the developer's own folder is ever touched.
     const appPath = process.cwd();
     const planPath = path.join(appPath, "DEPLOYMENT_PLAN.md");
@@ -415,6 +449,12 @@ async function main() {
           apiBaseUrl,
           onStep: say,
           onStarted: id => { interviewId = id; },
+          // Amber, like a refusal: the developer has something to move before a deploy.
+          onFindings: lines => {
+            console.log("");
+            for (const line of lines) console.log(c.prompt(`  ${line}`));
+            console.log("");
+          },
           appPath,
           user: requestedBy().user,
           trace: !traceOff,
@@ -454,9 +494,23 @@ async function main() {
 
         submission = result;
 
+        // The catalog the plan was written against, from the API, so the card and the
+        // plan file say what seaLeye.online says about the same modules.
+        let catalog;
+        try {
+          catalog = await catalogForPlan({ apiBaseUrl, plan: submission.plan });
+        } catch (err) {
+          if (setting("DEBUG")) console.error(`  [debug] ${err.message}`);
+          console.log("");
+          console.log(c.fail("The platform did not send the catalog this plan was written against, so it cannot be shown."));
+          say("Nothing has been written to your folder. Run it again in a moment.");
+          process.exitCode = 1;
+          return;
+        }
+
         // The plan is valid. These two files are the only thing written before the
         // developer says yes.
-        const written = writeInterviewFiles(appPath, submission);
+        const written = writeInterviewFiles(appPath, submission, { catalog });
         wrote = true;
 
         // The card is rendered from the plan that just passed validation, never from
@@ -464,6 +518,7 @@ async function main() {
         console.log("");
         // With an environment already up, the card is a diff against what is deployed.
         console.log(decisionCard(submission.plan, {
+          catalog,
           frame: true,
           charset: "line",
           previous: live ? (live.record?.plan ? { plan: live.record.plan } : { modules: live.modules }) : null
@@ -665,6 +720,101 @@ async function main() {
     return;
   }
 
+  // The plan a deployment was approved with, and its report (GET /deployments/{id}/plan),
+  // as seaLeye.online's Plan and report card shows them. Printed, or with --out written
+  // into a folder, never over a file that is already there: an app's own sealeye.yaml
+  // is the plan it deploys next, and an older one must not quietly replace it.
+  if (command === "plan") {
+    const target = nameOrHere(`${product.command} plan <app | deploymentId>`);
+    if (!target) return;
+    const outArg = process.argv.includes("--out") ? getArg("--out") : undefined;
+    if (process.argv.includes("--out") && (!outArg || outArg.startsWith("-"))) {
+      console.error(c.fail(`Name the folder to write into: ${product.command} plan ${target} --out <folder>.`));
+      process.exitCode = 1;
+      return;
+    }
+    const resolved = await resolveEvidenceTarget({ apiBaseUrl, target });
+    if (!resolved) return;
+
+    const view = await getPlan({ apiBaseUrl, deploymentId: resolved.deploymentId });
+    if (jsonOut) {
+      console.log(JSON.stringify(view, null, 2));
+      return;
+    }
+
+    const toTerminal = process.stdout.isTTY;
+    if (outArg) {
+      const folder = path.resolve(outArg);
+      const files = { ...(view.files || {}), ...(view.report ? { "DEPLOYMENT_REPORT.md": view.report } : {}) };
+      if (!Object.keys(files).length) {
+        console.error(c.fail(`Nothing to write: the plan's files could not be written (${view.filesError || "the platform sent none"}), and ${noReportWords(view)}`));
+        process.exitCode = 1;
+        return;
+      }
+      if (fs.existsSync(folder) && !fs.statSync(folder).isDirectory()) {
+        console.error(c.fail(`${folder} is a file, not a folder. Name a folder with --out.`));
+        process.exitCode = 1;
+        return;
+      }
+      const there = Object.keys(files).filter(name => fs.existsSync(path.join(folder, name)));
+      if (there.length) {
+        console.error(c.fail(`${folder} already has ${there.join(" and ")}, and seaLeye never writes over a file. Name an empty folder with --out.`));
+        process.exitCode = 1;
+        return;
+      }
+      fs.mkdirSync(folder, { recursive: true });
+      say(`The plan and report for ${resolved.label} (${resolved.deploymentId})`);
+      if (view.files) say(planOrigin(view));
+      else say(`The plan's files could not be written: ${view.filesError}`);
+      for (const [name, text] of Object.entries(files)) {
+        // "wx": a file that appeared since the check above is still never written over.
+        try {
+          fs.writeFileSync(path.join(folder, name), text, { flag: "wx" });
+        } catch (err) {
+          if (err.code !== "EEXIST") throw err;
+          console.error(c.fail(`${folder} already has ${name}, and seaLeye never writes over a file. Name an empty folder with --out.`));
+          process.exitCode = 1;
+          return;
+        }
+        say(`Wrote ${path.join(folder, name)}`);
+      }
+      if (!view.report) say(noReportWords(view));
+      return;
+    }
+
+    if (process.argv.includes("--report")) {
+      if (!view.report) {
+        // Nothing on stdout, and a non-zero exit, so a script writing it to a file can tell.
+        console.error(toTerminal ? step(noReportWords(view)) : noReportWords(view));
+        process.exitCode = 1;
+        return;
+      }
+      if (toTerminal) say(`The report for ${resolved.label} (${resolved.deploymentId})`);
+      process.stdout.write(view.report.endsWith("\n") ? view.report : `${view.report}\n`);
+      return;
+    }
+
+    const planMd = view.files?.["DEPLOYMENT_PLAN.md"];
+    if (!planMd) {
+      console.error(c.fail(`The plan's files could not be written: ${view.filesError || "the platform sent none"}`));
+      process.exitCode = 1;
+      return;
+    }
+    if (toTerminal) {
+      say(`The plan for ${resolved.label} (${resolved.deploymentId})`);
+      say(planOrigin(view));
+      console.log("");
+    }
+    process.stdout.write(planMd.endsWith("\n") ? planMd : `${planMd}\n`);
+    if (toTerminal) {
+      console.log("");
+      say(view.report
+        ? `${product.command} plan ${resolved.deploymentId} --report prints its report; --out <folder> writes both files and the report`
+        : noReportWords(view));
+    }
+    return;
+  }
+
   if (command === "evidence") {
     const target = nameOrHere(`${product.command} evidence <app | deploymentId>`);
     if (!target) return;
@@ -682,13 +832,24 @@ async function main() {
       return;
     }
 
-    const outFile = path.resolve(getArg("--out") || path.join(process.cwd(), "DEPLOYMENT_EVIDENCE.md"));
-    fs.writeFileSync(outFile, markdown);
+    // The file goes into the app's own folder (principle 5): the folder this command runs
+    // in when its sealeye.yaml plans this app, or wherever --out says. Run for an app
+    // from another folder, it writes nothing there (the first build, Oct 17, 2026: the
+    // evidence landed in the folder above the app's).
+    const here = readCurrentPlanName();
+    const app = evidence?.subject?.app?.name || resolved.label;
+    const outArg = getArg("--out");
+    const outFile = outArg ? path.resolve(outArg) : here && here === app ? path.join(process.cwd(), "DEPLOYMENT_EVIDENCE.md") : null;
+    if (outFile) fs.writeFileSync(outFile, markdown);
 
     console.log("");
     for (const line of evidenceSummaryLines(evidence)) console.log(line);
     console.log("");
-    say(`Wrote ${outFile}`);
+    if (outFile) say(`Wrote ${outFile}`);
+    else {
+      say(`Wrote nothing here: ${here ? `this folder's ${CONFIG_FILE} plans ${here}, not ${app}` : `this folder has no ${CONFIG_FILE}, so it is not ${app}'s`}.`);
+      say(`Run this in ${app}'s folder to write DEPLOYMENT_EVIDENCE.md there, or name a file with --out.`);
+    }
     return;
   }
 
@@ -925,17 +1086,52 @@ async function main() {
     return;
   }
 
+  // Which organization the token acts for, before anything that is the organization's:
+  // a juniper token otherwise looked like a default one until something was refused
+  // (Greg, Oct 16, 2026). Not for --json, and nothing at all if the platform cannot say.
+  async function sayOrganization() {
+    if (jsonOut || !setting("TOKEN")) return;
+    const me = await whoAmI({ apiBaseUrl }).catch(() => null);
+    if (me && me.auth !== "off" && me.org) console.log(c.dim(`For ${organizationInWords(me)}`));
+  }
+
+  // Discovery (PHASE4-PLAN Step 6b): read the organization's platform library into a
+  // draft catalog, and answer its questions as they come. For a platform engineer, with
+  // an organization-wide token; the API refuses anyone else in its own words.
+  if (command === "discover") {
+    await sayOrganization();
+    return discover({ apiBaseUrl, args: process.argv.slice(3).filter(a => !a.startsWith("--") && a !== getArg("--api")), say, json: jsonOut });
+  }
+
+  // The organization's platform values (PHASE4-PLAN Step 9): what only its platform team
+  // can give a module, by stage. A platform engineer's, as discovery is.
+  if (command === "platform") {
+    await sayOrganization();
+    const stage = getArg("--stage");
+    const words = process.argv.slice(3).filter(a => !a.startsWith("--") && a !== getArg("--api") && a !== stage);
+    return platform({ apiBaseUrl, args: words, stage, list: process.argv.includes("--list"), say, json: jsonOut });
+  }
+
   // What the platform can build, and the needs it cannot yet, as the portal's Catalog
   // page shows them.
   if (command === "catalog") {
+    await sayOrganization();
+    // A platform engineer's: the organization's catalogs, the self-test, approving and
+    // making live (PHASE4-PLAN Step 7).
+    const words = process.argv.slice(3).filter(a => !a.startsWith("--") && a !== getArg("--api"));
+    if (words.length) return catalogs({ apiBaseUrl, sub: words[0], args: words.slice(1), say, json: jsonOut });
     const catalog = await getCatalog({ apiBaseUrl });
     if (jsonOut) {
       console.log(JSON.stringify(catalog, null, 2));
       return;
     }
     console.log("");
+    // Which catalog this is, as the Catalog page says it. An API from before Oct 14,
+    // 2026 sends no `catalog`, and had only the starter.
+    say(catalogSentence(catalog.catalog));
+    console.log("");
     console.log(c.fg("What the platform builds"));
-    for (const m of catalog.modules) console.log(`  ${c.accent(m.id)}  ${c.dim(m.shortLine || m.line)}`);
+    for (const m of catalog.modules) console.log(`  ${c.accent(withVersion(m.id, m.version))}  ${c.dim(m.shortLine || m.line)}`);
     console.log("");
     console.log(c.fg("What apps can need that it does not build yet"));
     for (const n of catalog.needs) console.log(`  ${c.dim("·")} ${n.line}`);
@@ -1022,7 +1218,7 @@ async function main() {
       return;
     }
     if (me.auth === "off") say("This platform does not ask who is calling.");
-    else console.log(c.fg(`${me.name} (${me.email}), ${seesInWords(me)}, at ${apiBaseUrl}`));
+    else console.log(c.fg(`${me.name} (${me.email}), ${seesInWords(me)}, for ${organizationInWords(me)}, at ${apiBaseUrl}`));
     return;
   }
 
@@ -1141,22 +1337,43 @@ async function main() {
     return;
   }
 
-  if (command === "destroy") {
+  if (command === "teardown") {
     // A tear-down is never a default: a name not typed is asked about first, as the
     // portal makes you type the app's name, and never taken without a person to ask.
     const typed = firstName() || null;
     if (!typed && (jsonOut || !process.stdin.isTTY)) {
-      console.error(c.fail(`Missing name: ${product.command} destroy <app | deploymentId>. A tear-down needs the app named.`));
+      console.error(c.fail(`Missing name: ${product.command} teardown <app | deploymentId>. A tear-down needs the app named.`));
       process.exitCode = 1;
       return;
     }
-    const target = nameOrHere(`${product.command} destroy <app | deploymentId>`);
+    const target = nameOrHere(`${product.command} teardown <app | deploymentId>`);
     if (!target) return;
-    if (!typed) {
+
+    // Typing the app name is how a developer thinks about what they are deleting. A
+    // deployment id still works, and still means exactly the record it names.
+    const resolved = await resolveTarget({ apiBaseUrl, target });
+    if (!resolved) return;
+
+    const { deploymentId, label } = resolved;
+
+    // What it deletes that holds the app's data, said before the question, so the
+    // answer can take it into account. The record says what; a record that could not be
+    // read names nothing, and the tear-down is still asked about.
+    let holdsData = [];
+    try {
+      holdsData = teardownDataWords(await getDeployment({ apiBaseUrl, deploymentId }));
+    } catch {}
+    for (const line of holdsData) console.log(c.prompt(line));
+
+    // A name not typed is asked about first. A name typed is asked about too when the
+    // environment holds data, since what it holds is only known once the record is read
+    // (Greg, Oct 20, 2026): the question names it. A script with no terminal has the
+    // words and goes on, as it typed the name.
+    if (!typed || (holdsData.length && process.stdin.isTTY && !jsonOut)) {
       const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
       let go;
       try {
-        go = await askLine(rl, `Tear down ${target}? [y/N]`);
+        go = await askLine(rl, `Tear down ${target}${holdsData.length ? ", and everything it holds" : ""}? [y/N]`);
       } finally {
         rl.close();
       }
@@ -1165,13 +1382,6 @@ async function main() {
         return;
       }
     }
-
-    // Typing the app name is how a developer thinks about what they are deleting. A
-    // deployment id still works, and still means exactly the record it names.
-    const resolved = await resolveTarget({ apiBaseUrl, target });
-    if (!resolved) return;
-
-    const { deploymentId, label } = resolved;
 
     say(`Asking seaLeye.run to tear down ${label}`);
     const started = await refusedInWords(() => destroyDeployment({ apiBaseUrl, deploymentId }));
@@ -1182,44 +1392,9 @@ async function main() {
       return;
     }
 
-    let lastStep = null;
-
-    // Tear-down runs about half a minute and changes step barely at all, so something
-    // has to move while it does. The spinner carries the step the platform is on now,
-    // and each step settles into its plain line when the next one starts, so the same
-    // words are never on the screen twice.
-    let wait = spinner("tearing down your environment");
-    const settled = () => (lastStep ? step(lastStep) : undefined);
-
-    while (true) {
-      const dep = await getDeployment({ apiBaseUrl, deploymentId });
-
-      // Each new plain-language line once, as it happens.
-      if (dep.step && dep.step !== lastStep) {
-        wait.stop(settled());
-        lastStep = dep.step;
-        wait = spinner(dep.step);
-      }
-
-      if (dep.status === "destroyed") {
-        wait.stop(settled());
-        console.log("");
-        console.log(c.ok(`Everything seaLeye.run created for ${dep.app?.name} is gone`));
-        if (dep.note) say(dep.note);
-        if (dep.removedArtifacts?.length) say(`Removed ${dep.removedArtifacts.length} local build file(s)`);
-        break;
-      }
-
-      if (dep.status === "failed") {
-        wait.stop(settled());
-        console.log("");
-        console.log(c.fail(`Tear-down failed: ${dep.failureReason || "no reason reported"}`));
-        process.exitCode = 1;
-        break;
-      }
-
-      await sleep(1000);
-    }
+    // A tear-down hands the terminal back the way run and deploy do: a few seconds on
+    // the screen, then a notification when it is done. --watch stays until it is.
+    await followTeardown({ apiBaseUrl, deploymentId, background: !watchFlag });
 
     return;
   }
@@ -1549,6 +1724,24 @@ async function runDeploy({ apiBaseUrl, backend, plan, appPath, requestedBy: who,
 
     // Another change to this environment is under way. Say what, and how to follow it.
     if (refusal?.code === "ENVIRONMENT_BUSY") {
+      wait.stop();
+      console.error(c.fail(refusal.message));
+      process.exitCode = 1;
+      return null;
+    }
+
+    // The plan was written against a catalog that was since replaced, and the catalog
+    // now live no longer builds something it uses. Nothing was deployed.
+    if (refusal?.code === "CATALOG_CHANGED") {
+      wait.stop();
+      console.error(c.fail(refusal.message));
+      process.exitCode = 1;
+      return null;
+    }
+
+    // The platform's own scan found what looks like a secret (core/scan.js and
+    // gitleaks): nothing was deployed, and its words say what to do.
+    if (refusal?.code === "SECRETS_FOUND") {
       wait.stop();
       console.error(c.fail(refusal.message));
       process.exitCode = 1;
@@ -1951,7 +2144,9 @@ async function runWatch({ apiBaseUrl, deploymentId }) {
     // The dots are motion for a terminal. In a pipe they would turn every poll into a
     // change and print the panel again for nothing.
     const dots = animations() ? formatDots(tick++) : "";
-    const live = dep.status !== "succeeded" && dep.status !== "failed";
+    // A tear-down ends at destroyed, or at failed. Before Oct 17, 2026 destroyed
+    // counted as still going, and watch never ended on one.
+    const live = dep.status !== "succeeded" && dep.status !== "failed" && dep.status !== "destroyed";
 
     const panel = [
       ...deploymentSummaryLines(dep, { step: !(live && animations()) }),
@@ -1968,6 +2163,14 @@ async function runWatch({ apiBaseUrl, deploymentId }) {
     } else if (panel.join("\n") !== lastPanel) {
       lastPanel = panel.join("\n");
       for (const line of panel) console.log(line);
+    }
+
+    if (!live && teardownFinished(dep)) {
+      // A tear-down's end, in teardown's own words, and never scored: the score is
+      // whether the interview's plan built, which a tear-down says nothing about.
+      if (wait) wait.stop();
+      reportTeardown(dep);
+      return dep;
     }
 
     if (!live) {
@@ -1999,6 +2202,64 @@ async function runWatch({ apiBaseUrl, deploymentId }) {
 
     await sleep(500); // refresh twice per second
   }
+}
+
+// A tear-down's end, in the same words wherever it is seen: teardown, watch, and the
+// notifier (cli/bin/notify-when-done.js) once the terminal has been handed back.
+// A record the platform was asked to tear down that then failed failed at that, not
+// at being built.
+const teardownAsked = dep => Boolean(dep.destroyRequestedBy);
+const teardownFinished = dep => dep.status === "destroyed" || (dep.status === "failed" && teardownAsked(dep));
+
+function reportTeardown(dep) {
+  console.log("");
+  if (dep.status === "destroyed") {
+    console.log(c.ok(`Everything seaLeye.run created for ${dep.app?.name} is gone`));
+    if (dep.note) say(dep.note);
+    if (dep.removedArtifacts?.length) say(`Removed ${dep.removedArtifacts.length} local build file(s)`);
+    return;
+  }
+  console.log(c.fail(`Tear-down failed: ${dep.failureReason || "no reason reported"}`));
+  process.exitCode = 1;
+}
+
+// Follows a tear-down already asked for. The spinner carries the step the platform is
+// on now, and each step settles into its plain line when the next one starts, so the
+// same words are never on the screen twice. In the background (the default), it does
+// that for BACKGROUND_WINDOW_MS, then hands the terminal back and leaves a detached
+// notifier watching, as runBackground does for a build. A tear-down that ends inside
+// the window is reported here and nothing is left behind.
+async function followTeardown({ apiBaseUrl, deploymentId, background }) {
+  const deadline = background ? Date.now() + BACKGROUND_WINDOW_MS : Infinity;
+  let lastStep = null;
+  let wait = spinner("tearing down your environment");
+  const settled = () => (lastStep ? step(lastStep) : undefined);
+  let dep;
+
+  while (true) {
+    dep = await getDeployment({ apiBaseUrl, deploymentId });
+
+    if (dep.step && dep.step !== lastStep) {
+      wait.stop(settled());
+      lastStep = dep.step;
+      wait = spinner(dep.step);
+    }
+
+    if (teardownFinished(dep)) {
+      wait.stop(settled());
+      reportTeardown(dep);
+      return dep;
+    }
+
+    if (Date.now() >= deadline) break;
+    await sleep(background ? BACKGROUND_POLL_MS : 1000);
+  }
+
+  wait.stop(settled());
+  console.log("");
+  say("Tearing down in the background. I'll let you know when it's complete.");
+  spawnNotifier({ deploymentId, apiBaseUrl, appPath: null, appName: dep.app?.name, teardown: true });
+  return dep;
 }
 
 // The default once "Deploy this? [y/N]" is answered y: show the same panel runWatch
@@ -2081,11 +2342,12 @@ async function runBackground({ apiBaseUrl, deploymentId, appPath, plan }) {
  * notification still has `sealeye status` and `sealeye list`, both of which read the
  * same truth the notifier is polling.
  */
-function spawnNotifier({ deploymentId, apiBaseUrl, appPath, appName }) {
+function spawnNotifier({ deploymentId, apiBaseUrl, appPath, appName, teardown = false }) {
   const script = path.join(cliDir, "notify-when-done.js");
 
   try {
     const args = [script, "--deployment-id", deploymentId, "--api", apiBaseUrl];
+    if (teardown) args.push("--teardown");
     if (appPath) args.push("--app", appPath);
     if (appName) args.push("--app-name", appName);
 
@@ -2139,7 +2401,7 @@ function writeReport(dep) {
  * Which record `sealeye evidence` is about. An exact id first; otherwise the newest
  * record answering to the name, drafted, destroyed and failed included, because the
  * record of a refusal or a tear-down is still evidence. Two live environments answering
- * to one name is not something to guess at, so it says so the way destroy does.
+ * to one name is not something to guess at, so it says so the way teardown does.
  */
 async function resolveEvidenceTarget({ apiBaseUrl, target }) {
   const everything = await listDeployments({ apiBaseUrl });
@@ -2195,7 +2457,8 @@ function evidenceSummaryLines(ev) {
 function printNeedsTable(ledger) {
   const rows = ledger.needs.map(n => ({
     need: n.line,
-    kind: `[${n.kind}]`,
+    // An unlisted need has no key of its own to show: it is in the model's words.
+    kind: n.listed === false ? "[not in the list yet]" : `[${n.kind}]`,
     apps: String(n.count),
     first: relativeTime(n.firstSeen),
     last: relativeTime(n.lastSeen),
@@ -2462,12 +2725,14 @@ function printDeploymentTable(deployments) {
 // about to draw and put the next one on top of it.
 function deploymentSummaryLines(dep, { step: showStep = true } = {}) {
   const lines = [];
-  const row = (label, value) => lines.push(`${label.padEnd(12)}${value}`);
+  const row = (label, value) => lines.push(`${label.padEnd(Math.max(12, label.length + 1))}${value}`);
 
   row("Deployment:", dep.deploymentId);
   row("Status:", statusColour(dep.status));
   row("App:", `${dep.app?.name} (${dep.app?.type})`);
-  if (dep.stackName) row("Stack:", c.dim(`${dep.stackName}${dep.stackStatus ? ` (${dep.stackStatus})` : ""}`));
+  // An environment built from the organization's own modules has no stack: it is named.
+  if (dep.stackName && dep.backend === "terraform") row("Environment:", c.dim(dep.stackName));
+  else if (dep.stackName) row("Stack:", c.dim(`${dep.stackName}${dep.stackStatus ? ` (${dep.stackStatus})` : ""}`));
 
   const url = publicUrl(dep);
   if (url) row("URL:", c.accent(url));

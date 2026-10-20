@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes, useLocation } from "react-router";
 import { SessionProvider, useSession } from "./session";
+import { ChangesProvider } from "./changes";
 import { Layout } from "./Layout";
 import { SignIn } from "./pages/SignIn";
 import { Environments } from "./pages/Environments";
@@ -10,6 +11,8 @@ import { Health } from "./pages/Health";
 import { NewEnvironment } from "./pages/NewEnvironment";
 import { TeamPage } from "./pages/Team";
 import { CostsPage } from "./pages/Costs";
+import { DiscoveryPage } from "./pages/Discovery";
+import { PlatformPage } from "./pages/Platform";
 
 function SignedIn({ children }: { children: React.ReactNode }) {
   const { person, checked } = useSession();
@@ -24,6 +27,7 @@ function SignedIn({ children }: { children: React.ReactNode }) {
 export function App() {
   return (
     <SessionProvider>
+      <ChangesProvider>
       <Routes>
         <Route path="/sign-in" element={<SignIn />} />
         <Route element={<SignedIn><Layout /></SignedIn>}>
@@ -34,10 +38,13 @@ export function App() {
           <Route path="catalog" element={<CatalogPage />} />
           <Route path="costs" element={<CostsPage />} />
           <Route path="team" element={<TeamPage />} />
+          <Route path="discovery" element={<DiscoveryPage />} />
+          <Route path="platform" element={<PlatformPage />} />
           <Route path="health" element={<Health />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
+      </ChangesProvider>
     </SessionProvider>
   );
 }

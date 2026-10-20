@@ -1,7 +1,8 @@
 // api/interview/graph.js
 // The interview as a LangGraph graph (DESIGN.md, "The interview runs as a LangGraph
 // graph"). The model looks at the app, asks at most four questions, and submits a
-// planVersion 0.4 plan; the developer then says whether to deploy it.
+// plan (the model writes 0.4; the API reads it as 0.5 against the starter catalog);
+// the developer then says whether to deploy it.
 //
 //   begin -> model_turn -> tools -> model_turn ...   (reading files, a plan to correct)
 //                       -> ask   -> model_turn ...   (a question: pauses for the answer)
@@ -25,8 +26,11 @@
 import { Annotation, END, interrupt, START, StateGraph } from "@langchain/langgraph";
 
 import { unsupportedNeeds } from "../../core/catalog.js";
+import { addSpend, priceUsage, spendingLimitWords } from "../../core/model-prices.js";
 import { scoreTrace, traceEvent, traceStep, traceTool } from "../../core/tracing.js";
-import { checkPlan } from "../validate.js";
+import { catalogOfPlan, checkPlan } from "../validate.js";
+import { CONNECTED_PLAN_VERSION, PLAN_VERSION, STARTER_VERSION, upgradePlan } from "../../core/schema.js";
+import { starterCatalog } from "../../core/catalog.js";
 import {
   createWithOneRetry,
   debugTurn,
@@ -40,12 +44,13 @@ import {
   toolRecord,
   turnEndedIn
 } from "./model.js";
-import { submitPlanTool, splitSubmission } from "./schema.js";
+import { submitPlanToolFor, splitSubmission } from "./schema.js";
 import { folderDigest, listFilesTool, readFileTool, runTool } from "./tools.js";
 
 const MAX_QUESTIONS = 4;       // the interview rule
 const MAX_VALIDATION_RETRIES = 2;
 export const MAX_TURNS = 24;   // a stuck conversation stops instead of spending
+export const WORKER = "interview";   // whose spend this graph counts (Phase 4 adds more)
 const COMMAND = "sealeye";
 
 const replace = (fallback) => Annotation({ reducer: (_, next) => next, default: fallback });
@@ -54,9 +59,25 @@ export const InterviewState = Annotation.Root({
   // What the interview was started with.
   appDir: replace(() => null),
   deployed: replace(() => null),
+  // Which catalog it plans against: { org, version }, the organization's live one when
+  // it started (PHASE4-PLAN Step 3). Kept here, so a run resumed after a restart, or
+  // after another catalog went live, plans against the one it began with. An
+  // interview saved before Oct 15, 2026 has none, and began with the starter.
+  catalog: replace(() => null),
   model: replace(() => null),
   // { traceId, spanId } of the first stretch, so later stretches join its trace.
   trace: replace(() => null),
+  // What each worker of this run has spent, priced from core/model-prices.js, and the
+  // cap it stops at (PHASE3-PLAN Step 3). Keyed by worker, so Phase 4's workers each
+  // get their own; the interview is one worker, "interview".
+  spend: replace(() => ({})),
+  cap: replace(() => null),
+  // Files sent empty because they look like they hold a secret (core/scan.js): file,
+  // line, rule and kind, never a value. read_file refuses them and says why.
+  withheld: replace(() => []),
+  // Archives and files that are not text, sent as their names only
+  // (core/upload-rules.js). read_file refuses them and says why.
+  unread: replace(() => []),
 
   // The conversation, and the counts the rules are written in.
   messages: replace(() => []),
@@ -74,6 +95,39 @@ export const InterviewState = Annotation.Root({
   approved: replace(() => null)
 });
 
+/** Whether an interview's catalog is the starter: by its version, never its document. */
+export const isStarterRef = ref => !ref || ref.version === undefined || ref.version === STARTER_VERSION;
+
+/** The organization an interview's catalog belongs to: "default" on a laptop API. */
+const catalogOrg = ref => ref?.org || "default";
+
+/**
+ * The document of an interview's catalog: the one it started with, or the starter for an
+ * interview saved before it kept one. Null when the organization no longer has it.
+ */
+export function interviewCatalog(ref) {
+  if (isStarterRef(ref)) return starterCatalog();
+  return catalogOfPlan({ catalog: ref.version }, catalogOrg(ref)).document || null;
+}
+
+/**
+ * The model's plan, stamped with the interview's catalog: 0.5, naming the catalog. The
+ * model writes the 0.4 shape and never a catalog, so it cannot plan against one it was
+ * not given. Against the starter, an older plan reads as it always did (upgradePlan).
+ */
+export function stampCatalog(plan, ref) {
+  if (!plan || typeof plan !== "object") return plan;
+  const version = ref?.version ?? STARTER_VERSION;
+  const { catalog: _ignored, ...written } = plan;
+  if (version === STARTER_VERSION) return { ...upgradePlan(written), catalog: STARTER_VERSION };
+  // The model writes the 0.4 shape. Any other version is left as written, for the check
+  // to refuse and the model to correct, rather than hidden by the stamp.
+  if (written.planVersion !== undefined && written.planVersion !== "0.4") return { ...written, catalog: version };
+  // 0.6 when it connects a module the app uses to the app's (core/schema.js).
+  const connects = (written.modules || []).some(m => m && m.enabled !== false && m.connect && Object.keys(m.connect).length);
+  return { ...written, planVersion: connects ? CONNECTED_PLAN_VERSION : PLAN_VERSION, catalog: version };
+}
+
 /**
  * Build the graph. `runtimeFor(interviewId)` returns what a node needs that is not
  * state and must never be saved with it: the model client and the event sink.
@@ -86,11 +140,22 @@ export function buildInterviewGraph({ runtimeFor, checkpointer }) {
   // do the platform's remembering.
   async function begin(state) {
     if (state.messages.length) return {};
-    const opening = [folderDigest(state.appDir), deployedContext(state.deployed)].filter(Boolean).join("\n\n");
+    const opening = [folderDigest(state.appDir, { withheld: state.withheld }), deployedContext(state.deployed)].filter(Boolean).join("\n\n");
     return { messages: [{ role: "user", content: opening }] };
   }
 
+  // Every return from a model turn carries the run's spend as it stands after the call.
+  const lastSpend = new Map();
   async function model(state, config) {
+    const id = config?.configurable?.thread_id;
+    lastSpend.delete(id);
+    const out = await modelTurn(state, config);
+    const spend = lastSpend.get(id);
+    lastSpend.delete(id);
+    return spend ? { ...out, spend } : out;
+  }
+
+  async function modelTurn(state, config) {
     const { client, emit } = runtime(config);
 
     if (state.turn >= MAX_TURNS) {
@@ -100,25 +165,54 @@ export function buildInterviewGraph({ runtimeFor, checkpointer }) {
       });
     }
 
+    // The cap on the run, checked before each call rather than after: the reply that
+    // crossed it is already paid for, so it is used, and if it was the plan the
+    // developer has a plan. A run can therefore spend past its cap by one reply
+    // (DESIGN.md, "A run's cap is close, not exact").
+    const spent = state.spend?.[WORKER]?.cost || 0;
+    if (Number.isFinite(state.cap) && spent >= state.cap) {
+      traceEvent("spending limit reached", { worker: WORKER });
+      return finish(state, { status: "stopped", reason: "spending_limit", message: spendingLimitWords(COMMAND) });
+    }
+
     // The system prompt and the tool schemas are the same several thousand tokens on
     // every turn, and a run is a dozen turns. One cache breakpoint on the system block
     // covers the tools too, since they sit in front of it.
-    const system = [{ type: "text", text: loadSystemPrompt(), cache_control: { type: "ephemeral" } }];
+    const catalog = interviewCatalog(state.catalog);
+    if (!catalog) {
+      return finish(state, {
+        status: "stopped",
+        message: `The catalog this interview started with is no longer one your organization has. Run ${COMMAND} run again.`
+      });
+    }
+    const starter = isStarterRef(state.catalog);
+    const system = [{ type: "text", text: loadSystemPrompt(catalog, { starter }), cache_control: { type: "ephemeral" } }];
     const startedAt = Date.now();
 
-    const response = await createWithOneRetry(
-      client,
-      {
-        model: state.model,
-        max_tokens: MAX_TOKENS,
-        system,
-        tools: [listFilesTool, readFileTool, submitPlanTool],
-        messages: state.messages,
-        ...(supportsTemperature(state.model) ? { temperature: 0.2 } : {})
-      },
-      line => emit({ type: "step", line }),
-      state.turn
-    );
+    let response;
+    try {
+      response = await createWithOneRetry(
+        client,
+        {
+          model: state.model,
+          max_tokens: MAX_TOKENS,
+          system,
+          tools: [listFilesTool, readFileTool, submitPlanToolFor(catalog, { starter })],
+          messages: state.messages,
+          ...(supportsTemperature(state.model) ? { temperature: 0.2 } : {})
+        },
+        line => emit({ type: "step", line }),
+        state.turn
+      );
+    } catch (err) {
+      // The platform's gateway stopped this run at its per-run limit (model.js,
+      // isRunLimitReached): it ends as the run's own cap ends it, stopped, not failed.
+      if (err?.reason === "spending_limit") {
+        traceEvent("spending limit reached", { worker: WORKER });
+        return finish(state, { status: "stopped", reason: "spending_limit", message: err.message });
+      }
+      throw err;
+    }
 
     debugTurn({
       turn: state.turn,
@@ -127,6 +221,11 @@ export function buildInterviewGraph({ runtimeFor, checkpointer }) {
       usage: response.usage,
       textChars: textOf(response.content).length
     });
+
+    // What this reply cost, added to the run's spend before anything else happens, so
+    // every way this node returns carries it (spendOf, below).
+    state = { ...state, spend: { ...state.spend, [WORKER]: addSpend(state.spend?.[WORKER], priceUsage(state.model, response.usage)) } };
+    lastSpend.set(config?.configurable?.thread_id, state.spend);
 
     const messages = [...state.messages, { role: "assistant", content: response.content }];
     const turn = state.turn + 1;
@@ -181,11 +280,13 @@ export function buildInterviewGraph({ runtimeFor, checkpointer }) {
 
     for (const use of uses) {
       if (use.name === "submit_plan") {
-        const submission = splitSubmission(use.input);
+        // The model writes the plan; the platform says which catalog it is against.
+        const split = splitSubmission(use.input);
+        const submission = { ...split, plan: stampCatalog(split.plan, state.catalog) };
 
         emit({ type: "step", line: "Checking the plan against the seaLeye.run plan contract" });
         const checked = await traceStep("plan checked", async step => {
-          const outcome = checkPlan(submission.plan);
+          const outcome = checkPlan(submission.plan, { org: catalogOrg(state.catalog) });
           step.set({
             valid: outcome.valid,
             errorCount: outcome.errors.length,
@@ -216,7 +317,7 @@ export function buildInterviewGraph({ runtimeFor, checkpointer }) {
         continue;
       }
 
-      const { content, isError } = runTool(state.appDir, use.name, use.input || {});
+      const { content, isError } = runTool(state.appDir, use.name, use.input || {}, { withheld: state.withheld, unread: state.unread || [] });
       traceTool(toolRecord(use, content, isError));
 
       // The line comes after the tool ran, so it says what happened rather than what
@@ -301,11 +402,21 @@ export function buildInterviewGraph({ runtimeFor, checkpointer }) {
 function finish(state, result, route = null) {
   // `turns` is how many model calls the run made, so a reader of its trace (the
   // regression set) can tell when it has every one of them.
-  const full = { ...result, questions: state.questions, validationRetries: state.validationRetries, ...(Number.isFinite(state.turn) ? { turns: state.turn } : {}) };
+  // `spent` is what the run cost by seaLeye's own count, in US dollars: for the
+  // regression set to compare with LangFuse's, never shown to a developer.
+  const spent = state.spend?.[WORKER]?.cost;
+  const full = {
+    ...result,
+    questions: state.questions,
+    validationRetries: state.validationRetries,
+    ...(Number.isFinite(state.turn) ? { turns: state.turn } : {}),
+    ...(Number.isFinite(spent) ? { spent } : {})
+  };
   const traceId = state.trace?.traceId;
 
   if (traceId) {
     scoreTrace(traceId, "questions_asked", state.questions);
+    scoreTrace(traceId, "spending_limit_reached", result.reason === "spending_limit");
     if (result.status === "submitted" || result.status === "invalid") {
       scoreTrace(traceId, "plan_valid_first_try", result.status === "submitted" && state.validationRetries === 0);
       scoreTrace(traceId, "validation_retries", state.validationRetries);
@@ -315,6 +426,7 @@ function finish(state, result, route = null) {
   return {
     ...(state.messages ? { messages: state.messages } : {}),
     ...(Number.isFinite(state.turn) ? { turn: state.turn } : {}),
+    ...(state.spend ? { spend: state.spend } : {}),
     validationRetries: state.validationRetries,
     result: full,
     route

@@ -1470,6 +1470,8 @@ portal's Costs page and `GET /costs?since=7d|30d`. The name is ROADMAP's.
 - **Greg turns them on once.** AWS counts a tag in billing only after it is activated
   in the Billing console (Cost allocation tags), and a key appears there only after a
   resource carries it, up to a day later. Until then costs answer with none.
+  The steps are in deploy/README.md, "Once: count costs by app" (added Oct 15, 2026,
+  after the page sat empty for days because the step lived only here).
 - **Read by tag, from Cost Explorer.** By `sealeye:app`, filtered to the caller's team
   (an organization-wide token sees every team, by both tags), summed over the window, a
   day at a time. Cost Explorer answers from us-east-1, about a day behind, and charges
@@ -1910,3 +1912,2191 @@ in "Each domain has one job".
   facts block, a "works / not yet" pair and a signed note say the project is given away
   with care rather than sold; the terminal brand stays with seaLeye.run and the portal.
   Chosen from three directions on Oct 14, 2026.
+## The secret scanner
+
+Wed Oct 14, 2026, PHASE3-PLAN Step 2, as D3 and D4 decided: the shared rules before
+upload on both surfaces, then gitleaks in the API; a finding refuses a deploy unless
+`.sealeye-allow` names its line. What building it settled:
+
+- **The shared rules are few and sure** (`core/scan.js`): private key blocks, cloud
+  access key ids, and the GitHub, GitLab, Slack, Stripe, Anthropic, OpenAI, Google, npm
+  and SendGrid token shapes; a password in a connection address to a real host; and a
+  long, random-looking value given to a name that ends in password, pwd, secret, token
+  or key. The last two skip placeholders, references to other code, paths, UUIDs,
+  common local defaults and values with no digit. Run over 20,300 files of installed
+  npm and Python packages, they flagged 13 lines, all real-looking sample tokens in
+  libraries' own tests and docs. gitleaks, in the API, is the wide net.
+- **Every rule is linear in the line, and the API's scan is off its event loop.** The
+  first version of the name-and-value rule let a match start anywhere, and a crafted
+  40 KB line took half a second; the second review found the OpenAI rule did the same
+  with a line of repeated `sk-`. Key shapes are now matched token by token (the line cut
+  into runs of the characters a key can hold, each run matched whole by an anchored,
+  bounded pattern), and the name-and-value rule finds the word and reads the value by
+  hand. A test holds every rule under a second and a half on million-character lines
+  built to make a regex backtrack; the worst crafted 25 MB line takes about 13 seconds.
+  In the API the shared rules run in a worker thread with a two-minute limit, so a slow
+  scan holds up only its own request.
+- **Nothing is cut short.** Every byte of every file that travels is scanned, by both
+  scanners: a key at the end of an 11 MB bundle got past a 2 MB cap here and gitleaks'
+  10 MB one (found in review). A binary file is scanned for the shapes of keys only, not
+  for name and value, which compiled files fake; the interview never reads one.
+- **Words a developer reads name no cloud provider** (principle 8): "a cloud access
+  key", not an AWS one. A finding is always a file, a line, a rule and a kind; no
+  function keeps, logs or returns the value, and the tests check each fake key is
+  nowhere it should not be.
+- **One finding per line, and a line is what is allowed.** The shared rules and gitleaks
+  name the same value differently (`cloud-access-key`, `aws-access-token`), so the allow
+  file matches file and line, keeps the rule for the record, and the words show the
+  shared rule's name where both found it. A malformed allow line allows nothing.
+- **gitleaks always runs on seaLeye's terms.** By default it obeys a `.gitleaks.toml`,
+  a `.gitleaksignore` and `gitleaks:allow` comments in the folder it scans, so a
+  developer's repository could switch it off; tried, it did, and the review found the
+  `.gitleaksignore` is read from the scanned folder whatever gitleaks is told. So the API
+  never runs it on an app's folder: it scans a copy of its own, in a folder of a random
+  name, with no `.gitleaksignore`, passes its own configuration (`api/gitleaks.toml`),
+  runs from an empty folder with no `GITLEAKS_*` variables, ignores `gitleaks:allow`,
+  redacts, and reads three fields of its report before deleting it. A finding it cannot
+  place fails the scan rather than being dropped. Pinned at 8.30.1 by version and
+  checksum in the image.
+- **The copy is what would be packaged**: no `node_modules`, `.git` or secret files, and
+  links followed as zip follows them (each real folder once), so a `config.js` that is
+  a link to a key is read, and a laptop deploy from a folder with a real `.env` is not
+  refused for it. Folders are skipped only where packaging's rsync skips them, matched
+  as exactly. A link out of the app folder is refused, unless it is something packaging
+  leaves out anyway (a shared `.env`, a monorepo's `node_modules`): packaging would
+  store whatever it points at on the API's machine. For a folder on the API's machine
+  the scan reads a copy and rsync then packages the folder, so a link changed in
+  between goes unscanned; uploads hold no links, so this is a laptop API's gap only.
+- **Known misses, left to gitleaks:** a key glued to the characters before it
+  (`prefix-AIza...`, `GITHUB_TOKEN_ghp_...`) is one longer token to the shared rules,
+  which match whole tokens to stay linear. Every file is scanned, whatever `.gitignore` says,
+  and `.gitleaksignore`, kept from gitleaks, is still read by the shared rules.
+- **Fail closed only where the deeper check was expected.** Without gitleaks (a laptop
+  API, CI), the shared rules are the scan and the record says so. With gitleaks
+  installed and failing, neither the interview nor the deploy goes ahead (503
+  SCAN_FAILED): the point of the second scan is what the first one misses.
+- **The API never takes the client's word for what is safe.** It scans what arrived;
+  a file with a finding is emptied before the graph starts. The client's own findings
+  only explain a file that arrived empty, and can never hide one that has contents.
+- **A refused deploy keeps nothing**: no record, the upload removed. Unlike a drafted
+  plan, it is not part of the app's history, just code that has to change first. The
+  busy check moved after the scan, which waits, so two deploys cannot both pass it.
+- **Evidence says how the code was checked** (shared rules, or with gitleaks) and lists
+  each allowed line. A deploy again inherits the scan of the deployment that packaged
+  the code; a deployment from before this says it was not checked.
+- **The allow file is the developer's word, for both uses.** A line it names is let
+  through to a deploy, and the interview may read that file too, since it is not a
+  secret. It names a line number, so it excuses whatever is later written on that line;
+  evidence lists every allowed line so a reviewer sees them.
+- **What is not scanned:** a drafted plan sends no code; `runInterview`, which reads a
+  folder in place for the eval, cannot empty files without changing the developer's
+  app (principle 5), and runs only on the sample apps.
+
+## The interview reads around a secret, not past the file
+
+Wed Oct 14, 2026, by Greg, after the first interview on an app larger than the samples
+(hagopj13/node-express-boilerplate). Sample JWTs in its Swagger comments sent
+`src/routes/v1/auth.route.js` empty, and the model could not read the login and token
+routes it most needed. This revises "The secret scanner" for the interview only; a
+deploy with a finding is still refused.
+
+- **A flagged line is replaced, not its file.** For an interview, each line with a
+  finding travels as `[seaLeye: this line was not sent: it looks like it holds a GitHub
+  token]`, so the model reads the rest of the file and the line numbers stay true. The
+  value never travels either way.
+- **Unless the value runs over many lines.** A private key is flagged on its first line
+  and its body would follow it, so a file with one is still sent empty; so is a file
+  where gitleaks found a value over several lines, and a binary file.
+- **The client's word still counts only where it holds.** A finding the client sends
+  explains a line only if that line arrived replaced, or a file only if it arrived
+  empty; the API replaces whatever its own scan finds.
+
+## Needs: known kinds, and the rest in the model's own words
+
+Wed Oct 14, 2026, by Greg. The first interview on a real app
+(hagopj13/node-express-boilerplate) called MongoDB "a relational database": the list of
+need kinds had no document database, and the interview had to choose from it. Greg
+asked whether a fixed list is needed at all.
+
+- **The list stays, as the words to use, not a fence.** It is what lets the needs ledger
+  and Phase 4's gap report count "twelve apps need X" as one number, the eval grade
+  needs exactly, and a profile say what it will ask of each need. Those are worth
+  keeping. What is not worth keeping is forcing a need into the nearest kind, which
+  tells the platform team the wrong thing, or leaving it out, which shrinks a plan that
+  should refuse (principle 3).
+- **A need none of the kinds fits is `unlisted`**, with a line of the model's own in the
+  same form as the list's ("a search index over its documents"). It drafts the plan
+  like any need, and needs evidence like any need. The contract refuses a line that is
+  not "a ..." or "an ...", names a module, holds an address or makes a promise
+  (`unlistedNeedProblems`, `core/schema.js`), at most 90 characters.
+- **The kind of thing, never the product.** An unlisted line says "a document database",
+  not "MongoDB"; the technology is in the evidence ("mongoose in package.json"), where
+  the platform team still sees it. The ledger keeps its rule of naming no vendor.
+- **The ledger shows unlisted needs apart**, one row per wording, marked "not in the
+  list yet" in `sealeye needs` and on the portal's Catalog. A wording that keeps coming
+  back is a candidate for the list: added by hand for now, proposed by the gap report in
+  Phase 4.
+- **`document_database` joins the list**, since a real app has already needed it.
+- Changing the catalog and the prompt changes what the interview writes, so
+  `npm run eval:interview` runs before and after; the sample apps have no need this
+  changes.
+## The cap on every run
+
+Wed Oct 14, 2026, PHASE3-PLAN Step 3, as D2 and D5 decided. First measured on a real
+app, hagopj13/node-express-boilerplate: 6 turns and $0.152, twice the largest sample run
+for the same turns, and well under a third of the dollar, so the cap stays a dollar.
+
+- **Prices live in `core/model-prices.js`**, read from Anthropic's pricing page on
+  Oct 14 and dated: Sonnet 5, Sonnet 5.5, Opus 5.5, and Haiku 5.5, which is priced by
+  each request's prompt length. It priced the measured sample run at $0.0795, as
+  LangFuse did. Bedrock's names for the same models join it with Step 8.
+- **Checked before each call, not after.** The reply that crosses the cap is already
+  paid for, so it is used: if it was the plan, the developer has a plan. A run that
+  reads forever stops at the call after it crosses, so it goes past the cap by one
+  reply at most, as "A run's cap is close, not exact" says.
+- **The words carry no amount** (principle 8): the run reached its spending limit,
+  nothing was written or built, run it again, and tell the platform team if it stops
+  there again. The trace is scored `spending_limit_reached`.
+- **Keyed by worker.** The run's spend is `{ interview: {...} }`, so Phase 4's workers
+  each get their own without a new design.
+- **A model with no price never starts** (503 MODEL_NOT_PRICED), checked before the
+  upload is unpacked. An unpriced model would otherwise run with no cap at all.
+- **The table is checked two ways**: the eval flags a run whose own count differs from
+  LangFuse's by more than five percent, and `release.sh` warns when `checkedOn` is more
+  than 90 days old. deploy/README.md, "Model prices", is the operating step.
+
+## Inference from Canada: disclosed, on the US profile (answers Q18)
+
+Wed Oct 14, 2026, by Greg, after reading in his own account what Bedrock offers from
+ca-central-1. The commands, for reading it again in any account:
+
+```sh
+aws bedrock list-inference-profiles --region ca-central-1 --type-equals SYSTEM_DEFINED \
+  --query "inferenceProfileSummaries[?contains(inferenceProfileId,'claude')].inferenceProfileId" --output text
+aws bedrock get-inference-profile --region ca-central-1 \
+  --inference-profile-identifier us.anthropic.claude-sonnet-5 --query 'models[].modelArn' --output text
+```
+
+
+- **There is no Canadian profile.** From ca-central-1 every Claude profile is `us.` or
+  `global.`. The US profile for Sonnet 5 may run a call in ca-central-1, us-east-1,
+  us-east-2 or us-west-2, and Bedrock picks per call; the global profile may run it in
+  any commercial region. Neither keeps inference in Canada.
+- **The Bedrock route uses `us.anthropic.claude-sonnet-5`.** It is the interview's own
+  model, so Step 8 needs no change of model and no eval on another one; this replaces
+  the plan's assumption that Canada offered only Sonnet 5.5. The global profile is not
+  used: a bank's code going to any region is not something to offer.
+- **Inference is disclosed, not kept in Canada.** Greg's call: where an organization's
+  code is sent for inference is stated plainly, the US profile's four regions for
+  Bedrock, the US for the Anthropic API, and stored data stays in Canada. Banks often
+  grant an exception for a case like this; one that will not is the time to wait for a
+  Canadian profile or run a model of the organization's own (Phase 7).
+- **Disclosed where it is read**: the evidence for a deployment, and what the platform
+  team is told when an organization starts, name the route the interview took and the
+  regions a call on it may run in (PHASE3-PLAN Step 8).
+
+## A deployment keeps the plan it was approved with
+
+Wed Oct 14, 2026. Greg could not find a deployment's plan or report in the portal once
+it had been deployed: the plan's files were shown only during the interview, and the
+report only ever reached the developer's folder. Both surfaces now show them for any
+deployment, from `GET /deployments/{id}/plan`.
+
+- **The files are kept as approved, not rebuilt.** At `POST /deployments`, the API
+  writes DEPLOYMENT_PLAN.md and sealeye.yaml for the plan and keeps them on the record
+  (`planFiles`, `api/plan-record.js`). Rebuilding later from today's catalog and template
+  could quietly differ from what the developer said yes to. Recommended over rebuilding
+  on each read, and Greg went ahead with it.
+- **The interview's notes come from the API, never from a client.** The summary and
+  assumptions are in DEPLOYMENT_PLAN.md but not in the plan a client sends. When "Deploy
+  this?" is answered, the API notes them, keyed by the person and the plan's exact text,
+  for an hour; a deploy of that same plan by that person picks them up. A client could
+  have sent the markdown, but then a record would hold text the platform did not write
+  (principle 7). They are noted whichever way the question is answered, and a deploy of
+  that same unchanged plan within the hour (the drafted plan saved after a "no", or
+  `sealeye deploy -f` of the files the interview wrote) picks them up, which is right:
+  they are the same notes the developer's DEPLOYMENT_PLAN.md has. Kept in memory: an API
+  restarted between the answer and the deploy, a deploy more than an hour later, a plan
+  edited before it was deployed, or one changed with Configure is written from the plan
+  alone, and the words say so without guessing why (the record's `origin.planSource`
+  decides between "from a plan file", "deployed again" and "not kept").
+- **Once deployed, the interview's notes are the team's.** Before, an interview's words
+  were its starter's alone; the summary and assumptions are now part of the deployment's
+  record, which the team and an organization-wide token read, as they read its plan.
+- **A file without its notes says so.** Its Notes section says the summary and
+  assumptions are not part of the record, and never "No assumptions were needed", which
+  would be a claim the platform cannot make (`notesKept: false` in
+  `core/plan-files.js`).
+- **Deploy again of the same plan keeps the earlier files**, which are what was
+  approved; a changed plan is written down fresh.
+- **Records from before this** have their files written from their plan when read, dated
+  when the deployment started, and marked `rebuilt`; both surfaces say so.
+- **The report is the record's own** (`report`, written when a deploy succeeds). With
+  none, both surfaces say why in the same words (`core/plan-report-words.js`): drafted,
+  failed with the platform's reason, still under way, or a report that could not be
+  written.
+- **`sealeye plan` writes into no folder unless asked.** It prints the plan (or the
+  report, with `--report`); `--out <folder>` writes the three files there and refuses if
+  any is already there, because an app's own sealeye.yaml is the plan it deploys next and
+  an older one must never quietly replace it.
+- **The list stays small, and so does the polled record.** `GET /deployments` carries
+  neither the files nor the report, and `GET /deployments/{id}`, which the command polls
+  while it watches a change, leaves the files to `/plan`.
+- **An old plan is read as the contract reads it.** A 0.2 or 0.3 plan is upgraded before
+  it is written down, so a module seaLeye cannot build appears as the need it described,
+  never by its id (principle 2). A plan that cannot be written down at all gets a
+  sentence on both surfaces and the reason in the server's log.
+
+## agentgateway, read and run (Step 4)
+
+Wed Oct 14, 2026, PHASE3-PLAN Step 4. The gateway could not run where its configuration
+was written, so that configuration came from agentgateway v1.6.0's source and published
+schema. The spike in `deploy/spikes/agentgateway/` then ran it on Greg's Mac (arm64),
+against a stand-in model that answers as Anthropic's API does, and then against
+Anthropic itself. **All 26 and all 8 checks passed**,
+and the run contradicted nothing the source said. It found one thing the source reading
+missed: the dollar signs in comments, below.
+
+What the run showed:
+
+- **The calls are unchanged.** The SDK, pointed at the gateway, got tool use, cache
+  reads and writes, and a whole stream back. Upstream, the model saw the gateway's key.
+  It saw neither the caller's token nor the API's key. Tools, cache marks and the beta
+  header arrived as sent.
+- **Every bad token is a 401.** Missing, expired, signed with another key, naming
+  another algorithm, another audience, another issuer, no person, no expiry: all
+  refused. A valid token with no API key, or the wrong one, was refused too. So the
+  API's own key and the per-call token work together.
+- **The per-run limit counts what Anthropic bills, after the reply.** Each stand-in reply
+  was 11,000 tokens (input, cache writes, cache reads and output). Against 25,000, the
+  third call was let through with 3,000 left and the fourth refused: 429, "rate limit
+  exceeded", retry in a day. Another run kept its own limit.
+- **The money budget works the same way.** At $0.05, with $0.0287 a call at Sonnet 5's
+  prices, the second call crossed it and the third was refused with `budget_exceeded`.
+  Its retry time was 19 days: the end of the gateway's 30-day period, not of the
+  month.
+- **No timeout cut a slow call.** A reply that took 95 seconds and a stream silent for
+  70 both came through.
+- **Nothing leaked.** No prompt, reply, token or key in the access log or in the
+  SQLite file. The log line for a model call holds the model, the token counts, cache
+  reads and writes, a cost (`agw.ai.usage.cost.total`), timings, `jwt.sub`, and the
+  `run` and `worker` claims.
+- **A restart keeps the budget and forgets the run limits.** A spent budget still
+  refused after a restart (it lives in SQLite). A spent run's limit was back (it lives
+  in memory).
+- **It is small.** 14 MiB idle and 21 MiB with twenty streams at once, on arm64. D7
+  stands: a container on the pilot server, with no larger server.
+- **The real route to Anthropic works the same** (8 of 8). With the gateway holding the
+  key, tool use came back, a 5,858-token system prompt was written to the cache on the
+  first call and read from it on the second, a stream arrived whole, and a call with
+  no token was refused before it reached Anthropic. The log held the same fields, and
+  no content. Anthropic refuses an `anthropic-beta` value it does not know, which shows
+  the gateway passes that header on unchanged.
+
+What the source said, and what it means for Steps 5 to 7:
+
+- **The Anthropic route keeps what the interview sends.** `/v1/messages` is served as
+  is. Tools, `cache_control`, `anthropic-beta` and streaming pass through. Usage keeps
+  its cache reads and writes, and fields the gateway does not know are kept. The
+  gateway sends its own key as `x-api-key`, replacing whatever the caller sent, and
+  sets `anthropic-version` itself. `SEALEYE_MODEL_URL` is the gateway's address with no
+  path; the SDK adds `/v1/messages`.
+- **jwtAuth's default lets a call with no token through** (`mode: optional`). The
+  configuration says `strict`. With `issuer`, `audiences` and `requiredClaims: [exp,
+  iss, aud, sub]` set, every failure is a 401. The keys come as JWKS, each with a
+  `kid`. Ed25519 (EdDSA) is accepted, so the API can sign with Node's own crypto and no
+  new package. Claims reach the access log (`jwt.run`, and `jwt.sub` by default).
+- **A money budget only exists on a fixed API key, and it needs a database.** USD
+  budgets attach to keys in the `apiKey` policy, not to token claims. The gateway
+  refuses to start with one and no `config.database`. SQLite in a file is enough; it
+  does not need Postgres. So the API holds one gateway key, sent in a header of its own
+  (`x-sealeye-gateway-key`), which carries the monthly budget (D5's outer limit). The
+  per-call token goes in `Authorization`. That the two work together is the spike's
+  first thing to confirm.
+- **The budget prices from a table compiled into the gateway.** It is the same
+  close-not-exact as seaLeye's cap, from a different table. It drifts when prices
+  change, until the gateway is upgraded or its catalog is overridden. Its window is
+  fixed periods counted from 1970, so `30d` is not a calendar month; a monthly budget
+  resets on a day that moves.
+- **A per-run limit in tokens needs no database.** `localRateLimit` with `type: tokens`,
+  keyed by `jwt.run`, counts input, cache and output tokens after each reply, and
+  refuses the call after the one that crosses it, as seaLeye's cap does. It lives in
+  the gateway's memory, so a restart forgets it. That is acceptable for an outer limit
+  behind seaLeye's own cap.
+- **Both refusals are 429**, and the interview retries a 429 once (`isRetryable` in
+  `api/interview/model.js`). Step 6 must treat a 429 from the gateway as final and tell
+  the developer in words, not retry it. The budget's body says `budget_exceeded`.
+- **No timeout unless one is set**, and a 32 MiB body limit on model calls. The
+  configuration sets `requestTimeout: 15m` and `responseIdleTimeout: 5m`, above the
+  interview's 120 seconds, so the interview's own timeout stays the one that acts.
+- **No bodies in the access log by default.** Prompts and replies are captured only
+  when a log, trace or metric field names `llm.prompt` or `llm.completion`, so no field
+  does. The database stores `metadata`, never `full`. The admin port is off, since its
+  debug view logs claims. With no `tracing:` block, nothing leaves as a trace.
+- **Bedrock is translated by default**: Anthropic's format becomes Bedrock's Converse
+  and back, including tools, streaming and cache points. A cache `ttl` is dropped, and
+  only an allowlist of `anthropic-beta` values crosses. Neither matters to the
+  interview, which uses the five-minute cache and no beta. The gateway can instead send
+  Anthropic's own format to Bedrock (`bedrockEndpointPreference: mantlePreferred`).
+  Which one the pilot uses waits on Bedrock access in the account.
+- **The image is `ghcr.io/agentgateway/agentgateway:v1.6.0`**, built for amd64 and
+  arm64, and signed. The run showed its digest, `sha256:9d3e6044ddcdc0878b1787f77bd401252b95e22684203fb5e874c4c42d2ed90c`
+  (the multi-arch index, read Oct 14). It reports version 1.6.0 at the same commit
+  as the source read here, built for arm64 on Greg's Mac. Step 5 pulls it by this
+  digest.
+- **The configuration file expands every `$NAME`, comments included**, and refuses to
+  start when one is unset. That is how the keys stay out of it. The run showed the
+  comments part: the spike's first configuration explained this in a comment that
+  named `$NAME`, and the gateway refused to start looking for a variable called NAME.
+  The one exception is the `# yaml-language-server: $schema` line. So no comment, and
+  no expression, in a gateway configuration holds a dollar sign. Step 5 checks that in
+  a test.
+
+## The gateway's budget: $20 a period
+
+Wed Oct 14, 2026, PHASE3-PLAN D5, Greg's figure. The gateway's money budget on the API's
+key is $20, the outer limit behind each run's own dollar (Step 7).
+
+- **What it buys.** A typical run measured so far costs $0.08 to $0.15, so $20 is about
+  130 to 250 runs. If every run stopped at its own cap, it would still be 20. That is
+  room for the pilot, not for a team using it every day; raise it when one is.
+- **"Monthly" is the gateway's 30 days**, not the calendar month. Its periods are counted
+  from 1970 (DESIGN.md, "agentgateway, read and run (Step 4)"), so the budget resets on
+  a date that moves by a day or two each month. The words an administrator reads say "a
+  30-day period", never "a month".
+- **Close, not exact, as the run cap is.** The gateway prices from its own table and
+  charges after each reply, so the call that crosses $20 is let through, and spending can
+  pass it by that one reply. A price change the gateway's table has not caught up with
+  moves it further.
+- **It survives a restart**, since the gateway keeps it in SQLite; the per-run token
+  limits do not, and need not.
+- **It is a setting, not a constant.** Step 5 reads it from the server's environment
+  (`SEALEYE_GATEWAY_BUDGET`, in US dollars), with $20 as the default, so raising it is a
+  restart, not a release.
+
+## One list of words for both surfaces
+
+Wed Oct 14, 2026, decided by Greg. The portal's "Tear down" button and `sealeye destroy`
+did the same thing under two names, which reads as two different operations, and
+principle 1 says an operation has the same name on both surfaces.
+
+- **The command is `sealeye teardown`.** `destroy` stays as an alias, never shown in
+  help, so scripts and habits keep working, the way `init` stays for `run`. The portal's
+  word won because the portal is where newer people meet seaLeye, and "tear down" was
+  already the command's own word in every line it printed.
+- **`core/operations.js` is the one list.** Each operation has the command's word, its
+  aliases, and the portal's label. The command turns an alias into its command once,
+  before dispatching; the portal reads its labels and every command line it shows from
+  the list. It runs in a browser, so the portal imports it.
+- **`test/operations.test.js` holds both surfaces to it**: the command handles every
+  operation, its help shows every command and no alias, the portal shows every
+  operation it labels through the list, and the portal types no command line of its
+  own. Renaming a command is one edit.
+- **A label and a command may differ only where one names a page and the other an
+  action**: Environments and `list`, Health and `doctor`, New environment and `run`. Two
+  pairs are not like that and are left for Greg to decide: Configure and `config`,
+  Performance and `perf`.
+- **The portal shows each action's command line.** Control's Deploy again, Pause and
+  Tear down are one Actions card of buttons, each with its command line under it and a
+  button that copies it. What each does is said in its dialog, where it is asked, rather
+  than on the page; Pause gains a dialog for that, and Resume, which puts back what was
+  there, does not. A change under way locks the card once, said at the top. Configure
+  and Settings end with their command line; Logs, Performance, Evidence and the change
+  under way name theirs in a sentence, as they did.
+- **Plan and report shows `sealeye plan <deployment>`**, with `--report` on the report's
+  tab, for the deployment it is showing.
+
+## The model gateway on the server
+
+Wed Oct 14, 2026, PHASE3-PLAN Step 5, as D7 decided and the Step 4 spike showed.
+
+- **A container next to the API**, agentgateway v1.6.0 pinned by the digest the spike
+  ran (`deploy/compose.yaml`). Its settings are `deploy/gateway.yaml`, sent by
+  `release.sh` the way the Caddyfile is. It publishes no port and sits on a network of
+  its own (`model`) that only the API joins, so neither Caddy nor Postgres can reach it.
+  That network is not an internal one, so the gateway still reaches the model's address.
+- **The model key moves to the gateway.** It is kept at
+  `/sealeye/gateway/ANTHROPIC_API_KEY`. `deploy/settings.mjs` leaves out anything under
+  `/sealeye/gateway/` (`apiSettings`), so the API's environment never holds it.
+  `deploy/gateway.sh` writes it, with the gateway's key and budget, to
+  `secrets/gateway.env`: 0600, read by compose for the gateway alone. Like the database
+  password, it is a file on the server's disk, because the gateway's image has no shell
+  or AWS CLI to read Parameter Store itself.
+- **This is a boundary in the process, not in AWS.** The API's container still uses
+  the server's instance role, which may read `/sealeye/gateway/`. So an attacker who
+  could run code in the API could still fetch the key. What this removes is the key
+  sitting in the API's memory, its environment and anything it starts (npm, gitleaks,
+  the AWS CLI). Keeping it out of the API's reach in AWS needs the API to have a role
+  of its own, which waits for the move off one server (PHASE2-PLAN, "Owed after this
+  plan").
+- **The API calls the gateway with its own key**, `SEALEYE_GATEWAY_KEY`, in the
+  `x-sealeye-gateway-key` header, and sends no model key at all
+  (`modelCredential` in `api/interview/model.js`). A laptop API, with no gateway key,
+  calls Anthropic with `ANTHROPIC_API_KEY` as before. `SEALEYE_MODEL_URL` with no
+  gateway key still sends the model key, for an organization's own gateway that takes
+  one.
+- **The budget is on from the first release**: $20 for each 30-day period, or
+  `SEALEYE_GATEWAY_BUDGET` (DESIGN.md, "The gateway's budget: $20 a period"). Its
+  refusal is a 429, which the interview would otherwise call a busy model and retry, so
+  a refusal that says `budget_exceeded` is never retried, and the developer reads that
+  seaLeye has used its model budget for this period, with no amount (`isBudgetSpent`).
+  Step 7 still shows it once on the server. The per-run token limit waits for Step 6,
+  since without a token per call every run would share one limit.
+- **Switching is a step of its own, and so is switching back.** The release brings the
+  gateway up but does not move the API. Greg moves it by setting `SEALEYE_MODEL_URL`
+  and deleting the API's model key, then restarting the API. Switching back is the
+  reverse, with no release (deploy/README.md, "The model gateway").
+- **The budget's amount is filled in like the keys.** The gateway fills in names in the
+  file's text before reading it as YAML (`parse_config` in its source), so
+  `amount: $SEALEYE_GATEWAY_BUDGET` becomes a number. The spike used a written amount,
+  so the server checks it: a release asks the gateway to validate its settings, keys
+  filled in, before restarting it, and keeps the old gateway running if they fail.
+- **Reviewed before the pull request** by a separate agent. It found that a release
+  stopped by a missing key had already replaced the server's compose file, so the
+  secrets are now read before anything else changes. It also found that the SDK, given
+  no key, would look for other credentials of its own, so the gateway's client never
+  does. A gateway that is not ready fails the release only once the API uses it.
+- **Live on Oct 14, 2026.** Greg released it, switched the API over, and ran an
+  interview on apps/static-website. The API's settings show `SEALEYE_MODEL_URL` and its
+  gateway key and no model key. The gateway logged each of the three model calls, with
+  no prompt or reply, from the API's address only. The interview cost $0.050, with
+  cache writes and reads as expected.
+- **The gateway's cost matches seaLeye's prices exactly.** It priced each of the three
+  calls to the same tenth of a cent as `core/model-prices.js` does. One difference to
+  remember when reading its log: its `gen_ai.usage.input_tokens` includes the tokens read
+  from and written to the cache. Anthropic's `input_tokens`, which the run cap counts,
+  leaves them out.
+- **Nothing a person sees changes.** Every check the gateway makes is in its own log,
+  `deploy/server.sh gateway-logs`, which drops any line holding one of its keys.
+
+## A token on every model call
+
+Wed Oct 14, 2026, PHASE3-PLAN Step 6, as D1 decided: the API signs a short-lived token
+for each model call, and nobody but the API holds the means to make one.
+
+- **What it says.** The claims are:
+  - `sub`, the person: the token holder's email, or `sealeye-api` on a laptop API with
+    token checks off.
+  - `org` and `team`.
+  - `run`, the interview's id.
+  - `worker`: `interview` today, and each of Phase 4's workers later.
+  - `surface`: `cli` or `portal`, as the API already decides for records.
+  - `trace`: the run's LangFuse trace id, when it has one.
+
+  The issuer is `sealeye-api` and the audience `sealeye-gateway`. Every call, a retry
+  included, signs a fresh token with an id of its own, and the gateway checks it when
+  the call arrives, so each lasts a minute (`api/gateway-token.js`). An interview saved
+  before tokens existed names its owner and says `unknown` for the team and surface it
+  never recorded.
+- **Ed25519, with Node's own crypto.** It needs no package. The Step 4 spike showed the
+  gateway accepts EdDSA. The key's id is the first 16 hex characters of the SHA-256 of
+  its public half, so the token and the key set agree without a second setting.
+- **The private half is the API's alone.** It is `SEALEYE_GATEWAY_SIGNING_KEY`, a
+  SecureString. The gateway gets only the public half, `/sealeye/gateway/JWKS`, written
+  to a file by `deploy/gateway.sh`. `deploy/gateway-signing-key.mjs` makes both on
+  Greg's Mac and hands each value to the AWS CLI in a 0600 file, never on a command
+  line. A new key is that script with `--replace`, then `gateway-restart`.
+- **The gateway requires it** (`jwtAuth`, strict, with issuer, audience and
+  `requiredClaims: [exp, iss, aud, sub]`). It writes `jwt.sub`, `org`, `team`, `run`,
+  `worker`, `surface` and `trace` into each line of its log. A claim that is missing
+  (`trace`, for a run with tracing off) leaves its field out; it does not fail the
+  call (the gateway's source, `eval_keep_empty`).
+- **Only a call to the platform's gateway carries a token.** An API calling Anthropic
+  with the model key sends no second credential, even if it has a signing key.
+- **The API says at start which key it signs with**, by its public id, or that it has
+  none or cannot read it, and carries on: deploys and the portal keep working, the
+  gateway refuses the calls, and the developer reads that the API's credentials for the
+  model were refused. A release checks that the id the API signs with is the one in the
+  gateway's key set (`scripts/gateway-key-id.js`, `gateway.sh ready`), and fails, saying
+  how to fix it, when they differ while the API uses the gateway.
+- **A release checks the gateway's settings before anything restarts** (`gateway.sh
+  validate`, before `docker compose up`), so a mistake in them stops the release with
+  the old gateway still running.
+- **The key script cannot leave half a pair.** It stores the public half first. If the
+  private half then fails, it puts the previous public half back, or says the halves no
+  longer match. A pair found half stored is made again.
+- **Joining the trace, for now, is by id.** The plan asked for the gateway's own span
+  in the run's LangFuse trace. The gateway can export spans (OTLP), but that puts
+  LangFuse's keys in the gateway and needs the API to send a trace header on each
+  call, and neither has run in the spike. Today the `trace` field in the gateway's log
+  joins a line to its LangFuse trace by id. Exporting spans was owed as Step 6b, after
+  a spike run (PHASE3-PLAN).
+- **Tested two ways.** `test/gateway-token.test.js` starts the real API with tokens,
+  runs one interview from the command and one from the portal, and checks each call's
+  token against the public half. The spike (`deploy/spikes/agentgateway/probe.mjs`)
+  now signs with the API's own signer, so a run of it on Greg's Mac shows whether the
+  gateway itself accepts the API's tokens and logs their claims. The refused cases
+  (none, expired, another key, another issuer or audience) run there too, since CI does
+  not run the gateway. Greg ran it on Oct 14 against agentgateway v1.6.0: 26 of 26. The
+  gateway let the API's own token through and logged its person, organization, team,
+  run, worker, surface and trace. It refused every bad token with a 401 that names why.
+- **The first release stopped before changing anything**, because `gateway.sh` asked
+  Parameter Store whether the signing key exists with `describe-parameters`. The server's
+  role may not make that call: it names `/sealeye/` parameters one by one. It now reads
+  only the key's name, without decrypting it, which the role allows, and a test keeps
+  the server's scripts to the calls the role allows.
+- **Reviewed before the pull request** by a separate agent. It found nothing that
+  leaks. Its findings were about the rollout: no check that the two halves match, a
+  key script that could leave half a pair, settings started before they were checked,
+  and a claim of a spike run that had not happened yet. Each is fixed above.
+
+## The outer limit, and a record of calls kept 90 days
+
+Wed Oct 14, 2026, PHASE3-PLAN Step 7. The budget and its plain words came with Step 5;
+this adds the rest.
+
+- **A per-run limit in the gateway**: two million tokens a day for each run, keyed on
+  the token's `run` claim, counted after each reply. A run's own dollar
+  (`core/model-prices.js`) stops it long before that, since a dollar is a few hundred
+  thousand tokens of the interview's mix. So the limit acts only on a run the API's own
+  count failed to stop: a bug, or a worker without a cap. It lives in the gateway's
+  memory, so a restart resets it, which is acceptable for a backstop. It is a fixed
+  number in `deploy/gateway.yaml`, not a setting, because nobody should need to tune it.
+- **Told as the run's limit.** The gateway refuses with a 429 in plain text and
+  `x-ratelimit-*` headers, but it adds those headers to every reply it lets through,
+  Anthropic's 429 included, so the headers alone do not tell them apart. Only the gateway's own refusal
+  is plain text with no Anthropic request id (`isRunLimitReached` in
+  `api/interview/model.js`). A run the gateway stops is not retried, and ends as the
+  run's own cap ends it: stopped, reason `spending_limit`, with the same words and the
+  same trace score. To the developer it is one limit. Anthropic's 429 is still a busy
+  model, retried once.
+- **The record of calls is the gateway's own SQLite file**, read, never written, by
+  `deploy/server.sh gateway-calls`. It runs `sqlite3` from the API's image, as the
+  gateway's own user (65532), so no file it shares with the gateway changes owner. It
+  shows one row per call: time, person, team, run, worker, surface, model, tokens, cost
+  and status. It can be narrowed to a run or a person, checked against a plain pattern
+  before it reaches the query. It never selects the payload columns, which stay empty
+  (`database.llm: metadata`).
+- **Kept 90 days** (Greg's choice). A nightly job (`sealeye-gateway-prune`, 03:45
+  Toronto, after the backup) deletes older calls. It touches only the call log, never
+  the budget's own tables. The gateway itself keeps calls forever.
+- **Whether a stored row carries the token's claims** is from the gateway's source:
+  a row's attributes are the log line's fields. The spike now checks it with `sqlite3`
+  on a copy of the file. Until Greg's run confirms it, a row that lacks them would show
+  empty person and run columns, and no more.
+- **Shown once on the server**, on purpose: a budget below what the period has spent,
+  one interview refused in plain words with the refusal in the record, then the budget
+  put back (deploy/README.md, "The record of model calls, and the outer limit shown
+  once"). That is the second half of Phase 3's "done when".
+- **Reviewed before the pull request** by a separate agent. Its main finding was the
+  one above: the first version took Anthropic's own 429, seen through the gateway, for
+  the run's limit. It also found that a stopped run ended as failed, and that
+  `gateway-calls 5` was read as a name. Each is fixed; a lone number is now how many
+  calls. The reviewer checked the SQLite handling against the gateway's source:
+  - deleting while the gateway writes is safe;
+  - the budget cannot lose spend;
+  - `unixepoch(completed_at)` reads the gateway's timestamps;
+  - reading as the gateway's own user keeps the files it shares with the gateway
+    owned by it.
+- **Shown on the server, Oct 14.** Greg released it, set the budget below what the
+  period had spent, and ran an interview. It was refused in plain words, and worked
+  again once the budget was put back. That completes the second half of Phase 3's
+  "done when".
+
+
+## LangFuse in Canada waits for an organization's real code
+
+Wed Oct 14, 2026, Greg, writing the Phase 4 plan (PHASE4-PLAN D1): "no one will be
+picking this up at a real bank any time soon."
+
+- **What changes.** Self-hosting LangFuse in ca-central-1 was to come before Phase 4's
+  first discovery run ("Phase 3, settled after review"). It now comes before the first
+  run on an organization's real code instead.
+- **Why that is safe.** Every Phase 4 run before that reads code that is no one's
+  secret: seaLeye's own templates, a made-up organization written for the purpose, and
+  public module libraries. Traces still hold no file contents, and the scanner still
+  stops a file with a finding before any model or trace.
+- **What it saves.** A second server's worth of LangFuse (ClickHouse, Redis, blob
+  storage) to run and back up, months before anyone needs it.
+- **What it keeps owed.** The first customer run cannot start until traces are in
+  Canada, or tracing is off for it. The gateway's own span in the trace (once Phase 3
+  Step 6b) comes with the self-hosted LangFuse, as decided earlier today.
+
+## The gateway's span waits for LangFuse in Canada
+
+Wed Oct 14, 2026, Greg's call. PHASE3-PLAN Step 6b, the gateway's own span in each run's
+LangFuse trace, moves to Phase 4, to be built with self-hosted LangFuse in ca-central-1.
+
+- **What it would cost now:**
+  - LangFuse Cloud's secret key would be held by the gateway as well as the API.
+  - The API would send a trace header on every call.
+  - The gateway's sampling would need a spike run, so that a run with `--no-trace`
+    never appears in LangFuse through the gateway.
+  - Spans would carry the token's claims, the person's email among them, to LangFuse
+    Cloud in the US.
+- **What it would add now is small.** Every gateway log line and every row of
+  `gateway-calls` already carries the run's trace id, so a call joins its trace by
+  hand. Tracing is meant to stay off for any pilot on real code until LangFuse is in
+  Canada.
+- **In Phase 4**, the gateway's spans go to the organization's own LangFuse in Canada,
+  with a key the platform team holds, so the same work brings no new holder of an
+  outside key and nothing more to the US.
+- **Phase 3's "done when"** asked that every model call in a trace name its caller and
+  its route. The caller is named, by trace id, in the gateway's log and record; the
+  route comes with Step 8. The span itself is Phase 4's.
+
+## Phase 4's decisions, and one reopened
+
+Wed Oct 14, 2026, Greg, answering PHASE4-PLAN's decisions.
+
+- **As recommended:**
+  - D2: discovery runs in the seaLeye account until the first customer.
+  - D3: plain code reads the library, a read-only clone at a named commit; the model
+    never chooses what is read. This answers Q17.
+  - D4: a catalog is a versioned document per organization in Postgres; the four
+    built-ins are the starter catalog; plans name the version they were made from.
+  - D5: workers on the small model, the supervisor and rule writer on the frontier
+    model, both as named routes through the gateway.
+  - D6: a cap per worker and per run, set from a measured run.
+  - D8: Terraform as one root module per environment, state in S3.
+- **D9, with Greg's refinement.** The made-up organization's modules are ones commonly
+  assembled into the same kind of application (a backend API, a website, or another),
+  so a sample app's right plan uses several of them together, as a real platform
+  library is used.
+- **D7, reopened as Q19.** Pausing a discovery run for a platform engineer means the
+  run waits until someone notices, so discovery would need watching. Greg: "we should
+  consider first alternative interaction models that allow full runs to complete quickly
+  without pausing for human intervention." Q19 sets out the options. It blocks Step 6
+  only, so Part A goes ahead.
+
+## The catalog is data, and every organization starts with the starter
+
+Wed Oct 14, 2026, PHASE4-PLAN Step 1 (D4).
+
+- **What it is.** A catalog is the document `prompts/module-catalog.yaml` has always
+  been: modules, need kinds, profiles and patterns. Each organization can have its own,
+  versioned, in the `catalogs` table (`api/migrations/006_catalogs.sql`), or in
+  `~/.sealeye/catalogs.json` beside a laptop API, read from memory and written through
+  (`api/catalogs.js`), as the deployment store is.
+- **The starter.** An organization with no live catalog has the starter catalog, which
+  is the file, word for word and read fresh each time. Every organization today has
+  it, so nothing a developer sees changes.
+- **Draft, approved, live, retired.** Discovery will write drafts. A platform engineer
+  approves one, by name. Only an approved catalog goes live, and the live one it
+  replaces is retired in the same transaction; the database allows one live catalog
+  per organization. Nothing makes a catalog live from a request yet: the self-test
+  (Step 7) comes before any endpoint or command that does.
+- **Where the API reads it.** `GET /catalog` (which now says which catalog, as
+  `catalog: { version, source }`), the need lines in `POST /plans/validate` and in the
+  needs ledger, the plan files written onto a record, and the evidence's patterns, each
+  from the caller's or the record's organization. Every function in `core/catalog.js`
+  already took the catalog it reads; the API now hands it the organization's.
+- **A record keeps which catalog it was planned against** (`catalog: { version,
+  source }`, never the document), and its evidence and plan files read that one, even
+  once it is retired. A record from before Oct 14, 2026 names none and was planned
+  against the starter, the only catalog there was (principle 7: read from the record,
+  never from whatever is live now). Deploy again keeps its source's catalog when it
+  keeps its source's plan files.
+- **Changes run one at a time**, each reading the catalogs as they are when its turn
+  comes, so two made together both land. Without a database the file is read again
+  before each change, so one made by another process is not written over.
+- **What still reads the starter.** The interview's prompt (Step 3), the command's card
+  and plan files (Step 2 moves them to `GET /catalog`), and the plan contract's fixed
+  module ids and need kinds (Step 2's planVersion 0.5). Until those land, an
+  organization's catalog can reword the starter but not add to it.
+- **A catalog holds no secret.** It is names, lines and signals, so it is backed up
+  with the rest of Postgres.
+
+## A plan names its catalog (planVersion 0.5)
+
+Thu Oct 15, 2026, PHASE4-PLAN Step 2 (D4). Changing the contract is a decision, so it is
+written here.
+
+- **What changed.** A 0.5 plan has a `catalog` field: `starter`, or the version of one
+  of the organization's own catalogs. Its module ids are checked against the modules
+  that catalog builds, and its need kinds against that catalog's, rather than against
+  fixed lists. `core/schema.js`'s `contractSchema` builds the contract from those two
+  lists, `schemaFor` in `core/catalog.js` from a catalog, and `api/validate.js` checks a
+  plan against the catalog it names (compiled once per shape).
+- **Every older plan names the starter.** 0.2, 0.3 and 0.4 plans were all written
+  against seaLeye's own four modules, so `upgradePlan` reads them as 0.5 with
+  `catalog: starter` and nothing else changed (0.2 and 0.3 still turn modules the
+  platform never built into needs). A plan claiming any other version is no longer read
+  as an old one; the contract refuses it.
+- **Buildable is the catalog's to say, and the platform's to back.** A module is
+  buildable when its catalog marks it `availability: available` and the platform has an
+  executor for what its `builds_with` names that builds it (`EXECUTORS` in
+  `core/schema.js`; `isBuildable` in `core/catalog.js`). Today that is CloudFormation,
+  which builds the four modules it has templates for; the starter's four now say
+  `builds_with: cloudformation`. A module in an organization's catalog that nothing
+  builds yet (its own Terraform module, until Step 9) is never a module in a plan: an
+  app that needs it has a need. Refuse, never shrink.
+- **Which catalogs a plan can name.** The starter, or one of the organization's that
+  is or was live (live or retired). A draft, or one approved and never live, is not
+  something a developer's plan was written against: CATALOG_NOT_LIVE. A version the
+  organization does not have, or another organization's: CATALOG_UNKNOWN.
+- **A plan from a replaced catalog.** It still validates against the catalog it names,
+  and a drafted one is saved in that catalog's words. A deploy is refused with 409
+  CATALOG_CHANGED when the live catalog no longer builds a module the plan uses, naming
+  the module in the plan's catalog's words and saying to run `sealeye run` again. When
+  everything it uses is still built, it deploys. Never true today: every organization's
+  live catalog is the starter.
+- **A record keeps the plan's catalog**, not whatever is live when it is written, so its
+  evidence and plan files read the catalog the developer saw.
+- **The clients draw from the plan's catalog.** `GET /catalog?version=<v>` serves the
+  starter or any catalog a plan may name, and `document` is that catalog as clients
+  draw a plan from it: the modules the platform builds, the need kinds, the profiles
+  and their patterns. A module nothing builds is left out, and so is what a pattern
+  says about it, because seaLeye never names a module it cannot build (principle 2), not
+  even in JSON a command prints. What builds a module (`builds_with`) is left out too:
+  it is the platform's to know, and its name is an AWS term. Each module sent carries
+  `buildable: true` instead, which a stored catalog may never carry itself
+  (`catalogProblems`). The command draws its card and writes DEPLOYMENT_PLAN.md from it;
+  the interview's plan files on the API come from the same catalog.
+- **A plan's checksum is of the plan as sent.** A 0.4 sealeye.yaml is read as 0.5, but
+  the record's `planSha256` is of what the command sent, so it matches the file.
+- **No catalog goes live before Step 3.** The interview still plans against the
+  starter. If an organization's live catalog dropped a starter module, every plan the
+  interview wrote that used it would be refused with CATALOG_CHANGED, and running
+  `sealeye run` again would write the same plan. So the first catalog goes live only
+  after Step 3 moves the interview to the live catalog. Nothing can make one live from
+  a request until Step 7, so this holds today by construction; it is written down so it
+  still holds then. (Found by the independent review of this step.)
+- **The interview is unchanged.** Its `submit_plan` tool keeps the 0.4 contract exactly
+  (`planSchema04`), and its prompt is byte for byte what it was (a test keeps both so;
+  `builds_with` is never in the prompt). The API reads what it writes as 0.5 against
+  the starter and hands the clients that. Step 3 moves the interview to 0.5 and the
+  organization's live catalog, with the eval run before and after.
+
+## The portal follows changes as they happen
+
+Thu Oct 15, 2026.
+
+A page in the portal read its environments once, and again every five seconds only
+while it already knew a change was under way. A tear-down run from the command line, or
+anything a teammate did, did not show until the page was refreshed. Greg chose a stream
+from the API over the portal asking again on a timer (option d of four).
+
+- **What it is.** `GET /deployments/events`, server-sent events, as the interview's
+  events already are. Each event is `changed` with `{ deploymentId }` and nothing more.
+  The portal holds one stream per tab (`portal/src/changes.tsx`) and, on an event, reads
+  `GET /deployments` again, at most once every 300 ms. Environments and Control re-read
+  this way, so the list and the page change by themselves and nothing flickers: the old
+  data stays until the new arrives.
+- **Only what can be seen, and only the id.** An event goes to a stream only for a
+  record its caller can see (`canSee`, as every read), and says which one changed, never
+  what. What changed is read through `GET /deployments`, which checks the caller as
+  always. Another team, or another organization, hears nothing.
+- **A stream lasts five minutes.** Then the API ends it and the browser opens the next
+  by itself, a request checked like any other. So a revoked token or an ended sign-in
+  stops hearing of changes within five minutes, and the page, reading again, is sent to
+  Sign in. Every opening after the first reads again, for anything saved in between.
+- **Only changes worth showing.** A record is saved on every look at its stack while it
+  changes, most finding nothing new. The API sends an event only when something
+  `GET /deployments` shows of it is different, so an open page reads again when there
+  is something to see.
+- **A deploy that replaces another says so for both.** The older one is not saved when
+  a newer success replaces it, so the API tells that record's readers too: on a stack
+  from before teams had names, they can be another team.
+- **Bounded.** HEAD gets no stream. One person may hold 20 streams open; the 21st is refused with 429
+  TOO_MANY_STREAMS, and the portal tries again after 30 seconds. A comment line every
+  15 seconds keeps Caddy and anything between from closing a quiet stream (Caddy
+  already flushes `/api` at once, for the interview).
+- **One API process, as the store is.** The stream hears of saves in its own process
+  (`onDeploymentSaved` in `api/store.js`). A second API process would need the store to
+  change first, and so would this.
+- **The five-second reading while a change is under way stays.** It is how a page
+  follows a change if the stream is down, and costs nothing when the stream is up.
+- **The command is unchanged.** `sealeye watch` follows one environment by asking every
+  five seconds, as before, and `sealeye list` shows the moment it is run; the stream is
+  how the portal stays current, not a new operation. Moving `watch` onto the stream is
+  for when the command's package next changes, if it is worth doing then.
+
+With it, a torn-down environment shows no address. Its record keeps the address it had,
+for the evidence and the history, but the environment no longer answers there, so
+Environments and Control say "None, it was torn down" rather than link to an error.
+While it is being torn down the address shows greyed out, not as a link, with "Going
+away: it is being torn down" (`portal/src/Address.tsx`).
+
+## The interview reads the organization's catalog
+
+Thu Oct 15, 2026, PHASE4-PLAN Step 3. Greg chose the whole job now (option 1 of three)
+over plumbing only, with the large-catalog half moved to after Step 7.
+
+- **The interview starts with the organization's live catalog and keeps it.** The
+  service notes `{ org, version }` when an interview starts; it is part of the
+  interview's saved state, so every turn, and a run resumed after a restart or after
+  another catalog went live, plans against the catalog it began with.
+- **The prompt is the same for every catalog except where it speaks of the modules.**
+  `prompts/interview-system.md` has a `{{name}}` in each such place: how many modules
+  there are, the one way of running an app, the list of module ids, where the catalog
+  comes from, the sections on each module, the settings question, and an example in the
+  redeploy rule. The submit_plan tool's description of the plan is one too. These are the
+  catalog's passages (`interviewPassages` in `core/catalog.js`):
+  - **The starter's** are `prompts/interview-starter.yaml`, cut from the prompt by line,
+    word for word. The starter's prompt and tool are byte for byte what the eval graded
+    on Oct 15, 2026, and `test/interview-catalog.test.js` pins both by their ids, so any
+    change to them fails a test until the eval has been run again.
+  - **An organization's catalog** may carry its own (`interview:` in its document), as
+    discovery will write them; and each module may have `guidance`.
+  - **A catalog without one gets a passage written from its own modules and rules**
+    (`rules.core_modules`, `rules.exactly_one_core`). A passage of a catalog's own that
+    names a module it does not build is set aside for the written one, so a catalog that
+    began as a copy of the starter cannot tell the interview about a module it dropped.
+- **The interview never hears of a module the catalog does not build.** The catalog
+  section of the prompt lists only buildable modules and their patterns, and the tool's
+  module ids are the catalog's buildable ones. As a last guard, any line of that section
+  naming a module the catalog does not build (a pattern's line, a module's own words, a
+  need's expectation) is dropped, and so is a module's guidance that does; each such line
+  stands alone, so the rest still reads. A catalog whose need or pattern lines name any
+  module is refused when it is added (`catalogProblems`): a need says what the app needs,
+  never a module. What cannot be caught is an id no catalog has ever had: the check knows
+  the four, the ids of plans before 0.4, and the catalog's own. (From the independent
+  review of this step.)
+- **A catalog's own words are never read as the prompt's.** Every `{{name}}` is filled in
+  one pass over the template, so a `{{name}}` inside a passage or a module's guidance is
+  never filled, nor filled twice; `{{org}}` is the one a catalog may use, and
+  `catalogProblems` refuses any other.
+- **Whether a catalog is the starter is said by its version, not guessed from its
+  document.** A byte-exact copy of the starter in an organization's catalog is the
+  organization's, and gets passages written from its rules, not the starter's file.
+- **A plan in a version the model was not asked for is left for the check to refuse**,
+  rather than stamped 0.5 over, so the model hears its mistake.
+- **The model never names a catalog; the platform does.** The tool keeps the 0.4 shape
+  with the catalog's modules and need kinds (`interviewContract`, which for the starter
+  is `planSchema04`). The graph stamps the plan 0.5 with the interview's catalog
+  (`stampCatalog`) before checking it, so a model cannot plan against a catalog it was
+  not given. Against the starter an older plan still reads as it always did.
+- **A deployed plan is shown to the model in the shape it writes**
+  (`asTheModelWritesIt`): plans deployed since Step 2 are 0.5 and name a catalog, which
+  the model's tool does not have; shown as they are, it could copy them back and have
+  its plan refused. Found while building this step, before Step 2 was released.
+- **The starter's passages stay on the server.** Like the prompt they belong to, they
+  are not in the command's package (`test/package-contents.test.js`).
+- **The prompt's id in a trace is of the prompt as the model read it**
+  (`promptVersionOf`), with the catalog's version beside it. It was the template file's
+  hash, which no longer says what the model read. So the eval's prompt id moves once,
+  from `ba7017345af5` (the file) to `d3ab331a0a17` (the same text, filled in).
+- **A very large catalog waits.** Summarising a catalog too large for the prompt, at a
+  size measured rather than guessed, needs a large catalog to measure, and there is
+  none until public module libraries are read after Step 7. It moves there (PHASE4-PLAN,
+  "Owed after this plan").
+- **No organization's catalog goes live before this step** (DESIGN.md, "A plan names its
+  catalog"): it is now shipped, and the rule is met. Whether the interview plans well
+  from an organization's catalog is Step 8's to show, against the made-up organization.
+
+## The eval answers each question by what it asks
+
+Thu Oct 15, 2026, Greg.
+
+The eval's scripted answers were a queue: the first question got the first answer,
+whatever it asked. A model that asked in another order than the run the answers were
+written against got an answer meant for another question, and failed for that reason
+rather than its own (beneficiary-lookup-api stopped after one question on Oct 15, with
+every request the model received byte for byte as on main).
+
+- **A fixture's answer says which questions it answers** (`{ when: [phrases], answer }`):
+  the first whose phrase is in the question, in any case, answers it, as often as such a
+  question comes. Specific answers (settings, who reaches the app) are listed before a
+  general "is that right?". The answers' words are unchanged, so the eval asks the same
+  of the model. Plain strings still go in order, once each (`answerFor`).
+- **An app not as expected shows its questions**, how each was answered, and why it
+  stopped, so a failed run can be read from the terminal before opening its trace.
+- Questions no answer fits get the fallback, "I'm not sure. Use your best judgement from
+  the code.", as the question about what the app is for always has.
+
+## A module's name is found as code when it is an ordinary word
+
+Thu Oct 15, 2026, found by the first run of `npm run eval:discovery`.
+
+seaLeye looks for module ids in words in four places: a need's or a pattern's line
+(`catalogProblems`), the interview's prompt (`namesUnbuilt`), DEPLOYMENT_PLAN.md
+(`strayModule`) and an unlisted need's line (`unlistedNeedProblems`). Each matched an id
+as a whole word. The made-up organization has a module called `secrets`, and the
+starter's need line "secrets it reads while it runs" then read as naming it: the
+catalog was refused, and in the interview every line saying "secrets" would have been
+dropped, and a plan file saying it refused.
+
+- **An id that looks like an identifier** (an underscore or a digit in it:
+  `http_api_serverless`, `work_queue`) is found anywhere, as a whole word, as before.
+- **An id that is an ordinary word** (`secrets`, `queue`, `cache`) is found only written
+  as code, in backticks. Prose about secrets is not a module's name.
+- One rule for all four places: `moduleIdSource` in `core/schema.js`.
+- What this gives up: a catalog, a model or a plan file may say an ordinary-word id as
+  plain prose without being caught. The four starter modules, and any id with an
+  underscore, are caught as before.
+- **Greg, Oct 15: kept, as recommended.** The stricter alternative, requiring every
+  catalog module id to hold an underscore and having discovery rename the rest, was
+  declined: an organization's catalog should keep the names its platform team uses. A
+  plan's module list is still checked exactly, so an ordinary-word id said in prose can
+  never be built from; at worst a developer reads the word.
+
+## The made-up organization: Juniper Mutual
+
+Thu Oct 15, 2026, PHASE4-PLAN Step 4 (D1, D2, D9). Greg chose the design with three
+changes for the path to production, and Q20 recorded.
+
+- **The library** is the private repository `GregKliewer/sealeye-sample-platform`:
+  Juniper Mutual, a fictional credit union, and its platform team's thirteen Terraform
+  modules for websites and backend APIs (static site, custom domain, HTTP API,
+  container service, internal entry, two relational databases, document table, work
+  queue, file bucket, secrets, logs and alarms, and a deprecated cache), with the
+  pipeline every app is built and promoted with. Its own GitHub check runs Terraform's
+  formatter and validator on every push, so the modules are real Terraform.
+- **Every module knows its stage** (dev, sit, uat, staging, perf, prod), and from
+  staging up is held to production's rules: more copies, more backups, protection
+  against deletion. Greg, Oct 15: the roadmap goes on to higher environments and
+  promotion (Phase 5), so the regression set has to exercise more than dev, or it is
+  rebuilt then.
+- **The planted hard cases:**
+  - **The overlap is by stage:** `postgres` below staging, `postgres-cluster` from
+    staging up, said only in their READMEs. How a run records what it had to ask waits
+    on Q19, and how a plan names a module per stage on Q20 (raised here); until then the
+    grader checks that both are in the catalog, each saying its stages.
+  - **A deprecated module**, the cache, must never be offered.
+  - **A rule only in a README:** from staging up, alarms go to the on-call topic and
+    nowhere else. Discovery must learn it from prose, for nothing in the code checks it.
+  - **A planted password** in an old example file, made up, which seaLeye's scanner
+    must stop before any model reads the file, and a Terraform variables file beside it
+    that seaLeye must never read.
+  - **Three gaps:** nothing for an event stream, user sign-in or scheduled work, for
+    the gap report (Step 10).
+- **The path to production is the library's own:** the package is built once and the
+  same package, by its checksum, is promoted through sit, uat, staging and prod, with a
+  platform approval for staging and prod and a change ticket for prod; perf is built
+  from staging, never promoted from. The answer key records it for Phase 5; nothing
+  grades it yet.
+- **The answer key lives in seaLeye, not in the library**
+  (`test/fixtures/sample-platform/answer-key.yaml`), so discovery can never read it: the
+  catalog a careful platform engineer would write, in seaLeye's own catalog form, with
+  each module's folder as its `source`, so a catalog is graded whatever ids discovery
+  chooses.
+- **`npm run eval:discovery`** (`scripts/eval-discovery.js`) grades a catalog against the
+  key. Until discovery exists (Step 6) it grades the key itself, which must pass its own
+  grading; with `--library <clone>` it checks that the key still matches the library
+  (every folder an entry, every input a variable, required where the variable has no
+  default) and that the scanner stops the planted password and nothing else; `--smoke`
+  is the starter catalog, the answer for seaLeye's own `templates/`. What waits on a later
+  step or an open question is listed as waiting, never counted as passed. LangFuse
+  records it from Step 7.
+- **Nothing in it is buildable yet.** Its modules are built with Terraform, which seaLeye
+  builds from Step 9; until then its catalog builds nothing, and the interview, given
+  it, says so and plans every need as a need.
+
+## A discovery run never pauses; engineers answer live or later
+
+Thu Oct 15, 2026, Greg, answering Q19 (PHASE4-PLAN D7, reopened Oct 14). How a discovery
+run settles what it cannot decide alone: two modules that overlap, a rule that
+contradicts a README, a module that may be deprecated.
+
+- **The run never waits on a person.** No `interrupt()` in discovery. A worker that
+  meets something it cannot settle writes a question with its evidence and a best
+  guess, marked as a guess, and carries on.
+- **Questions go out as they arise.** Each is an event on the run's stream, which
+  `sealeye discover` and the Discovery page follow, and an open item on the draft
+  catalog it belongs to.
+- **An answer is taken whenever it comes.** The supervisor looks for an answer just
+  before it writes the entry a question touches; one that is there is used instead of
+  the guess. An answer that comes later, a second or a week, re-runs only the entries it
+  touches. Both are the same path, so an answer arriving while its entry is being
+  written needs no special case: it is a late answer.
+- **A guess never goes live.** An entry with an open question cannot pass Step 7: it is
+  not approved, and a catalog that holds it cannot go live with it buildable. Whoever
+  answered, and when, is kept on the entry.
+- **No waiting at the end either.** Greg chose not to let a watching engineer hold a run
+  open for the last questions: a missed answer costs one re-run of the entries it
+  touches, which is cheap, and any wait brings back the stall Q19 was raised to avoid.
+
+**Why a hybrid.** Greg chose "finish, and leave the questions on the draft", then asked
+why an engineer who is there should not clear things up while the run proceeds. Nothing
+stops that: accepting an answer at any time is the same mechanism as accepting one after
+the run, arriving earlier. Pausing (the first D7) makes a run as slow as its slowest
+answer and needs watching; refusing every uncertain entry outright throws away a guess
+that is usually right; rules stated up front only cover the kinds foreseen, and can be
+added later to shorten the list of questions.
+
+**What it costs.** About a day on Step 6, for the check before each entry is written and
+the test of an answer arriving mid-write. A run's draft now depends on who answered and
+when, so the graded eval runs twice: once with no answers, graded on the questions
+raised and the guesses made, and once with answers a script gives at fixed points, so
+both results repeat. Juniper Mutual's overlap is graded on its question once Step 6
+gives a question its shape; how a plan names a module per stage is still Q20.
+
+## Reading the library
+
+Thu Oct 15, 2026, PHASE4-PLAN Step 5 (D3, D5). How discovery's first node reads a
+platform library before any model sees it. Greg chose each of the four below.
+
+- **One commit, read-only, from GitHub's API.** Each repository is read at a full commit:
+  the one a ref names now, or the default branch's. GitHub's archive of that commit is
+  fetched (`api/discovery/github.js`) and read in memory (`api/discovery/tar.js`): regular
+  files only, nothing that climbs out, the size capped before it is inflated. The API's
+  image gains no `git`, and the run records the commit it read. The model never
+  chooses what is read.
+- **Two ways in, both built** (Greg: "do (a) and (b)"). A GitHub App the organization
+  installs on its library repositories (`SEALEYE_GITHUB_APP_ID`, `SEALEYE_GITHUB_APP_KEY`):
+  each read asks for an hour's token narrowed to the one repository and to reading its
+  contents. Or a fine-grained personal token, read-only on the named repositories
+  (`SEALEYE_GITHUB_READ_TOKEN`), the pilot's way in until an app is installed. When both
+  are set the app is used. Either way the credential goes to GitHub's API and nowhere
+  else: the archive's download link carries its own short-lived permission and is
+  fetched without it, and only from `codeload.github.com`. An app's token is revoked as
+  soon as the archive is read, rather than left live for its hour. No credential is
+  logged, kept on a record or put in an error, and an answer from GitHub that is not
+  what was expected is refused in words, never quoted.
+  - *Why both:* the token is an hour of setup and lets the pilot read Juniper Mutual now;
+    the app is how an organization grants seaLeye its library without lending a person's
+    token, and is what a customer will be asked to install. Building it now costs about a
+    day and a half that admin onboarding would otherwise carry.
+- **The upload's rules, with a purpose of its own.** The library is walked by
+  `core/upload-rules.js`, purpose `discovery`: `.gitignore` followed, secret files
+  (Terraform variables and state, keys, `.env`) as empty names, every file scanned with
+  the shared rules. It differs from an interview in two ways: `.github` is read, since a
+  library's pipeline is how an app reaches production (Juniper's path to production is
+  there), and the caps are larger (50 MB, 20,000 files).
+- **Flagged lines replaced, not files held back** (Greg, choosing against the
+  recommendation). After the walk the snapshot is scanned again with gitleaks
+  (`scanApp(dir, { library: true })`, `.github` included) and handled as an interview's
+  upload is (`redactScanned`, shared with the interview): each line with a value that
+  looks like a secret becomes a line that says why, and a value over several lines, or
+  a file that is not text, leaves its file empty. A worker can still read the rest of a
+  module's example. Archives (a `.zip`, a `.tgz`) and other files that are not text are
+  kept as their names only: neither scanner sees inside them, and they mean nothing to a
+  worker reading modules. A library's `.gitleaksignore` is left out of the snapshot. The plan's "done when" now says no value the scanner finds reaches a
+  model, rather than no file.
+- **A library's `.sealeye-allow` is not read** (Greg, agreeing). It is a developer's
+  word about their own app; a library's findings are the platform team's to fix, not to
+  wave through, so nothing in a library can let a value past.
+- **The repositories are named in a setting** (Greg, agreeing): `SEALEYE_LIBRARY_REPOS`,
+  `owner/repo` or `owner/repo@ref`, separated by commas, until admin onboarding names them
+  (PHASE4-PLAN, "Owed"). `deploy/server.sh library-check` reads each as the run will and
+  prints the commit, the counts, the secret files held back and each finding's file, line
+  and rule; no model is called and nothing is kept.
+- **Named routes in the gateway:** `small` (`claude-haiku-5-5`) and `frontier`
+  (`claude-sonnet-5`), both on the Anthropic route (D5), named in `deploy/gateway.yaml`
+  and `api/model-routes.js`, which `test/gateway-config.test.js` keeps the same. A caller
+  asks for a route by name through the gateway, and for the model itself when calling
+  Anthropic directly; a call is priced by its route's model. The interview is unchanged
+  and still goes by its own model's name. Checked against agentgateway v1.6.0 itself, run
+  locally against the spike's stand-in model: each route reached the stand-in as its
+  model, the interview's model still passed, an unknown route was refused, and the log
+  named the worker and the model and held no prompt. The `worker` claim already on
+  every call's token (`claimsFor`) is how each discovery worker's spend will show in
+  `gateway-calls`.
+
+**Reviewed independently** before the pull request. Nothing had to be fixed for safety;
+the review's should-fixes are in: archives and binaries as names only, the
+`.gitleaksignore` left out, the app's token revoked, a file whose path runs into another
+file skipped rather than moved (`treeFromPaths`, which the portal uses too), a tar's pax
+size honoured and an old GNU header's times never read as a folder, GitHub's answers
+parsed without quoting them, a slashed branch kept as written, and the download host
+pinned.
+
+**What it does not do yet.** Nothing calls a model: the graph that reads the snapshot is
+Step 6, and it removes each snapshot when its run ends. Juniper Mutual is checked as
+discovery reads it: `npm run eval:discovery -- --library` now reads the clone through
+`readLibraryFolder` and checks every module folder and the pipeline are read, the planted
+password's line is replaced with the rest of its file intact, and the variables file is
+held back as its name. GitHub's own archive of the library was read the same way and gave
+the same files, byte for byte, as the clone.
+
+## Archives and files that are not text travel as names
+
+Thu Oct 15, 2026, Greg, choosing the recommendation. Step 5's review found that neither
+scanner sees inside an archive: gitleaks does not open one unless told to, and the shared
+rules read compressed bytes. A library's snapshot already kept archives and files that
+are not text as names only. Interviews now do the same.
+
+- **What changes.** In an interview's upload, a file whose name is an archive's (`.zip`,
+  `.tgz`, `.jar` and the like, `ARCHIVE_NAME` in `core/upload-rules.js`) or whose contents
+  are not text travels as an empty file, as a `.env` does, after the shared rules have
+  scanned it, so a key in one is still reported. The walk returns them as `unread`, which
+  the command and the portal send with the upload.
+- **The API trusts none of it.** After its own scan it empties every archive and file that
+  is not text it finds (`holdNotText`), and takes the client's list only for files that
+  arrived empty, so a claim can never hide anything. `read_file` refuses each, saying it
+  is an archive or a file that is not text and only its name was sent.
+- **What the model sees.** The same listing as before, since `list_files` shows no sizes;
+  `read_file` already refused files that are not text, with other words. The prompt and
+  the plan tool are unchanged and still pinned. Of the sample apps only the static website
+  holds such a file (an image).
+- **A deploy is unchanged:** archives and images are part of the app and are packaged.
+
+*Why now:* a developer's folder can hold a fixture archive with a real credential in it,
+which today reaches the server unscanned, though never the model. Matching libraries
+costs half a day and closes it before discovery reads libraries in bulk.
+
+## The discovery run
+
+Thu Oct 15, 2026, PHASE4-PLAN Step 6, part a (D5, D6, D7). How a run reads a library and
+writes a draft catalog, in the API. Greg chose the four below on Oct 15, each as
+recommended.
+
+- **Who may run it: an organization-wide token only.** Discovery writes an organization's
+  catalog and its questions are the platform team's to answer, so every `/discoveries`
+  endpoint answers 403 `ORG_WIDE_ONLY` to a team token. The repositories are the server's
+  to name (`SEALEYE_LIBRARY_REPOS`), never a request's, so a caller cannot point the
+  API's GitHub credential at anything else.
+- **A module's inputs are read by plain code, not a model.** `api/discovery/terraform.js`
+  reads each `variable` block: name, whether it has a default (so is optional), a plain
+  default, and the description. Exact where a model would guess, and the answer key
+  already checks it this way. The model only writes an input's line when its description
+  is missing or uses cloud terms. Code also decides what a module is (a folder with .tf
+  files of its own that is not an example or a test), its id (its folder's name), and
+  what builds it (`terraform`).
+- **A run cut off by a restart is stopped, not resumed.** The graph has no checkpointer;
+  on start the API marks any run left `running` as stopped, reason `restarted`, and it is
+  run again. Resuming would have cost about a day; with Step 6c reusing each unchanged
+  module's finding, running again costs little.
+- **A question offers choices, the guess first, and takes free text.** Two to four short
+  options; an answer is one of them or a sentence of the engineer's own.
+
+**How a run goes.** Read (Step 5), then plain code lists the modules and reads their
+inputs. A worker per module (`small` route) reads only its own folder, the library's
+README and `.github/`, and hands in a finding through `submit_finding`; a library reader
+reads the README and pipeline for the path to production and rules that span modules.
+They run four at a time, as LangGraph `Send`s. The supervisor (`frontier` route) then
+writes every entry's words in one call, settles what spans modules and may raise
+questions of its own (the overlap). Code puts the draft together (`api/discovery/draft.js`)
+with the starter's need kinds, profiles and patterns, keeps it as a `draft` catalog, and
+decides, not the model, which entries rest on an unanswered question (`open`).
+
+**Q19 as built.** A question is kept and sent on the run's events the moment it is
+raised. The supervisor reads every answer there is just before it writes. Any answer not
+yet in after that (it came later, or while the entries were being written) re-writes
+only the entries it touches, one pass at a time per run, in the same draft while it is a
+draft, or a new draft if it was approved meanwhile. Each question keeps who answered,
+when, and the draft version it went into.
+
+**Money.** Each worker has a cap and so does the run (`SEALEYE_DISCOVERY_WORKER_CAP`,
+`SEALEYE_DISCOVERY_RUN_CAP`; the plan's placeholders, a dollar and twenty, until a
+measured run sets them, D6). A worker at its cap hands in nothing and its module is kept
+as `not_read`, never offered; a run at its cap stops before the draft and writes nothing.
+Every call carries a token naming its worker (`worker:modules/postgres`, `supervisor`),
+so the gateway's record shows each one's spend.
+
+**Limits, for now.** One run at a time for an organization (409 `RUN_GOING`), so a run
+cannot be doubled by accident at up to its cap each; and one library repository a run
+(409 `ONE_LIBRARY`), since findings, questions and entries are keyed by module folder and
+two libraries can share one. Both can widen when 6c and admin onboarding need them.
+
+**A guess never goes live, as code.** Code, not the model, marks what rests on an open
+question: each entry a question touches (a model's loose way of naming a module, an id or
+a folder with a slash, is matched), and the catalog itself (`discovery.open`) for a
+question that touches no one module, such as one about the path to production. A module
+that was not read is `not_read` whatever the supervisor wrote, and deprecated from either
+reader or supervisor wins over available. Words a developer reads lose any em or en dash.
+An answer is marked used only when it is still the answer the pass read, so one changed
+mid-pass gets a pass of its own.
+
+**Reviewed independently** before the pull request. It found four defects, all fixed with
+tests: a late answer could save a stale copy of the run back over its finished state; a
+changed answer could be marked used without being applied; a module not read could come
+out available; and a stray link to the dependencies folder had been committed. Its
+should-fixes are in too: the catalog-level `open`, questions raised during a re-write,
+spend kept when a re-write fails, the two limits above, LangSmith switched off by the
+discovery service itself, and the eval finding the model key before it moves seaLeye's
+folder.
+
+**What is not here yet.** Traces: a run is not traced until Step 7 decides what a
+discovery trace holds, so every call is made with tracing off. The command and the
+portal page (6b), and reading only what changed (6c). `npm run eval:discovery -- --run
+--library <clone>` runs discovery for real, with no answers given, grades the draft and
+the questions it raised, and prints what each worker spent; it is how the caps get set.
+
+## What the first measured run changed
+
+Thu Oct 15, 2026, Greg's first real discovery run on Juniper Mutual
+(`npm run eval:discovery -- --run`): every module right, the deprecated cache refused,
+the overlap asked; 119 seconds and US$0.18 in all, the supervisor US$0.14 of it and no
+worker more than half a cent. Three changes, each Greg's choice as recommended.
+
+- **The caps (PHASE4-PLAN D6):** ten cents a worker and three dollars a run, about twenty
+  and fifteen times what this run spent, so a module with many files or a library
+  several times Juniper's size still fits. It is the supervisor's one call that grows
+  with the library; past that, the large-catalog item owed after Step 7 applies.
+- **A rule a reader found always reaches its entry.** The README-only rule (alarms from
+  staging up go to `oncall-pager`) was found by its worker and lost in the supervisor's
+  re-wording. Now code carries every rule the readers found (the module's own, and the
+  library reader's that apply to it) into the entry as `rules`, each with where it was
+  found, and adds to the guidance, in the reader's words, any the supervisor's does not
+  already say. The supervisor is also told to keep a rule's own names.
+- **Fewer, better questions.** The run asked 17 for 13 modules, about half of which
+  would change nothing in the catalog: whether a rule is enforced or only reviewed,
+  tidying an example, a placeholder pipeline step, an unmentioned language. The prompts
+  now ask only when the answer changes an entry, and say plainly what never to ask.
+  The worker's, the library reader's and the supervisor's prompts changed, so the run is
+  measured again before and after.
+
+**Noticed, for Step 7's self-test.** Some of the words a developer would read came out
+with cloud terms ("log group") despite the prompt. The self-test that gates a catalog
+going live should check developer-facing words, as the interview's are checked, rather
+than trust the prompt.
+
+## An overlap the library settles is not a question
+
+Thu Oct 15, 2026, Greg, after the second measured run. That run asked two questions (down
+from 17), caught the README-only rule, and asked nothing about Juniper's two databases,
+which the grader then failed. The model was right: both READMEs say postgres below
+staging and postgres-cluster from staging up, and the prompts say never to ask what the
+library settles. The answer key had assumed every overlap must be asked, before Q19 gave
+a question its shape.
+
+- **An overlap the library settles is graded on the entries.** It is caught when each
+  entry says which stages it is for and names the other, so a planner sees the pair
+  (`settled_by_library` in the key). A name only counts as a word of its own: postgres
+  inside postgres-cluster is not naming postgres. An overlap the library leaves unclear
+  is still graded on its question. How a plan names a module per stage is Q20's either
+  way.
+- **Juniper gains a module whose standing it leaves unclear**, so the question path is
+  still tested: `cache-valkey` (sealeye-sample-platform PR #2), in trial with two teams,
+  while cache-redis's README says there is no cache for new apps. A run passes only if it
+  asks about it and the entry rests on that question; whatever availability it guessed
+  is not graded until the question is answered.
+- **A question asked twice is dropped by code.** The supervisor sees the readers'
+  questions and, in the second run, asked one again in its own words. A question it
+  raises is dropped when it touches nothing an open question does not and is the same
+  kind (other than "other") or mostly the same words. The prompt still says not to.
+
+**Tightened after the third measured run** (Greg, Oct 15). It passed, but the module
+left unclear passed on an unrelated question (whether cache-valkey adds backups from
+staging up), not on its standing, and one question was still asked twice. The unclear
+module now counts only when a question touches it and cache-redis together, since the
+ambiguity spans both (`with` in the key); the supervisor is told that when one module is
+deprecated and another of the same kind exists, and nothing says whether it is the
+replacement, it asks, naming both; and a question that shares a module with an open one
+in nearly the same words is dropped even when it names one more.
+
+## Discovery on both surfaces
+
+Thu Oct 15, 2026, PHASE4-PLAN Step 6b. Greg chose both as recommended.
+
+- **`sealeye discover` asks each question as it arrives.** It starts a run (or follows
+  the one already going: one a run at a time) and streams it as `sealeye run` streams an
+  interview. A question is shown with what raised it and the modules it touches, and
+  answered with the arrow keys: the run's guess first, then the other choices, "Something
+  else" for words of one's own, and "Answer later". The run never waits: while the
+  engineer decides, it carries on, and an answer is used whenever it comes. Without a
+  terminal, questions are listed with their guesses and left on the draft.
+  `sealeye discover answers [run]` answers a run's open questions later, and `sealeye
+  discover status [run]` says what a run read, what it spent and what is open.
+- **The Discovery page is shown only to an organization-wide token.** Its link is not in
+  a team token's navigation and its address sends one home: the API refuses anyone else,
+  and the portal shows nothing it cannot do. It starts a run, follows one that is going,
+  shows each open question as a card with its evidence and choices, the answered ones
+  with who answered, when, and whether the answer is in the draft yet, and the draft
+  catalog itself, each entry that rests on an open question marked.
+- **Both say the same things** (`core/discovery-words.js`): a line for each thing a run
+  does, a run's state in words, and the two choices every question adds.
+- **Found while building it: the supervisor was held to a reader's cap.** The ten-cent
+  cap per worker applied to the supervisor as well, whose first write costs about
+  fourteen cents, so every answer that came after the draft was written would have been
+  refused. A reader (`worker:...`) stops at the cap per worker; the supervisor, which
+  writes the whole catalog and again for each late answer, only at the run's three
+  dollars. A re-write that cannot be done now says so on the run's events and in the
+  API's log, and the answer waits for the next pass instead of being lost.
+
+## A question on the screen does not hold up what the screen says
+
+Thu Oct 15, 2026, after Greg's first real run of `sealeye discover`. What he saw:
+
+- **The run looked paused at its first question.** It was not, but the command read the
+  run's events one at a time and waited on the answer before reading the next, so
+  nothing moved on the screen. Now questions are asked from a queue apart from the
+  stream. Under the choices, dim lines say what the run is doing ("Still going in the
+  background: 4 of 6 modules read", then writing, then finished), how many more questions
+  wait after this one, and "Take your time: the run does not wait on you, and every
+  question is kept." They are drawn again as the run moves. Lines the run would have
+  printed meanwhile are held and printed, under "While you were answering:", once the
+  questions are done, so the picker is never drawn over. When the run ends with a
+  question still on the screen, the question stays, and the run's end is said after it.
+  The open count at the end is read from the platform then, not from the event.
+- **The same questions came back after he answered them, in the terminal and on the
+  page.** Code dropped a question the supervisor asked again only when the first was
+  still open, so one asked again while rewriting the draft after an answer went out new.
+  Now an answered question counts too: its answer settles it.
+- **Progress is counted from events, on both surfaces.** A module's own status says
+  "reading" until every reader is done, so the page said all of them were read from the
+  start. `nextProgress` and `progressWords` in `core/discovery-words.js` count from the
+  run's events for both. The page shows the line on the run card, the last few lines of
+  the run, how many questions wait, and the same "Take your time" words, with where else
+  to answer them.
+
+Keys that arrive together (typed fast, or pasted) are each taken; a frame is drawn in one
+write.
+
+## The discovery window
+
+Thu Oct 15, 2026, after Greg's second run. He did not like a line under each question
+telling him to take his time, and asked instead for "a small, multi-line window at the
+top of the run for scrolling updates about progress while queuing questions in a longer
+window underneath", like a docker build's; and for something on both surfaces that shows
+the run is working through the long waits between its events.
+
+- **The terminal draws a region whole** (`cli/discover-screen.js`). At the top: a spinner,
+  what the run is doing ("Reading modules/a and modules/b", "Writing the draft catalog")
+  and how long that has taken; the run's last four lines; and a line of totals (modules
+  read, questions waiting, time so far). Under it, the question being answered. It is
+  drawn again every spinner frame, in one write, so the clock moves through a model call
+  that sends nothing for a minute. Answered questions, a module that could not be read
+  and the run's end go up into the scrollback and stay. Once the run is over the window
+  stops: a tick, and how long it took. One's own words are typed in the region too, so
+  the window keeps moving while someone types. The "take your time" line is gone.
+- **What the run is doing, and since when, is shared** (`activityWords`, `elapsedWords`,
+  `progressSummary`, `nextProgress` in `core/discovery-words.js`). The page times a step
+  from the event's own time, so a page opened part way through agrees with the terminal.
+- **The page looks again every five seconds** while no run is being followed and the
+  page is in view. A run is followed by its events while it goes, but a page left open
+  on a finished run never heard of a new one started from the command line, or of a
+  late answer written into the draft. Five seconds is often enough to feel live and
+  rare enough to cost nothing; an organization-wide event stream would replace it if
+  more pages need the same.
+- **The run card shows a turning ring**, what the run is doing and for how long, and the
+  totals, while the run goes.
+
+The window is a box (same day, Greg after his third run: it "abuts directly against
+completed questions in the same font colour"). Lines on all four sides in the dim
+colour, "Discovery" and the time so far in the top edge, the totals in the bottom one,
+a blank line above it, and the step and the run's last lines inside. `boxed` in
+`cli/discover-screen.js` pads by what shows, colours left out, so every edge is the same
+width; at most a hundred columns, two in from a narrower terminal's edge.
+
+## Answers given after the draft, on both surfaces
+
+Thu Oct 15, 2026, Greg: the questions left for later were kept on the page, but the
+command did not bring him back to them, and nothing showed that an answer given after
+the draft was written was being written into it.
+
+- **The run says what its stream no longer can.** By the time most late answers come,
+  the run's stream has ended. GET /discoveries/{id} now carries `rewriting` (an answer
+  is being written into the draft) and `answerProblem` (why the last one could not be:
+  the spending limit, or the model failing), kept on the run's record and cleared when
+  an answer goes in.
+- **`sealeye discover` offers the questions left for later** once the run has finished:
+  "Answer the 2 questions you left for later now?" Yes goes straight into them; Not now
+  says where they are kept. Before the run's end is said, the window waits for the
+  answers given to be written in, saying "Writing your answer into the draft" with its
+  clock.
+- **`sealeye discover answers` has a box of its own** over the questions, saying the
+  same while each answer is written in, and ends with "Your answers are written into
+  draft catalog 1", or that they are not yet and why, kept either way.
+- **The page shows a turning ring by an answer being written in**, and looks again
+  every second and a half while one is, then says "in the draft". `answerStateWords` in
+  `core/discovery-words.js` says it for both.
+
+An answer still never starts a new run: it rewrites only the entries it touches, in
+the same draft, for one planner call against the run's own limit.
+
+## A catalog goes live through a self-test, approved and made live apart
+
+Fri Oct 16, 2026, Greg, PHASE4-PLAN Step 7. How a draft catalog becomes the one an
+organization plans and refuses against. Each as recommended, except where it says.
+
+- **Who approves: any organization-wide token**, and the catalog keeps who and when.
+  That the approver must not be whoever started the run waits for Cognito groups (Q16),
+  where a bank will want it.
+- **Approving and making live are two steps.** Approving says the words are right; making
+  live says now. The self-test runs at both, since what the platform builds can change
+  between them. A retired catalog can go live again once its self-test passes: the way
+  back from a bad catalog.
+- **The self-test is code: no model, seconds, nothing spent** (`api/self-test.js`). It
+  checks the catalog's shape; writes, from the catalog, a plan for each module that must
+  be refused (deprecated, not read, resting on an open question, or nothing the platform
+  has builds it) and sends each through the same check `POST /plans/validate` makes; a
+  plan for each buildable module must pass it; and the words a developer reads must hold
+  no cloud term. Planning sample apps with the model is Step 8's eval, not the gate's.
+- **An open question does not hold up approval** (Greg chose the alternative). An entry
+  resting on one is never buildable, whatever its availability says (`isBuildable` in
+  `core/catalog.js`), so the catalog can be approved and made live without its guess;
+  the answer, when it comes, writes a new draft. A question that touches no module (the
+  path to production) has no entry to switch off, so it does hold up approval until it
+  is answered: otherwise its guess would go live.
+- **The words a developer reads block, not warn** (Greg). Product names of the cloud
+  (`core/developer-words.js`), and sizes and counts, in each module's line, short line,
+  when, skip line and inputs' lines, the need kinds', the profiles' and the patterns',
+  for every module the catalog offers, built yet or not: one waiting only for an
+  executor is built the day there is one, with no self-test between. Not checked: a
+  module's guidance, which is the planner's and keeps the library's own terms on
+  purpose (the supervisor is told to keep a rule's names), its signals, which describe
+  code, and a rule's own words, which are for whoever approves.
+- **A second organization, `juniper`, on the server.** A catalog discovered from Juniper
+  Mutual's library builds nothing until the Terraform executor (Step 9), and every
+  token today is in `default`, so making it live there would refuse every developer's
+  plan. Tokens already carry an organization; `deploy/server.sh token add --org juniper`
+  issues one. And a guard: making a catalog live is refused (409 `CATALOG_IN_USE`) while
+  any environment of that organization runs on a module the new catalog would not
+  build, naming each. Found while adding it: an app's settings are kept in the store by
+  team (`/sealeye-apps/<team>/<app>/`) and costs are tagged by team and app, neither by
+  organization, so a second organization could reach the first's. Both answer 409
+  `NOT_FOR_THIS_ORGANIZATION` to any organization but `default` until the organization
+  is in the path and the tags. The library discovery reads is still the server's one
+  setting for every organization, until admin onboarding names one each.
+- **Traces hold the shape, never the content**, as the interview's do: for each worker
+  its module, the files it read by path and size, tokens and cost; how many questions
+  of which kind. No file contents, no prompt, no reply.
+- **The supervisor merges questions that ask the same thing** (`merges` in
+  write_catalog: the one to keep and the ids it covers); code checks and applies it. Both
+  must be the run's and not merged already, and two different answers are never merged.
+  The one kept touches every module either did, takes an answer only the other had, and
+  lists each merged question as it was asked and by whom; a merged question keeps its
+  record, saying which it went into, and an answer to it answers the one kept. The
+  supervisor's prompt changed, so the run is measured before and after.
+- **The rough edges of the discovery screens** are a step of their own after this one,
+  once approving and making live are on them too.
+
+**Reviewed independently** before the pull request. It found five defects, all fixed
+with tests where a test could reach them:
+- A merge could close a question nobody had answered. An unanswered question merged
+  into an answered one left the open list, so its guess went into the catalog. A merge
+  now never closes a question that has no answer. It never crosses between a question
+  about the whole catalog and one about modules. An answer it carries onto modules the
+  pass did not write waits for the next pass.
+- The guard missed an environment whose tear-down had failed. The executor marks that
+  record failed, but its stack is still standing. The guard now counts every
+  environment that has not been torn down, whatever its status.
+- A deploy could slip past the guard while its code was being scanned. The catalog is
+  now checked again where nothing waits before the record is written. While a catalog
+  is being made live, a deploy is checked against it too (`catalogGoingLive`).
+- A deploy outside `default` would read `default`'s stored settings, since the store
+  keeps them by team only. Deploys answer 409 `NOT_FOR_THIS_ORGANIZATION` there too. A
+  drafted plan is still saved, so the needs ledger counts it.
+- The eval's LangFuse output held every question's words and answers. It now holds
+  counts and yes-or-no only.
+
+Two should-fixes are in as well. A question's kind is one of the schema's, so a model's
+own word for it never reaches a trace. An answer whose draft is approved while the
+answer is being written in goes into a new draft instead of being stuck.
+
+`sealeye catalog approve` now names its catalog, as `live` does, so what is approved is
+the catalog that was tested.
+
+**Words put right once, before the draft is kept** (Greg, Oct 16, 2026, choosing it after
+the grader blocked a draft of the real library on its own variable descriptions: five
+say "subnet", one "Terraform"). Before a draft is kept, and before an answer's rewrite
+is written in, code runs the word check over the entries it is about to keep. Each that
+fails goes back to the supervisor once, told which words in which places, to be written
+again with the same meaning in plain words, with a plain line for each input named. The
+new entries replace the old. Once only: if the call cannot be made, or the words still
+fail, the entries stay as they are and the self-test says what to change. It costs one
+frontier call for just those entries, against the run's cap, and only when it is needed.
+
+**After Greg's measured run** (Oct 16, 2026: both passes "Not as expected", $0.27 and
+$0.41). Three changes:
+- **A wider question widens the first instead of being dropped.** A reader asked about
+  cache-valkey's standing alone. The supervisor's question naming cache-redis as well
+  was dropped by code as a repeat, so no question touched both caches, and the scripted
+  answer never fired. Now a repeat that names modules the first left out widens the
+  first (while it is unanswered), and the entries it touches rest on it. The
+  supervisor is told to ask naming both even when a reader asked about one.
+- **An input's line still unplain after the fix-up is left out.** The fix-up ran ($0.09
+  of the supervisor's spend), but five input lines kept the library's own "subnet". The
+  fix-up now shows the model each failing line as it stands, and names the
+  `input_lines` field to write. A line that still fails is left out, and the input is
+  shown by its name alone (`withoutUnplainInputLines`). A module's own words are never
+  left out: the self-test names them.
+- **The no-answers pass grades approval as waiting, not failing.** A question about the
+  whole catalog (how perf is built) rightly holds up approval until it is answered. In
+  that pass, the self-test's question check is listed as pending, and every other
+  check must pass. With the key's answers, all of them must.
+
+**After Greg's second measured run** (Oct 16, 2026). Widening and the fix-up worked: the
+cache question was widened to both caches, and the plain-words pass ran. Three things
+were still wrong:
+- **The fix-up kept "bucket" and "log group".** It now names the words not to use at
+  all, "not even where a module's own name has them", with an example of saying what the
+  thing does instead.
+- **Each late answer paid for the input lines again.** A rewrite took the library's own
+  descriptions back, so the second pass made four fix-up calls and its supervisor spent
+  $0.69. A rewrite now keeps an input line already written plainly. Its fix-up asks only
+  about a module's own words: an input line still unplain is left out, as before.
+- **The grader passed the cache case on the wrong question.** A question about a rule
+  across every module was widened to touch all thirteen, both caches among them. It was
+  graded as the cache question, and the script gave it the cache answer. The unclear case
+  now counts only a question touching the caches and nothing else, and the script
+  answers only that one. Widening a question to every module its rule covers is right
+  for the catalog: each of those entries rests on it.
+
+## A platform engineer edits a draft's words before approving it
+
+Fri Oct 16, 2026, Greg, after Juniper Mutual's first draft on the server was refused for
+one word in one line ("outside Terraform"), with no way to fix it but another run. Greg
+chose this over a second automatic fix-up "for flexibility's sake going forward".
+
+- **`POST /catalogs/{v}/edits`** (`{ module, field, text }`), `sealeye catalog edit <v>
+  <module> [<field> [words]]`, and Edit words on the Discovery page's draft table. An
+  organization-wide token's, as approving is.
+- **Words only** (`core/catalog-edits.js`): a module's line, short line, when, skip line
+  and guidance, and each input's line. Never its id, its inputs, its availability or what
+  builds it: those are code's, read from the library. A line cannot be empty, and an em
+  dash becomes a comma, as in a draft.
+- **Only a draft.** An approved or live catalog is as it was tested. An edit is made on
+  the draft as it is when its turn comes (`changeDraft`), and the self-test runs again
+  and answers it, so the engineer sees at once what is left.
+- **Kept with who and when** (`edited` on the entry), and never written over. A late
+  answer re-writes the entries it touches on the draft as it is then, keeping any field
+  a person edited (`keepEdits`). An input line a person wrote is never left out for
+  holding a blocked word; the self-test names it instead.
+
+How strict the word check should be, and whether the interview can explain a term, is
+Q21 (Greg, the same day: "developers ARE familiar with a lot of the jargon").
+
+**Reviewed independently** before the pull request, with no must-fix. Its should-fixes
+are in:
+- Who edited an entry is left out of what a developer's surfaces read (`buildableView`).
+- An edit to an input the library later renamed or removed loses its mark.
+- The page's edit boxes refill when a rewrite changes the entry beneath them, so stale
+  words are never saved back as a person's.
+- `--clear` empties a field from the command, as an empty box does on the page.
+- A field a person wrote is never sent back to the model's plain-words pass.
+- Tests for each of these.
+
+Still to do: the page edits only the latest run's draft, while the command edits any
+draft. This is for the rough-edges step.
+
+## What blocks approval is fixed in one walk
+
+Fri Oct 16, 2026, Greg, after putting Juniper Mutual's catalog 1 right by hand. The path
+worked, but it was a hard one to follow: `sealeye catalog test` gave each problem as a
+sentence, the person read the module and the place out of it and worked out the field
+(the place "short line" is the field `short-line`), `catalog edit <v> <module>` listed
+every field with nothing to say which failed, and each edit printed the whole self-test
+again. Nothing said that only word problems are fixed by editing. Raised as Q22 and
+decided the same day; Greg chose the walk and the offer from a refused approval.
+
+- **`sealeye catalog fix <v>`**, a new operation (`catalog-fix` in `core/operations.js`),
+  goes through each field of a draft that fails the word check, one at a time. For each
+  it shows the module, the field, its words now and the words to avoid, and asks for new
+  words, prefilled with the old ones, as `catalog edit` does. Enter keeps them and moves
+  on. Each change is an ordinary edit (`POST /catalogs/{v}/edits`), so it is kept with
+  who and when, as any edit is. When the walk ends it runs the self-test and offers to
+  approve.
+- **A refused approval offers the walk.** When `sealeye catalog approve <v>` is refused
+  and every check that failed is the word check, it asks "Fix these now? [y/N]" in a
+  terminal; y runs the walk and then tries the approval again, behind the self-test as
+  always. Anything but y, no terminal, or `--json` refuses as it does today. A failed
+  shape, refused or accepted check has no edit that fixes it, so the refusal says what
+  does (answering a question, or a new discovery run) and offers no walk. The command
+  still approves only what passes; the offer only shortens the way there.
+- **The portal, by parity:** a "Fix what blocks approval" view on the Discovery page, the
+  same walk field by field, and a refused Approve on the Catalogs card offers it.
+- **Which fields fail comes from the self-test, in one place.** Each word problem carries
+  its module and field (`fieldForPlace` in `core/catalog-edits.js`), so the walk, the
+  offer, and the marks on `catalog edit <v> <module>` and the page's Edit words all read
+  the same list, never a sentence.
+
+Built the same day, at Greg's word, ahead of the rough-edges step. No new endpoint: the
+walk is the self-test and edits, the API's two operations already. The self-test's word
+check now carries `fixes` (module, field, label, words now, words to leave out) and
+`unfixable` (a place no edit reaches), and `core/discovery-words.js` says, for both
+surfaces, whether editing alone can bring a self-test to a pass (`fixableByEditing`) and
+what fixes the rest (`notFixedByEditing`). The walk checks new words with the same word
+list before saving, and says so once if a word is still there; saving the same words
+again keeps them, since a person may know better than the list (Q21). With no terminal,
+`catalog fix` lists each field with the command line that changes it. Tests drive the
+walk in a real terminal (`script`).
+
+**What to change is quoted (the same day).** Greg's first walk on the server stopped at
+"Not: a count of machines" with nothing to say which words those were ("2 replicas"),
+in the command and on the page alike. A word a developer never reads is now told as the
+text has it, in quotes, with what it is after only when that says more (`shownWord` in
+`core/developer-words.js`): `Not: "Terraform", "2 replicas" (a count of machines),
+"ca-central-1" (a region's name)`. In quotes is what to change; outside them, a
+description. The self-test's problems, the walk, its warning and the marks all say it
+this way, and a warning about a size or a count says what a developer reads instead.
+The plain-words pass still hands the model the terms by name.
+
+## What a platform term is
+
+Fri Oct 16, 2026, Greg, deciding Q21 ("developers ARE familiar with a lot of the
+jargon"). The word check refused every cloud word the same way, so a draft was blocked
+for "subnet" and "bucket", words a reviewer would pass and a developer already uses. The
+sample library showed it: of the words its variable descriptions and READMEs hold, every
+one the check refused but machine sizes was one developers know. Greg chose tiers over
+each organization keeping its own list, then said where the line falls:
+
+1. **A product or trademark name is refused, whoever owns it**: Lambda, CloudFormation,
+   Azure, and Terraform, which is HashiCorp's (IBM's since 2025) and a tool choice, not a
+   concept; OpenTofu is its fork. The exceptions are trademarks that became the everyday
+   name on every cloud: Kubernetes and Docker are allowed, and are the only two today.
+2. **A concept every major cloud names the same way is allowed**: subnet, region,
+   availability zone, bucket, load balancer, queue. One cloud's own noun is refused: log
+   group and log stream (say "the app's logs"), security group (say "firewall rules").
+   Bucket is allowed though Azure says "container": it is understood everywhere.
+3. **An acronym is allowed only when the same line spells it out**: "Virtual Private
+   Cloud (VPC)", "Availability Zone (AZ)", likewise CDN, NAT and WAF. Each line is shown
+   on its own, so each spells it out. Everyday web words (API, URL, HTTPS, DNS) are not
+   policed.
+4. **A configuration choice is said as what it does for the app**, from a phrasebook:
+   multi-region is "must survive a regional disaster", multi-AZ "keeps running if one
+   data centre fails", read replicas "handles heavy reading", autoscaling "grows and
+   shrinks with traffic", an instance class, IOPS or a node count "set by a load test",
+   point-in-time recovery "can be restored to an earlier moment", encryption at rest
+   "encrypted when stored", RPO "how much data could be lost", RTO "how long it can be
+   down". Sizes and counts are "set by a load test", as before.
+
+`core/developer-words.js` is the one place that holds it. A finding for an acronym or a
+setting carries what to write instead (`instead`), so the self-test, the walk and the
+page say `"multi-AZ" (write "keeps running if one data centre fails")`. The same rule is
+written into the discovery workers' and supervisor's prompts from that file
+(`plainWordsRule`), so a first draft follows the rule the self-test checks, and the
+plain-words pass asks for the phrase rather than only forbidding the term. Both prompts
+changed, so discovery is measured before and after (`npm run eval:discovery -- --run`).
+The interview's own prompt is unchanged: it plans from the catalog's words.
+
+The glossary turn ("what does that mean?" in the interview) is not in Step 8 (Greg);
+spelled-out acronyms and the phrasebook take most of the need away. Q21 is closed.
+
+## The discovery screens' rough edges
+
+Fri Oct 16, 2026, Greg, the step owed after Step 7 (PHASE4-PLAN's owed table), built
+with Q21 ("What a platform term is"). Each as recommended, after a click-through on the
+server that found nothing more.
+
+- **Which organization a token acts for is said first.** `sealeye catalog` and `sealeye
+  discover` print it before anything else, and `sealeye whoami` names it; the portal's
+  header names the token's own organization. Before, the header showed the server's
+  `ORG` name to every token, so a juniper token looked like the first organization's
+  until something was refused. The first organization is named by `ORG`, any other by
+  its id (`organizationInWords` in `core/token.js`). Not with `--json`.
+- **What an organization does not have is not shown.** App settings and costs are kept
+  by team, not yet by organization, so the API refuses them outside `default` (409
+  NOT_FOR_THIS_ORGANIZATION). The portal now leaves Costs out of its navigation and the
+  Settings card out of an environment's page there, and the Costs page, reached by its
+  address, says why in the API's own words rather than showing a refusal (Greg chose
+  hiding over explaining). The command already said it in words.
+- **Edit words reaches any draft on the page,** as `sealeye catalog edit <v>` reaches any
+  draft: each draft row on the Catalogs card but the latest run's (shown above it)
+  opens that draft by its version. Without its run's questions, an entry resting on a
+  question is shown as resting on an open one, since answering one rewrites the draft.
+- **A question asked again in more words is caught.** The repeat check compared the
+  words two questions share with every word in both, so the supervisor's longer
+  rewording of a reader's question about postgres's stages fell below the line and was
+  asked twice in both passes of the last measured run. Asked about the same module, the
+  share is now taken of the shorter question's words, with at least two in common and
+  filler words ("which", "should") left out; the longer repeat widens the first, as
+  before. Discovery is measured again before and after.
+- **`sealeye --version` and `-v`** print the version and nothing else.
+
+## The front door plans from a discovered catalog
+
+Fri Oct 16, 2026, Greg, PHASE4-PLAN Step 8. The interview, unchanged, planning against a
+catalog discovery wrote.
+
+- **Juniper's modules are treated as built, in the eval only.** Juniper Mutual's live
+  catalog is all Terraform, which nothing builds until Step 9, and the interview hears
+  only of modules the platform builds. So against it today every plan comes out drafted
+  with needs, and could not be graded on modules. Greg chose to have the eval add the
+  catalog's Terraform modules to the executor list in its own process (`treatAsBuilt`
+  in `scripts/eval-interview.js`), over grading needs only now or building Step 9
+  first. Whether a module is offered and whether it rests on a question are still the
+  catalog's to say. Nothing outside the eval changes, and once Step 9 adds the real
+  executor the line does nothing and the same eval runs for real.
+- **A snapshot, not the server.** The catalog is catalog 3, Juniper's live one on the
+  server on Oct 16, kept as `test/fixtures/juniper-catalog-3.json` without who edited
+  it, so results repeat. The eval makes it the live catalog of an organization of its
+  own (`eval-juniper`), drafted, approved and made live as a platform engineer would,
+  in a scratch folder, never the machine's own.
+- **The same three sample apps, with Juniper's right plans**
+  (`test/fixtures/eval-juniper/`): the static site on `static_site`; the beneficiary
+  lookup on `http_api`, told it answers each request on its own and need not be
+  private; the payment events processor on `container_service`, `postgres` and
+  `secrets` below staging, still drafted for its one gap, the event stream. Each is
+  graded on its outcome, the modules it must and must not use, and its needs, as the
+  starter's are. Its LangFuse items are `sealeye-interview-juniper-<app>`.
+- **Both sets run by default**, so a change to the prompt is measured against both
+  catalogs; `--set starter` or `--set juniper` runs one. The starter's prompt and tool
+  are unchanged (`d3ab331a0a17` with the default organization).
+- **Not in it:** the glossary turn ("what does that mean?"), which Greg left out.
+- **The payment events case says it is for dev** (Greg, Oct 16, 2026, after the first
+  run that finished): against Juniper's catalog the interview asks whether the app is
+  being tried out or is headed for production, and with no answer it planned the
+  database for production. The case now answers "trying it out in dev first", so it
+  tests the library's rule below staging. What a plan headed for production should name
+  waits for Q20 (a module per stage).
+- **Each app is interviewed from a clean copy** (`cleanCopy`, the same evening): without
+  the files seaLeye writes into a folder (sealeye.yaml, the DEPLOYMENT files, .sealeye)
+  or node_modules. A plan left in Greg's copy of the payment events app by an earlier
+  `sealeye run` said `profile: prod`, and the interview rightly carried it forward, so
+  the case was graded on that old plan rather than the app.
+
+Seen while building it, for later steps:
+- Catalog 3's postgres entry says both "for all six stages" and "below staging only":
+  it looks like an answer written into the draft beside the library's own rule rather
+  than in place of it. The eval grades a dev plan, where both agree. Worth a look at how
+  discovery writes an answer in before a customer run.
+- Juniper's modules require inputs only the platform can give (subnets, a cluster, a
+  role, a permissions boundary). The plan contract leaves inputs free, so a plan without
+  them passes; supplying them is Step 9's executor's job, from the stage, never the
+  developer's.
+    
+## One question in the wrong shape never loses its module
+
+Fri Oct 16, 2026, Greg, after the scripted pass of the measured run lost custom-domain:
+its worker read the module and raised one question, then the run marked the whole
+module not read, and kept nothing to say why. The likeliest cause is a question the
+model wrote in the wrong shape (one value where the tool asks for a list), which the code
+saving it did not expect.
+
+- **Each question is raised on its own.** A list sent as one value (options, evidence,
+  the modules it touches) is read as a list of one; a question with no words is left
+  out; and a question that still cannot be kept is left out, never the module it came
+  from.
+- **Why a module was not read is kept, as a kind only**: the error's class and any
+  status, never its message, in the run's trace (`not read`) and on the `not_read`
+  event, which the eval prints. What a person reads stays the same sentence.
+
+## A model reply is streamed, and ends on silence, not on length
+
+Fri Oct 16, 2026, Greg, choosing it over a longer limit or fewer words in the catalog.
+Against Juniper Mutual's catalog, the interview's plan for the payment events processor
+took longer than two minutes to write, in three runs out of three: once it finished
+with about 11,000 tokens of output, once the connection dropped twice, once it timed out
+twice. A developer at Juniper running `sealeye run` on such an app would have met the
+same wall.
+
+- **Every model call streams its reply** (`askModel` in `api/interview/model.js`), the
+  interview's and discovery's alike, and returns it whole, as before. It waits up to
+  120 s for the reply to start; once it has, it gives up only when the model sends
+  nothing for 60 s (`IDLE_MS`). A long reply that keeps coming is never cut off. Giving
+  up is a timeout, retried once, as any other.
+- **The gateway's token rides on a streamed call too** (`withCallerToken`), so the
+  gateway still knows who made it.
+- **To check on the server after release:** that the gateway's record of calls
+  (`deploy/server.sh gateway-calls`) still shows tokens and cost for streamed calls,
+  whose counts arrive in the reply's last events. Not checked here: the tests use a
+  stand-in model, not the gateway.
+- Not done here, and still worth doing: finding why this plan is so long (Juniper's
+  postgres entry saying two things is the likeliest reason).
+
+**Every byte counts as answering (the same evening).** Greg's next run, with debugging
+on, gave up the payment events plan with "the model sent nothing for 60 s", twice. The
+model was thinking before it wrote, and the model API keeps such a connection alive with
+ping events, which the SDK drops without passing them on, so the watch took thinking for
+silence. The model client's fetch (`watchedFetch`) now tells the watch of every byte
+that arrives, pings included, matched to its call by a mark it takes off before the
+request is sent. The wait for the reply to start is the longer one (120 s); after that,
+60 s of nothing at all.
+
+## A Terraform executor builds an organization's own modules
+
+Sat Oct 17, 2026, Greg, PHASE4-PLAN Step 9 (D8). His answers to the decisions Step 9
+needed, given the evening before; built in two pull requests, this one first: the
+executor for a plan of one module, with what it needs around it. Versions of modules and
+connecting modules to each other are the second.
+
+- **OpenTofu, not Terraform** (Greg, over Terraform's own binary): under an open
+  licence, and the same language. `tofu` 1.12.6 is in the API's image, pinned by version
+  and by the sha256 of its release for each architecture, as gitleaks is. So is the one
+  provider a module may use, AWS 5.100.0 (the last of the 5 series Juniper's modules ask
+  for), from a folder in the image: `tofu` is told to install providers from there and
+  nowhere else, so a deploy fetches nothing, and a module that needs any other provider
+  fails before anything is built. `deploy/pin-tofu.sh`, run once on a machine that can
+  reach the releases, writes the checksums in. Neither release can be reached from where
+  this was built, so its tests use a stand-in for `tofu`, as they do for the AWS CLI,
+  and a GitHub Actions job (`.github/workflows/tofu.yml`) runs the real one: `init`,
+  `validate` and `plan` on root modules seaLeye writes, building nothing.
+- **One root module per environment, written by code** (`api/executor/terraform/`):
+  `main.tf.json`, which calls the organization's module by its folder in the library,
+  with its inputs, a backend and the pinned provider. Never a template a person edits,
+  and never text a model wrote.
+- **The module's code is the library at the catalog's commit**: the commit discovery
+  read, which the catalog names, fetched through the same reader discovery uses
+  (`api/discovery/github.js`), read-only. Unlike discovery's copy it is not redacted: it
+  is code that runs, not words a model reads, and no model sees it.
+- **State in S3, with a lock file**, under `tofu-state/<organization>/<environment>`
+  in the platform's bucket, in the account the environment is built in. One state per
+  environment.
+- **Through a role of its own** (Greg, over widening the deploy role):
+  `sealeye-deploy-terraform-<suffix>`, in `deploy/terraform-role.yaml`. It can create
+  what Juniper's modules create, under seaLeye's names, and read and write its state,
+  and nothing else; a role it creates carries the platform's boundary. The CloudFormation
+  role is unchanged. `tofu` and the AWS CLI calls a Terraform environment needs run as
+  that role (`AWS_PROFILE=sealeye-deploy-terraform`, written at start as the other is).
+- **The catalog says which executor builds a plan**, never the request. Both clients
+  send `backend: cloudformation`, as they always have; the API builds a plan whose
+  modules say `builds_with: terraform` with this executor, and the record says which
+  built it (`backend`). A plan of modules from both is refused.
+
+## What a Terraform module needs before seaLeye builds it
+
+Sat Oct 17, 2026, Greg (Step 9's decisions 1, 7 and 10). Juniper's modules ask for
+values only the platform can give: subnets, security groups, a permissions boundary.
+The plan contract leaves inputs free, so until now a plan without them passed and would
+have failed in the middle of a build.
+
+- **Every required input has a source, or the module is not buildable**
+  (`terraformBuilds` in `core/terraform-modules.js`, which `isBuildable` asks). There are
+  three sources: seaLeye's own (`name`, `stage`, `tags`), the app's code (below), and the
+  organization's platform values (the next entry). A module with a required input none
+  of them fills is a need, as any other module the platform cannot build is: refuse,
+  never shrink. The self-test says which input is missing.
+- **How the app's code reaches a module is read from the module, by code** (Greg, over a
+  field a platform engineer fills in). Discovery records each module's outputs and how
+  it takes an app (`delivers`): a package, when it takes a zipped app and the function to
+  call (`package_path` and `handler`, or names like them); files, when it has an output
+  to upload a site's files to (`bucket_name`). The catalog shows it, so whoever approves
+  the catalog sees it. A module that takes neither does not run an app.
+- **Until modules can be connected, a plan builds one module, the one that runs the
+  app.** A module that does not take the app's code (a database, a queue, a bucket) is
+  not buildable yet, so an app that needs one is still drafted with that need, and the
+  needs ledger keeps counting it. Connecting modules is the second pull request.
+- **A module that would run commands on the platform's server is never built** (Greg):
+  a provisioner (`local-exec`, `remote-exec`), the `external` data source, any provider
+  but AWS, or a nested module whose source is outside the library. Discovery records
+  what it found in the module's code (`runs`), the self-test refuses a module that has
+  any, and the executor checks the code again before `init`, since the code it fetched
+  is what runs. `tofu` runs with an environment holding only what it needs, as
+  `npm install` does: no API settings, no database address, no model key.
+- **A catalog written before this records none of it**, so its Terraform modules are not
+  buildable until discovery reads the library again. On the pilot that is Juniper's
+  catalog 3: a new run, approved and made live, before the first build.
+- **Settings do not travel to a Terraform environment yet** (Greg). A value passed into
+  a module's inputs is written into its state in plain text. A plan for one that names
+  settings is refused before anything is built, saying so; the store for them is
+  ROADMAP item 10.
+
+## An organization's platform values
+
+Sat Oct 17, 2026, Greg (Step 9's decision 1, chosen over a file on the server or
+supplying only the permissions boundary).
+
+- **Values by stage, set by an organization-wide token**, on both surfaces: GET
+  /platform, PUT /platform/values/{name} and DELETE /platform/values/{name} (with
+  `?stage=`, dev by default), `sealeye platform`, and a Platform page in the portal.
+  Shown only to an organization-wide token, as Discovery is.
+- **A value is named after the input it fills**: `subnet_ids` fills every module's
+  `subnet_ids`; `postgres.security_group_ids` fills only that module's, and wins over
+  the plain name. A value is a word or a list of words: identifiers such as subnets,
+  never secrets. One that looks like a secret is refused, as code is.
+- **They are the organization's, not a catalog's**: a catalog is approved and versioned,
+  and a subnet changes without anyone re-approving what the platform builds. So the
+  catalog the API plans against is read with the organization's platform values beside
+  it, never stored in it, and a module becomes buildable the moment its last value is
+  set. Removing a value an environment uses is not stopped; its next deploy says what is
+  missing.
+- Developers deploy to dev (principle 9), so only dev's values are used for now. The
+  other stages are kept for when promotion comes (Q20).
+
+## An app that listens reaches a module that calls a function
+
+Sat Oct 17, 2026, Greg (Step 9's decision 7). Juniper's `http-api` runs the app as a
+function the platform calls (`handler`), and an app like the beneficiary lookup listens
+on a port, as seaLeye's own template expects. seaLeye's template carries an adapter for
+that; Juniper's module does not take one.
+
+- **seaLeye puts an adapter into the packaged copy** (principle 5: what the platform
+  needs is injected into the artifact, and the developer's folder is never touched):
+  `sealeye-handler.mjs`, from `templates/`. It starts the app as `run.sh` does, on a port
+  of its own, waits until it answers, and hands it each request; the module's `handler`
+  input names it. A folder that already has a file of that name is refused rather than
+  overwritten.
+- **The app's entry point is read from the folder**: package.json's `main`, then a
+  `start` script that runs `node <file>`, then `index.js`, and a folder with none of them
+  is refused before anything is built, in words.
+
+## A Terraform environment's names, status and operations
+
+Sat Oct 17, 2026, Greg (Step 9's decision 5 and the small decisions).
+
+- **Its key is the environment's name**, `sealeye-<team>-<app>-<hash>`, as a stack's is:
+  one change at a time, siblings, history and the needs ledger all work as before. The
+  module is given a shorter `name`, `sealeye-<app>-<hash>`, at most 31 characters,
+  because a module names things after it and the stage (Juniper's site bucket is
+  `juniper-site-<name>-<stage>`, against S3's 63). It starts `sealeye-`, which is what
+  the role reaches.
+- **Always dev** (principle 9): `stage` is `dev`, whatever the profile.
+- **Status is real**: running while `init`, `plan` and `apply` run; succeeded when apply
+  exits cleanly and its outputs have been read back (and, for a site, its files
+  uploaded); failed with the first error OpenTofu reports, in its own words; destroyed
+  when `destroy` exits cleanly. Each step's line says what the platform is doing, in the
+  developer's words.
+- **A restart during a build fails it, honestly**: OpenTofu's apply cannot be picked up
+  again the way a stack can be watched again, so the record says the platform restarted
+  while building and that the environment may be part-built, and keeps the state's lock.
+  `deploy/server.sh tofu-unlock <deployment>` releases it once a person has looked, and
+  the next deploy or tear-down finishes the job. A tear-down is started again, as before.
+- **What works on day one, on both surfaces**: deploy, deploy again, status, history,
+  plan and report, evidence, and tear down. Pause, logs, performance and configure are
+  not offered for a Terraform environment until they are built for one; the API answers
+  409 NOT_FOR_THIS_ENVIRONMENT, and neither surface shows them.
+- **Its evidence** names the module, its folder and the library's commit, the OpenTofu
+  and provider versions, the checksum of the root module, what apply created, changed
+  and destroyed, and the outputs; checked now, it reads the state and asks OpenTofu,
+  read-only, whether anything changed outside seaLeye (`plan -refresh-only`), and makes
+  the one request to the app's address.
+- **Deploys outside the default organization** (Juniper's) are allowed for a plan this
+  executor builds: it reads no settings, so it cannot read another organization's.
+  CloudFormation deploys, settings and costs stay the default organization's.
+- **Static sites are served through the content network** for Terraform environments,
+  as Juniper's `static-site` does: the "No CloudFront" limit is the CloudFormation
+  executor's.
+
+**The independent review (the same day)** found nothing that had to change before
+merging, and three things worth doing, done here: a Terraform deploy or tear-down on the
+server is refused (503 NOT_SET_UP) until the Terraform deploy role is set up, rather than
+going through the CloudFormation role and failing part-way; and the adapter waits for the
+app while the function starts up, which has ten seconds of its own, not within the first
+request, whose time Juniper's module leaves at three. Kept as they are, knowingly:
+OpenTofu's first error is the failure a developer reads, in its own words, which can name
+a cloud's nouns, as CloudFormation's reasons always have; and the Terraform role's
+sessions last an hour, the most a role reached from the server's own role can have, so a
+site's build or tear-down that takes longer relies on the provider taking a new session
+when one ends, which it does on its own.
+
+## What discovery's code reads reaches the draft, and a catalog that builds nothing still plans
+
+Sat Oct 17, 2026, the first build against Juniper's newly discovered catalog. The
+interview stopped with "modules item 1, id must NOT be valid": it could write no plan.
+
+- **Discovery lost what its code read of each module on the way to the draft.** When
+  the readers finish, the run keeps its modules from a list of named fields, and the
+  three Step 9 added (outputs, `delivers`, `runs`) were not on it. So the draft recorded
+  none of them, and the Terraform executor, which builds nothing it has not been told
+  the shape of, built nothing. Now kept; `test/discovery-run.test.js` checks the draft
+  carries them, and with `SEALEYE_SAMPLE_PLATFORM` that Juniper's http-api and
+  static-site are buildable from it once the permissions boundary is set. The catalog
+  made live before this fix has to be discovered again.
+- **Against a catalog the platform builds nothing from, a plan names no module and is
+  drafted** with at least one need (`contractShape` in `core/schema.js`). Before, the
+  contract asked for one module and allowed none, so no plan could pass and every
+  interview failed; refuse, never shrink, means the app's needs are still the honest
+  record. A catalog that builds something asks for one module, as before, and the
+  starter's contract is unchanged.
+
+## What the cloud sets itself is not a change outside seaLeye
+
+Oct 17, 2026. The first fresh build from Juniper's http-api showed five changes outside
+seaLeye.run minutes after it was made. Four were the provider writing nothing and reading
+back an empty list or map (`request_parameters`, `layers`, `managed_policy_arns`,
+`stage_variables`); one was the `deployment_id` API Gateway sets on a stage that deploys
+itself. A check that alarms on every environment teaches its reader to ignore it, so
+`driftDetail` (api/executor/terraform/tofu.js) treats every empty value as the same and
+leaves out a self-deploying stage's deployment, and a part with nothing left is not a
+change. What `tofu show` read decides even when it leaves nothing; the streamed messages,
+which name only the part, are used only when it could not be read. Anything else stays a
+change: a policy attached by hand is still reported. The evidence says what is left out.
+
+The next build left one: the role's `managed_policy_arns`, which reads back the logging
+policy the module attaches as a part of its own (`aws_iam_role_policy_attachment`). So a
+role's policies that the environment's own attachments account for, read from the plan's
+state, are left out too; any other policy on the role is still a change. The site's first build
+showed the same thing on its bucket: the bucket's `policy` reads back what the module's
+own `aws_s3_bucket_policy` set, and is left out when it is that policy; a policy changed
+by hand still shows, as a change to the bucket policy part itself.
+
+The first connected build (Oct 20, 2026, the orders app and its table) showed the same
+thing the other way round: the table's access policy, made by the table's module and
+attached to the app's role by the root, read back `attachment_count` 1. So a policy's
+count is left out when it equals the environment's own attachments of that policy, read
+from the same state; a policy that something else attached as well is still a change.
+
+## A tear-down carries on in the background
+
+Sat Oct 17, 2026. Greg: tear-downs take longer now that environments are built from an
+organization's own modules, so `sealeye teardown` should hand the terminal back the way
+`run` and `deploy` do. He chose background by default with `--watch` to stay (over an
+opt-in `--background`), and reusing the notifier taught tear-downs (over handing back
+with no notification).
+
+- **The API already tore down in the background** (DELETE answers 202), and the portal
+  already did not wait. Only the command stayed on a spinner to the end. Now it shows
+  the tear-down's steps for the same few seconds `run` does, then says "Tearing down in
+  the background" and leaves `cli/bin/notify-when-done.js` watching with `--teardown`.
+  A tear-down that ends inside those seconds is reported there and nothing is left
+  watching. `--json` still answers at once; the confirmation is unchanged.
+- **One rule for every long change:** a developer is handed back the terminal, and told
+  when it is done. `--watch` with `run`, `deploy` or `teardown` stays until it is.
+- **A tear-down's end is said in the same words wherever it is seen:** "Everything
+  seaLeye.run created for <app> is gone", or "Tear-down failed: <reason>". A record
+  that failed after a tear-down was asked for (`destroyRequestedBy`) failed at the
+  tear-down, so it never says "was not created" and is never scored as the
+  interview's plan failing to build.
+- **`sealeye watch` ends on a tear-down.** It counted `destroyed` as still going, so
+  watching a tear-down never ended; found while making this change.
+
+## Three things the first builds showed a person was told wrong
+
+Oct 17, 2026, from the first builds of Juniper's own modules on the pilot.
+
+- **`sealeye evidence` writes into the app's own folder only** (principle 5): the folder
+  it runs in when that folder's sealeye.yaml plans the app, or the file `--out` names.
+  Run for an app from anywhere else, it prints the summary and writes nothing, saying
+  where to run it. It had written DEPLOYMENT_EVIDENCE.md into whatever folder it was in.
+- **A card and DEPLOYMENT_PLAN.md promise logs and readings only where the environment
+  offers them.** GET /catalog's document now carries each module's `operations` (what an
+  environment built from it offers, `environmentOperations`), never what builds it, and
+  `planOffers` in `core/catalog.js` checks every module a plan uses. One built from the
+  organization's own module had been promised "your logs and basic metrics", which
+  seaLeye does not read back from it.
+- **Setting or removing a platform value names the organization it changed**, on both
+  surfaces (`organization` on the answers of PUT and DELETE /platform/values/{name}, and
+  on GET /platform). A value set with another organization's token had landed there
+  without a word.
+
+## Parking the pilot between bursts of work
+
+Oct 20, 2026. Greg's work on seaLeye will come in bursts once his new job starts, so the
+pilot should cost little between them and come back quickly. `deploy/server.sh park`
+and `unpark` (deploy/README.md, "Parking between bursts of work").
+
+- **Stop the server; never delete it.** Stopped, the pilot costs its disk, its fixed
+  address and its DNS zone, about $6 a month against about $20, and keeps everything:
+  the database on its disk, its address (so no DNS change), its certificates, tokens
+  and settings. Deleting it as well would save another $5 a month, for a restore from a
+  backup and new certificates after weeks away; not worth the risk for a pilot.
+- **Nothing is parked while anything stands.** An environment left up keeps costing,
+  unseen. `scripts/standing-environments.js` reads the records of every organization:
+  an environment stands while its newest record is live or under way, or failed with
+  something left (a Terraform build part-built, a failed update of a stack that was
+  up). Park refuses, listing them.
+- **A backup that outlasts the pause.** The nightly dumps expire after 30 days and none
+  are taken while stopped, so park takes one and copies it to `parked/`, which no rule
+  expires.
+- **The foundation network stays; its paid endpoints go.** The network costs nothing,
+  and making it again would change the subnet and security group ids the organization's
+  platform values name. What costs by the hour beside it lives in a stack of its own,
+  `platform-sealeye-endpoints`, which park deletes and unpark makes again.
+- **Unpark updates before it says ready**: the system's packages, a restart for a new
+  kernel, then `/health`, and whether the server runs the newest release.
+- The marker that it is parked is `/sealeye-pilot/PARKED`, outside `/sealeye/`, whose
+  every parameter the API reads as a setting.
+    
+## A save made while a record is being written is never lost
+
+Oct 17, 2026. Terraform environments on the pilot had no report: GET /deployments/{id}/plan
+said "This deployment has no report", with no reason. The build saves its success and,
+a moment later, its report; with Postgres, the first write was still under way when the
+second save came, and when it finished it marked the record saved, so the report never
+reached the database. The API kept it in memory until `deploy/release.sh` restarted it.
+The store now numbers each record's latest change (`unsaved` in `api/store.js`), and a
+write marks a record saved only if nothing changed while it was under way; anything that
+did is written by the next pass. `test/store-postgres.test.js` reproduces it. A record
+written before this keeps what the database has: an environment that lost its report gets
+one at its next deploy.
+
+## Each module is built at the version its library released
+
+Oct 17, 2026. PHASE4-PLAN Step 9, the second pull request, first half (Greg: V1a, V2a,
+V3a, V4 as recommended).
+
+- **A library releases each module on its own, by tag**: `<folder>/v<major>.<minor>.<patch>`,
+  such as `http-api/v1.1.0`, as Juniper's library now does, each module with a
+  `CHANGELOG.md`. A pre-release (`v2.0.0-rc1`) is not a release
+  (`core/module-versions.js`).
+- **Discovery reads each released module at the commit its newest release points to**
+  (`atReleases` in `api/discovery/library.js`, from GitHub's list of tags), so the
+  catalog describes exactly what is built, and records each module's `version`, `tag`
+  and `commit`. The rest of the library is read where its branch is. A clone read from
+  disk (the eval) is read as one commit.
+- **In a library that releases any of its modules, one with no release is not built**:
+  `unreleased`, "your organization's library has not released it yet", and an app that
+  needs it is drafted. A library that releases none is read and built at one commit, as
+  before.
+- **An environment keeps its module's version until a newer catalog goes live.** A
+  deploy, or deploy again, builds the live catalog's release of the same module
+  (`withLiveReleases` in `api/executor/terraform/versions.js`); the report and the
+  evidence say "from 1.0.0 to 1.1.0" with the changelog's lines. A new major version is
+  refused, 409 MAJOR_VERSION, since it may take what the app gives it differently, and
+  `sealeye run` plans against it again. A tear-down uses the code that was built.
+- The client's catalog carries a module's version and never its tag or commit.
+
+## Modules are connected through what the library offers
+
+Oct 17, 2026. PHASE4-PLAN Step 9, the second pull request, second half (Greg: W1a, W2,
+W3b, W4, W5, W6, W7).
+
+- **The library offers what an app needs, and seaLeye only connects it.** A data module
+  makes the policy that grants an app access and outputs it (`access_policy_arn`, with
+  a narrower one beside it); an app module takes `policy_arns`, `secret_arns` and its
+  `environment`. Code reads both from the module's outputs and inputs (`connectsOf` in
+  `api/discovery/terraform.js`: `offers` and `accepts` on the catalog entry). The root
+  module calls the library's modules and passes outputs to inputs; it makes no resource
+  of its own, and no policy is ever written by seaLeye.
+- **The plan names the modules and the settings; code does the wiring** (W1a). A module
+  the app uses is enabled beside the one that runs it, and says in `connect` the setting
+  the app reads each of its values from: `connect: { table_name: "ORDERS_TABLE" }`. The
+  plan is then planVersion 0.6; 0.5 plans are read as they are. `connectionProblems` in
+  `core/terraform-modules.js` checks it with the contract: exactly one module that runs
+  the app, one that takes what each part offers, a value the part has, a setting's name,
+  no setting twice. The interview hears of it only from a catalog that has such modules,
+  so the starter's prompt is as it was.
+- **One state per environment** (W5): the app's module stays `module.app`, so an
+  environment built before keeps its addresses, and each part is `module.<id>`, each at
+  its own release. Torn down together; a bucket a part made is emptied first.
+- **A tear-down names what holds data** (W6), on both surfaces, in the catalog's words:
+  "This also deletes ..., and everything in it." It still runs: it is dev.
+- **What is built now** (W3): `document-table`, `file-bucket` and `work-queue`. The
+  database waits on how an app reaches the private network (OPEN-QUESTIONS Q23): a part
+  that offers a secret and no access policy is "not connected yet". `secrets` is not
+  built (W4): filling its values is the settings question.
+- **The Terraform role and the function boundary widen** (W7) to those modules'
+  resources and policies, under `sealeye-*-dev` names; the boundary bounds what any
+  policy the library makes can grant.
+- The report and the evidence list each part with its release and the settings it gave
+  the app, by name. `scripts/tofu-check.js` has real OpenTofu validate and plan a root
+  with a table connected to a function.
+    
+## A release removes the images nothing uses
+
+Oct 20, 2026. A release stopped mid-pull with "no space left on device": the server's
+20 GB disk was full of earlier releases' images. Each release ran `docker image prune
+-f`, which removes only untagged images, and a release's image is tagged
+(`main-<commit>`), so none ever went. `deploy/update.sh` now runs `docker image prune
+-af` before it pulls, so there is room, and after it switches, so the release it
+replaced goes: an image a container uses, running or stopped, is never removed, so the
+running release and the database's, the gateway's and Caddy's stay. `deploy/server.sh
+disk` shows what fills the disk, and `--prune` does the same removal by hand.
+
+## The self-test tries a module an app uses as a developer's plan would
+
+Oct 20, 2026, Juniper's catalog 8, the first discovered after modules could be connected:
+its self-test refused to pass, because each module it builds was tried in a plan of its
+own, and a table alone is refused, rightly (it needs a module that runs the app). The
+check that plans using what a catalog builds are accepted now tries a module an app uses
+beside a module that runs the app and takes what it offers, with a setting for each value
+(`planConnecting` in `api/self-test.js`). And a module that waits on something only
+seaLeye can change (a database, reached over the private network, Q23) says that first,
+before the platform values it also lacks: setting them would build nothing yet.
+
+## A tear-down that deletes data is asked about after it says so
+
+Oct 20, 2026, Greg, from the first connected build's tear-down. The command printed
+"This also deletes a table ..., and everything in it" after "Tear down orders-api?
+[y/N]" was answered, and with the name typed there was no question at all, so the words
+could change nothing. The portal already shows them inside the dialog, before the name
+is typed to confirm. Now the command reads the record first, says what the environment
+holds, and then asks "Tear down orders-api, and everything it holds? [y/N]": always when
+the name was not typed, as before, and also when it was typed and there is data to name,
+since what it holds is only known once the record is read. A script with no terminal
+has the words and goes on, as it typed the name; an environment that holds nothing is
+torn down on a typed name without a question, as before.
+## The eval plans against what the server builds
+
+Tue Oct 20, 2026 (Greg chose 2 of 2). The first sample app that uses a module beside the
+one that runs it, `apps/orders-api`, keeps orders in a table whose name arrives in
+`ORDERS_TABLE`, and its eval case expects `http_api` and `document_table` connected
+under that setting. Grading it needed a catalog that records what a module offers and
+accepts, which Juniper's catalog 3 (Oct 16) predates.
+
+- **The snapshot is catalog 8** (`test/fixtures/juniper-catalog-8.json`), Juniper's live
+  catalog on the server on Oct 20, discovered after the library tagged its releases: it
+  carries each module's version, what it runs, offers and accepts. Catalog 3 stays for
+  the tests that read it for other things.
+- **The real executor decides, with placeholder platform values.** `treatAsBuilt` forced
+  every Terraform module buildable in the eval's process, so the eval's interview heard
+  of `postgres`, `secrets` and `container_service`, which the server never offers.
+  Instead the eval gives its organization a placeholder value for every required input
+  the catalog's modules want (`seedPlatformValues` in `scripts/eval-interview.js`, over
+  `platformWanted`), as the platform team has on the server, and the executor builds what
+  it builds there: the modules that run an app and the modules an app uses that offer it
+  access. A database still waits on the network (Q23), and the payment events app drafts
+  with its five needs, as it would on the pilot. Greg chose this over keeping
+  `treatAsBuilt`, so the eval's prompt is the server's. Optional inputs get no value:
+  those come from the plan and the wiring.
+- **A fixture may say what the plan connects.** `connect` names each value a module the
+  app uses gives and the setting the app reads it from; `notConnect` names values the
+  app does not read. The grader compares the plan's wiring across its enabled modules,
+  says what was not connected or should not be, and records `connect_correct` beside
+  `modules_correct`. An app's fixture against the starter, where nothing connects, grades
+  none of it; there the orders app drafts with a document database need.
+
+## Every file in the image is readable, whoever built it
+
+Oct 20, 2026. A build on the pilot succeeded, and its report could not be written:
+`EACCES` reading `prompts/report.md`. The image is `COPY . .`, so each file keeps the
+mode it had on the machine that built it, and the API runs as `node`; on Greg's Mac that
+one file was `0600`, and release.sh had built the image there (GitHub had not built
+that commit yet). The Dockerfile now runs `chmod -R a+rX /app` after the copy, so what
+the API reads is readable in every image, built anywhere. Git keeps no file modes but
+the executable bit, so the Mac's copy is fixed by hand (`chmod 644`). A deployment whose
+report could not be written keeps that message; the next build of it gets a report.

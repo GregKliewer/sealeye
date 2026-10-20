@@ -12,6 +12,8 @@ import { spawn } from "node:child_process";
 import YAML from "yaml";
 
 import { abandonInterview, answerInterview, followInterview, startInterview } from "../cli/client.js";
+import { freePort } from "./helpers/free-port.js";
+import { answerModel } from "./helpers/model-reply.js";
 
 const root = path.resolve(import.meta.dirname, "..");
 const ENV_SECRET = "sk-live-from-the-dotenv-file";
@@ -37,18 +39,23 @@ before(async () => {
     req.on("data", d => (body += d));
     req.on("end", () => {
       calls.push({ key: req.headers["x-api-key"], body });
+      // An app that would read forever, each reply costing $0.40: the cap stops it.
+      if (body.includes("looping-site")) {
+        answerModel(res, {
+          id: `msg_${calls.length}`,
+          usage: { input_tokens: 200_000, output_tokens: 0 }, stop_reason: "tool_use",
+          content: [toolUse(`l${calls.length}`, "list_files", { path: "." })]
+        }, body);
+        return;
+      }
       const turn = turns[calls.length - 1] || { content: [{ type: "text", text: "Done." }], stop_reason: "end_turn" };
-      res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({
-        id: `msg_${calls.length}`, type: "message", role: "assistant", model: "claude-sonnet-5",
-        usage: { input_tokens: 100, output_tokens: 10 }, ...turn
-      }));
+      answerModel(res, { id: `msg_${calls.length}`, usage: { input_tokens: 100, output_tokens: 10 }, ...turn }, body);
     });
   });
   await new Promise(r => model.listen(0, "127.0.0.1", r));
 
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-interview-api-"));
-  const port = 4100 + Math.floor(Math.random() * 90);
+  const port = await freePort();
   apiBase = `http://localhost:${port}`;
   api = spawn(process.execPath, ["api/server.js"], {
     cwd: root,
@@ -189,4 +196,43 @@ test("a developer who leaves mid-interview is forgotten at once", async () => {
   const res = await fetch(`${apiBase}/interviews/${started.interviewId}/events`);
   assert.equal(res.status, 404);
   assert.deepEqual(fs.readdirSync(path.join(tmp, "interviews")), []);
+});
+
+test("sealeye run says which files look like they hold a secret, in the portal's words, and the model never sees one", async () => {
+  const { interviewThroughApi } = await import("../cli/interview/follow.js");
+  const { interviewFindingWords } = await import("../core/scan.js");
+  const { FAKE } = await import("./fixtures/fake-secrets.js");
+
+  const app = path.join(tmp, "keyed-site");
+  fs.cpSync(path.join(root, "apps", "static-website"), app, { recursive: true });
+  fs.writeFileSync(path.join(app, "config.js"), `// keys\nexport const github = "${FAKE.githubToken}";\n`);
+
+  const before_ = calls.length;
+  const said = [];
+  await interviewThroughApi({
+    apiBaseUrl: apiBase,
+    appPath: app,
+    user: "greg",
+    ask: async () => "Customers",
+    onStep: () => {},
+    onFindings: lines => said.push(...lines)
+  });
+
+  const expected = interviewFindingWords([{ file: "config.js", line: 2, rule: "github-token", kind: "a GitHub token" }]);
+  assert.deepEqual(said, expected);
+  assert.equal(said[0], "config.js, line 2, looks like it holds a GitHub token.");
+  assert.ok(calls.slice(before_).every(c => !c.body.includes(FAKE.githubToken)), "no model call carried the token");
+});
+
+test("sealeye run says a run stopped at its spending limit, in the portal's words", async () => {
+  const { interviewThroughApi } = await import("../cli/interview/follow.js");
+  const { spendingLimitWords } = await import("../core/model-prices.js");
+  const app = path.join(tmp, "looping-site");
+  fs.cpSync(path.join(root, "apps", "static-website"), app, { recursive: true });
+  const before_ = calls.length;
+  const result = await interviewThroughApi({ apiBaseUrl: apiBase, appPath: app, user: "greg", ask: async () => "x", onStep: () => {} });
+  assert.equal(result.status, "stopped");
+  assert.equal(result.reason, "spending_limit");
+  assert.equal(result.message, spendingLimitWords("sealeye"));
+  assert.equal(calls.length - before_, 3, "three replies at $0.40 cross the dollar; no fourth call");
 });

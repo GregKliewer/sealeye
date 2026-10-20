@@ -8,7 +8,8 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { api, ApiError, SignedOut, type Catalog, type InterviewEvent, type OpenInterview } from "../api";
 import { useSession } from "../session";
-import { appNameOf, canPickFolder, emptyZip, folderFromDrop, folderFromInput, pack, pickFolder, UploadRefused, type ChosenFolder } from "../upload";
+import { appNameOf, canPickFolder, emptyZip, folderFromDrop, folderFromInput, pack, pickFolder, SecretsFound, UploadRefused, type ChosenFolder, type Finding } from "../upload";
+import { allowLine, deployRefusalWords, findingSentence, interviewFindingWords } from "../../../core/scan.js";
 import { plainValidationErrors } from "../../../core/plan-words.js";
 import { settingNamesFor } from "../../../core/setting-names.js";
 import { PageTitle, Problem } from "../Layout";
@@ -17,6 +18,8 @@ import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Input } from "../components/ui/input";
+import { Cmd } from "../Command";
+import { label } from "../../../core/operations.js";
 
 // As core/names.js safeName has it: how an app's name is compared everywhere.
 const safeName = (name: string) => String(name || "").toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
@@ -38,6 +41,10 @@ export function NewEnvironment() {
   const [plan, setPlan] = useState<InterviewEvent | null>(null);
   const [ending, setEnding] = useState<InterviewEvent | null>(null);
   const [withheld, setWithheld] = useState<string[]>([]);
+  // Files sent as names only because they look like they hold a secret, and a deploy
+  // refused for one (core/scan.js): file, line and kind, never the value.
+  const [found, setFound] = useState<Finding[]>([]);
+  const [secrets, setSecrets] = useState<Finding[] | null>(null);
   const [redeploy, setRedeploy] = useState<string | null>(null);
   const [missing, setMissing] = useState<string[]>([]);
   const [stored, setStored] = useState<string[]>([]);
@@ -89,7 +96,8 @@ export function NewEnvironment() {
       setRedeploy(live ? app : null);
 
       setBusy("Handing your app to the platform");
-      const started = await api.startInterview(folder.name, packed.zip, deployed);
+      const started = await api.startInterview(folder.name, packed.zip, deployed, packed.findings, packed.unread);
+      setFound(started.findings || packed.findings);
       interviewId.current = started.interviewId;
       startedHere.current = true;
       setPhase("interview");
@@ -192,6 +200,7 @@ export function NewEnvironment() {
     }
     setPhase("deploying");
     setProblem(null);
+    setSecrets(null);
     try {
       const drafted = ((plan.plan.needs as unknown[]) || []).length > 0;
       // A draft is refused before anything is packaged, so none of the folder is sent.
@@ -212,6 +221,14 @@ export function NewEnvironment() {
         const details = err.details as { needs?: Need[]; deploymentId?: string } | undefined;
         setRefusal({ needs: details?.needs || [], deploymentId: details?.deploymentId });
         setPhase("refused");
+      } else if (err instanceof SecretsFound) {
+        // Found here, before anything was sent.
+        setSecrets(err.findings as Finding[]);
+        setPhase("plan");
+      } else if (err instanceof ApiError && err.code === "SECRETS_FOUND") {
+        // Found by the platform's own scan, which also runs gitleaks.
+        setSecrets(((err.details as { findings?: Finding[] } | undefined)?.findings) || []);
+        setPhase("plan");
       } else if (err instanceof UploadRefused) {
         setProblem(err.message);
         setPhase("plan");
@@ -232,13 +249,13 @@ export function NewEnvironment() {
 
   return (
     <>
-      <PageTitle title="New environment" sub={<>What <code className="font-mono">sealeye run</code> does, from your browser: read your app, ask a few questions, write a plan, and build it when you say yes.</>} />
+      <PageTitle title={label("run")} sub={<>What <Cmd op="run" className="text-inherit" /> does, from your browser: read your app, ask a few questions, write a plan, and build it when you say yes.</>} />
 
       {phase === "choose" && open.length ? (
         <Card className="mb-6" data-testid="open-interviews">
           <CardHeader><CardTitle>Interviews you have open</CardTitle></CardHeader>
           <CardContent className="space-y-3 text-sm">
-            <p className="text-dim">Started here or with <code className="font-mono text-ink">sealeye run</code>, and not finished. Pick one up where it stopped; you choose the app's folder again when it is time to deploy.</p>
+            <p className="text-dim">Started here or with <Cmd op="run" />, and not finished. Pick one up where it stopped; you choose the app's folder again when it is time to deploy.</p>
             <ul className="divide-y divide-rule">
               {open.map(i => (
                 <li key={i.interviewId} className="flex flex-wrap items-center gap-3 py-2" data-testid="open-interview">
@@ -280,10 +297,10 @@ export function NewEnvironment() {
               </div>
             </div>
             <ul className="list-disc space-y-1 pl-5 text-dim">
-              <li>Read here, in your browser, by the same rules as <code className="font-mono text-ink">sealeye run</code>. Nothing in your folder changes.</li>
+              <li>Read here, in your browser, by the same rules as <Cmd op="run" />. Nothing in your folder changes.</li>
               <li>Left out: node_modules, .git, and what your .gitignore leaves out.</li>
               <li>For the interview, secret files, like <span className="font-mono text-ink">.env</span>, go as names only: their contents are never read.</li>
-              <li>If you deploy, your folder is packaged as <code className="font-mono text-ink">sealeye run</code> packages it: everything but node_modules, .git and secret files like <span className="font-mono text-ink">.env</span>, which never leave this computer. Settings come from your organization's store.</li>
+              <li>If you deploy, your folder is packaged as <Cmd op="run" /> packages it: everything but node_modules, .git and secret files like <span className="font-mono text-ink">.env</span>, which never leave this computer. Settings come from your organization's store.</li>
             </ul>
             <Button onClick={start} disabled={!folder || Boolean(busy)}>{busy || "Read my app"}</Button>
           </CardContent>
@@ -298,6 +315,11 @@ export function NewEnvironment() {
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             {withheld.length ? <p className="text-dim">Sent as names only: <span className="font-mono">{withheld.join(", ")}</span></p> : null}
+            {found.length ? (
+              <div role="note" data-testid="secret-findings" className="rounded-lg border border-amber/40 bg-amber-chip px-4 py-3 text-amber space-y-1">
+                {interviewFindingWords(found).map((line, i) => <p key={i}>{line}</p>)}
+              </div>
+            ) : null}
             <ol className="space-y-2" data-testid="interview-lines">
               {lines.map((line, i) => line.kind === "step" ? (
                 <li key={i} className="text-dim">{line.text}</li>
@@ -354,7 +376,7 @@ export function NewEnvironment() {
               </div>
             ) : null}
             {phase === "declined" ? (
-              <p role="status" className="border-t border-rule pt-4">Nothing was deployed. Keep the two files above with your app; when you are ready, deploy the plan from Validate, or with <code className="font-mono">sealeye deploy -f sealeye.yaml</code>.</p>
+              <p role="status" className="border-t border-rule pt-4">Nothing was deployed. Keep the two files above with your app; when you are ready, deploy the plan from Validate, or with <Cmd op="deploy" className="text-inherit" />.</p>
             ) : null}
           </CardContent>
         </Card>
@@ -406,6 +428,25 @@ export function NewEnvironment() {
             <Problem message={ending.message || "The interview ended without a plan."} />
           )}
         </div>
+      ) : null}
+
+      {secrets ? (
+        <Card className="mt-6" data-testid="secrets-refusal">
+          <CardHeader><CardTitle>Not deployed</CardTitle></CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            {(() => {
+              // The same words the command prints (core/scan.js), with the lines to allow set apart.
+              const words = deployRefusalWords(secrets);
+              const allowFrom = words.length - secrets.length;
+              return (
+                <>
+                  {words.slice(0, allowFrom).map((line, i) => <p key={i} className={secrets.some(f => findingSentence(f) === line) ? "text-amber" : ""}>{line}</p>)}
+                  <pre className="font-mono text-xs rounded border border-rule px-3 py-2 overflow-x-auto">{secrets.map(allowLine).join("\n")}</pre>
+                </>
+              );
+            })()}
+          </CardContent>
+        </Card>
       ) : null}
 
       {problem ? <div className="mt-6"><Problem message={problem} /></div> : null}

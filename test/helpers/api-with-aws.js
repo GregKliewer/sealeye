@@ -7,6 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
+import { freePort } from "./free-port.js";
 
 const root = path.resolve(import.meta.dirname, "..", "..");
 const hash = t => createHash("sha256").update(t).digest("hex");
@@ -19,14 +20,16 @@ const hash = t => createHash("sha256").update(t).digest("hex");
  *        `opt(name)`, `out(value)` (prints JSON, exits 0) and `fail(text)` (exits 254)
  * @param {object} [options.env]
  */
-export async function startApi({ tokens, records, aws, env: extra = {} }) {
+export async function startApi({ tokens, records, aws, env: extra = {}, files = {} }) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-day-two-"));
   const at = new Date().toISOString();
   fs.writeFileSync(path.join(home, "tokens.json"), JSON.stringify(tokens.map(t => ({
-    tokenId: t.id, tokenHash: hash(t.token), email: `${t.id}@example.com`, name: t.name || t.id, org: "default", team: t.team,
+    tokenId: t.id, tokenHash: hash(t.token), email: `${t.id}@example.com`, name: t.name || t.id, org: t.org || "default", team: t.team,
     ...(t.scope ? { scope: t.scope } : {}), createdAt: at, revokedAt: null, lastUsedAt: null
   }))));
   fs.writeFileSync(path.join(home, "deployments.json"), JSON.stringify(records));
+  // Anything else the API's home should hold when it starts (catalogs, discoveries).
+  for (const [name, content] of Object.entries(files)) fs.writeFileSync(path.join(home, name), typeof content === "string" ? content : JSON.stringify(content));
 
   const bin = path.join(home, "bin");
   const log = path.join(home, "aws.log");
@@ -43,7 +46,7 @@ out({});
 `);
   fs.writeFileSync(path.join(bin, "aws"), `#!/bin/sh\nexec "${process.execPath}" "${path.join(bin, "aws.cjs")}" "$@"\n`, { mode: 0o755 });
 
-  const port = 4500 + Math.floor(Math.random() * 400);
+  const port = await freePort();
   const api = `http://localhost:${port}`;
   const env = {
     ...process.env, PORT: String(port), HOME: home, SEALEYE_HOME: home, PATH: `${bin}:${process.env.PATH}`,

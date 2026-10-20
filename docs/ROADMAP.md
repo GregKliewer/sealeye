@@ -124,22 +124,31 @@ through one governed door before Phase 4 adds a swarm of agents.
 
 - agentgateway (agentgateway.dev, open source, in the Agentic AI Foundation) on the
   API's network, in front of every model call. The interview already has the seam for
-  it: `SEALEYE_MODEL_URL` (DESIGN.md, "The model's address is a setting").
+  it: `SEALEYE_MODEL_URL` (DESIGN.md, "The model's address is a setting"). **Live on the server
+  (Oct 14, 2026)**, holding the model key and a $20 budget for each 30-day period
+  (DESIGN.md, "The model gateway on the server"); the API is moved onto it by a step in
+  deploy/README.md, and back the same way.
 - Identity per caller: every model call names its person, team, run and worker, so
-  spend and traces say who did it. How it is carried is PHASE3-PLAN D1.
+  spend and traces say who did it. How it is carried is PHASE3-PLAN D1. **Built Oct 14,
+  2026**: a token the API signs per call, required and logged by the gateway (DESIGN.md,
+  "A token on every model call"). The gateway's own span in the trace moved to Phase 4.
 - Spend caps per run and per worker, held by seaLeye itself: the graph counts what each
   run has used and stops it at its cap, and a person is told why. agentgateway has no
   notion of a run; its budget per key and its rate limit are the outer limit behind
   seaLeye's cap (DESIGN.md, "Phase 3, settled after review"). The cap is close, not
   exact: a run can spend past it by one reply, or by more if a price changes before
-  seaLeye's table does (DESIGN.md, "A run's cap is close, not exact").
+  seaLeye's table does (DESIGN.md, "A run's cap is close, not exact"). **The cap per run
+  is built (Oct 14, 2026, 2.26.0)**, a dollar by default (`SEALEYE_RUN_CAP`).
 - Routing by task and by data class: the frontier model for plans and rules, a small
   model for bulk reading, and an organization's code only to an endpoint in its own
   account (Claude on Bedrock). Bedrock serves Claude in Canada only through profiles
-  that may run inference in other regions, so whether a call stays in Canada is Q18.
+  that may run inference in other regions: it is disclosed, not kept in Canada
+  (DESIGN.md, "Inference from Canada: disclosed, on the US profile").
 - Gateway spans join the run's trace in LangFuse Cloud, as today. Self-hosting
   LangFuse in Canada moves to Phase 4 (DESIGN.md, "Phase 3, settled after review");
   until then tracing stays off for any pilot on real code.
+- A record of every model call that outlives a restart, read from the gateway's own
+  database: who, which run, tokens and cost, never content (PHASE3-PLAN Step 7).
 - The gateway logs no request bodies: file names, never contents, as for traces
   (DESIGN.md, "Tracing the interview with LangFuse").
 - A deterministic secret scanner (answers Q6; brought forward from Phase 4 on Oct 13,
@@ -147,12 +156,19 @@ through one governed door before Phase 4 adds a swarm of agents.
   model, a trace or the gateway: a file with a finding travels as a name only, and the
   developer is told which file and line. The same scanner becomes the discovery swarm's
   first node in Phase 4. Where it runs and what a finding does to a deploy are
-  PHASE3-PLAN D3 and D4.
+  PHASE3-PLAN D3 and D4. **Built Oct 14, 2026 (2.23.0)**, on both surfaces and in the
+  API (DESIGN.md, "The secret scanner").
 
 **Done when:** a looping run is stopped by seaLeye's own cap rather than by a person,
 and told why; the gateway's budget refuses calls once it is crossed, as the outer limit;
 every model call in a trace names its caller and its route; no trace or gateway log
 holds file contents.
+
+*Where it stands (Oct 14, 2026): each run's own cap (Step 3) and the gateway's budget,
+shown refusing on the server (Step 7), are done. Gateway logs and the record of calls
+hold no content (Steps 5 to 7). Every call names its caller in the gateway's log and
+record, with the run's trace id (Step 6), which joins a call to its trace; the
+gateway's own span in that trace moved to Phase 4. Routes come with Step 8.*
 
 ### Phase 4: Learn the platform
 
@@ -161,17 +177,36 @@ holds file contents.
 - Admin onboarding: identity provider, repositories, which automation is strategic.
 - The discovery agent is a swarm, built on Phase 3 from the start: a LangGraph
   supervisor fans work out to parallel workers, one module each, gathers their findings,
-  and pauses for a platform engineer (`interrupt()`) on anything ambiguous.
-- Its first node is the secret scanner built in Phase 3: a file with a finding never
-  reaches a model.
+  and settles anything ambiguous with a platform engineer without ever waiting for one:
+  questions go out as the run goes and stay on the draft with a guess, an answer is
+  taken live or later, and a guess never goes live (Q19, answered Oct 15, 2026).
+- Its first node is the secret scanner built in Phase 3: no value it finds reaches a
+  model. Each flagged line is replaced by one that says why, as in an interview, and the
+  rest of the file is read (Greg, Oct 15, 2026).
 - Spend: small models read, the frontier model writes the usage rules; hard caps per run
   and per worker; only modules changed since the last run are read again.
 - Where it runs: a new account opened for the prospect or customer, and the run is paid
-  (decided Oct 13, 2026).
+  (decided Oct 13, 2026). Until the first customer, the seaLeye account (PHASE4-PLAN D2).
+- Progress (PHASE4-PLAN.md): Step 1, the catalog as data, built Oct 14, 2026. Step 2,
+  plans name their catalog (planVersion 0.5), built Oct 15, 2026. Step 3, the interview
+  reads the organization's catalog, built Oct 15, 2026: Part A is done. Step 4, the
+  made-up organization (Juniper Mutual, `sealeye-sample-platform`) and its answer key,
+  built Oct 15, 2026. Step 5, reading the library and the named routes `small` and
+  `frontier`, built Oct 15, 2026. Step 6a, the discovery run in the API, and 6b, `sealeye discover` and the
+  Discovery page, built Oct 15,
+  2026. Step 7, the self-test, approving and making live on both surfaces, a second
+  organization (`juniper`), discovery's traces, merged questions and the eval graded
+  twice, built Oct 16, 2026. The rough-edges step, with Q21's rule for platform words,
+  built Oct 16, 2026. Step 8, the interview eval planning against Juniper Mutual's
+  live catalog, built Oct 16, 2026.
 - LangFuse self-hosted in ca-central-1 (answers Q13; moved here from Phase 3 on Oct 13,
-  2026), before the first discovery run reads an organization's code. It needs
+  2026), before the first run on an organization's real code (Greg, Oct 14, 2026:
+  Phase 4's own runs read seaLeye's templates, a made-up organization and public
+  modules, so they stay on LangFuse Cloud; PHASE4-PLAN D1). It needs
   ClickHouse, Redis and blob storage beside Postgres, so it does not share the pilot's
-  small server.
+  small server. With it, the model gateway's own span joins each run's trace (moved
+  from Phase 3 Step 6b on Oct 14, 2026): the gateway sends spans only for a run that is
+  traced, and holds keys to the organization's own LangFuse, not to LangFuse Cloud.
 - What it learns is the organization's catalog: each module, what it is for, its usage
   rules and what must be refused. The front door agent plans from that catalog. No model
   is fine-tuned.
@@ -182,22 +217,27 @@ holds file contents.
   when it passes.
 - The catalog becomes the organization's, and a need becomes buildable when a module
   supports it.
-- A second backend: Terraform, since that is what most platform libraries are.
+- A second backend: Terraform, since that is what most platform libraries are. Built
+  Oct 17, 2026 for a plan of one module, with OpenTofu (PHASE4-PLAN Step 9); versions and
+  connecting modules next.
 - A gap report (added Oct 13, 2026): what developers asked for that the catalog cannot
   build, taken from the needs ledger, with how often and by which teams. Read-only, from
   what discovery and the ledger already hold. Gaps come from demand first; a generic
   best-practice checklist only breaks ties.
-- How the swarm reads the library is Q17.
+- How the swarm reads the library: plain code, one named commit read-only
+  (PHASE4-PLAN D3, Oct 14, 2026), fetched with a GitHub App or a read-only token
+  (Oct 15, 2026). A run settles what it cannot decide alone without
+  pausing (PHASE4-PLAN D7, Oct 15, 2026).
 - How discovery is tested without a customer (decided Oct 13, 2026), cheapest first:
   - seaLeye's own four building blocks in `templates/`, whose right catalog entries are
     already known. The smoke test.
   - A made-up organization in its own private repository: 10 to 15 Terraform modules and
     a few pipeline files, with an answer key. It plants the hard cases on purpose: two
-    modules that overlap (discovery must pause and ask), a deprecated module (must be
+    modules that overlap (discovery must ask), a deprecated module (must be
     refused), a usage rule only in a README, a fake key (the scanner must stop it before
     any model), later commits that test "only what changed is read again", and two
     or three known gaps the gap report must find. It is
-    read the way a customer's library is read (Q17), in an account opened for it, and
+    read the way a customer's library is read (D3), in the seaLeye account (D2), and
     becomes the regression set a catalog must pass to go live. Built at the start of
     Phase 4, so every change to discovery is graded against it.
   - Public module libraries on GitHub, for scale and cost caps. No answer key; checked
@@ -276,12 +316,16 @@ and does nothing real. A blank is not started.
 | Re-run on a live environment | `sealeye run`, `sealeye deploy --again <app>` | `POST /deployments` (`fromDeployment`) | built | built (Deploy again, in Control) | 2 |
 | Validate a plan | `sealeye validate` | `POST /plans/validate` (ready or drafted, with needs) | built | built (Validate) | 2 |
 | List environments | `sealeye list` | `GET /deployments` | built | built (Environments) | 1 |
-| Status and watch | `sealeye status`, `watch` (an app or an id) | `GET /deployments/{id}`; `step` in `GET /deployments` | built | built (Control, with the change under way across the top) | 1 |
-| Tear down | `sealeye destroy` | `DELETE /deployments/{id}` | built | built (Control) | 1 |
+| Status and watch | `sealeye status`, `watch` (an app or an id) | `GET /deployments/{id}`; `step` in `GET /deployments`; `GET /deployments/events` | built | built (Control, with the change under way across the top; every page follows changes as they happen) | 1 (events added Oct 15, 2026) |
+| Tear down | `sealeye teardown` (`destroy` still works) | `DELETE /deployments/{id}` | built | built (Control) | 1 |
 | Evidence | `sealeye evidence` | `GET /deployments/{id}/evidence` | built | built (Evidence, in Control) | 2 |
+| Plan and report for a deployment | `sealeye plan` (`--report`, `--out <folder>`) | `GET /deployments/{id}/plan` | built | built (Plan and report, in Control) | 2 (added Oct 14, 2026, 2.27.0) |
 | Needs ledger | `sealeye needs` | `GET /needs` | built | built (in Catalog) | 1 |
 | Health check | `sealeye doctor` | `GET /health`, `GET /whoami` | built | built (Health) | 2 |
 | Catalog | `sealeye catalog` | `GET /catalog` | built | built | 1 |
+| Discovery (organization-wide token only) | `sealeye discover`, `discover answers`, `discover status` | `POST /discoveries`, `GET /discoveries/{id}`, `/events`, `/catalog`, `/answers` | built | built (Discovery) | 4 |
+| Catalogs: self-test, edit words, approve, make live (organization-wide token only) | `sealeye catalog versions`, `catalog test`, `catalog edit`, `catalog approve`, `catalog live` | `GET /catalogs`, `GET /catalogs/{v}`, `GET /catalogs/{v}/self-test`, `POST /catalogs/{v}/edits`, `POST /catalogs/{v}/approve`, `POST /catalogs/{v}/live` | built | built (Catalogs and Edit words, on the Discovery page) | 4 |
+| Fix what blocks a draft's approval, field by field, offered from a refused approval (organization-wide token only) | `sealeye catalog fix`, and `catalog approve` offers it | `GET /catalogs/{v}/self-test` (each field to change), `POST /catalogs/{v}/edits` | built | built (Fix what blocks approval, on the Discovery page's Catalogs card) | 4 |
 | Pause and resume | `sealeye pause`, `resume` | `GET /deployments/{id}/paused`, `POST .../pause`, `.../resume` | built | built (Pause, in Control) | 2 |
 | Configure | `sealeye config` (and `sealeye settings`) | `POST /deployments` (`fromDeployment` with the plan changed); the settings endpoints | built | built (Configure and Settings, in Control) | 2 |
 | Logs | `sealeye logs` | `GET /deployments/{id}/logs` | built | built (Logs, in Control) | 2 |
@@ -297,5 +341,5 @@ and does nothing real. A blank is not started.
 | Approve an agent's plan | | | | | 6 (a queue in the portal) |
 | Raise a gap ticket | `sealeye needs --request` | | prints text only | | 5 |
 
-Command names not yet built are proposals; settle each one in DESIGN.md before
+Built names live in `core/operations.js`, which both surfaces read. Command names not yet built are proposals; settle each one in DESIGN.md before
 building it.

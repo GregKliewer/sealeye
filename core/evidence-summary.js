@@ -50,7 +50,12 @@ export function evidenceSummary(ev, product = { name: "seaLeye", command: "seale
   const rows = [];
   const row = (label, text, alarm = false) => rows.push({ label, text, alarm });
 
-  const env = s.stackName ? `stack ${s.stackName}, profile ${s.profile}` : `no stack, profile ${s.profile}`;
+  // An environment built from the organization's own module has no stack (PHASE4-PLAN
+  // Step 9): its evidence says so with `terraform`, and is read in its own shape.
+  const fromModule = b?.terraform === true || n?.terraform === true;
+  const env = s.stackName
+    ? `${fromModule ? "environment" : "stack"} ${s.stackName}, profile ${s.profile}`
+    : `no ${fromModule ? "environment" : "stack"}, profile ${s.profile}`;
   const title = `Change record for ${s.app?.name || s.deploymentId} (${env})`;
 
   // Requested
@@ -80,6 +85,12 @@ export function evidenceSummary(ev, product = { name: "seaLeye", command: "seale
   // Built
   if (b.none) {
     row("Built", `nothing. ${b.sentence.replace(/^Nothing was built\. /, "")}`);
+  } else if (b.terraform) {
+    const commit = String(b.module?.commit || "");
+    const art = /^none:/.test(String(b.artifactKey)) ? "no artifact" : `artifact ${b.artifactKey}`;
+    const parts = Array.isArray(b.resources) ? plural(b.resources.length, "part") + " made or changed" : "parts not recorded";
+    const took = typeof r.durationSeconds === "number" ? `, ${humanDuration(r.durationSeconds)}` : "";
+    row("Built", `${b.module?.source || "the organization's module"}${b.module?.version ? ` ${b.module.version}` : ""}${commit ? ` at ${commit.slice(0, 12)}` : ""}, ${art}, ${parts}${took}`);
   } else {
     // Which module's template this stack is built from. The file on disk may be the
     // dist copy with the plan's setting names written into it, so the name comes from
@@ -97,6 +108,17 @@ export function evidenceSummary(ev, product = { name: "seaLeye", command: "seale
   // Checked now
   if (n.none) {
     row("Checked now", "nothing to check");
+  } else if (n.terraform) {
+    const parts = [];
+    let alarm = false;
+    if (n.state?.error) { parts.push(`its record ${n.state.error}`); alarm = true; }
+    else if (!(n.state?.resources || []).length) { parts.push("nothing is left in its record"); alarm = true; }
+    if (n.answered.error) { parts.push(`did not answer (${n.answered.error})`); alarm = true; }
+    else parts.push(`answered ${n.answered.status} in ${(n.answered.ms / 1000).toFixed(1)} s`);
+    if (typeof n.changesOutside === "string") { parts.push(`changes outside ${product.name} ${n.changesOutside}`); alarm = true; }
+    else if (!n.changesOutside.length) parts.push(`no changes outside ${product.name}`);
+    else { parts.push(`${plural(n.changesOutside.length, "change")} outside ${product.name}`); alarm = true; }
+    row("Checked now", parts.join("; "), alarm);
   } else {
     const parts = [];
     let alarm = false;

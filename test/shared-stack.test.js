@@ -10,6 +10,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync, spawn } from "node:child_process";
 import YAML from "yaml";
+import { freePort } from "./helpers/free-port.js";
 
 const root = path.resolve(import.meta.dirname, "..");
 let home, api, server, log = "";
@@ -46,7 +47,7 @@ before(async () => {
   const bin = path.join(home, "bin");
   fs.mkdirSync(bin);
   fs.writeFileSync(path.join(bin, "aws"), "#!/bin/sh\necho 'Stack does not exist' >&2\nexit 254\n", { mode: 0o755 });
-  const port = 5100 + Math.floor(Math.random() * 90);
+  const port = await freePort();
   api = `http://localhost:${port}`;
   const e = { ...env(), PORT: String(port), SEALEYE_TRACING: "off", PATH: `${path.join(home, "bin")}:${process.env.PATH}` };
   server = spawn(process.execPath, ["api/server.js"], { cwd: root, env: e, stdio: ["ignore", "pipe", "pipe"] });

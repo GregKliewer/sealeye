@@ -1,0 +1,114 @@
+# yaml-language-server: $schema=https://agentgateway.dev/schema/config
+# The model gateway on the pilot server (PHASE3-PLAN Step 5; DESIGN.md, "agentgateway,
+# read and run (Step 4)" and "The model gateway on the server"). Every model call the
+# API makes comes through here: the gateway holds the model key, the API holds only a
+# key for the gateway, and the gateway's money budget is the outer limit behind each
+# run's own cap.
+#
+# Sent to the server by deploy/release.sh and read by the gateway container that
+# deploy/compose.yaml starts. A release restarts the gateway when this file changes.
+#
+# The gateway expands every dollar-sign name in this file before reading it, comments
+# included, and refuses to start when one is unset; the schema line at the top is its one
+# exception. So no comment here may hold a dollar sign, and test/gateway-config.test.js
+# checks that. The names it expands come from secrets/gateway.env, which gateway.sh writes
+# from Parameter Store, never from this file.
+config:
+  readinessAddr: 0.0.0.0:15021        # /healthz/ready, asked by gateway.sh through the API
+  statsAddr: 0.0.0.0:15020            # /metrics, on the gateway's own network only
+  adminAddr: "off"                    # its debug view logs claims
+  logging:
+    format: json
+  # The money budget needs a database. SQLite in the gateway's own folder on the server
+  # (/opt/sealeye/gateway-data), so spending survives a restart.
+  database:
+    url: sqlite:///data/gateway.db
+  # No tracing block: nothing leaves the gateway as a trace (Step 6 decides spans).
+
+gateways:
+  default:
+    port: 4000
+
+frontendPolicies:
+  accessLog:
+    # Who made each call, from its token (PHASE3-PLAN Step 6): the person (jwt.sub, a
+    # field of its own already), their organization and team, the run, the worker, the
+    # surface the run started from, and the run's trace, when it has one.
+    add:
+      org: jwt.org
+      team: jwt.team
+      run: jwt.run
+      worker: jwt.worker
+      surface: jwt.surface
+      trace: jwt.trace
+    database:
+      llm: metadata                   # never full: that would store prompts and replies
+
+llm:
+  gateways: default
+  policies:
+    # Who may call: the API, with its own key, in a header of its own. The key carries
+    # the gateway's money budget (D5): 20 US dollars for each 30-day period, or what
+    # SEALEYE_GATEWAY_BUDGET says, counted from 1970 rather than by calendar month.
+    apiKey:
+      mode: strict
+      location:
+        header:
+          name: x-sealeye-gateway-key
+      keys:
+      - key: $SEALEYE_GATEWAY_KEY
+        metadata: { name: sealeye-api }
+        budgets:
+        - name: period
+          limit: { unit: USD, amount: $SEALEYE_GATEWAY_BUDGET }
+          window: { rolling: 30d }
+          onBudgetExceeded: Block
+    # Who is calling: a token the API signs for each call, naming the person, team, run
+    # and worker (api/gateway-token.js). Strict, since the gateway's default lets a call
+    # with no token through. The key set is the public half only, which gateway.sh writes
+    # from Parameter Store; the private half is the API's.
+    jwtAuth:
+      mode: strict
+      issuer: sealeye-api
+      audiences: [sealeye-gateway]
+      jwks:
+        file: /config/jwks.json
+      jwtValidationOptions:
+        requiredClaims: [exp, iss, aud, sub]
+    # One run cannot use up what every other run shares (PHASE3-PLAN Step 7): two million
+    # tokens a day for each run, counted from the token's run claim, after each reply.
+    # Each run's own dollar (core/model-prices.js) stops a run long before this, so it
+    # only ever acts on a run that the API's own count did not stop. The count is in the
+    # gateway's memory: a restart forgets it.
+    localRateLimit:
+    - type: tokens
+      maxTokens: 2000000
+      tokensPerFill: 2000000
+      fillInterval: 24h
+      key: jwt.run
+    # The API's own timeout (120 seconds a turn) is the one that acts; these are only
+    # the gateway's outer bound.
+    timeout:
+      requestTimeout: 15m
+      responseIdleTimeout: 5m
+  # Named routes (PHASE4-PLAN Step 5, D5): the API asks for a route by name and the
+  # gateway chooses the model, so moving a route (to Bedrock, say) is a change here only.
+  # small reads in bulk, frontier writes plans and rules; both on the Anthropic route for
+  # now. Each name and model is also in api/model-routes.js, which prices a call by the
+  # model its route names, and test/gateway-config.test.js keeps the two the same.
+  # Any other Claude model, the interview's own today, still goes by its own name.
+  models:
+  - name: small
+    provider: anthropic
+    params:
+      model: claude-haiku-5-5
+      apiKey: $ANTHROPIC_API_KEY
+  - name: frontier
+    provider: anthropic
+    params:
+      model: claude-sonnet-5
+      apiKey: $ANTHROPIC_API_KEY
+  - name: claude-*
+    provider: anthropic
+    params:
+      apiKey: $ANTHROPIC_API_KEY

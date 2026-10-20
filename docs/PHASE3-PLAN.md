@@ -59,7 +59,7 @@ recommended" (D2 in "Phase 3, settled after review").
 | D2 | Where the cap on a run lives | In the graph; the gateway's budget is the outer limit | Step 3 | As recommended (Tue Oct 13) |
 | D3 | Where the scanner runs | Twice. Shared rules in `core/`, before upload, on both surfaces, so a finding never leaves the machine; then gitleaks in the API over what arrived, as the deeper check and the swarm's first node later | Step 2 | As recommended (Tue Oct 13) |
 | D4 | What a finding does to a deploy | The deploy is refused until the value moves to a setting, or the line is allowed in `.sealeye-allow` (which records the file, line and rule, never the value, and shows in evidence) | Step 2 | As recommended (Tue Oct 13) |
-| D5 | How big the caps are | A run's cap: three times the largest run Step 1 measures. The gateway's budget: a monthly amount Greg names | Steps 3 and 7 | Changed (Wed Oct 14): a run's cap is $1.00, not three times the largest sample run, which came to about $0.24; the monthly budget is not named yet |
+| D5 | How big the caps are | A run's cap: three times the largest run Step 1 measures. The gateway's budget: a monthly amount Greg names | Steps 3 and 7 | Changed (Wed Oct 14): a run's cap is $1.00, not three times the largest sample run, which came to about $0.24; the gateway's budget is $20 for each 30-day period (Wed Oct 14, DESIGN.md, "The gateway's budget: $20 a period") |
 | D6 | Which route the pilot uses | Build the Bedrock route and prove it in Greg's account; keep the Anthropic API as the pilot's route until Q18 is answered for a bank | Step 8 | As recommended (Tue Oct 13) |
 | D7 | Where the gateway runs (informed by Step 4) | A container on the same server, reachable only from the API, holding the model key in place of the API. Move to a t4g.medium only if Step 4 shows the small one cannot carry it | Step 5 | As recommended (Tue Oct 13); the image pulled by digest from its public registry |
 
@@ -97,13 +97,16 @@ Record the largest run and the typical one in DESIGN.md. They size D5, and they 
 "before" for every later step.
 
 Done Wed Oct 14 (DESIGN.md, "What a run costs, and a cap of a dollar"): the largest
-sample run was 6 turns and $0.0795, the typical one 2 turns and $0.0414. Still owed:
-one interview on a real app larger than the samples, before Step 3 makes the cap bind.
+sample run was 6 turns and $0.0795, the typical one 2 turns and $0.0414. The real app
+measured before Step 3: 6 turns and $0.152.
 
-Greg can also run the two commands in OPEN-QUESTIONS Q18 from his Mac, so Step 8 knows
+Greg ran the two commands now in DESIGN.md ("Inference from Canada") on Oct 14, so Step 8 knows
 where a Bedrock call from Canada may run.
 
 ### Step 2. The secret scanner (D3, D4)
+
+Built Wed Oct 14, at 2.23.0 (DESIGN.md, "The secret scanner"). gitleaks is 8.30.1, pinned
+by checksum in the image.
 
 - **Rules in `core/scan.js`**, no dependencies, so the command and the browser run the
   same ones: private key blocks, cloud access keys, the common service tokens (GitHub,
@@ -134,6 +137,10 @@ High stakes: an independent review before the pull request.
 
 ### Step 3. A cap on every run (D2, D5)
 
+Built Wed Oct 14, at 2.26.0 (DESIGN.md, "The cap on every run"). Measured first on a real
+app, hagopj13/node-express-boilerplate: 6 turns and $0.152, well under a third of the
+dollar, so the cap stands.
+
 - The graph adds each turn's `usage` into the run's state and prices it from a small
   table of model prices in the platform's config. The table is the only source the cap
   enforces from: never LangFuse, which is optional and after the fact, and never a
@@ -161,6 +168,13 @@ High stakes: an independent review before the pull request.
 
 In `deploy/spikes/agentgateway/`, before anything is built:
 
+*Status (Oct 14): done for the Anthropic route. Run on Greg's Mac against a stand-in
+model (26 of 26) and against Anthropic (8 of 8), with memory measured (14 to 21 MiB).
+DESIGN.md, "agentgateway, read and run (Step 4)", has what it showed. Still to run:
+Bedrock, which waits on the account's access, and is not needed for Step 5 (D6 keeps
+the Anthropic API as the pilot's route).*
+
+
 - The Anthropic SDK, with `SEALEYE_MODEL_URL` set, reaches the Anthropic API through
   agentgateway with tool use, prompt caching and the interview's timeouts unchanged.
 - The same call reaches Claude on Bedrock through the gateway, in Greg's account, if
@@ -180,6 +194,10 @@ before Step 5.
 
 ### Step 5. agentgateway on the server (D7)
 
+*Status (Oct 14): done and live. The API calls the model only through the gateway, which
+holds the model key; DESIGN.md, "The model gateway on the server". The release steps
+are in deploy/README.md, "Once: the model gateway".*
+
 - A service in `deploy/compose.yaml`, image pinned by digest, on the internal network
   only, with no published port. Its configuration is a file in `deploy/`, applied by
   `release.sh` the way the Caddyfile is.
@@ -190,6 +208,12 @@ before Step 5.
 - Release steps for Greg, from the repo root, with what success looks like.
 
 ### Step 6. Who is calling (D1)
+
+*Status (Oct 14): built; DESIGN.md, "A token on every model call". The gateway's log
+names each call's person, team, run, worker, surface and trace id. The gateway's own
+span in the run's LangFuse trace (once Step 6b) moved to Phase 4 on Oct 14, to be built
+with self-hosted LangFuse (DESIGN.md, "The gateway's span waits for LangFuse in
+Canada").*
 
 - The API signs a token for each model call, from a key in the server's settings; the
   gateway's configuration holds only the public half, written at release.
@@ -203,15 +227,30 @@ High stakes: an independent review before the pull request.
 
 ### Step 7. The outer limit (D5)
 
-- A budget on the API's gateway key for the period Greg names, and a token rate limit
-  keyed on `jwt.run`, so one run cannot starve the rest.
+- A budget of $20 on the API's gateway key for each 30-day period (D5), and a token
+  rate limit keyed on `jwt.run`, so one run cannot starve the rest.
 - When the gateway refuses, the interview stops and says plainly that seaLeye's model
   budget is used up for now and to ask the platform administrator; it never retries into
   the refusal. The refusal is in the gateway's log, so the administrator can see it.
 - Shown once on the server, on purpose, with a tiny budget. This is the second half of
   the "done when".
+- **A record of model calls that outlives a restart** (added Oct 14, at Greg's request).
+  The gateway's log lives only as long as its container, and each release that changes
+  the gateway starts a new one, so who called the model is lost at every such release.
+  The gateway already keeps each call in its own SQLite file (`gateway-data`), with no
+  prompt or reply (`database.llm: metadata`). `deploy/server.sh gateway-calls` reads it:
+  one line per call (time, person, team, run, worker, surface, model, tokens, cost,
+  status), narrowed to a run or a person, never a prompt, reply, token or key.
+  First, in the spike: whether the stored rows carry the token's claims or need fields
+  of their own, how to read the file while the gateway writes it, and how long rows
+  are kept. Then a retention to set, written in DESIGN.md.
 
-### Step 8. Routing (D6, Q18)
+*Status (Oct 14): done. DESIGN.md, "The outer limit, and a record of calls kept 90
+days". Shown on the server the same evening: with the budget below what the period had
+spent, an interview was refused in plain words, and then worked again once the budget
+was put back.*
+
+### Step 8. Routing (D6; DESIGN.md, "Inference from Canada")
 
 - Named routes in the gateway: the frontier model for plans (the interview today), a
   small model for bulk reading (defined now, first used by Phase 4's workers), and an
@@ -221,12 +260,24 @@ High stakes: an independent review before the pull request.
   calls.
 - The pilot stays on the Anthropic API route (D6). The Bedrock route is proven in
   Greg's account; the server's role gains Bedrock permission in its own stack change.
-  Bedrock lists Sonnet 5.5, not the interview's Sonnet 5, for Canada, so
-  `npm run eval:interview` must pass on Sonnet 5.5 before that route carries an
-  interview.
+  It uses `us.anthropic.claude-sonnet-5`, the interview's own model, read in Greg's
+  account on Oct 14 (DESIGN.md, "Inference from Canada"): no change of model, and no
+  global profile.
+  The permission names the profile and the foundation model in each region it may
+  send to (ca-central-1, us-east-1, us-east-2, us-west-2); a policy naming only the
+  profile is refused. The price table gains Bedrock's name for the model.
+- Where inference runs is disclosed, as Greg decided on Oct 14: the evidence for a
+  deployment names the route its interview took and the regions a call on it may run
+  in, read from the gateway's configuration, never typed in (principle 7).
 - Each span names its route: the last line of the "done when".
 
 ### Step 9. Write it down
+
+*Status (Oct 14): done, apart from what waits on Step 8. ARCHITECTURE.md has the
+gateway in its containers, deployment and security model, and a new flow, "One model
+call". CLAUDE.md has principle 11. deploy/README.md's "Model prices" covers the
+gateway's own price table. BUILD-OUT.md marks what is built. Ticking Phase 3 in
+ROADMAP.md, and every call naming its route, wait on Step 8.*
 
 DESIGN.md entries for each decision; ARCHITECTURE.md's containers, security model and a
 new sequence for one model call; CLAUDE.md's invariants (no gateway logs with bodies;
@@ -262,7 +313,7 @@ around a false finding.
 | Item | Where it stands | Bring it forward when |
 |---|---|---|
 | **LangFuse in Canada** (Q13's answer) | LangFuse Cloud; tracing off for any pilot on real code. Moved to Phase 4 on Oct 13. | Before the first discovery run reads an organization's code, or any pilot that wants traces on real code. |
-| **Inference in Canada** (Q18) | The route is built (Step 8); Bedrock in Canada runs only through cross-region profiles. | A bank pilot (Phase 5). |
+| **Inference in Canada** | Decided Oct 14: disclosed, not kept in Canada (US profile: Canada or the US). | A bank that will not grant an exception: then a Canadian profile, or a model of the organization's own (Phase 7). |
 | **Agents as callers** (Phase 6) | The token in D1 has room for a second issuer. | Phase 6, after Cognito (Phase 5). |
 | **The small model** | Routed (Step 8), not used. | Phase 4's workers. |
 | **Checking prices against the bill** | The cap's prices are checked by hand and dated (Step 3); the eval compares them with LangFuse's. A monthly script comparing a month of the platform's own totals with Anthropic's Cost API (an Admin key, kept off the server) and, once Bedrock carries traffic, Cost Explorer. It only finds drift where there is traffic. | Once an organization is using seaLeye every week. |

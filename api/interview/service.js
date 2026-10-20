@@ -13,11 +13,18 @@ import path from "node:path";
 import { Command, MemorySaver } from "@langchain/langgraph";
 
 import { sealeyeHome, setting } from "../../core/config.js";
+import { ModelNotPriced, priceFor, runCap } from "../../core/model-prices.js";
+import { cleanFinding, isRedactedLine, onePerLine } from "../../core/scan.js";
+import { isNotText } from "../../core/upload-rules.js";
 import { unzipInto, UploadRefused } from "../../core/upload.js";
-import { promptVersion, traceRun, withoutTracing, flushScores } from "../../core/tracing.js";
-import { buildInterviewGraph, MAX_TURNS } from "./graph.js";
+import { redactScanned, scanApp } from "../secret-scan.js";
+import { promptVersionOf, traceRun, withoutTracing, flushScores } from "../../core/tracing.js";
+import { liveCatalog } from "../catalogs.js";
+import { buildInterviewGraph, interviewCatalog, isStarterRef, MAX_TURNS } from "./graph.js";
 import { planFiles } from "../../core/plan-files.js";
-import { DEFAULT_MODEL, modelClient, resolveApiKey } from "./model.js";
+import { catalogOfPlan } from "../validate.js";
+import { DEFAULT_MODEL, loadSystemPrompt, modelClient, modelCredential } from "./model.js";
+import { claimsFor, signerFromSettings, withCallerToken } from "../gateway-token.js";
 
 // Everything about an interview is gone a day after it starts, finished or not: its
 // scratch folder (the developer's code) and its saved state (the conversation, file
@@ -28,7 +35,7 @@ const SWEEP_EVERY_MS = 15 * 60 * 1000;
 /** An answer sent at the wrong moment: nothing is waiting for one. */
 export class NotWaiting extends Error {}
 
-export { UploadRefused };
+export { ModelNotPriced, UploadRefused };
 
 /**
  * @param {object}   [options]
@@ -43,7 +50,7 @@ export { UploadRefused };
 // turns them off for this process. Anything but "true" leaves LangChain's tracer off.
 export const LANGCHAIN_TRACING_VARS = ["LANGSMITH_TRACING", "LANGSMITH_TRACING_V2", "LANGCHAIN_TRACING", "LANGCHAIN_TRACING_V2"];
 
-function switchOffLangSmith() {
+export function switchOffLangSmith() {
   for (const name of LANGCHAIN_TRACING_VARS) {
     if (process.env[name] !== undefined && process.env[name] !== "false" && setting("DEBUG")) {
       console.error(`  [debug] ${name} is set; LangSmith tracing is off for the interview, which never sends file contents out`);
@@ -69,6 +76,23 @@ export function createInterviewService({
   // restart. In memory otherwise.
   const keep = record => persistence?.save(record);
   let modelClientCache = client || null;
+  // Every model call carries a token naming who is calling, when the API has a signing
+  // key (api/gateway-token.js). A key that cannot be read is said once, by name only,
+  // and the API carries on: the gateway then refuses the calls, and the developer is
+  // told to tell whoever runs the API, rather than every deploy and page going down too.
+  // Only a call to the platform's own gateway carries one: a call straight to Anthropic,
+  // with the model key, never sends a second credential beside it.
+  let signer = null;
+  if (modelCredential()?.gatewayKey) {
+    try {
+      signer = signerFromSettings();
+      console.log(signer
+        ? `seaLeye API: model calls are signed with key ${signer.kid}`
+        : "seaLeye API: there is no SEALEYE_GATEWAY_SIGNING_KEY, so model calls carry no token and the gateway will refuse them");
+    } catch (err) {
+      console.error(`seaLeye API: SEALEYE_GATEWAY_SIGNING_KEY could not be read (${err.message}), so model calls carry no token and the gateway will refuse them`);
+    }
+  }
 
   const graph = buildInterviewGraph({
     checkpointer,
@@ -78,16 +102,16 @@ export function createInterviewService({
       // An interview picked up after a restart reaches here without POST /interviews
       // having made the client first.
       if (!ready()) throw new Error("the seaLeye API has no model key set, so it cannot run an interview");
-      return { client: modelClientCache, emit: event => emit(record, event) };
+      return { client: withCallerToken(modelClientCache, signer, () => claimsFor(record)), emit: event => emit(record, event) };
     }
   });
 
-  /** The API can run interviews: it has a model key, or a client was given. */
+  /** The API can run interviews: it has a model key or a gateway key, or a client was given. */
   function ready() {
     if (modelClientCache) return true;
-    const apiKey = resolveApiKey();
-    if (!apiKey) return false;
-    modelClientCache = modelClient(apiKey);
+    const credential = modelCredential();
+    if (!credential) return false;
+    modelClientCache = modelClient(credential);
     return true;
   }
 
@@ -113,10 +137,23 @@ export function createInterviewService({
    * @param {string}  [options.user]    who asked, for the trace
    * @param {string}  [options.owner]   the caller's email when the API checks tokens: only
    *                                     they may answer, follow or end it
+   * @param {object}  [options.caller]  the token's holder ({ email, org, team }) when the
+   *                                     API checks tokens, for the model gateway's log
+   * @param {string}  [options.surface] "cli" or "portal", the surface that started it
    * @param {string}  [options.model]
    * @param {boolean} [options.trace]   false turns tracing off for this interview only
+   * @param {object[]} [options.withheld] files sent empty because they look like they hold
+   *                                     a secret (core/scan.js): read_file refuses them
+   * @param {string[]} [options.unread]  archives and files that are not text, sent as their
+   *                                     names only: read_file refuses them too
    */
-  function start({ appDir, ownsDir = false, scratchRoot, deployed = null, user, owner = null, model, trace = true }) {
+  function start({ appDir, ownsDir = false, scratchRoot, deployed = null, user, owner = null, caller = null, surface = "cli", model, trace = true, withheld = [], unread = [] }) {
+    // A run is capped by what it spends, so it never starts on a model seaLeye cannot
+    // price: without a price there would be no cap at all (DESIGN.md, "A run's cap is
+    // close, not exact"). Throws ModelNotPriced, or a sentence about SEALEYE_RUN_CAP.
+    const resolvedModel = model || setting("MODEL") || DEFAULT_MODEL;
+    if (!priceFor(resolvedModel)) throw new ModelNotPriced(resolvedModel);
+    const cap = runCap();
     const id = `int_${crypto.randomBytes(8).toString("hex")}`;
     const record = {
       id,
@@ -126,9 +163,12 @@ export function createInterviewService({
       scratchRoot: scratchRoot || appDir,
       user,
       owner,
+      caller: caller ? { email: caller.email, org: caller.org, team: caller.team } : null,
+      catalog: { org: caller?.org || "default", version: liveCatalog(caller?.org || "default").version },
+      surface: surface === "portal" ? "portal" : "cli",
       trace,
       mode: deployed ? "re-run" : "first run",
-      model: model || setting("MODEL") || DEFAULT_MODEL,
+      model: resolvedModel,
       status: "running",
       waitingFor: null,
       result: null,
@@ -145,17 +185,32 @@ export function createInterviewService({
     stretch(record, null, {
       appDir,
       deployed,
-      model: record.model
+      // The organization's live catalog now (PHASE4-PLAN Step 3), kept in the interview's
+      // state so every turn, and a resumed run, plans against this one.
+      catalog: record.catalog,
+      model: record.model,
+      withheld,
+      unread,
+      cap
     });
-    return summary(record);
+    return { ...summary(record), findings: withheld };
   }
 
   /**
    * Start an interview over an uploaded zip of the app folder. The zip is unpacked into
    * a scratch folder of this interview's own, named after the app, which goes when the
    * interview does. Throws UploadRefused with a sentence when the upload breaks a rule.
+   *
+   * Before the graph starts, what arrived is scanned again (api/secret-scan.js): the
+   * shared rules and gitleaks. A file with a finding is emptied in the scratch copy, so
+   * no model call can carry it, and joins the files the client sent empty for the same
+   * reason (`findings`, file, line and rule, as the client's scan found them). Throws
+   * ScanFailed, and keeps nothing, when gitleaks is installed and could not finish.
    */
-  function startFromUpload({ zip, app, ...rest }) {
+  async function startFromUpload({ zip, app, findings = [], unread = [], ...rest }) {
+    // Before anything is unpacked: a model with no price cannot start a run.
+    const model = rest.model || setting("MODEL") || DEFAULT_MODEL;
+    if (!priceFor(model)) throw new ModelNotPriced(model);
     // Any folder name a developer might have, as one path segment and nothing more.
     if (typeof app !== "string" || !app || app.length > 200 || /[\/\\\0-\x1f]/.test(app) || /^\.+$/.test(app)) {
       throw new UploadRefused("app must be the app folder's name");
@@ -163,13 +218,39 @@ export function createInterviewService({
     fs.mkdirSync(scratchBase, { recursive: true, mode: 0o700 });
     const scratchRoot = fs.mkdtempSync(path.join(scratchBase, "int-"));
     const appDir = path.join(scratchRoot, app);
+    let withheld;
+    let heldBack;
     try {
       unzipInto(zip, appDir);
+      // Each flagged line becomes one that says why; a file with a value over many
+      // lines, or that is not text, is emptied. Either way before the graph starts.
+      const found = redactScanned(appDir, await scanApp(appDir));
+      // Archives and files that are not text are then kept as names, whatever the client
+      // sent (core/upload-rules.js). One the client already emptied is taken at its word
+      // only because it arrived empty, so the claim can never hide anything.
+      heldBack = holdNotText(appDir, unread);
+      const inside = file => {
+        const target = path.join(appDir, ...file.split("/"));
+        return target.startsWith(appDir + path.sep) ? target : null;
+      };
+      // What the client says it held back counts only where the file arrived with that
+      // line already replaced, or empty: it explains what is missing, and can never
+      // hide anything that arrived with contents.
+      const claimed = (Array.isArray(findings) ? findings : []).slice(0, 1000).map(cleanFinding).filter(Boolean).flatMap(f => {
+        try {
+          const text = fs.readFileSync(inside(f.file), "utf8");
+          if (text.length === 0) return [{ ...f, whole: true }];
+          return isRedactedLine(text.split("\n")[f.line - 1] || "") ? [f] : [];
+        } catch {
+          return [];
+        }
+      });
+      withheld = onePerLine([...claimed, ...found]).map(f => ({ ...f, whole: [...claimed, ...found].some(g => g.file === f.file && g.whole) }));
     } catch (err) {
       fs.rmSync(scratchRoot, { recursive: true, force: true });
       throw err;
     }
-    return start({ appDir, ownsDir: true, scratchRoot, ...rest });
+    return start({ appDir, ownsDir: true, scratchRoot, withheld, unread: heldBack, ...rest });
   }
 
   /**
@@ -203,9 +284,13 @@ export function createInterviewService({
         throw new Error("the platform restarted before this interview had saved its place");
       }
       const continueFrom = saved?.values?.trace || null;
+      // Which prompt this run reads: its catalog's, as the graph fills it in.
+      const catalogRef = saved?.values?.catalog || input?.catalog || record.catalog || null;
+      const catalogDoc = interviewCatalog(catalogRef);
+      const promptSha = catalogDoc ? promptVersionOf(loadSystemPrompt(catalogDoc, { starter: isStarterRef(catalogRef) })) : "unknown";
 
       return traceRun(
-        { app: record.app, mode: record.mode, model: record.model, promptSha: promptVersion(), user: record.user, continueFrom },
+        { app: record.app, mode: record.mode, model: record.model, promptSha, catalog: String(catalogRef?.version ?? "starter"), user: record.user, continueFrom },
         async run => {
           const begin = resume === RESTART
             ? null
@@ -237,7 +322,7 @@ export function createInterviewService({
           if (paused.type === "confirm") record.result = { ...strip(paused), traceId: record.traceId || undefined };
           keep(record);
           emit(record, paused.type === "confirm"
-            ? { type: "plan", ...record.result, ...filesFor(record.result) }
+            ? { type: "plan", ...record.result, ...filesFor(record.result, record.caller?.org) }
             : { type: "question", number: paused.number, question: paused.question, lead: paused.lead || [] });
           return;
         }
@@ -450,16 +535,17 @@ function strip({ type, ...rest }) {
  *
  * @returns {Promise<{status, plan?, summary?, assumptions?, questions?, validationRetries?, message?, errors?, traceId?}>}
  */
-export async function runInterview({ appPath, deployed = null, ask, onStep = () => {}, model, user, client, trace = true }) {
+export async function runInterview({ appPath, deployed = null, ask, onStep = () => {}, model, user, caller = null, client, trace = true }) {
   const service = createInterviewService({ client });
   try {
     if (!service.ready()) {
-      const err = new Error("ANTHROPIC_API_KEY is not set, so the interview cannot run.");
+      const err = new Error("ANTHROPIC_API_KEY is not set (nor SEALEYE_GATEWAY_KEY with SEALEYE_MODEL_URL), so the interview cannot run.");
       err.userFacing = true;
       throw err;
     }
 
-    const { interviewId } = service.start({ appDir: path.resolve(appPath), deployed, user, model, trace });
+    // `caller` says whose organization, and so whose live catalog, it plans against.
+    const { interviewId } = service.start({ appDir: path.resolve(appPath), deployed, user, caller, model, trace });
 
     return await new Promise((resolve, reject) => {
       service.subscribe(interviewId, 0, async event => {
@@ -489,12 +575,48 @@ export async function runInterview({ appPath, deployed = null, ask, onStep = () 
  * seaLeye.online can offer exactly what `sealeye run` writes into the folder. A plan
  * the files cannot be written for still reaches "Deploy this?"; the event says why.
  */
-function filesFor(result) {
+function filesFor(result, org = "default") {
   if (!result?.plan) return {};
   try {
-    return { files: planFiles({ plan: result.plan, summary: result.summary, assumptions: result.assumptions }) };
+    // In the words of the catalog the plan names (planVersion 0.5), as the command's are.
+    const { document: catalog } = catalogOfPlan(result.plan, org);
+    return { files: planFiles({ plan: result.plan, summary: result.summary, assumptions: result.assumptions }, { catalog: catalog || undefined }) };
   } catch (err) {
     return { filesError: err.message };
   }
 }
 
+
+/**
+ * Empty every archive and every file that is not text in an unpacked app folder, and
+ * list them with those the client says it sent empty for the same reason and that did
+ * arrive empty. Links are not followed: unzipInto writes none.
+ *
+ * @returns {string[]} paths inside the folder, "/"-separated
+ */
+export function holdNotText(appDir, claimed = []) {
+  const held = new Set();
+  const walk = (dir, rel) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const abs = path.join(dir, entry.name);
+      const childRel = rel ? `${rel}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) { walk(abs, childRel); continue; }
+      if (!entry.isFile()) continue;
+      const data = fs.readFileSync(abs);
+      if (data.length && isNotText(entry.name, data)) {
+        fs.writeFileSync(abs, "");
+        held.add(childRel);
+      }
+    }
+  };
+  walk(appDir, "");
+  for (const file of (Array.isArray(claimed) ? claimed : []).slice(0, 5000)) {
+    if (typeof file !== "string" || held.has(file)) continue;
+    const abs = path.join(appDir, ...file.split("/"));
+    if (!abs.startsWith(appDir + path.sep)) continue;
+    try {
+      if (fs.lstatSync(abs).isFile() && fs.statSync(abs).size === 0) held.add(file);
+    } catch {}
+  }
+  return [...held].sort();
+}

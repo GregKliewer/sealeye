@@ -1,0 +1,304 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  The role seaLeye builds an organization's own Terraform modules through (PHASE4-PLAN
+  Step 9; DESIGN.md, "A Terraform executor builds an organization's own modules"). A
+  second role beside platform-sealeye-deploy-role, which is unchanged. Deploy it in the
+  account the environments live in, as platform-sealeye-terraform-role. It can create
+  what the made-up organization's http-api and static-site modules create, and the
+  document-table, file-bucket and work-queue modules an app uses beside them, under the
+  names seaLeye gives them (sealeye-<app>-<hash>, at the dev stage), and read and write
+  their state, and nothing else.
+
+Parameters:
+  ServerRoleArn:
+    Description: The ServerRoleArn output of platform-sealeye-server
+    Type: String
+    AllowedPattern: "arn:aws:iam::\\d{12}:role/.+"
+  ArtifactBucket:
+    Description: The bucket seaLeye keeps artifacts in (SEALEYE_BUCKET); state goes under tofu-state/ in it
+    Type: String
+    AllowedPattern: "^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$"
+    ConstraintDescription: an S3 bucket name, such as the SEALEYE_BUCKET the API uses
+  RoleSuffix:
+    Description: Names the role sealeye-deploy-terraform-<suffix>
+    Type: String
+    Default: pilot
+    AllowedPattern: "[a-z0-9-]+"
+
+Resources:
+  # The most a function built from an organization's module may do, whatever its own
+  # role says: write its logs, and use the table, bucket and queue of its own
+  # environment, the ones the modules it uses make (sealeye-<app>-<hash>-dev). The
+  # policies that grant it are the library's (access_policy_arn); this only bounds them.
+  # Set it as the organization's permissions_boundary_arn platform value (sealeye
+  # platform set permissions_boundary_arn <arn>). The role below creates a function's
+  # role only with this boundary on it.
+  FunctionBoundary:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub "sealeye-function-boundary-terraform-${RoleSuffix}"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: [logs:CreateLogGroup, logs:CreateLogStream, logs:PutLogEvents]
+            Resource: "*"
+          - Effect: Allow
+            Action: [dynamodb:GetItem, dynamodb:BatchGetItem, dynamodb:Query, dynamodb:Scan, dynamodb:PutItem, dynamodb:UpdateItem, dynamodb:DeleteItem, dynamodb:BatchWriteItem, dynamodb:ConditionCheckItem, dynamodb:DescribeTable]
+            Resource:
+              - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/sealeye-*-dev"
+              - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/sealeye-*-dev/index/*"
+          - Effect: Allow
+            Action: s3:ListBucket
+            Resource: "arn:aws:s3:::*-files-sealeye-*-dev"
+          - Effect: Allow
+            Action: [s3:GetObject, s3:PutObject, s3:DeleteObject]
+            Resource: "arn:aws:s3:::*-files-sealeye-*-dev/*"
+          - Effect: Allow
+            Action: [sqs:SendMessage, sqs:ReceiveMessage, sqs:DeleteMessage, sqs:ChangeMessageVisibility, sqs:GetQueueAttributes, sqs:GetQueueUrl]
+            Resource: !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:sealeye-*-dev"
+
+  TerraformRole:
+    Type: AWS::IAM::Role
+    Properties:
+      # sealeye-deploy-*, which the server's role may become (deploy/server.yaml).
+      RoleName: !Sub "sealeye-deploy-terraform-${RoleSuffix}"
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { AWS: !Ref ServerRoleArn }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: sealeye-deploy-terraform
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: Identity
+                Effect: Allow
+                Action: sts:GetCallerIdentity
+                Resource: "*"
+
+              # State, one object per environment under tofu-state/, and its lock file
+              # beside it. Nothing else in the platform's bucket.
+              - Sid: State
+                Effect: Allow
+                Action: [s3:GetObject, s3:PutObject, s3:DeleteObject]
+                Resource: !Sub "arn:aws:s3:::${ArtifactBucket}/tofu-state/*"
+              - Sid: StateList
+                Effect: Allow
+                Action: s3:ListBucket
+                Resource: !Sub "arn:aws:s3:::${ArtifactBucket}"
+                Condition:
+                  StringLike:
+                    s3:prefix: ["tofu-state/*"]
+
+              # http-api: the function's role, ${name}-${stage}-api, so sealeye-*-dev-api.
+              # Created only with the boundary above on it; its policies changed only while
+              # it is; only Lambda's basic logging policy attached.
+              - Sid: FunctionRoles
+                Effect: Allow
+                Action:
+                  - iam:GetRole
+                  - iam:DeleteRole
+                  - iam:TagRole
+                  - iam:UntagRole
+                  - iam:ListRolePolicies
+                  - iam:ListAttachedRolePolicies
+                  - iam:ListInstanceProfilesForRole
+                  - iam:ListRoleTags
+                Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/sealeye-*-dev-api"
+              - Sid: FunctionRolesWithinBoundary
+                Effect: Allow
+                Action: [iam:CreateRole, iam:PutRolePermissionsBoundary]
+                Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/sealeye-*-dev-api"
+                Condition:
+                  ArnEquals:
+                    iam:PermissionsBoundary: !Ref FunctionBoundary
+              # Lambda's basic logging policy, and the policies the modules an app uses
+              # make for it (access_policy_arn, under its environment's name). The
+              # boundary above bounds what any of them can grant.
+              - Sid: FunctionRolePolicy
+                Effect: Allow
+                Action: [iam:AttachRolePolicy, iam:DetachRolePolicy]
+                Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/sealeye-*-dev-api"
+                Condition:
+                  ArnLike:
+                    iam:PolicyARN:
+                      - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+                      - !Sub "arn:aws:iam::${AWS::AccountId}:policy/sealeye-*-dev-*"
+              # The secrets an app may read, as the role's own policy (http-api's
+              # secret_arns).
+              - Sid: FunctionRoleOwnPolicy
+                Effect: Allow
+                Action: [iam:PutRolePolicy, iam:DeleteRolePolicy, iam:GetRolePolicy]
+                Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/sealeye-*-dev-api"
+              # The policies a table, bucket or queue module makes for the app that uses
+              # it: named after its environment, at dev.
+              - Sid: AccessPolicies
+                Effect: Allow
+                Action:
+                  - iam:CreatePolicy
+                  - iam:DeletePolicy
+                  - iam:GetPolicy
+                  - iam:GetPolicyVersion
+                  - iam:ListPolicyVersions
+                  - iam:CreatePolicyVersion
+                  - iam:DeletePolicyVersion
+                  - iam:TagPolicy
+                  - iam:UntagPolicy
+                  - iam:ListEntitiesForPolicy
+                Resource: !Sub "arn:aws:iam::${AWS::AccountId}:policy/sealeye-*-dev-*"
+              - Sid: KeepTheBoundary
+                Effect: Deny
+                Action: iam:DeleteRolePermissionsBoundary
+                Resource: "*"
+              - Sid: PassFunctionRole
+                Effect: Allow
+                Action: iam:PassRole
+                Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/sealeye-*-dev-api"
+                Condition:
+                  StringEquals:
+                    iam:PassedToService: lambda.amazonaws.com
+
+              # http-api: the function, sealeye-*-dev-api, read the way the provider reads
+              # one, and its log group.
+              - Sid: Functions
+                Effect: Allow
+                Action:
+                  - lambda:CreateFunction
+                  - lambda:DeleteFunction
+                  - lambda:UpdateFunctionCode
+                  - lambda:UpdateFunctionConfiguration
+                  - lambda:AddPermission
+                  - lambda:RemovePermission
+                  - lambda:TagResource
+                  - lambda:UntagResource
+                  - lambda:Get*
+                  - lambda:List*
+                Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sealeye-*-dev-api"
+              - Sid: Logs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:DeleteLogGroup
+                  - logs:PutRetentionPolicy
+                  - logs:DeleteRetentionPolicy
+                  - logs:TagResource
+                  - logs:UntagResource
+                  - logs:ListTagsForResource
+                  - logs:TagLogGroup
+                  - logs:UntagLogGroup
+                  - logs:ListTagsLogGroup
+                Resource:
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/sealeye-*"
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/sealeye-*:*"
+              - Sid: DescribeLogs
+                Effect: Allow
+                Action: logs:DescribeLogGroups
+                Resource: "*"
+              # http-api: its HTTPS address. API Gateway names nothing in an ARN, as the
+              # CloudFormation role's statement says too.
+              # Every part of it is tagged as it is made (the provider's default tags), and
+              # API Gateway asks for its own tagging actions for that, beside the method
+              # ones: without them a stage cannot be made (the first build, Oct 17, 2026).
+              - Sid: HttpApis
+                Effect: Allow
+                Action: [apigateway:GET, apigateway:POST, apigateway:PUT, apigateway:PATCH, apigateway:DELETE, apigateway:TagResource, apigateway:UntagResource]
+                Resource:
+                  - !Sub "arn:aws:apigateway:${AWS::Region}::/apis"
+                  - !Sub "arn:aws:apigateway:${AWS::Region}::/apis/*"
+                  - !Sub "arn:aws:apigateway:${AWS::Region}::/tags/*"
+
+              # document-table: the table, ${name}-${stage}, so sealeye-*-dev.
+              - Sid: Tables
+                Effect: Allow
+                Action:
+                  - dynamodb:CreateTable
+                  - dynamodb:DeleteTable
+                  - dynamodb:DescribeTable
+                  - dynamodb:UpdateTable
+                  - dynamodb:DescribeContinuousBackups
+                  - dynamodb:UpdateContinuousBackups
+                  - dynamodb:DescribeTimeToLive
+                  - dynamodb:TagResource
+                  - dynamodb:UntagResource
+                  - dynamodb:ListTagsOfResource
+                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/sealeye-*-dev"
+              # work-queue: the queue and its failed queue, sealeye-*-dev and -dev-failed.
+              - Sid: Queues
+                Effect: Allow
+                Action:
+                  - sqs:CreateQueue
+                  - sqs:DeleteQueue
+                  - sqs:GetQueueAttributes
+                  - sqs:SetQueueAttributes
+                  - sqs:GetQueueUrl
+                  - sqs:TagQueue
+                  - sqs:UntagQueue
+                  - sqs:ListQueueTags
+                  - sqs:PurgeQueue
+                Resource:
+                  - !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:sealeye-*-dev"
+                  - !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:sealeye-*-dev-failed"
+              # static-site: the site's bucket, juniper-site-${name}-${stage}, so a name
+              # with sealeye- in it that ends -dev. Never the platform's own bucket, whose
+              # name does not end -dev. Files uploaded, and emptied before a tear-down.
+              - Sid: SiteBuckets
+                Effect: Allow
+                Action:
+                  - s3:CreateBucket
+                  - s3:DeleteBucket
+                  - s3:DeleteBucketPolicy
+                  - s3:Get*
+                  - s3:List*
+                  - s3:PutBucketPolicy
+                  - s3:PutBucketPublicAccessBlock
+                  - s3:PutBucketTagging
+                  - s3:PutBucketOwnershipControls
+                  - s3:PutEncryptionConfiguration
+                  - s3:PutBucketVersioning
+                Resource: "arn:aws:s3:::*sealeye-*-dev"
+              - Sid: SiteFiles
+                Effect: Allow
+                Action: [s3:PutObject, s3:GetObject, s3:DeleteObject, s3:ListBucket]
+                Resource: "arn:aws:s3:::*sealeye-*-dev/*"
+              # static-site: the content network in front of it. A distribution's ARN
+              # names nothing of seaLeye's, so this reaches every distribution in the
+              # account: the pilot account has none of its own. Cleared after an upload so
+              # new files show at once (refreshSite in api/executor/cfn.js).
+              - Sid: ContentNetwork
+                Effect: Allow
+                Action:
+                  - cloudfront:CreateDistribution
+                  - cloudfront:CreateDistributionWithTags
+                  - cloudfront:GetDistribution
+                  - cloudfront:GetDistributionConfig
+                  - cloudfront:UpdateDistribution
+                  - cloudfront:DeleteDistribution
+                  - cloudfront:TagResource
+                  - cloudfront:UntagResource
+                  - cloudfront:ListTagsForResource
+                  - cloudfront:CreateInvalidation
+                  - cloudfront:GetInvalidation
+                  - cloudfront:CreateOriginAccessControl
+                  - cloudfront:GetOriginAccessControl
+                  - cloudfront:GetOriginAccessControlConfig
+                  - cloudfront:UpdateOriginAccessControl
+                  - cloudfront:DeleteOriginAccessControl
+                Resource:
+                  - !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/*"
+                  - !Sub "arn:aws:cloudfront::${AWS::AccountId}:origin-access-control/*"
+              - Sid: ContentNetworkLists
+                Effect: Allow
+                Action: [cloudfront:ListDistributions, cloudfront:ListOriginAccessControls, cloudfront:GetCachePolicy]
+                Resource: "*"
+
+Outputs:
+  FunctionBoundaryArn:
+    Description: Set as the organization's permissions_boundary_arn platform value
+    Value: !Ref FunctionBoundary
+  TerraformRoleArn:
+    Description: Store as /sealeye/SEALEYE_TERRAFORM_ROLE_ARN
+    Value: !GetAtt TerraformRole.Arn

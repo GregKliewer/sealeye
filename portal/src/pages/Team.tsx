@@ -8,13 +8,14 @@ import { PageTitle, Problem } from "../Layout";
 import { Badge } from "../components/ui/badge";
 import { Card } from "../components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
+import { label } from "../../../core/operations.js";
 
 export function TeamPage() {
   const team = useLoad(api.team);
   const data = team.data;
   return (
     <>
-      <PageTitle title="Team" sub={data?.everyTeam ? "Everyone in your organization with a seaLeye token." : data?.team ? `Everyone on team ${data.team} with a seaLeye token. Your platform team issues them.` : undefined} />
+      <PageTitle title={label("team")} sub={data?.everyTeam ? "Everyone in your organization with a seaLeye token." : data?.team ? `Everyone on team ${data.team} with a seaLeye token. Your platform team issues them.` : undefined} />
       {team.error ? <Problem message={team.error} /> : null}
       {data?.note ? <p className="text-dim">{data.note}</p> : null}
       {data && !data.note ? (

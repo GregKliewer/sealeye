@@ -43,7 +43,7 @@ test("Environments shows your team's environments, read live from the API", asyn
   await expect(page.getByText("built for your team, default")).toBeVisible();
   await expect(page.getByText("Northwind Payments")).toBeVisible();
   const rows = page.getByTestId("environment-row");
-  await expect(rows).toHaveCount(4);
+  await expect(rows).toHaveCount(5);
   await expect(rows.filter({ hasText: "payments-api" })).toContainText("Live");
   await expect(rows.filter({ hasText: "inventory-api" })).toContainText("Building");
   await expect(rows.filter({ hasText: "report-builder" })).toContainText("Failed");
@@ -51,8 +51,12 @@ test("Environments shows your team's environments, read live from the API", asyn
   await expect(page.getByText("another-teams-api")).toHaveCount(0);
 
   await page.getByLabel("Include drafted and torn down").check();
-  await expect(rows).toHaveCount(6);
+  await expect(rows).toHaveCount(7);
   await expect(rows.filter({ hasText: "ledger-sync" })).toContainText("Drafted");
+  // A torn-down record keeps the address it had, and the list does not link to it.
+  const gone = rows.filter({ hasText: "old-demo" });
+  await expect(gone).toContainText("None, it was torn down");
+  await expect(gone.getByRole("link", { name: /s3-website/ })).toHaveCount(0);
 
   await page.getByLabel("Search apps and people").fill("ana");
   await expect(rows).toHaveCount(3);
@@ -98,8 +102,15 @@ test("Catalog shows the modules and what apps are waiting on", async ({ page }) 
   await signIn(page);
   await page.getByRole("link", { name: "Catalog" }).click();
   await expect(page.getByTestId("module-card")).toHaveCount(4);
-  await expect(page.getByTestId("need-row")).toHaveCount(1);
-  await expect(page.getByTestId("need-row")).toContainText("ledger-sync");
+  // Which catalog, in the words `sealeye catalog` says: every organization has the starter.
+  await expect(page.getByTestId("catalog-version")).toHaveText(/^The starter catalog: the modules seaLeye builds on its own/);
+  const rows = page.getByTestId("need-row");
+  await expect(rows).toHaveCount(2);
+  await expect(rows.first()).toContainText("ledger-sync");
+  // A need in the interview's own words is shown apart, as sealeye needs shows it.
+  const unlisted = rows.filter({ hasText: "a search index over its records" });
+  await expect(unlisted.getByTestId("unlisted")).toHaveText("Not in the list yet");
+  await expect(rows.filter({ hasText: "a relational database" }).getByTestId("unlisted")).toHaveCount(0);
 });
 
 test("an environment can be torn down from the portal, and the record says so", async ({ page }) => {
@@ -107,6 +118,8 @@ test("an environment can be torn down from the portal, and the record says so", 
   await page.getByRole("link", { name: "marketing-site", exact: true }).click();
   await expect(page.getByTestId("status")).toHaveText("Live");
   await expect(page.getByTestId("history-row")).toHaveCount(1);
+  // The command line for the same thing, in the command's own word.
+  await expect(page.getByTestId("teardown").getByTestId("command-hint")).toContainText("sealeye teardown marketing-site");
 
   await page.getByRole("button", { name: "Tear down" }).click();
   const confirm = page.getByRole("button", { name: "Tear it down" });
@@ -119,6 +132,28 @@ test("an environment can be torn down from the portal, and the record says so", 
   await expect(page.getByText("Tear down asked by")).toBeVisible();
   await expect(page.getByText("Greg Kliewer from the portal", { exact: false }).first()).toBeVisible();
   await expect(page.getByTestId("status")).toHaveText("Torn down", { timeout: 20_000 });
+  // Gone, so no address to follow, though the record keeps the one it had.
+  await expect(page.getByTestId("address")).toHaveText("None, it was torn down");
+  await expect(page.getByTestId("address").getByRole("link")).toHaveCount(0);
+});
+
+test("a tear-down run from the command line shows on the open page without a refresh", async ({ page, request }) => {
+  await signIn(page);
+  await page.getByRole("link", { name: "cli-side-api", exact: true }).click();
+  await expect(page.getByTestId("status")).toHaveText("Live");
+  await expect(page.getByTestId("address").getByRole("link")).toHaveText("https://cli789.lambda-url.ca-central-1.on.aws/");
+  // Marked, so a reload would show: the page must follow without one.
+  await page.evaluate(() => { (window as unknown as { stayed: boolean }).stayed = true; });
+
+  // What `sealeye teardown cli-side-api` sends: the token, straight to the API.
+  const res = await request.delete("http://localhost:3999/deployments/dep_hhhhhhhhhhh1", { headers: { authorization: `Bearer ${TOKEN}` } });
+  expect(res.status()).toBe(202);
+
+  await expect(page.getByTestId("status")).toHaveText(/Tearing down|Torn down/, { timeout: 5_000 });
+  await expect(page.getByTestId("status")).toHaveText("Torn down", { timeout: 20_000 });
+  await expect(page.getByText("Greg Kliewer from the command line", { exact: false }).last()).toBeVisible();
+  await expect(page.getByTestId("address")).toHaveText("None, it was torn down");
+  expect(await page.evaluate(() => (window as unknown as { stayed?: boolean }).stayed)).toBe(true);
 });
 
 test("Evidence reads the change record on request, in the command's words, with the file to download", async ({ page }) => {
@@ -132,7 +167,7 @@ test("Evidence reads the change record on request, in the command's words, with 
   await expect(card).toContainText("Change record for ledger-sync (no stack, profile dev)");
   const rows = card.getByTestId("evidence-row");
   await expect(rows).toHaveCount(5);
-  await expect(rows.filter({ hasText: "Approved plan" })).toContainText("one need");
+  await expect(rows.filter({ hasText: "Approved plan" })).toContainText("two needs");
   await expect(rows.filter({ hasText: "Built" })).toContainText("nothing.");
   await expect(rows.filter({ hasText: "Checked now" })).toContainText("nothing to check");
 
@@ -153,6 +188,39 @@ test("Evidence can be read for an earlier deployment from the history", async ({
   await page.getByRole("button", { name: "Evidence for dep_aaaaaaaaaaa0" }).click();
   await expect(card).toContainText("dep_aaaaaaaaaaa0");
   await expect(card).not.toContainText("(the latest)");
+});
+
+test("The plan and report for a deployment, and for an earlier one from the history, as sealeye plan writes them", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("link", { name: "payments-api", exact: true }).click();
+  const card = page.getByTestId("plan-card");
+  await expect(card).toContainText("dep_aaaaaaaaaaa1 (the latest)");
+  // Made before the approved files were kept: written from its plan, and it says so.
+  await expect(card.getByTestId("plan-file")).toContainText("Deployment Plan");
+  await expect(card).toContainText("made before seaLeye kept the approved files");
+  await expect(card.getByTestId("plan-file")).not.toContainText("No assumptions were needed");
+  const [yaml] = await Promise.all([page.waitForEvent("download"), card.getByRole("button", { name: "Download sealeye.yaml" }).click()]);
+  expect(yaml.suggestedFilename()).toBe("sealeye.yaml");
+
+  await card.getByRole("button", { name: "The report" }).click();
+  await expect(card.getByTestId("report-file")).toContainText("Your API is live at https://abc123.lambda-url.ca-central-1.on.aws/");
+  const [report] = await Promise.all([page.waitForEvent("download"), card.getByRole("button", { name: "Download DEPLOYMENT_REPORT.md" }).click()]);
+  expect(report.suggestedFilename()).toBe("DEPLOYMENT_REPORT.md");
+
+  await page.getByRole("button", { name: "Plan and report for dep_aaaaaaaaaaa0" }).click();
+  await expect(card).toContainText("dep_aaaaaaaaaaa0");
+  await expect(card).not.toContainText("(the latest)");
+  await card.getByRole("button", { name: "The report" }).click();
+  await expect(card.getByTestId("no-report")).toContainText("This deployment has no report.");
+});
+
+test("A failed deployment's card says why it has no report", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("link", { name: "report-builder", exact: true }).click();
+  const card = page.getByTestId("plan-card");
+  await card.getByRole("button", { name: "The report" }).click();
+  await expect(card.getByTestId("no-report")).toContainText("This deployment failed, so there is no report.");
+  await expect(card.getByTestId("no-report")).toContainText("index.js was not in the folder");
 });
 
 test("Validate says whether a plan is ready, drafted, or cannot be deployed, as sealeye validate does", async ({ page }) => {
@@ -204,10 +272,12 @@ test("Deploy again sends the code an earlier deployment packaged, and the histor
   await signIn(page);
   await page.getByRole("link", { name: "payments-api", exact: true }).click();
   const card = page.getByTestId("deploy-again");
-  await expect(card).toContainText("dep_aaaaaaaaaaa1");
+  await expect(card.getByTestId("command-hint")).toContainText("sealeye deploy --again payments-api");
   const rows = page.getByTestId("history-row");
   const before = await rows.count();
   await card.getByRole("button", { name: "Deploy again" }).click();
+  // What it does is said where it is asked.
+  await expect(page.getByRole("dialog")).toContainText("dep_aaaaaaaaaaa1");
   await page.getByRole("button", { name: "Deploy it" }).click();
   await expect(rows).toHaveCount(before + 1);
   const newest = rows.first();
@@ -308,6 +378,65 @@ test("New environment holds the interview in the browser, stores what the plan n
   expect(await page.content()).not.toContain(SECRET);
 });
 
+// A value shaped like a Stripe key, put together here so no file holds one.
+const FAKE_KEY = ["sk", "_live_", "Q7rT2vX9mK4pL8wN3bZ6cF1h"].join("");
+
+test("a key written into the code is never sent, the rest of its file is read, and its deploy is refused, as sealeye run says", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/new");
+  const dir = appFolder("orders-api", {
+    "package.json": JSON.stringify({ name: "orders-api", version: "1.0.0" }),
+    "index.js": `const http = require('http');\nconst stripe = require('stripe')('${FAKE_KEY}');\nhttp.createServer((q, s) => s.end('ok')).listen(process.env.PORT);\n`
+  });
+  await page.getByLabel("Choose your app's folder").setInputFiles(dir);
+  await page.getByRole("button", { name: "Read my app" }).click();
+
+  // Before anything else: which file, which line, what kind, and what happens next.
+  const note = page.getByTestId("secret-findings");
+  await expect(note).toContainText("index.js, line 2, looks like it holds a Stripe key.");
+  await expect(note).toContainText("That line was not sent: the interview reads the rest of the file without it.");
+
+  // The model reads the file, with that line replaced by one that says why.
+  const lines = page.getByTestId("interview-lines");
+  await expect(lines).toContainText("Reading index.js", { timeout: 20_000 });
+  await expect(lines).toContainText("Who calls this API?", { timeout: 20_000 });
+  await page.getByLabel("Your answer").fill("Our checkout service");
+  await page.getByRole("button", { name: "Answer" }).click();
+  const plan = page.getByTestId("plan");
+  await expect(plan).toContainText("Ready", { timeout: 20_000 });
+
+  await plan.getByRole("button", { name: "Yes, deploy it" }).click();
+  // GREETING may already be in the store from the test before; if not, store it.
+  const settings = page.getByTestId("store-settings");
+  const refusal = page.getByTestId("secrets-refusal");
+  await expect(settings.or(refusal)).toBeVisible();
+  if (await settings.isVisible()) {
+    await settings.getByLabel("Value for GREETING").fill("hello-from-the-portal");
+    await settings.getByRole("button", { name: "Store it" }).click();
+    await expect(settings.getByRole("status")).toHaveText("Every setting is stored.");
+    await settings.getByRole("button", { name: "Deploy it" }).click();
+  }
+
+  // Refused here, before the folder was sent, in the command's words.
+  await expect(refusal).toContainText("Nothing was deployed: your code looks like it holds a secret.");
+  await expect(refusal).toContainText("index.js, line 2, looks like it holds a Stripe key.");
+  await expect(refusal).toContainText("sealeye settings set NAME, or Settings in seaLeye.online");
+  await expect(refusal.locator("pre")).toHaveText("index.js:2:stripe-key");
+  expect(await page.content()).not.toContain(FAKE_KEY);
+});
+
+test("a run that reaches its spending limit stops, and says so in the command's words", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/new");
+  const dir = appFolder("looping-api", { "package.json": JSON.stringify({ name: "looping-api" }), "index.js": "x" });
+  await page.getByLabel("Choose your app's folder").setInputFiles(dir);
+  await page.getByRole("button", { name: "Read my app" }).click();
+  const alert = page.getByRole("alert");
+  await expect(alert).toContainText("This run reached its spending limit before it had a plan, so it stopped there.", { timeout: 20_000 });
+  await expect(alert).toContainText("Run sealeye run again");
+  await expect(alert).not.toContainText("$");
+});
+
 test("a drafted plan from New environment is saved, and says what it needs", async ({ page }) => {
   await signIn(page);
   await page.goto("/new");
@@ -366,11 +495,15 @@ test("Pause stops an API taking requests and Resume starts it again, read back e
   await page.getByRole("link", { name: "payments-api", exact: true }).click();
   const card = page.getByTestId("pause");
   await expect(card.getByTestId("pause-state")).toHaveText("Taking requests");
-  await card.getByRole("button", { name: "Pause" }).click();
+  await expect(card.getByTestId("command-hint")).toContainText("sealeye pause");
+  await card.getByRole("button", { name: "Pause", exact: true }).click();
+  await expect(page.getByRole("dialog")).toContainText("Nothing is removed");
+  await page.getByRole("button", { name: "Pause it" }).click();
   await expect(card.getByTestId("pause-state")).toHaveText("Paused");
+  await expect(card.getByTestId("command-hint")).toContainText("sealeye resume");
   await expect(card).toContainText("Paused by Greg Kliewer from the portal");
   await expect(page.getByTestId("status")).toHaveText("Paused");
-  await card.getByRole("button", { name: "Resume" }).click();
+  await card.getByRole("button", { name: "Resume", exact: true }).click();
   await expect(card.getByTestId("pause-state")).toHaveText("Taking requests");
   await expect(page.getByTestId("status")).toHaveText("Live");
 });
@@ -482,13 +615,13 @@ test("an environment being built says so everywhere, and locks what would change
   await expect(banner.getByTestId("under-way-elapsed")).toHaveText(/^\d+m \d\ds$/);
   await expect(page).toHaveTitle("Building · inventory-api");
 
-  // Every card that would change it is locked, and says why.
-  for (const id of ["deploy-again", "pause", "configure"]) {
+  // Every card that would change it is locked, and says why: the actions once, for all three.
+  for (const id of ["actions", "configure"]) {
     await expect(page.getByTestId(id).getByTestId("locked")).toContainText(/Locked while building, started \d+m ago/);
   }
   await expect(page.getByRole("button", { name: "Tear down" })).toBeDisabled();
   await expect(page.getByRole("button", { name: "Deploy again" })).toBeDisabled();
-  await expect(page.getByTestId("pause").getByRole("button", { name: "Pause" })).toBeDisabled();
+  await expect(page.getByTestId("pause").getByRole("button", { name: "Pause", exact: true })).toBeDisabled();
   await expect(page.getByTestId("settings-while-moving")).toBeVisible();
 
   // The history: the build under way stands out with its step; the earlier deploy is
@@ -516,4 +649,289 @@ test("an earlier deploy a newer one replaced says so, and only the newest is Liv
   await expect(older).toContainText("Replaced");
   await expect(older.getByTestId("replaced-by")).toContainText("by dep_");
   await expect(rows.filter({ hasText: "Live" })).toHaveCount(1);
+});
+
+// Discovery (PHASE4-PLAN Step 6b): a platform engineer's page, for an organization-wide
+// token only, as `sealeye discover` is.
+async function signInOrgWide(page: Page) {
+  await page.goto("/sign-in");
+  await page.fill("#token", `sl_${"z".repeat(43)}`);
+  await page.click("button[type=submit]");
+  await expect(page.getByTestId("person")).toHaveText("Lee Admin");
+}
+
+test("a team's token sees no Discovery page, and is sent home from its address", async ({ page }) => {
+  await signIn(page);
+  await expect(page.getByRole("navigation", { name: "Sections" })).not.toContainText("Discovery");
+  await page.goto("/discovery");
+  await expect(page).toHaveURL(/\/$/);
+});
+
+test("Discovery shows the run, its open question, and the draft resting on it; an answer is taken", async ({ page }) => {
+  await signInOrgWide(page);
+  await page.getByRole("navigation", { name: "Sections" }).getByText("Discovery").click();
+  await expect(page.getByTestId("run")).toContainText("Finished, draft catalog 1");
+  await expect(page.getByTestId("run")).toContainText("northwind/platform-library at 5e63aa5");
+  await expect(page.getByTestId("command-hint").first()).toContainText("sealeye discover");
+
+  const q = page.getByTestId("open-question");
+  await expect(q).toHaveCount(1);
+  await expect(q).toContainText("Does cache-valkey replace cache-redis for new apps?");
+  await expect(q).toContainText("the run's guess");
+  await expect(q).toContainText("modules/cache-redis/README.md:3");
+  await expect(page.getByTestId("answer-anytime")).toContainText("The run carries on while these wait");
+  await expect(page.getByTestId("answer-anytime")).toContainText("sealeye discover answers");
+  await expect(page.getByTestId("run-progress")).toHaveCount(0);
+  await expect(page.getByTestId("draft-module")).toHaveCount(3);
+  await expect(page.getByTestId("rests-on-question")).toHaveCount(1);
+  await expect(page.getByTestId("answered-question")).toContainText("postgres-cluster");
+
+  // An answer of one's own, in words.
+  await q.getByLabel("Something else").check();
+  await q.getByLabel("Your own answer").fill("Only the payments and lending teams, until the trial ends");
+  await q.getByRole("button", { name: "Answer" }).click();
+  await expect(page.getByTestId("open-question")).toHaveCount(0);
+  await expect(page.getByTestId("answered-question").filter({ hasText: "trial ends" })).toContainText("lead@example.com");
+  // Written into the draft by the stand-in supervisor, after the answer: the page looks
+  // again by itself, so it shows without a refresh (Greg, Oct 15, 2026).
+  await expect(page.getByTestId("rests-on-question")).toHaveCount(0, { timeout: 12_000 });
+  await expect(page.getByTestId("answered-question").filter({ hasText: "trial ends" })).toContainText("in the draft", { timeout: 12_000 });
+});
+
+test("starting a run with no library named says so in words", async ({ page }) => {
+  await signInOrgWide(page);
+  await page.goto("/discovery");
+  await page.getByTestId("start-discovery").click();
+  await expect(page.getByRole("alert")).toContainText("No platform library is named for discovery yet");
+});
+
+// Editing a draft's words before approving it, as `sealeye catalog edit` does (Greg, Oct 16).
+test("Edit words: a draft entry's line changed on the page, the self-test run again, the entry marked edited", async ({ page }) => {
+  await signInOrgWide(page);
+  await page.goto("/discovery");
+  const row = page.getByTestId("draft-module").filter({ hasText: "postgres" });
+  await row.getByTestId("edit-words").click();
+  const panel = page.getByTestId("edit-words-panel");
+  await expect(panel).toContainText("Its id, inputs and whether it is offered stay as the library says");
+  await expect(panel.getByTestId("command-hint")).toContainText("sealeye catalog edit 1 postgres");
+  const line = panel.getByLabel("What it gives an app");
+  await line.fill("A relational database for your app, below staging.");
+  await panel.getByRole("button", { name: "Save" }).first().click();
+  await expect(panel.getByTestId("self-test-summary")).toHaveText("Catalog 1 passed its self-test.");
+  await expect(row).toContainText("A relational database for your app, below staging.");
+  await expect(row).toContainText("edited");
+  await expect(panel).toContainText("edited by lead@example.com");
+  // Once the draft is read back, the panel still shows what the save's self-test said.
+  await expect(panel.getByTestId("self-test-summary")).toHaveText("Catalog 1 passed its self-test.");
+  await expect(panel.getByLabel("What it gives an app")).toHaveValue("A relational database for your app, below staging.");
+});
+
+// Fixing what blocks approval, as `sealeye catalog fix` does (DESIGN.md, "What blocks
+// approval is fixed in one walk"). Leaves catalog 1 a draft that passes, for the next test.
+test("Fix what blocks approval: Edit words marks the field, a refused Approve offers the walk, and it ends passing", async ({ page }) => {
+  await signInOrgWide(page);
+  await page.goto("/discovery");
+  const row = page.getByTestId("draft-module").filter({ hasText: "postgres" });
+  await row.getByTestId("edit-words").click();
+  const panel = page.getByTestId("edit-words-panel");
+  await panel.getByLabel("What it gives an app").fill("A relational database, run outside Terraform.");
+  await panel.getByRole("button", { name: "Save" }).first().click();
+  await expect(panel.getByTestId("field-fails")).toHaveText('✗ Not: "Terraform"');
+  await row.getByTestId("edit-words").click();
+
+  const card = page.getByTestId("catalogs");
+  const one = card.getByTestId("catalog-row").filter({ has: page.getByRole("cell", { name: "1", exact: true }) });
+  await one.getByTestId("catalog-approve").click();
+  await expect(card.getByTestId("fix-offer")).toContainText("Fix these now?");
+  await card.getByTestId("fix-offer-yes").click();
+  const walk = card.getByTestId("fix-walk");
+  await expect(walk.getByTestId("fix-step")).toContainText("1 of 1");
+  await expect(walk.getByTestId("fix-step")).toContainText("postgres");
+  await expect(walk.getByTestId("fix-avoid")).toHaveText('Not: "Terraform"');
+  await expect(walk.getByTestId("command-hint")).toContainText("sealeye catalog fix 1");
+
+  // A word still there is caught before it is saved.
+  await walk.getByTestId("fix-text").fill("A relational database, kept by Terraform.");
+  await walk.getByTestId("fix-save").click();
+  await expect(walk.getByRole("alert")).toContainText('That still says "Terraform"');
+  await walk.getByTestId("fix-text").fill("A relational database for your app, below staging.");
+  await walk.getByTestId("fix-save").click();
+  await expect(walk.getByTestId("fix-counts")).toHaveText("Changed 1 field.");
+  await expect(walk.getByTestId("self-test-summary")).toHaveText("Catalog 1 passed its self-test.");
+  await expect(walk.getByTestId("fix-approve")).toBeVisible();
+  await expect(one).toContainText("Draft");
+  await walk.getByRole("button", { name: "Close" }).click();
+  await expect(card.getByTestId("fix-walk")).toHaveCount(0);
+});
+
+// Approving and making live (PHASE4-PLAN Step 7), as `sealeye catalog` does. The sample
+// draft builds nothing yet (Terraform modules), and the sample environments run on the
+// starter's, so making it live is refused, naming them, and nothing changes.
+test("Catalogs: the self-test, approving a draft, and making live refused while environments use the starter", async ({ page }) => {
+  await signInOrgWide(page);
+  await page.goto("/discovery");
+  const card = page.getByTestId("catalogs");
+  const one = card.getByTestId("catalog-row").filter({ has: page.getByRole("cell", { name: "1", exact: true }) });
+  await expect(card.getByTestId("live-catalog")).toContainText("starter catalog");
+  await expect(card.getByTestId("catalog-row")).toHaveCount(2);
+  await expect(one).toContainText("Draft");
+  await expect(card.getByTestId("command-hint")).toContainText("sealeye catalog versions");
+
+  await one.getByRole("button", { name: "Self-test" }).click();
+  await expect(card.getByTestId("self-test-summary")).toHaveText("Catalog 1 passed its self-test.");
+  await expect(card.getByTestId("self-test-check")).toHaveCount(5);
+  await expect(card.getByTestId("self-test")).toContainText("postgres: its code has not been checked for commands it would run");
+  await expect(card.getByTestId("self-test")).toContainText("It builds nothing yet");
+
+  await one.getByTestId("catalog-approve").click();
+  await expect(card.getByTestId("catalog-done")).toHaveText("Catalog 1 is approved. Nothing changes for developers until it is made live.");
+  await expect(one).toContainText("Approved, not live");
+  await expect(one).toContainText("approved by lead@example.com");
+
+  await one.getByTestId("catalog-live").click();
+  await expect(card.getByTestId("confirm-live")).toContainText("Every developer in your organization plans against it from now on");
+  await card.getByTestId("confirm-live-yes").click();
+  await expect(page.getByRole("alert")).toContainText("Catalog 1 cannot be made live: it does not build what");
+  await expect(card.getByTestId("live-catalog")).toContainText("starter catalog");
+});
+
+// The rough-edges step (Greg, Oct 16, 2026): a token for another organization says which
+// it is, and the portal shows nothing that organization does not have.
+test("another organization's token sees its own name, and no Costs", async ({ page }) => {
+  await page.goto("/sign-in");
+  await page.fill("#token", `sl_${"o".repeat(43)}`);
+  await page.click("button[type=submit]");
+  await expect(page.getByTestId("person")).toHaveText("Other Org");
+  await expect(page.getByTestId("organization")).toHaveText("other-org");
+  await expect(page.getByRole("navigation", { name: "Sections" }).getByText("Costs")).toHaveCount(0);
+  await page.goto("/costs");
+  await expect(page.getByTestId("not-kept")).toContainText("Costs are not available to your organization yet");
+});
+
+test("the first organization keeps its name and its Costs", async ({ page }) => {
+  await signIn(page);
+  await expect(page.getByTestId("organization")).not.toHaveText("default");
+  await expect(page.getByRole("navigation", { name: "Sections" }).getByText("Costs")).toHaveCount(1);
+});
+
+test("Edit words reaches any draft from the Catalogs card, not only the latest run's", async ({ page }) => {
+  await signInOrgWide(page);
+  await page.goto("/discovery");
+  const card = page.getByTestId("catalogs");
+  const row = (v: string) => card.getByTestId("catalog-row").filter({ has: page.getByRole("cell", { name: v, exact: true }) });
+  await expect(row("1").getByTestId("catalog-edit-words")).toHaveCount(0);
+  await row("2").getByTestId("catalog-edit-words").click();
+  const other = card.getByTestId("other-draft");
+  await expect(other).toContainText("Draft catalog 2");
+  const entry = other.getByTestId("draft-module").filter({ hasText: "work_queue" });
+  await entry.getByTestId("edit-words").click();
+  const panel = other.getByTestId("edit-words-panel");
+  await expect(panel.getByTestId("command-hint")).toContainText("sealeye catalog edit 2 work_queue");
+  await panel.getByLabel("What it gives an app").fill("A queue your app puts work on.");
+  await panel.getByRole("button", { name: "Save" }).first().click();
+  await expect(entry).toContainText("A queue your app puts work on.");
+  await expect(entry).toContainText("edited");
+});
+
+// An organization's platform values (PHASE4-PLAN Step 9): a platform engineer's page,
+// as `sealeye platform` is. Juniper's live catalog in the test API has a module that runs
+// an app and still lacks a security group, and subnets set for dev.
+async function signInAs(page: Page, token: string, name: string) {
+  await page.goto("/sign-in");
+  await page.fill("#token", token);
+  await page.click("button[type=submit]");
+  await expect(page.getByTestId("person")).toHaveText(name);
+}
+const JUNIPER_WIDE = `sl_${"j".repeat(43)}`;
+const LOOKUP = `sl_${"l".repeat(43)}`;
+
+test("a team's token sees no Platform page, and is sent home from its address", async ({ page }) => {
+  await signIn(page);
+  await expect(page.getByRole("navigation", { name: "Sections" })).not.toContainText("Platform");
+  await page.goto("/platform");
+  await expect(page).toHaveURL(/\/$/);
+});
+
+test("Platform lists the values at a stage and what each module still needs", async ({ page }) => {
+  await signInAs(page, JUNIPER_WIDE, "Pat Juniper");
+  await page.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: "Platform" }).click();
+  await expect(page.getByRole("heading", { name: "Platform" })).toBeVisible();
+  await expect(page.getByTestId("developer-stage")).toContainText("built as dev, so only dev's values are used today");
+  await expect(page.getByLabel("Stage")).toHaveValue("dev");
+  const row = page.getByTestId("platform-value").filter({ hasText: "subnet_ids" });
+  await expect(row.getByTestId("platform-words")).toHaveText("subnet-0a1b2c3dsubnet-4e5f6a7b");
+  await expect(row).toContainText("pat@juniper.example");
+  await expect(page.getByTestId("command-hint").first()).toHaveText(/sealeye platform/);
+
+  const api = page.getByTestId("wanted-module").filter({ hasText: "http_api" });
+  await expect(api.getByTestId("wanted-builds")).toHaveText("Not built yet");
+  await expect(api.getByTestId("wanted-why")).toContainText("no value for its security_group_ids input");
+  await expect(api.getByTestId("wanted-input").filter({ hasText: "subnet_ids" }).getByTestId("filled-by")).toHaveText("subnet_ids");
+  await expect(api.getByTestId("wanted-input").filter({ hasText: "security_group_ids" }).getByTestId("no-value")).toHaveText("no value");
+  // seaLeye's own inputs and the app's code are not the platform's to give.
+  await expect(api.getByTestId("wanted-input").filter({ hasText: "package_path" })).toHaveCount(0);
+  const db = page.getByTestId("wanted-module").filter({ hasText: "postgres" });
+  await expect(db.getByTestId("wanted-why")).toContainText("does not take an app's code");
+  await expect(page.locator("body")).not.toContainText(/Terraform|OpenTofu|CloudFormation|—/);
+
+  // Another stage has values of its own.
+  await page.getByLabel("Stage").selectOption("sit");
+  await expect(page.getByTestId("no-values")).toHaveText("No values are set for sit.");
+  await expect(page.getByTestId("command-hint").first()).toHaveText(/sealeye platform --stage sit/);
+});
+
+test("Platform sets a value for a module's input, refuses a secret in its words, and removes one", async ({ page }) => {
+  await signInAs(page, JUNIPER_WIDE, "Pat Juniper");
+  await page.goto("/platform");
+  const api = page.getByTestId("wanted-module").filter({ hasText: "http_api" });
+  await api.getByRole("button", { name: "Set security_group_ids for http_api only" }).click();
+  await expect(page.getByLabel("Value name")).toHaveValue("http_api.security_group_ids");
+  await expect(page.getByLabel("Value", { exact: true })).toBeFocused();
+
+  // A secret is refused with the platform's own words, and not left on the page.
+  await page.getByLabel("Value", { exact: true }).fill("ghp_0123456789abcdefghijABCDEFGHIJ0123456789");
+  await page.getByRole("button", { name: "Set it for dev" }).click();
+  await expect(page.getByRole("alert")).toHaveText("http_api.security_group_ids's value looks like a secret, so it was not kept. Platform values are ids and addresses; a secret goes in the organization's store.");
+  await expect(page.getByLabel("Value", { exact: true })).toHaveValue("");
+  expect(await page.content()).not.toContain("ghp_0123");
+
+  await page.getByLabel("Value", { exact: true }).fill("sg-0123abcd\nsg-4567efab");
+  await expect(page.getByTestId("platform-form").getByTestId("command-hint")).toHaveText(/sealeye platform set http_api.security_group_ids sg-0123abcd sg-4567efab/);
+  await page.getByRole("button", { name: "Set it for dev" }).click();
+  await expect(page.getByTestId("platform-done")).toHaveText("http_api.security_group_ids is set for dev in juniper.");
+  const row = page.getByTestId("platform-value").filter({ hasText: "http_api.security_group_ids" });
+  await expect(row.getByTestId("platform-words")).toHaveText("sg-0123abcdsg-4567efab");
+  await expect(row).toContainText("pat@juniper.example");
+  // With its last value set, the module is built.
+  await expect(api.getByTestId("wanted-builds")).toHaveText("The platform builds it");
+  await expect(api.getByTestId("wanted-input").filter({ hasText: "security_group_ids" }).getByTestId("filled-by")).toHaveText("http_api.security_group_ids");
+
+  await row.getByRole("button", { name: "Remove http_api.security_group_ids" }).click();
+  await expect(page.getByTestId("platform-done")).toHaveText("http_api.security_group_ids is no longer set for dev in juniper.");
+  await expect(page.getByTestId("platform-value").filter({ hasText: "http_api.security_group_ids" })).toHaveCount(0);
+  await expect(api.getByTestId("wanted-builds")).toHaveText("Not built yet");
+});
+
+test("an environment built from the organization's own modules shows only what it offers", async ({ page }) => {
+  await signInAs(page, LOOKUP, "Bo Lindqvist");
+  await page.getByRole("link", { name: "beneficiary-lookup", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "beneficiary-lookup" })).toBeVisible();
+  await expect(page.getByTestId("status")).toHaveText("Live");
+  // What it offers: deploy again, tear down, plan and report, evidence.
+  await expect(page.getByTestId("deploy-again")).toBeVisible();
+  await expect(page.getByTestId("teardown")).toBeVisible();
+  await expect(page.getByTestId("evidence")).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Plan and report for/ })).toHaveCount(1);
+  // And nothing it does not.
+  await expect(page.getByTestId("pause")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Pause", exact: true })).toHaveCount(0);
+  await expect(page.getByTestId("logs")).toHaveCount(0);
+  await expect(page.getByTestId("performance")).toHaveCount(0);
+  await expect(page.getByTestId("configure")).toHaveCount(0);
+  await expect(page.getByTestId("settings")).toHaveCount(0);
+  await expect(page.locator("body")).not.toContainText(/Terraform|OpenTofu|CloudFormation/);
+  // Tearing it down says the table it uses goes too, before anything is asked.
+  await page.getByTestId("teardown").getByRole("button", { name: "Tear down" }).click();
+  await expect(page.getByTestId("teardown-data")).toHaveText("This also deletes a table of documents your app finds by key, and everything in it.");
+  await page.getByRole("button", { name: "Keep it" }).click();
 });

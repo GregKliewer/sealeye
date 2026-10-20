@@ -3,6 +3,7 @@
 // each line the platform says with a spinner holding the wait, ask the developer each
 // question, and hand back the plan at "Deploy this?".
 import { spinner } from "../brand.js";
+import { interviewFindingWords } from "../../core/scan.js";
 import { answerInterview, followInterview, startInterview } from "../client.js";
 
 // What the spinner calls a long wait. A plan-writing turn measured 25 to 45 seconds on
@@ -32,7 +33,7 @@ const NAMES_A_FILE = /^(Reading |Looking at |Nothing to read at )/;
  * @returns {Promise<{status, plan?, summary?, assumptions?, questions?, message?, errors?, traceId?, interviewId}>}
  *          At "submitted", the interview is waiting in the API for "Deploy this?".
  */
-export async function interviewThroughApi({ apiBaseUrl, appPath, deployed = null, user, trace = true, ask, onStep, onStarted = () => {} }) {
+export async function interviewThroughApi({ apiBaseUrl, appPath, deployed = null, user, trace = true, ask, onStep, onStarted = () => {}, onFindings = lines => lines.forEach(onStep) }) {
   // A redeploy is working out what moved; a first run is working out what the app needs
   // at all. Either way it is what the model is doing once the reading has stopped.
   const thinkingLabel = deployed ? "Working out what changed" : "Working out what your app needs";
@@ -77,6 +78,14 @@ export async function interviewThroughApi({ apiBaseUrl, appPath, deployed = null
     const started = await startInterview({ apiBaseUrl, appPath, deployed, user, trace });
     const interviewId = started.interviewId;
     onStarted(interviewId);
+
+    // Files that look like they hold a secret: said once, before anything else, in the
+    // words seaLeye.online uses too (core/scan.js).
+    if (started.findings?.length) {
+      stopWaiting();
+      onFindings(interviewFindingWords(started.findings));
+      startWaiting();
+    }
 
     const end = await followInterview({
       apiBaseUrl,

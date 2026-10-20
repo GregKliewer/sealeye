@@ -7,6 +7,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { kindOf, looksBinary } from "../../core/scan.js";
 import { secretFileReason } from "../../core/secrets.js";
 
 export { secretFileReason };
@@ -127,13 +128,39 @@ export function listFiles(appPath, requested = ".") {
     : shown.join("\n") || "(empty folder)";
 }
 
+/**
+ * Why a file the scanner found a secret in (core/scan.js) is not read, or null. The
+ * reason is written for the model: what kind of value, on which line, and that the
+ * developer has been told. Never the value: the file was sent empty.
+ */
+export function withheldReason(appPath, file, withheld = []) {
+  if (!withheld.length) return null;
+  const rel = path.relative(fs.realpathSync(appPath), realpathOfNearest(file)).split(path.sep).join("/");
+  // A file with only some lines held back is read: those lines say why they are missing.
+  const mine = withheld.filter(f => f.file === rel && f.whole);
+  if (!mine.length) return null;
+  const where = mine.map(f => `line ${f.line} (${f.kind || kindOf(f.rule)})`).join(", ");
+  return `${rel} looks like it holds a secret on ${where}, so it was not sent and its contents are never read. ` +
+    "The developer has been told to move the value into a setting; plan as if the app reads it from its environment";
+}
+
+/**
+ * Why an archive or a file that is not text is not read, or null: it was sent as its
+ * name only (core/upload-rules.js), so there is nothing to read.
+ */
+export function unreadReason(appPath, file, unread = []) {
+  if (!unread.length) return null;
+  const rel = path.relative(fs.realpathSync(appPath), realpathOfNearest(file)).split(path.sep).join("/");
+  return unread.includes(rel) ? `${rel} is an archive or a file that is not text, so only its name was sent and it is never read` : null;
+}
+
 /** A text file, capped at 20 KB. */
-export function readFile(appPath, requested) {
+export function readFile(appPath, requested, { withheld = [], unread = [] } = {}) {
   const file = resolveInside(appPath, requested);
 
   // Check the name asked for and the name it really is, so a link called notes.txt
   // that points at .env is refused too.
-  const refusal = secretFileReason(file) || secretFileReason(realpathOfNearest(file));
+  const refusal = secretFileReason(file) || secretFileReason(realpathOfNearest(file)) || withheldReason(appPath, file, withheld) || unreadReason(appPath, file, unread);
   if (refusal) throw new ToolRefusal(refusal);
 
   let stat;
@@ -148,6 +175,9 @@ export function readFile(appPath, requested) {
   try {
     const buffer = Buffer.alloc(MAX_BYTES);
     const read = fs.readSync(handle, buffer, 0, MAX_BYTES, 0);
+    // A binary file says nothing a plan needs, and the secret scan reads only the
+    // shapes of keys in one (core/scan.js), so it is never handed to the model.
+    if (looksBinary(buffer.subarray(0, read))) throw new ToolRefusal(`${requested} is a binary file, not text`);
     const text = buffer.subarray(0, read).toString("utf8");
     return stat.size > MAX_BYTES ? `${text}\n(truncated at ${MAX_BYTES / 1024} KB)` : text;
   } finally {
@@ -159,10 +189,10 @@ export function readFile(appPath, requested) {
  * Run one tool call by name. Refusals come back as text for the model to read, not as
  * exceptions: a refused path is a normal event in a conversation, not a crash.
  */
-export function runTool(appPath, name, input = {}) {
+export function runTool(appPath, name, input = {}, { withheld = [], unread = [] } = {}) {
   try {
     if (name === "list_files") return { content: listFiles(appPath, input.path), isError: false };
-    if (name === "read_file") return { content: readFile(appPath, input.path), isError: false };
+    if (name === "read_file") return { content: readFile(appPath, input.path, { withheld, unread }), isError: false };
     return { content: `no tool named ${name}`, isError: true };
   } catch (err) {
     if (err instanceof ToolRefusal) return { content: `refused: ${err.message}`, isError: true };
@@ -174,7 +204,7 @@ export function runTool(appPath, name, input = {}) {
  * The short digest the interview sends as its first user message: enough for the model to
  * skip the questions the folder already answers.
  */
-export function folderDigest(appPath) {
+export function folderDigest(appPath, { withheld = [] } = {}) {
   const lines = [];
   const name = path.basename(path.resolve(appPath));
   lines.push(`Folder name: ${name}`);
@@ -188,7 +218,9 @@ export function folderDigest(appPath) {
   lines.push("", "Top level of the folder:", top);
 
   const pkgPath = path.join(appPath, "package.json");
-  if (fs.existsSync(pkgPath)) {
+  if (withheld.some(f => f.file === "package.json")) {
+    lines.push("", "package.json: present, but not read: it looks like it holds a secret");
+  } else if (fs.existsSync(pkgPath)) {
     try {
       const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
       lines.push(

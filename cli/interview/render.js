@@ -6,7 +6,7 @@ import path from "node:path";
 
 import { c } from "../brand.js";
 import { normalizeProfile, MODULE_IDS } from "../../core/schema.js";
-import { loadCatalog, moduleEntry, patternsFor, unsupportedNeeds } from "../../core/catalog.js";
+import { loadCatalog, moduleEntry, patternsFor, planOffers, unsupportedNeeds } from "../../core/catalog.js";
 import { CONFIG_FILE } from "../../core/names.js";
 import { appTypeLabel, coreModule, enabledModules, isEnabled, moduleById, PLAN_FILE, renderPlanMarkdown, renderPlanYaml } from "../../core/plan-files.js";
 
@@ -133,8 +133,9 @@ function cardContent(plan, catalog) {
     .map(m => ({
       key: `module:${m.id}`,
       id: m.id,
-      text: shortLine(entryFor(m.id).line),
-      signature: stableJson(m.inputs || {})
+      // A module the app uses says where the app finds it (planVersion 0.6).
+      text: `${shortLine(entryFor(m.id).line)}${m.connect && Object.keys(m.connect).length ? `, which your app finds through ${Object.values(m.connect).join(" and ")}` : ""}`,
+      signature: stableJson({ inputs: m.inputs || {}, ...(m.connect ? { connect: m.connect } : {}) })
     }));
 
   const variables = Object.keys(moduleById(plan, "config_basic")?.inputs?.variables || {});
@@ -149,8 +150,8 @@ function cardContent(plan, catalog) {
   const outputs = plan.outputs || [];
   const kept = moduleById(plan, "observability_basic")?.inputs?.retention_days;
   const collected = [
-    outputs.includes("logs") ? "Your logs" : null,
-    outputs.includes("metrics") ? "basic metrics" : null
+    outputs.includes("logs") && planOffers(plan, catalog, "logs") ? "Your logs" : null,
+    outputs.includes("metrics") && planOffers(plan, catalog, "perf") ? "basic metrics" : null
   ].filter(Boolean);
 
   const back = [];

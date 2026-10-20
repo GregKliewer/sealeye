@@ -13,14 +13,28 @@
 // At the end it reads each run's tokens and cost back from LangFuse and prints them as
 // one table, with the largest run and the typical one (PHASE3-PLAN Step 1).
 //
+// Two sets (PHASE4-PLAN Step 8): the starter's, each app planned against seaLeye's own
+// modules, and Juniper Mutual's, each app planned against the catalog discovery wrote
+// for the made-up organization (a snapshot of its live catalog,
+// test/fixtures/juniper-catalog-8.json). The eval's organization is given a placeholder
+// platform value for every input Juniper's modules want (`seedPlatformValues`), and the
+// real executor decides what is built, as it does on the server: a module that waits on
+// something only seaLeye can change, or that runs no app, is not. `--set starter` or
+// `--set juniper` runs one.
+//
 // It calls the model and LangFuse, so it is not part of `npm test`, which stays offline.
 // The API it validates plans against is started here, on a spare port with an empty
 // store of its own, so nothing is added to your deployment records.
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import YAML from "yaml";
 
-import { DEFAULT_MODEL, resolveApiKey } from "../api/interview/model.js";
+import { DEFAULT_MODEL, loadSystemPrompt, resolveApiKey } from "../api/interview/model.js";
+import { addCatalog, approveCatalog, liveCatalog, makeLive, openCatalogs } from "../api/catalogs.js";
+import { openPlatform, platformValues, setPlatformValue } from "../api/platform.js";
+import { DEVELOPER_STAGE, platformWanted } from "../core/terraform-modules.js";
+import { CONFIG_FILE, LEGACY_CONFIG_FILE } from "../core/names.js";
 import { runInterview } from "../api/interview/service.js";
 import { loadEnv, loadUserConfig, repoRoot, setting } from "../core/config.js";
 import {
@@ -28,7 +42,7 @@ import {
   flushTracing,
   langfuseRequest,
   newExperimentId,
-  promptVersion,
+  promptVersionOf,
   scoreTrace,
   startTracing,
   traceExperimentItem,
@@ -38,20 +52,105 @@ import {
 
 export const DATASET = "sealeye-interview";
 const FIXTURES = path.join(repoRoot, "test", "fixtures", "eval");
-// When the scripted answers run out, the interview still gets an answer a developer
-// might give, rather than an empty line.
+const JUNIPER_FIXTURES = path.join(repoRoot, "test", "fixtures", "eval-juniper");
+const JUNIPER_CATALOG = path.join(repoRoot, "test", "fixtures", "juniper-catalog-8.json");
+
+/**
+ * The sets the eval runs: each its cases, and the organization whose live catalog they
+ * plan against (none: the starter, as `default` has it).
+ */
+export const SETS = {
+  starter: { dir: FIXTURES, org: null },
+  juniper: { dir: JUNIPER_FIXTURES, org: "eval-juniper", catalog: JUNIPER_CATALOG }
+};
+// When no scripted answer fits the question, the interview still gets an answer a
+// developer might give, rather than an empty line.
 const FALLBACK_ANSWER = "I'm not sure. Use your best judgement from the code.";
 
+/**
+ * The scripted answer to one question. A fixture's answer is either
+ * - `{ when: [phrases], answer }`: given to any question holding one of the phrases
+ *   (in any case), as often as such a question is asked. The first in the fixture whose
+ *   phrase is in the question wins, so the specific ones (settings, who reaches it) go
+ *   before a general "is that right?". Added Oct 15, 2026: a model that asks in another
+ *   order than the last run still gets the answer meant for its question.
+ * - a plain string: given to the next question no phrase matched, in the order written,
+ *   once each, as every answer was before.
+ * Nothing fits: FALLBACK_ANSWER.
+ *
+ * @param {string} question
+ * @param {(string|{when: string[], answer: string})[]} answers
+ * @param {{ next?: number }} state how many plain strings have been given; changed here
+ * @returns {{ answer: string, by: string }} `by` says how it was chosen, for the terminal
+ */
+export function answerFor(question, answers = [], state = {}) {
+  const asked = String(question || "").toLowerCase();
+  for (const entry of answers) {
+    if (!entry || typeof entry !== "object") continue;
+    const phrase = (entry.when || []).find(p => asked.includes(String(p).toLowerCase()));
+    if (phrase) return { answer: entry.answer, by: `matched "${phrase}"` };
+  }
+  const plain = answers.filter(a => typeof a === "string");
+  state.next = state.next || 0;
+  if (state.next < plain.length) return { answer: plain[state.next++], by: "next in order" };
+  return { answer: FALLBACK_ANSWER, by: "no answer fits" };
+}
+
+/** Text on one line, cut to fit the terminal. */
+const oneLine = text => {
+  const flat = String(text || "").replace(/\s+/g, " ").trim();
+  return flat.length > 140 ? `${flat.slice(0, 137)}...` : flat;
+};
+
 /** Every sample app with a fixture: its answers and what its plan should be. */
-export function loadCases(dir = FIXTURES) {
+export function loadCases(dir = FIXTURES, { set = "starter", org = null } = {}) {
   return fs
     .readdirSync(dir)
     .filter(f => f.endsWith(".json"))
     .sort()
     .map(f => {
       const { answers = [], expected } = JSON.parse(fs.readFileSync(path.join(dir, f), "utf8"));
-      return { app: path.basename(f, ".json"), answers, expected };
+      return { app: path.basename(f, ".json"), answers, expected, set, org };
     });
+}
+
+/**
+ * Give the eval's organization a placeholder platform value for every required input the
+ * catalog's modules want and nothing fills (`platformWanted`), at the developer's stage, so the
+ * real executor decides what the catalog builds the way it does on the server, where
+ * the platform team has set them. The values are words that build nothing: the eval
+ * deploys nothing, and the interview reads only their names. Returns the names set.
+ */
+export async function seedPlatformValues({ org, document }) {
+  await openPlatform();
+  const names = [];
+  for (const { inputs } of platformWanted(document, Object.keys(platformValues(org, DEVELOPER_STAGE)))) {
+    for (const { input, required, filledBy } of inputs) {
+      if (!required || filledBy || names.includes(input)) continue;
+      await setPlatformValue({ org, stage: DEVELOPER_STAGE, name: input, value: `eval-placeholder-${input.replace(/_/g, "-")}`, by: "eval@sealeye" });
+      names.push(input);
+    }
+  }
+  return names.sort();
+}
+
+/**
+ * Make a catalog an organization's live one, as a platform engineer would: kept as a
+ * draft, approved, made live. Run in a scratch folder (SEALEYE_HOME), never the
+ * machine's own. Returns its version.
+ */
+export async function seedCatalog({ org, document }) {
+  await openCatalogs();
+  const { version } = await addCatalog({ org, document, by: "eval@sealeye" });
+  await approveCatalog({ org, version, by: "eval@sealeye" });
+  await makeLive({ org, version, by: "eval@sealeye" });
+  return version;
+}
+
+/** The prompt an organization's interview reads, by its fingerprint, for the run's name. */
+export function promptFor(org) {
+  const live = org ? liveCatalog(org) : null;
+  return promptVersionOf(live && live.source === "organization" ? loadSystemPrompt(live.document, { starter: false }) : loadSystemPrompt());
 }
 
 /** What the run came to: a ready or drafted plan, or how the interview ended without one. */
@@ -61,8 +160,23 @@ export function outcomeOf(result) {
 }
 
 /**
+ * What a plan connects: each value a module the app uses gives, and the setting the app
+ * reads it from, across every enabled module (`connect` on a 0.6 plan's module). As
+ * "value=SETTING" lines, so a fixture's expectation and a plan's wiring compare alike.
+ */
+function connectionsOf(plan) {
+  return (plan?.modules || [])
+    .filter(m => m && m.enabled !== false && m.connect && typeof m.connect === "object")
+    .flatMap(m => Object.entries(m.connect).map(([value, name]) => `${value}=${name}`))
+    .sort();
+}
+
+/**
  * Compare a run with what its app is known to need. Modules are graded only when the
- * fixture names them: a drafted plan is graded on its needs.
+ * fixture names them: a drafted plan is graded on its needs. What the plan connects is
+ * graded only when the fixture says what the app reads (`connect`, value -> setting):
+ * every connection it names must be in the plan, and none it says the app does not
+ * read (`notConnect`, a list of values).
  */
 export function grade(result, expected) {
   const outcome = outcomeOf(result);
@@ -74,6 +188,13 @@ export function grade(result, expected) {
     ? expected.modules.every(m => modules.includes(m)) && (expected.notModules || []).every(m => !modules.includes(m))
     : null;
 
+  const connections = connectionsOf(result?.plan);
+  const wantConnect = expected.connect ? Object.entries(expected.connect).map(([value, name]) => `${value}=${name}`) : null;
+  const connectedValues = connections.map(c => c.split("=")[0]);
+  const missingConnect = (wantConnect || []).filter(c => !connections.includes(c));
+  const unwantedConnect = (expected.notConnect || []).filter(value => connectedValues.includes(value));
+  const connectCorrect = wantConnect || expected.notConnect ? missingConnect.length === 0 && unwantedConnect.length === 0 : null;
+
   return {
     outcome,
     outcomeCorrect: outcome === expected.status,
@@ -82,14 +203,20 @@ export function grade(result, expected) {
     needs,
     needsCorrect: needs.length === wantNeeds.length && needs.every((n, i) => n === wantNeeds[i]),
     missingNeeds: wantNeeds.filter(n => !needs.includes(n)),
+    missingModules: (expected.modules || []).filter(m => !modules.includes(m)),
+    unwantedModules: (expected.notModules || []).filter(m => modules.includes(m)),
     extraNeeds: needs.filter(n => !wantNeeds.includes(n)),
+    connections,
+    connectCorrect,
+    missingConnect,
+    unwantedConnect,
     questions: result?.questions ?? 0
   };
 }
 
-/** Is the whole row right? Modules count only where they were graded. */
+/** Is the whole row right? Modules and connections count only where they were graded. */
 export function allCorrect(row) {
-  return !row.error && row.outcomeCorrect && row.needsCorrect && row.modulesCorrect !== false;
+  return !row.error && row.outcomeCorrect && row.needsCorrect && row.modulesCorrect !== false && row.connectCorrect !== false;
 }
 
 /** The dataset's id, creating the dataset if it is not there yet. */
@@ -117,41 +244,59 @@ async function ensureDataset() {
  *
  * @returns {Promise<object[]>} one graded row per app
  */
-export async function evaluate({ cases, runName, model, clientFor, log = () => {} }) {
+export async function evaluate({ cases, runName, model, clientFor, outDir = null, log = () => {} }) {
   const datasetId = await ensureDataset();
-  const description = `Interview prompt ${promptVersion()}, model ${model}`;
+  const scratch = fs.mkdtempSync(path.join((await import("node:os")).tmpdir(), "sealeye-eval-apps-"));
   const experimentId = newExperimentId();
 
   const rows = [];
-  for (const { app, answers, expected } of cases) {
-    const itemId = `${DATASET}-${app}`;
+  for (const { app, answers, expected, set = "starter", org = null } of cases) {
+    const description = `Interview prompt ${promptFor(org)}, model ${model}${org ? `, ${set}'s catalog` : ""}`;
+    // The starter's items keep the ids they always had; another set's are its own.
+    const name = set === "starter" ? app : `${set}-${app}`;
+    const itemId = `${DATASET}-${name}`;
     // The input is the app's name, never its files: the dataset is a list of what to
     // run and what should come of it.
     await langfuseRequest("POST", "/api/public/dataset-items", {
       datasetName: DATASET,
       id: itemId,
-      input: { app },
+      input: { app, ...(set === "starter" ? {} : { catalog: set }) },
       expectedOutput: expected
     }, 10_000);
 
-    log(`${app}: interviewing`);
-    const queue = [...answers];
+    log(`${name}: interviewing`);
+    const state = {};
+    // What was asked and how each was answered, shown when the app is not as expected.
+    const asked = [];
     let row;
 
     try {
       // Recorded the way LangFuse's own experiment runner records an item, so the run
       // shows under the dataset's Experiments with each app's trace, cost and scores.
       row = await traceExperimentItem(
-        { experimentId, runName, description, datasetId, itemId, input: { app }, expectedOutput: expected },
+        { experimentId, runName, description, datasetId, itemId, input: { app, ...(set === "starter" ? {} : { catalog: set }) }, expectedOutput: expected },
         async () => {
           const result = await runInterview({
-            appPath: path.join(repoRoot, "apps", app),
+            // A clean copy each time: the app as written, never a plan left in it.
+            appPath: cleanCopy(path.join(repoRoot, "apps", app), fs.mkdtempSync(path.join(scratch, `${name}-`))),
             model,
             user: "eval",
-            ask: async () => (queue.length ? queue.shift() : FALLBACK_ANSWER),
+            ...(org ? { caller: { email: "eval@sealeye", org, team: "eval" } } : {}),
+            ask: async question => {
+              const { answer, by } = answerFor(question, answers, state);
+              asked.push({ question: oneLine(question), by });
+              return answer;
+            },
             ...(clientFor ? { client: clientFor(app) } : {})
           });
-          return { app, traceId: result.traceId, turns: result.turns, ...grade(result, expected) };
+          // What it planned and why, kept on this machine for reading a run that went
+          // wrong (eval-results/ is never committed). The sample apps are seaLeye's own.
+          if (outDir) keepResult(outDir, name, result, asked);
+          return {
+            app: name, traceId: result.traceId, turns: result.turns, spent: result.spent, asked,
+            ...(result.status === "stopped" && result.message ? { stopped: oneLine(result.message) } : {}),
+            ...grade(result, expected)
+          };
         }
       );
       await flushTracing();
@@ -160,17 +305,58 @@ export async function evaluate({ cases, runName, model, clientFor, log = () => {
         scoreTrace(row.traceId, "outcome_correct", row.outcomeCorrect);
         scoreTrace(row.traceId, "needs_correct", row.needsCorrect);
         if (row.modulesCorrect !== null) scoreTrace(row.traceId, "modules_correct", row.modulesCorrect);
+        if (row.connectCorrect !== null) scoreTrace(row.traceId, "connect_correct", row.connectCorrect);
       }
     } catch (err) {
-      row = { app, error: err.message };
+      row = { app: name, error: err.message };
+      if (outDir) keepResult(outDir, name, { status: "error", error: err.message }, asked);
     }
 
     rows.push(row);
-    log(`${app}: ${row.error ? `could not finish (${row.error})` : allCorrect(row) ? "as expected" : "not as expected"}`);
+    log(`${name}: ${row.error ? `could not finish (${row.error})` : allCorrect(row) ? "as expected" : "not as expected"}`);
   }
 
   await flushScores(10_000);
   return rows;
+}
+
+/** One run's plan, summary, assumptions and questions, as a YAML file in `outDir`. */
+function keepResult(outDir, name, result, asked) {
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    const kept = {
+      app: name,
+      status: result.status,
+      ...(result.error ? { error: result.error } : {}),
+      ...(result.message ? { message: result.message } : {}),
+      asked,
+      ...(result.plan ? { plan: result.plan } : {}),
+      ...(result.summary ? { summary: result.summary } : {}),
+      ...(result.assumptions ? { assumptions: result.assumptions } : {})
+    };
+    fs.writeFileSync(path.join(outDir, `${name}.yaml`), YAML.stringify(kept));
+  } catch {
+    // Keeping it is a convenience; the run's grade does not depend on it.
+  }
+}
+
+/**
+ * The files seaLeye itself writes into an app's folder (principle 5), and the folder it
+ * keeps there. A plan left by an earlier `sealeye run` is read by the interview and
+ * carried forward, so a sample app holding one is graded on that plan, not on the app
+ * (Greg's run, Oct 16, 2026: a leftover plan's prod profile chose production's
+ * database).
+ */
+export const SEALEYE_WRITES = [CONFIG_FILE, LEGACY_CONFIG_FILE, "DEPLOYMENT_PLAN.md", "DEPLOYMENT_REPORT.md", "DEPLOYMENT_EVIDENCE.md", ".sealeye"];
+
+/** A copy of a sample app, without anything seaLeye wrote into it, in a scratch folder. */
+export function cleanCopy(appDir, scratch) {
+  const to = path.join(scratch, path.basename(appDir));
+  fs.cpSync(appDir, to, {
+    recursive: true,
+    filter: src => !SEALEYE_WRITES.includes(path.basename(src)) && path.basename(src) !== "node_modules"
+  });
+  return to;
 }
 
 /** One line per app, for the terminal. */
@@ -179,15 +365,34 @@ export function summaryLines(rows) {
   const lines = [];
   for (const r of rows) {
     if (r.error) {
-      lines.push(`  ${r.app.padEnd(26)} could not finish: ${r.error}`);
+      lines.push(`  ${r.app.padEnd(34)} could not finish: ${r.error}`);
       continue;
     }
     lines.push(
-      `  ${r.app.padEnd(26)} ${mark(r.outcomeCorrect)} ${r.outcome.padEnd(8)}` +
+      `  ${r.app.padEnd(34)} ${mark(r.outcomeCorrect)} ${r.outcome.padEnd(8)}` +
         ` ${mark(r.modulesCorrect)} modules  ${mark(r.needsCorrect)} needs  ${r.questions} question${r.questions === 1 ? "" : "s"}`
     );
-    if (r.missingNeeds.length) lines.push(`  ${"".padEnd(26)}    missing: ${r.missingNeeds.join(", ")}`);
-    if (r.extraNeeds.length) lines.push(`  ${"".padEnd(26)}    not expected: ${r.extraNeeds.join(", ")}`);
+    if (r.missingNeeds.length) lines.push(`  ${"".padEnd(34)}    missing: ${r.missingNeeds.join(", ")}`);
+    if (r.extraNeeds.length) lines.push(`  ${"".padEnd(34)}    not expected: ${r.extraNeeds.join(", ")}`);
+    // Modules wrong: what it planned, and which were missing or should not be there.
+    if (r.modulesCorrect === false) {
+      lines.push(`  ${"".padEnd(34)}    planned: ${r.modules.join(", ") || "no modules"}`);
+      if (r.missingModules?.length) lines.push(`  ${"".padEnd(34)}    missing: ${r.missingModules.join(", ")}`);
+      if (r.unwantedModules?.length) lines.push(`  ${"".padEnd(34)}    should not have: ${r.unwantedModules.join(", ")}`);
+    }
+    // Connections wrong: what the plan wired to which setting, and what was missing or
+    // should not be there.
+    if (r.connectCorrect === false) {
+      lines.push(`  ${"".padEnd(34)}    connected: ${r.connections.join(", ") || "nothing"}`);
+      if (r.missingConnect?.length) lines.push(`  ${"".padEnd(34)}    not connected: ${r.missingConnect.join(", ")}`);
+      if (r.unwantedConnect?.length) lines.push(`  ${"".padEnd(34)}    should not connect: ${r.unwantedConnect.join(", ")}`);
+    }
+    // Not as expected: what the model asked, how each was answered, and why it stopped,
+    // so a run that went wrong can be read without opening its trace.
+    if (!allCorrect(r)) {
+      for (const a of r.asked || []) lines.push(`  ${"".padEnd(34)}    asked: ${a.question} (${a.by})`);
+      if (r.stopped) lines.push(`  ${"".padEnd(34)}    stopped: ${r.stopped}`);
+    }
   }
   return lines;
 }
@@ -310,6 +515,17 @@ export function costLines(rows, model) {
     lines.push(`  Typical run: ${say(sizes.typical)}`);
   }
 
+  // The cap prices from core/model-prices.js, never from LangFuse; LangFuse is how that
+  // table is checked. A run whose two counts differ by more than five percent says so.
+  const drift = rows.filter(r => Number.isFinite(r.spent) && r.spend && !r.spend.error && r.spend.cost > 0 && Math.abs(r.spent - r.spend.cost) / r.spend.cost > 0.05);
+  if (drift.length) {
+    lines.push("");
+    for (const r of drift) {
+      lines.push(`  ${r.app}: seaLeye's own count, ${dollars(r.spent)}, differs from LangFuse's, ${dollars(r.spend.cost)}, by more than 5%.`);
+    }
+    lines.push("  The run cap prices from core/model-prices.js: check it against the provider's page (deploy/README.md, Model prices).");
+  }
+
   const unpriced = [...new Set(rows.flatMap(r => r.spend?.unpricedModels || []))];
   if (unpriced.length) {
     lines.push("");
@@ -323,6 +539,36 @@ export function costLines(rows, model) {
 }
 
 // ---------------------------------------------------------------------------------
+
+/** The sets `--set starter` or `--set juniper` asks for; both when it asks for none. */
+export function setsAsked(argv) {
+  const i = argv.indexOf("--set");
+  const asked = i >= 0 ? argv[i + 1] : process.env.npm_config_set;
+  if (!asked) return Object.keys(SETS);
+  if (!SETS[asked]) throw new Error(`--set takes ${Object.keys(SETS).join(" or ")}, not ${asked}`);
+  return [asked];
+}
+
+/**
+ * The cases of each set asked for, with each set's catalog live in a scratch folder of
+ * its own, so nothing on this machine's own seaLeye folder is read or changed.
+ */
+export async function prepareSets(names) {
+  const os = await import("node:os");
+  process.env.SEALEYE_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-eval-interview-"));
+  delete process.env.DATABASE_URL;
+  const cases = [];
+  for (const set of names) {
+    const { dir, org, catalog } = SETS[set];
+    if (catalog) {
+      const document = JSON.parse(fs.readFileSync(catalog, "utf8"));
+      await seedCatalog({ org, document });
+      await seedPlatformValues({ org, document });
+    }
+    cases.push(...loadCases(dir, { set, org }));
+  }
+  return cases;
+}
 
 async function main() {
   loadEnv();
@@ -361,16 +607,17 @@ async function main() {
   const two = n => String(n).padStart(2, "0");
   const stamp = `${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())} ` +
     `${two(now.getHours())}:${two(now.getMinutes())}:${two(now.getSeconds())}`;
-  const runName = `${stamp} prompt ${promptVersion()}`;
-  const cases = loadCases();
+  const runName = `${stamp} prompt ${promptVersionOf(loadSystemPrompt())}`;
+  const cases = await prepareSets(setsAsked(process.argv));
 
-  console.log(`Interview regression set: ${cases.length} apps, model ${model}`);
+  console.log(`Interview regression set: ${cases.length} runs (${[...new Set(cases.map(c => c.set))].join(" and ")}), model ${model}`);
   console.log(`Dataset run: ${runName}`);
   console.log("");
 
   // The interview runs in this process, the way the API runs it, with the plan checked
   // in-process too: there is no API to start.
-  const rows = await evaluate({ cases, runName, model, log: line => console.log(`  ${line}`) });
+  const outDir = path.resolve("eval-results", `interview-${stamp.replace(/[ :]/g, "-")}`);
+  const rows = await evaluate({ cases, runName, model, outDir, log: line => console.log(`  ${line}`) });
 
   console.log("");
   for (const line of summaryLines(rows)) console.log(line);
@@ -384,6 +631,7 @@ async function main() {
   for (const line of costLines(spent, model)) console.log(line);
 
   console.log("");
+  console.log(`Each run's plan, summary and questions: ${outDir}`);
   console.log(`In LangFuse: Datasets, ${DATASET}, Experiments, then this run.`);
 
   process.exitCode = rows.every(allCorrect) ? 0 : 1;

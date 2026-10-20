@@ -45,6 +45,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   return <SessionContext.Provider value={{ person, checked, notice, signedIn, signedOut }}>{children}</SessionContext.Provider>;
 }
 
+/** Sees what only an organization-wide token may, such as Discovery. A laptop API with
+ *  sign-in off lets every call through, so there it is everyone. */
+export function orgWide(person: Person | null) {
+  return person?.scope === "org" || person?.auth === "off";
+}
+
 export function useSession() {
   const s = useContext(SessionContext);
   if (!s) throw new Error("useSession outside SessionProvider");

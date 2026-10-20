@@ -35,6 +35,15 @@ if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
 fi
 echo "Releasing $(git log -1 --format='%h %s')"
 
+# The cap on every run prices from core/model-prices.js, and a stale price lets a run
+# spend past its cap (DESIGN.md, "A run's cap is close, not exact"). A warning, not a
+# stop: the release may be the fix for something else. deploy/README.md, "Model prices".
+PRICE_AGE="$(node --input-type=module -e 'import { pricesAgeDays, PRICES } from "./core/model-prices.js"; console.log(`${pricesAgeDays()} ${PRICES.checkedOn}`)')"
+if [ "${PRICE_AGE%% *}" -gt 90 ]; then
+  echo "Warning: the model prices the run cap uses were last checked on ${PRICE_AGE#* } (${PRICE_AGE%% *} days ago)."
+  echo "Check them against the provider's page and update core/model-prices.js; see deploy/README.md, Model prices."
+fi
+
 # Developers install the command as sealeye-<version>.tgz. If the command changed and
 # the version did not, a new package would replace the old one under the same name: npm
 # may hand back its cached copy, and nobody can tell which they have (Oct 12, 2026, a
@@ -98,7 +107,7 @@ done
 aws s3 sync "$SITES/" "s3://${BUCKET}/server/sites/" --region "$REGION" --delete --only-show-errors
 
 echo "Sending the server its config"
-for f in compose.yaml Caddyfile update.sh backup.sh restore-check.sh; do
+for f in compose.yaml Caddyfile gateway.yaml gateway.sh update.sh backup.sh restore-check.sh; do
   aws s3 cp "deploy/$f" "s3://${BUCKET}/server/$f" --region "$REGION" --only-show-errors
 done
 

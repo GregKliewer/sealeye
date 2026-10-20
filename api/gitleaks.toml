@@ -1,0 +1,11 @@
+# The gitleaks configuration the API always passes (api/secret-scan.js). Always passed,
+# never found: gitleaks would otherwise obey a .gitleaks.toml inside the app it is
+# scanning, and a developer's folder must not be able to switch its own check off.
+# .sealeye-allow is the only way past a finding (PHASE3-PLAN D4).
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "folders seaLeye never sends or packages"
+paths = ['''(?:^|/)node_modules/''', '''(?:^|/)\.git/''']

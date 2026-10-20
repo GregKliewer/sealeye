@@ -1,0 +1,22 @@
+{
+  "answers": [
+    {
+      "when": ["setting", "environment", "api key", "database url", "anything else"],
+      "answer": "No, nothing else. It's just the site."
+    },
+    {
+      "when": ["domain", "address", "name of its own", "url"],
+      "answer": "The generated address is fine for now."
+    },
+    {
+      "when": ["is that right", "right?", "looks like", "static", "what does your app do", "when it runs", "does it"],
+      "answer": "Yes, that's right."
+    }
+  ],
+  "expected": {
+    "status": "ready",
+    "modules": ["static_site"],
+    "notModules": ["http_api", "container_service", "file_bucket"],
+    "needs": []
+  }
+}

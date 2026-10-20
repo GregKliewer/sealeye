@@ -128,6 +128,12 @@ export async function stage(appPath, deploymentId, composed, onStep = () => {}) 
   fs.writeFileSync(path.join(stageDir, "run.sh"), renderRunScript(runSh, entryPoint));
   fs.chmodSync(path.join(stageDir, "run.sh"), 0o755);
   addSettingsReader(stageDir);
+  // A module that runs the app as a function the platform calls gets the adapter, which
+  // starts run.sh and hands it each request (templates/sealeye-handler.mjs).
+  if (composed.adapter === "handler") {
+    onStep("Adding the platform's adapter, which hands your app each request");
+    addHandlerAdapter(stageDir);
+  }
 
   onStep("Packaging the artifact");
   fs.rmSync(zipPath, { force: true });
@@ -139,6 +145,37 @@ export async function stage(appPath, deploymentId, composed, onStep = () => {}) 
   await run("aws", ["s3", "cp", zipPath, `s3://${bucket}/${key}`]);
 
   return key;
+}
+
+/**
+ * The adapter beside run.sh in the packaged copy (DESIGN.md, "An app that listens reaches
+ * a module that calls a function"). A folder that already has a file of its name is
+ * refused rather than overwritten: the developer's files are never changed.
+ */
+export function addHandlerAdapter(stageDir) {
+  const target = path.join(stageDir, "sealeye-handler.mjs");
+  if (fs.existsSync(target)) {
+    throw new Error("your app folder has a sealeye-handler.mjs, which is where the platform puts the adapter that hands your app its requests; rename yours");
+  }
+  fs.copyFileSync(path.join(repoRoot, "templates", "sealeye-handler.mjs"), target);
+}
+
+/**
+ * The file an app starts from, read from its folder: package.json's `main`, then a
+ * `start` script that runs `node <file>`, then index.js. Null when none of them is a
+ * file there, which the caller refuses in words before anything is built.
+ */
+export function entryPointOfFolder(dir) {
+  const isFile = rel => {
+    const safe = rel && !rel.startsWith("/") && !rel.split("/").includes("..") && /^[A-Za-z0-9._\/-]+$/.test(rel);
+    return safe && fs.existsSync(path.join(dir, rel)) && fs.statSync(path.join(dir, rel)).isFile() ? rel : null;
+  };
+  let pkg = {};
+  try { pkg = JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf8")) || {}; } catch {}
+  const main = typeof pkg.main === "string" ? pkg.main.replace(/^\.\//, "") : null;
+  const withJs = rel => rel && (isFile(rel) || isFile(`${rel}.js`));
+  const start = typeof pkg.scripts?.start === "string" ? pkg.scripts.start.match(/^\s*node\s+(?:--?[\w-]+(?:=\S+)?\s+)*([^\s;&|]+)\s*$/)?.[1]?.replace(/^\.\//, "") : null;
+  return withJs(main) || withJs(start) || isFile("index.js");
 }
 
 /** Remove every secret file under a staged copy (never the developer's folder). */

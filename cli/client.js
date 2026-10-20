@@ -5,7 +5,8 @@ import YAML from "yaml";
 
 import { envValuesFor } from "../core/settings.js";
 import { setting } from "../core/config.js";
-import { zipFolder } from "../core/upload.js";
+import { loadCatalog, STARTER_VERSION } from "../core/catalog.js";
+import { zipFolder, UploadRefused } from "../core/upload.js";
 
 /**
  * The platform did not answer at all: wrong port, API not started, machine asleep.
@@ -95,7 +96,9 @@ export async function createDeployment({ apiBaseUrl, backend, plan, appPath, req
   try {
     packed = await zipFolder(appPath, { purpose: "deploy" });
   } catch (err) {
-    if (err?.constructor?.name === "UploadRefused") err.userFacing = true;
+    // Too big, or code that looks like it holds a secret (SecretsFound): the sentence
+    // is the developer's to act on, so it is shown as it is.
+    if (err instanceof UploadRefused) err.userFacing = true;
     throw err;
   }
   const body = { backend, plan, appPath, zip: Buffer.from(packed.zip).toString("base64") };
@@ -161,6 +164,11 @@ export async function getEvidence({ apiBaseUrl, deploymentId }) {
   return platformFetch(apiBaseUrl, `/deployments/${deploymentId}/evidence`, { method: "GET" });
 }
 
+/** The plan a deployment was approved with, as its two files, and its report. */
+export async function getPlan({ apiBaseUrl, deploymentId }) {
+  return platformFetch(apiBaseUrl, `/deployments/${deploymentId}/plan`, { method: "GET" });
+}
+
 /** What the drafted plans are waiting on, rolled up across apps. */
 export async function getNeeds({ apiBaseUrl }) {
   return platformFetch(apiBaseUrl, "/needs", { method: "GET" });
@@ -214,27 +222,33 @@ async function interviewFetch(apiBaseUrl, route, options) {
 
 /**
  * Upload the app folder and start an interview over it. Secret files travel as names
- * only (core/upload.js), so their contents never leave this machine.
+ * only (core/upload.js), and so does any file the scanner finds a secret in
+ * (core/scan.js), so their contents never leave this machine. The findings go with the
+ * upload, file, line and rule only, so the API can say why those files are empty.
  *
- * @returns {Promise<{interviewId, status, withheld: string[]}>}
+ * @returns {Promise<{interviewId, status, withheld: string[], findings: object[]}>}
+ *          findings are this machine's and the API's together.
  */
 export async function startInterview({ apiBaseUrl, appPath, deployed, user, trace = true }) {
   let packed;
   try {
     packed = await zipFolder(appPath);
   } catch (err) {
-    if (err?.name === "UploadRefused" || err?.constructor?.name === "UploadRefused") err.userFacing = true;
+    if (err instanceof UploadRefused) err.userFacing = true;
     throw err;
   }
 
   const started = await interviewFetch(apiBaseUrl, "/interviews", asJson({
     app: path.basename(path.resolve(appPath)),
     zip: Buffer.from(packed.zip).toString("base64"),
+    ...(packed.findings.length ? { findings: packed.findings.map(({ file, line, rule }) => ({ file, line, rule })) } : {}),
+    ...(packed.unread?.length ? { unread: packed.unread } : {}),
     ...(deployed ? { deployed } : {}),
     ...(user ? { user } : {}),
     ...(trace ? {} : { trace: false })
   }));
-  return { ...started, withheld: packed.withheld };
+  // An older API answers without findings of its own: what this machine found stands.
+  return { ...started, withheld: packed.withheld, findings: Array.isArray(started.findings) ? started.findings : packed.findings };
 }
 
 /** Drop an interview the developer has left, so the API keeps nothing of their app. */
@@ -255,13 +269,30 @@ export async function answerInterview({ apiBaseUrl, interviewId, answer }) {
  * @returns {Promise<object|null>} the event that ended the follow
  */
 export async function followInterview({ apiBaseUrl, interviewId, onEvent, after = 0 }) {
+  return followEvents({
+    apiBaseUrl,
+    route: `/interviews/${interviewId}/events`,
+    onEvent,
+    after,
+    ends: ["finished", "failed"],
+    gone: "The platform no longer has this interview. Run sealeye run again.",
+    broken: status => `The platform could not stream the interview (it answered ${status}). Run sealeye run again.`
+  });
+}
+
+/**
+ * Follow a stream of server-sent events from the platform, picking it up again where
+ * it left off when it drops, until an event of a type in `ends` arrives or the handler
+ * returns "stop". Resolves with that last event and the last seq seen.
+ */
+async function followEvents({ apiBaseUrl, route, onEvent, after = 0, ends, gone, broken, over = async () => true }) {
   let last = after;
   let drops = 0;
 
   while (true) {
     let res;
     try {
-      res = await fetch(`${apiBaseUrl}/interviews/${interviewId}/events`, {
+      res = await fetch(`${apiBaseUrl}${route}`, {
         headers: { accept: "text/event-stream", "last-event-id": String(last), ...authHeaders() }
       });
     } catch (err) {
@@ -271,19 +302,16 @@ export async function followInterview({ apiBaseUrl, interviewId, onEvent, after 
     }
 
     if (res.status === 401) throw new NotSignedInError(await res.json().catch(() => ({})));
-    if (res.status === 404) {
-      const gone = new Error("The platform no longer has this interview. Run sealeye run again.");
-      gone.userFacing = true;
-      throw gone;
+    if (res.status === 404) throw Object.assign(new Error(gone), { userFacing: true });
+    if (res.status === 403) {
+      const body = await res.json().catch(() => ({}));
+      throw Object.assign(new Error(body?.error?.message || broken(403)), { userFacing: true, code: body?.error?.code });
     }
-    if (!res.ok || !res.body) {
-      const err = new Error(`The platform could not stream the interview (it answered ${res.status}). Run sealeye run again.`);
-      err.userFacing = true;
-      throw err;
-    }
+    if (!res.ok || !res.body) throw Object.assign(new Error(broken(res.status)), { userFacing: true });
 
     const decoder = new TextDecoder();
     let buffer = "";
+    let ended = false;
     try {
       for await (const chunk of res.body) {
         buffer += decoder.decode(chunk, { stream: true });
@@ -305,20 +333,79 @@ export async function followInterview({ apiBaseUrl, interviewId, onEvent, after 
             // The handler's own failure is the caller's, not a dropped stream.
             throw Object.assign(err instanceof Error ? err : new Error(String(err)), { fromHandler: true });
           }
-          if (verdict === "stop" || event.type === "finished" || event.type === "failed") {
+          if (verdict === "stop" || ends.includes(event.type)) {
             try { await res.body.cancel(); } catch {}
             return { ...event, lastSeq: last };
           }
         }
       }
+      ended = true;
     } catch (err) {
       if (err?.fromHandler || err?.userFacing) throw err;
     }
-    // The stream ended without the interview ending: pick it up again, a little later
-    // each time, so a proxy that keeps closing it is not hammered.
+    // A stream the platform closed on purpose with nothing more to say (a run that was
+    // already over when it was asked): there is nothing to pick up again. A proxy or a
+    // restart can close it cleanly too, so `over` asks whether the run really is.
+    if (ended && ends.includes("closed") && await over()) return { type: "closed", lastSeq: last };
+    // The stream ended without the run ending: pick it up again, a little later each
+    // time, so a proxy that keeps closing it is not hammered.
     if (++drops > 5) throw new PlatformUnreachableError(apiBaseUrl, new Error("the event stream kept closing"));
     await new Promise(r => setTimeout(r, 250 * drops));
   }
+}
+
+// ---------------------------------------------------------------------------------
+// Discovery (PHASE4-PLAN Step 6): a run over the organization's platform library, and
+// the questions it asks. For an organization-wide token only; a refusal is the API's
+// own sentence.
+
+async function discoveryCall(apiBaseUrl, route, options) {
+  try {
+    return await platformFetch(apiBaseUrl, route, options);
+  } catch (err) {
+    const message = err.details?.error?.message;
+    if (message) throw Object.assign(new Error(message), { userFacing: true, code: err.details.error.code, more: err.details.error.details });
+    throw err;
+  }
+}
+
+export const startDiscovery = ({ apiBaseUrl }) => discoveryCall(apiBaseUrl, "/discoveries", asJson({}));
+
+// An organization's catalogs, the self-test, approving and making live (PHASE4-PLAN Step 7).
+export const listCatalogs = ({ apiBaseUrl }) => discoveryCall(apiBaseUrl, "/catalogs", { method: "GET" });
+export const catalogSelfTest = ({ apiBaseUrl, version }) =>
+  discoveryCall(apiBaseUrl, `/catalogs/${encodeURIComponent(version)}/self-test`, { method: "GET" }).then(r => r.selfTest);
+export const approveCatalogVersion = ({ apiBaseUrl, version }) => discoveryCall(apiBaseUrl, `/catalogs/${encodeURIComponent(version)}/approve`, asJson({}));
+export const makeCatalogLive = ({ apiBaseUrl, version }) => discoveryCall(apiBaseUrl, `/catalogs/${encodeURIComponent(version)}/live`, asJson({}));
+export const getCatalogVersion = ({ apiBaseUrl, version }) => discoveryCall(apiBaseUrl, `/catalogs/${encodeURIComponent(version)}`, { method: "GET" });
+export const editCatalog = ({ apiBaseUrl, version, module, field, text }) =>
+  discoveryCall(apiBaseUrl, `/catalogs/${encodeURIComponent(version)}/edits`, asJson({ module, field, text }));
+export const listDiscoveries = ({ apiBaseUrl }) => discoveryCall(apiBaseUrl, "/discoveries", { method: "GET" }).then(r => r.discoveries);
+export const getDiscovery = ({ apiBaseUrl, id }) => discoveryCall(apiBaseUrl, `/discoveries/${encodeURIComponent(id)}`, { method: "GET" });
+export const answerDiscovery = ({ apiBaseUrl, id, question, answer }) =>
+  discoveryCall(apiBaseUrl, `/discoveries/${encodeURIComponent(id)}/answers`, asJson({ question, answer })).then(r => r.question);
+
+// An organization's platform values (PHASE4-PLAN Step 9): what only its platform team can
+// give a module, by stage. An organization-wide token's only, as discovery is.
+const stageQuery = stage => (stage ? `?stage=${encodeURIComponent(stage)}` : "");
+export const getPlatform = ({ apiBaseUrl, stage }) => discoveryCall(apiBaseUrl, `/platform${stageQuery(stage)}`, { method: "GET" });
+export const setPlatformValue = ({ apiBaseUrl, name, value, stage }) =>
+  discoveryCall(apiBaseUrl, `/platform/values/${encodeURIComponent(name)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ value, ...(stage ? { stage } : {}) }) }).then(r => r.value);
+export const removePlatformValue = ({ apiBaseUrl, name, stage }) =>
+  discoveryCall(apiBaseUrl, `/platform/values/${encodeURIComponent(name)}${stageQuery(stage)}`, { method: "DELETE" });
+
+/** A run's events from `after`: every one so far, then each as it comes, until it ends. */
+export function followDiscovery({ apiBaseUrl, id, onEvent, after = 0 }) {
+  return followEvents({
+    apiBaseUrl,
+    route: `/discoveries/${encodeURIComponent(id)}/events`,
+    onEvent,
+    after,
+    ends: ["finished", "stopped", "failed", "closed"],
+    over: async () => (await getDiscovery({ apiBaseUrl, id }).catch(() => ({ status: "running" }))).status !== "running",
+    gone: "The platform has no such discovery run.",
+    broken: status => `The platform could not stream the discovery run (it answered ${status}).`
+  });
 }
 
 /**
@@ -338,7 +425,7 @@ async function settingsCall(apiBaseUrl, route, options) {
     return await platformFetch(apiBaseUrl, route, options);
   } catch (err) {
     const message = err.details?.error?.message;
-    if (message) throw Object.assign(new Error(message), { userFacing: true, code: err.details.error.code });
+    if (message) throw Object.assign(new Error(message), { userFacing: true, code: err.details.error.code, more: err.details.error.details });
     throw err;
   }
 }
@@ -361,7 +448,25 @@ export async function whoAmI({ apiBaseUrl, token }) {
   return platformFetch(apiBaseUrl, "/whoami", { token });
 }
 
-/** What the platform can build, and the needs it cannot yet (GET /catalog). */
-export async function getCatalog({ apiBaseUrl }) {
-  return platformFetch(apiBaseUrl, "/catalog");
+/**
+ * What the platform can build, and the needs it cannot yet (GET /catalog): the
+ * organization's live catalog, or with `version` the one a plan names.
+ */
+export async function getCatalog({ apiBaseUrl, version }) {
+  return platformFetch(apiBaseUrl, version === undefined ? "/catalog" : `/catalog?version=${encodeURIComponent(version)}`);
+}
+
+/**
+ * The catalog a plan was written against (planVersion 0.5), as the API serves it for
+ * drawing the plan: the card and DEPLOYMENT_PLAN.md read it, so an organization's own
+ * module reads the same in the terminal as in seaLeye.online. An API from before
+ * Oct 15, 2026 sends no document, and only ever had the starter, which is the command's
+ * own copy word for word.
+ */
+export async function catalogForPlan({ apiBaseUrl, plan }) {
+  const version = plan?.catalog ?? STARTER_VERSION;
+  const body = await getCatalog({ apiBaseUrl, version });
+  if (body?.document && typeof body.document === "object") return body.document;
+  if (version === STARTER_VERSION) return loadCatalog();
+  throw new Error(`the platform did not send catalog ${version}, which this plan was written against`);
 }

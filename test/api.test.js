@@ -8,9 +8,10 @@ import path from "node:path";
 import { spawn, execFile } from "node:child_process";
 import { promisify } from "node:util";
 import YAML from "yaml";
+import { freePort } from "./helpers/free-port.js";
 
 const root = path.resolve(import.meta.dirname, "..");
-const port = 3900 + Math.floor(Math.random() * 90);
+const port = await freePort();
 const api = `http://localhost:${port}`;
 const home = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-api-"));
 let server;

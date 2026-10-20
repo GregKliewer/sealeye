@@ -48,7 +48,7 @@ function subjectOf(pathString) {
   return subject;
 }
 
-/** Walk the frozen contract to the field the error is about, so its values can be named. */
+/** Walk the starter's contract to the field the error is about, so its values can be named. */
 function schemaAt(pathString) {
   const segments = String(pathString || "/").split("/").filter(Boolean);
   let node = planSchema;
@@ -81,8 +81,10 @@ export function plainValidationError(error) {
   const matched = RULES.find(([pattern]) => pattern.test(rule));
   const phrase = matched ? matched[1](matched[0].exec(rule)) : rule;
 
+  // The values the API sent with the error first: for module ids and need kinds they are
+  // the plan's catalog's (planVersion 0.5). An error without them names the starter's.
   const values = /the contract allows|the contract fixes/.test(phrase)
-    ? allowedValues(path)
+    ? (Array.isArray(error?.allowed) && error.allowed.length ? error.allowed.join(", ") : allowedValues(path))
     : null;
 
   return values ? `${subject} ${phrase}: ${values}.` : `${subject} ${phrase}.`;
@@ -90,4 +92,18 @@ export function plainValidationError(error) {
 
 export function plainValidationErrors(errors = []) {
   return errors.map(plainValidationError);
+}
+
+/**
+ * Which catalog a page or a command is showing, in a sentence: GET /catalog's `catalog`.
+ * The command (`sealeye catalog`) and seaLeye.online's Catalog page both say it.
+ */
+export function catalogSentence(ref) {
+  if (!ref || ref.source === "starter" || ref.version === "starter") {
+    return "The starter catalog: the modules seaLeye builds on its own, until your organization's own catalog is live.";
+  }
+  const by = ref.approvedBy ? `, approved by ${ref.approvedBy}` : "";
+  return ref.live === false
+    ? `Your organization's catalog, version ${ref.version}${by}. It has since been replaced.`
+    : `Your organization's catalog, version ${ref.version}${by}.`;
 }

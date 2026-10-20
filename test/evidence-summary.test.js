@@ -67,3 +67,21 @@ test("helpers", () => {
   assert.equal(humanDuration(168), "2 min 48 s");
   assert.equal(shortHash("not a hash"), "not a hash");
 });
+
+test("an environment built from the organization's own module reads in its own words", () => {
+  const fromModule = {
+    ...live,
+    subject: { ...live.subject, stackName: "sealeye-default-lookup-dcc652" },
+    built: { none: false, terraform: true, module: { source: "modules/http-api", commit: "5e63aa573473e988a2e2e40616ad32614a30e98b" }, artifactKey: "sealeye-lookup-dcc652/dep_1.zip", resources: [1, 2, 3, 4] },
+    checkedNow: { none: false, terraform: true, state: { resources: ["module.app.aws_lambda_function.fn"] }, answered: { status: 200, ms: 400 }, changesOutside: [] }
+  };
+  const { title, rows } = evidenceSummary(fromModule);
+  assert.equal(title, "Change record for payments-api (environment sealeye-default-lookup-dcc652, profile dev)");
+  assert.equal(rows[2].text, "modules/http-api at 5e63aa573473, artifact sealeye-lookup-dcc652/dep_1.zip, four parts made or changed, 2 min 48 s");
+  assert.equal(rows[3].text, "answered 200 in 0.4 s; no changes outside seaLeye");
+  assert.equal(rows[3].alarm, false);
+  const unread = { ...fromModule, checkedNow: { ...fromModule.checkedNow, state: { error: "not checked: init failed" }, changesOutside: "not checked: init failed" } };
+  const check = evidenceSummary(unread).rows[3];
+  assert.equal(check.alarm, true);
+  assert.match(check.text, /^its record not checked: init failed; answered 200/);
+});

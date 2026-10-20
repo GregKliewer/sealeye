@@ -10,6 +10,7 @@ import { api, SignedOut, type DeploymentSummary, type Validation } from "../api"
 import { useSession } from "../session";
 import { plainValidationErrors } from "../../../core/plan-words.js";
 import { PageTitle, Problem } from "../Layout";
+import { Cmd } from "../Command";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 
@@ -63,7 +64,7 @@ export function Validate() {
 
   return (
     <>
-      <PageTitle title="Validate a plan" sub={<>Check a <code className="font-mono">sealeye.yaml</code> against the plan contract, as <code className="font-mono">sealeye validate</code> does. Nothing is built.</>} />
+      <PageTitle title="Validate a plan" sub={<>Check a <code className="font-mono">sealeye.yaml</code> against the plan contract, as <Cmd op="validate" className="text-inherit" /> does. Nothing is built.</>} />
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader><CardTitle>Your plan</CardTitle></CardHeader>
@@ -115,7 +116,7 @@ export function Validate() {
                     </li>
                   ))}
                 </ul>
-                <p className="text-dim">Deploying it saves the draft. When your organization's Platform Library supports these, <code className="font-mono">sealeye run</code> again finishes the plan.</p>
+                <p className="text-dim">Deploying it saves the draft. When your organization's Platform Library supports these, <Cmd op="run" className="text-inherit" /> again finishes the plan.</p>
               </>
             ) : null}
             {result?.valid && result.status !== "drafted" ? (
@@ -179,7 +180,7 @@ function DeployPlan({ app, plan, team }: { app: string; plan: unknown; team: str
           <Button onClick={deploy} disabled={busy}>{busy ? "Asking the platform" : "Deploy this plan"}</Button>
         </>
       ) : (
-        <p className="text-dim">The platform has no code for {app} yet. Run <code className="font-mono text-ink">sealeye run</code> in its folder to send it.</p>
+        <p className="text-dim">The platform has no code for {app} yet. Run <Cmd op="run" /> in its folder to send it.</p>
       )}
       {error ? <Problem message={error} /> : null}
     </div>

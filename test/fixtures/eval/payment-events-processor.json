@@ -1,10 +1,38 @@
 {
   "answers": [
-    "Yes, that's right.",
-    "It must only be reachable from inside the bank."
+    {
+      "when": [
+        "reach",
+        "internal",
+        "public",
+        "inside",
+        "network",
+        "who uses",
+        "who will use",
+        "anything else"
+      ],
+      "answer": "It must only be reachable from inside the bank."
+    },
+    {
+      "when": [
+        "is that right",
+        "right?",
+        "looks like",
+        "what does your app do",
+        "when it runs",
+        "does it"
+      ],
+      "answer": "Yes, that's right."
+    }
   ],
   "expected": {
     "status": "drafted",
-    "needs": ["continuous_service", "event_stream", "internal_only", "relational_database", "runtime_secrets"]
+    "needs": [
+      "continuous_service",
+      "event_stream",
+      "internal_only",
+      "relational_database",
+      "runtime_secrets"
+    ]
   }
 }

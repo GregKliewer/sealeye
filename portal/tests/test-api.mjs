@@ -9,10 +9,15 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
+import { answerModel } from "../../test/helpers/model-reply.js";
 
 export const TEST_TOKEN = `sl_${"t".repeat(43)}`;
 export const OTHER_ORG_TOKEN = `sl_${"o".repeat(43)}`;
 export const ORG_WIDE_TOKEN = `sl_${"z".repeat(43)}`;
+// A team whose one environment was built from an organization's own modules, and a
+// platform engineer in the second organization, whose live catalog has two of them.
+export const LOOKUP_TOKEN = `sl_${"l".repeat(43)}`;
+export const JUNIPER_WIDE_TOKEN = `sl_${"j".repeat(43)}`;
 const PORT = Number(process.env.SEALEYE_TEST_API_PORT || 3999);
 
 const root = path.resolve(import.meta.dirname, "..", "..");
@@ -24,6 +29,8 @@ const ago = ms => new Date(now - ms).toISOString();
 fs.writeFileSync(path.join(home, "tokens.json"), JSON.stringify([
   { tokenId: "tok_greg", tokenHash: hash(TEST_TOKEN), email: "greg@example.com", name: "Greg Kliewer", org: "default", team: "default", createdAt: ago(0), revokedAt: null, lastUsedAt: null },
   { tokenId: "tok_wide", tokenHash: hash(ORG_WIDE_TOKEN), email: "lead@example.com", name: "Lee Admin", org: "default", team: "default", scope: "org", createdAt: ago(0), revokedAt: null, lastUsedAt: null },
+  { tokenId: "tok_lookup", tokenHash: hash(LOOKUP_TOKEN), email: "bo@example.com", name: "Bo Lindqvist", org: "default", team: "lookup", createdAt: ago(0), revokedAt: null, lastUsedAt: null },
+  { tokenId: "tok_juniper", tokenHash: hash(JUNIPER_WIDE_TOKEN), email: "pat@juniper.example", name: "Pat Juniper", org: "juniper", team: "platform", scope: "org", createdAt: ago(0), revokedAt: null, lastUsedAt: null },
   { tokenId: "tok_other", tokenHash: hash(OTHER_ORG_TOKEN), email: "x@other.example", name: "Other Org", org: "other-org", team: "default", createdAt: ago(0), revokedAt: null, lastUsedAt: null }
 ]));
 
@@ -40,7 +47,7 @@ const by = (name, user) => ({ user, name, host: "a-laptop", verified: "token" })
 const base = { backend: "cloudformation", orgId: "default", teamId: "default", surface: "cli" };
 fs.writeFileSync(path.join(home, "deployments.json"), JSON.stringify([
   { ...base, deploymentId: "dep_aaaaaaaaaaa1", app: { name: "payments-api" }, kind: "api", status: "succeeded", stackName: "sealeye-payments-api",
-    plan: apiPlan("payments-api"), artifactKey: "sealeye-payments-api/dep_aaaaaaaaaaa1.zip", artifactSha256: "b".repeat(64), outputs: { ApiUrl: "https://abc123.lambda-url.ca-central-1.on.aws/" }, requestedBy: by("Ana Pereira", "ana@example.com"),
+    plan: apiPlan("payments-api"), report: "# Deployment Report\n\nYour API is live at https://abc123.lambda-url.ca-central-1.on.aws/\n", artifactKey: "sealeye-payments-api/dep_aaaaaaaaaaa1.zip", artifactSha256: "b".repeat(64), outputs: { ApiUrl: "https://abc123.lambda-url.ca-central-1.on.aws/" }, requestedBy: by("Ana Pereira", "ana@example.com"),
     startedAt: ago(2 * 3600_000), finishedAt: ago(2 * 3600_000 - 90_000) },
   { ...base, deploymentId: "dep_aaaaaaaaaaa0", app: { name: "payments-api" }, kind: "api", status: "succeeded", stackName: "sealeye-payments-api",
     plan: { profile: "dev" }, outputs: { ApiUrl: "https://abc123.lambda-url.ca-central-1.on.aws/" }, requestedBy: by("Ana Pereira", "ana@example.com"),
@@ -49,13 +56,21 @@ fs.writeFileSync(path.join(home, "deployments.json"), JSON.stringify([
     plan: { profile: "poc" }, outputs: { WebsiteUrl: "http://sealeye-marketing-site.s3-website.ca-central-1.amazonaws.com" }, requestedBy: by("Greg Kliewer", "greg@example.com"),
     startedAt: ago(26 * 3600_000), finishedAt: ago(26 * 3600_000 - 60_000) },
   { ...base, deploymentId: "dep_ccccccccccc1", app: { name: "ledger-sync" }, status: "drafted", plan: { profile: "dev" }, outputs: {},
-    needs: [{ kind: "relational_database", evidence: [{ file: "db.js", shows: "connects to Postgres" }] }], requestedBy: by("Ana Pereira", "ana@example.com"),
+    needs: [
+      { kind: "relational_database", evidence: [{ file: "db.js", shows: "connects to Postgres" }] },
+      // A need none of the known kinds fits, in the interview's own words.
+      { kind: "unlisted", line: "a search index over its records", evidence: [{ file: "package.json", shows: "an elasticsearch client" }] }
+    ], requestedBy: by("Ana Pereira", "ana@example.com"),
     startedAt: ago(5 * 3600_000) },
   { ...base, deploymentId: "dep_ddddddddddd1", app: { name: "report-builder" }, kind: "api", status: "failed", stackName: "sealeye-report-builder",
     plan: { profile: "dev" }, outputs: {}, failureReason: "The function could not start: index.js was not in the folder.", requestedBy: by("Greg Kliewer", "greg@example.com"),
     startedAt: ago(40 * 60_000) },
   { ...base, deploymentId: "dep_eeeeeeeeeee1", app: { name: "old-demo" }, kind: "static", status: "destroyed", stackName: "sealeye-old-demo",
-    plan: { profile: "poc" }, outputs: {}, requestedBy: by("Greg Kliewer", "greg@example.com"), startedAt: ago(9 * 86400_000) },
+    plan: { profile: "poc" }, outputs: { WebsiteUrl: "http://sealeye-old-demo.s3-website.ca-central-1.amazonaws.com" }, requestedBy: by("Greg Kliewer", "greg@example.com"), startedAt: ago(9 * 86400_000) },
+  // Live until a test tears it down from the command line while its page is open.
+  { ...base, deploymentId: "dep_hhhhhhhhhhh1", app: { name: "cli-side-api" }, kind: "api", status: "succeeded", stackName: "sealeye-cli-side-api",
+    plan: apiPlan("cli-side-api"), outputs: { ApiUrl: "https://cli789.lambda-url.ca-central-1.on.aws/" }, requestedBy: by("Greg Kliewer", "greg@example.com"),
+    startedAt: ago(4 * 3600_000), finishedAt: ago(4 * 3600_000 - 90_000) },
   { ...base, teamId: "payments", deploymentId: "dep_99999999999a", app: { name: "another-teams-api" }, kind: "api", status: "succeeded", stackName: "sealeye-payments-another-teams-api-0a1b2c",
     plan: apiPlan("another-teams-api"), artifactKey: "sealeye-payments-another-teams-api-0a1b2c/dep_99999999999a.zip", outputs: {}, requestedBy: by("Pat Other", "pat@example.com"), startedAt: ago(3600_000) },
   // Being built right now, from the portal: the platform carries on following it when the
@@ -66,6 +81,14 @@ fs.writeFileSync(path.join(home, "deployments.json"), JSON.stringify([
   { ...base, deploymentId: "dep_ggggggggggg0", app: { name: "inventory-api" }, kind: "api", status: "succeeded", stackName: "sealeye-inventory-api",
     plan: apiPlan("inventory-api"), artifactKey: "sealeye-inventory-api/dep_ggggggggggg0.zip", outputs: { ApiUrl: "https://inv456.lambda-url.ca-central-1.on.aws/" }, requestedBy: by("Ana Pereira", "ana@example.com"),
     startedAt: ago(26 * 3600_000), finishedAt: ago(26 * 3600_000 - 90_000) },
+  // Built from the organization's own modules (PHASE4-PLAN Step 9): it offers deploy
+  // again, state, history, plan and report, evidence and tear down, and nothing else yet.
+  { ...base, backend: "terraform", teamId: "lookup", deploymentId: "dep_lllllllllll1", app: { name: "beneficiary-lookup" }, kind: "api", status: "succeeded",
+    environment: "sealeye-lookup-beneficiary-lookup-1a2b3c", stackName: "sealeye-lookup-beneficiary-lookup-1a2b3c",
+    plan: apiPlan("beneficiary-lookup"), artifactKey: "sealeye-lookup-beneficiary-lookup-1a2b3c/dep_lllllllllll1.zip", outputs: { ApiUrl: "https://lookup321.execute-api.ca-central-1.amazonaws.com/" },
+    requestedBy: by("Bo Lindqvist", "bo@example.com"), startedAt: ago(5 * 3600_000), finishedAt: ago(5 * 3600_000 - 120_000),
+    // With a table it uses, built beside it (planVersion 0.6).
+    terraform: { module: { id: "http_api", source: "modules/http-api" }, parts: [{ id: "document_table", source: "modules/document-table", line: "A table of documents your app finds by key." }], settings: { BENEFICIARIES_TABLE: "document_table.table_name" } } },
   { ...base, orgId: "other-org", deploymentId: "dep_fffffffffff1", app: { name: "not-yours" }, kind: "api", status: "succeeded", stackName: "sealeye-not-yours",
     plan: { profile: "dev" }, outputs: {}, requestedBy: by("Other Org", "x@other.example"), startedAt: ago(3600_000) }
 ]));
@@ -131,6 +154,95 @@ case "$2" in
 esac
 `, { mode: 0o755 });
 
+// A finished discovery run for the Discovery page (PHASE4-PLAN Step 6b): one question
+// open, one answered, and the draft catalog it wrote. Starting a run here is refused in
+// words, since this API names no library.
+const starter = (await import("../../core/catalog.js")).starterCatalog();
+const draftModule = (id, source, extra = {}) => ({
+  id, source, availability: "available", builds_with: "terraform", role: "optional",
+  line: `What ${source} gives your app.`, inputs: { name: { required: true, line: "Your app's name." } }, ...extra
+});
+// Juniper's live catalog, for the Platform page: a module that runs an app and still
+// lacks a value only the platform can give, and one that takes no app's code.
+const juniperModule = (id, source, extra = {}) => ({
+  id, source, availability: "available", builds_with: "terraform", role: "optional", runs: [],
+  line: `What ${source} gives your app.`, ...extra
+});
+const juniperCatalog = {
+  org: "juniper", version: 3, status: "live", createdBy: "pat@juniper.example", createdAt: ago(86400_000),
+  approvedBy: "pat@juniper.example", approvedAt: ago(86000_000), madeLiveBy: "pat@juniper.example", madeLiveAt: ago(85000_000),
+  document: {
+    catalogVersion: "discovery-dsc_0000000000000009",
+    discovery: { run: "dsc_0000000000000009", library: [{ repo: "juniper/platform-modules", commit: "9a8b7c6".padEnd(40, "0") }] },
+    modules: [
+      juniperModule("http_api", "modules/http-api", {
+        delivers: { kind: "package", package: "package_path", handler: "handler" },
+        inputs: {
+          name: { required: true, line: "Your app's name." },
+          package_path: { required: true, line: "The zipped app." },
+          handler: { required: true, line: "The function to call." },
+          subnet_ids: { required: true, line: "The subnets the function runs in." },
+          security_group_ids: { required: true, line: "The security groups the function runs in." },
+          permissions_boundary: { required: false, line: "The boundary on the function's role." }
+        }
+      }),
+      juniperModule("postgres", "modules/postgres", {
+        inputs: { name: { required: true, line: "Your app's name." }, subnet_ids: { required: true, line: "The subnets the database runs in." } }
+      })
+    ],
+    need_kinds: starter.need_kinds, profiles: starter.profiles
+  }
+};
+// One value Juniper's platform team has set already, a list of subnets for dev.
+fs.writeFileSync(path.join(home, "platform-values.json"), JSON.stringify([
+  { org: "juniper", stage: "dev", name: "subnet_ids", value: ["subnet-0a1b2c3d", "subnet-4e5f6a7b"], setBy: "pat@juniper.example", setAt: ago(2 * 3600_000) }
+]));
+fs.writeFileSync(path.join(home, "catalogs.json"), JSON.stringify([juniperCatalog, {
+  org: "default", version: 1, status: "draft", createdBy: "lead@example.com", createdAt: ago(3600_000), approvedBy: null, approvedAt: null,
+  document: {
+    catalogVersion: "discovery-dsc_0000000000000001",
+    discovery: { run: "dsc_0000000000000001", library: [{ repo: "northwind/platform-library", commit: "5e63aa5".padEnd(40, "0") }] },
+    modules: [
+      draftModule("cache_valkey", "modules/cache-valkey", { open: ["q_open000001"] }),
+      draftModule("cache_redis", "modules/cache-redis", { availability: "deprecated" }),
+      draftModule("postgres", "modules/postgres", { guidance: "Below staging; from staging up, postgres_cluster." })
+    ],
+    need_kinds: starter.need_kinds, profiles: starter.profiles
+  }
+}, {
+  // An earlier draft no run on the page wrote: its words are reached from the Catalogs card.
+  org: "default", version: 2, status: "draft", createdBy: "lead@example.com", createdAt: ago(7200_000), approvedBy: null, approvedAt: null,
+  document: {
+    catalogVersion: "discovery-dsc_0000000000000000",
+    discovery: { run: "dsc_0000000000000000", library: [{ repo: "northwind/platform-library", commit: "4d52bb4".padEnd(40, "0") }] },
+    modules: [draftModule("work_queue", "modules/work-queue", { line: "A queue your app puts work on, kept with Terraform." })],
+    need_kinds: starter.need_kinds, profiles: starter.profiles
+  }
+}]));
+const runModules = ["modules/cache-redis", "modules/cache-valkey", "modules/postgres"].map(source => ({
+  source, id: source.split("/").pop().replace(/-/g, "_"), repo: 0, hash: "0", status: "read",
+  inputs: { name: { required: true, line: "Your app's name." } }, finding: { line: `What ${source} gives your app.`, availability: "available", rules: [] }, failed: null
+}));
+fs.writeFileSync(path.join(home, "discoveries.json"), JSON.stringify({
+  runs: [{
+    id: "dsc_0000000000000001", org: "default", orgName: "Northwind Payments", status: "finished", startedBy: "lead@example.com",
+    caller: { email: "lead@example.com", org: "default", team: "default" }, surface: "cli",
+    repos: [{ repo: "northwind/platform-library", commit: "5e63aa5".padEnd(40, "0"), via: "app" }],
+    modules: runModules, library: { stages: ["dev", "prod"], rules: [] }, cap: { worker: 0.1, run: 3 },
+    spend: { supervisor: { cost: 0.12 } }, catalogVersion: 1, createdAt: ago(3600_000), finishedAt: ago(3500_000)
+  }],
+  questions: [
+    { id: "q_open000001", seq: 1, discovery: "dsc_0000000000000001", org: "default", kind: "deprecated",
+      question: "Does cache-valkey replace cache-redis for new apps?", options: ["Yes, for new apps", "Not yet, only the trial teams"], guess: "Yes, for new apps",
+      touches: ["modules/cache-valkey", "modules/cache-redis"], evidence: [{ file: "modules/cache-redis/README.md", line: 3, shows: "says there is no cache for new apps until a replacement" }],
+      raisedBy: "supervisor", answer: null, createdAt: ago(3550_000) },
+    { id: "q_done000001", seq: 2, discovery: "dsc_0000000000000001", org: "default", kind: "other",
+      question: "Which database is for perf?", options: ["postgres-cluster", "postgres"], guess: "postgres-cluster",
+      touches: ["modules/postgres"], evidence: [{ file: "README.md", shows: "perf is built from staging" }],
+      raisedBy: "supervisor", answer: "postgres-cluster", answeredBy: "lead@example.com", answeredAt: ago(3000_000), usedAt: ago(2990_000), usedIn: 1, createdAt: ago(3540_000) }
+  ]
+}));
+
 // A stand-in for the model, so the New environment page can hold a whole interview: it
 // lists the folder, reads a file, asks one question and submits a plan. An app with a
 // worker.js gets a drafted plan instead, without a question. Which turn it is comes from
@@ -151,6 +263,19 @@ const model = http.createServer((req, res) => {
   req.on("data", d => (body += d));
   req.on("end", () => {
     const sent = JSON.parse(body || "{}");
+    // Discovery's supervisor, writing again the entries an answer touched.
+    if ((sent.tools || []).some(t => t.name === "write_catalog")) {
+      const opening = String(sent.messages?.[0]?.content || "");
+      const sources = (opening.match(/Write the entries for these modules: (.+)\./)?.[1] || "").split(", ").filter(Boolean);
+      const entries = sources.map(source => ({ source, line: `What ${source} gives your app.`, when: "When the app needs it.", signals: [], role: "optional", availability: "available", guidance: "As answered.", open: [] }));
+      answerModel(res, { usage: { input_tokens: 10, output_tokens: 10 }, stop_reason: "tool_use", content: [toolUse("w1", "write_catalog", { entries, questions: [] })] }, sent);
+      return;
+    }
+    // An app that would read forever, each reply costing $0.40: the run's cap stops it.
+    if (body.includes("looping-api")) {
+      answerModel(res, { usage: { input_tokens: 200000, output_tokens: 0 }, stop_reason: "tool_use", content: [toolUse(`l${Date.now()}`, "list_files", { path: "." })] }, sent);
+      return;
+    }
     const turn = Math.floor(((sent.messages || []).length - 1) / 2);
     const worker = body.includes("worker.js");
     const turns = worker
@@ -166,8 +291,7 @@ const model = http.createServer((req, res) => {
           { content: [toolUse("t3", "submit_plan", { plan: readyPlan, summary: "An orders API.", assumptions: ["It listens on PORT."] })], stop_reason: "tool_use" }
         ];
     const reply = turns[turn] || { content: [{ type: "text", text: "Done." }], stop_reason: "end_turn" };
-    res.writeHead(200, { "content-type": "application/json" });
-    res.end(JSON.stringify({ id: `msg_${Date.now()}`, type: "message", role: "assistant", model: "claude-sonnet-5", usage: { input_tokens: 10, output_tokens: 10 }, ...reply }));
+    answerModel(res, { usage: { input_tokens: 10, output_tokens: 10 }, ...reply }, sent);
   });
 });
 await new Promise(r => model.listen(0, "127.0.0.1", r));

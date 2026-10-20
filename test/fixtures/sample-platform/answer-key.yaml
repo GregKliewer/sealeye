@@ -1,0 +1,409 @@
+# The answer key for the made-up organization (PHASE4-PLAN Step 4, D9).
+#
+# Juniper Mutual is a fictional credit union whose platform library is the private
+# repository GregKliewer/sealeye-sample-platform. This file is what a careful platform
+# engineer would write after reading that library: the catalog discovery should produce,
+# the hard cases planted in it, the gaps, and the path to production.
+#
+# It lives here, in seaLeye, and never in the library, so discovery cannot read it.
+# `npm run eval:discovery` grades a catalog against it (scripts/eval-discovery.js), and
+# with `--library <path>` checks that this key still matches the library: every module
+# folder has an entry here, every entry's inputs are its variables, and the planted
+# secrets are where this says.
+#
+# The catalog is in seaLeye's own catalog form (prompts/module-catalog.yaml). Its need
+# kinds and profiles are the starter's, so they are not repeated: the grader fills them
+# in. A module's `source` is its folder in the library, which is how a catalog's entry is
+# matched to this key's whatever id discovery gives it. Nothing builds these modules yet
+# (`builds_with: terraform` waits on PHASE4-PLAN Step 9), so no plan can name them.
+# Words a developer may read (`line`, `when`) follow the same rules as the starter's: no
+# vendor terms, no sizes or counts.
+
+library: GregKliewer/sealeye-sample-platform
+
+catalog:
+  catalogVersion: juniper-answer-key
+  modules:
+    - id: static_site
+      source: modules/static-site
+      availability: available
+      builds_with: terraform
+      role: core
+      line: >-
+        Serves your website's files straight to visitors over HTTPS. Nothing runs on a
+        server.
+      when: >-
+        The app is only files: a page, documentation, or the built output of a front end
+        whose data comes from an API elsewhere.
+      signals:
+        - index.html at the root
+        - no server file and no listen call
+      inputs:
+        name: { required: true, line: Your app's name. }
+        stage: { required: true, line: Which stage on the path to production. }
+        index_document: { default: index.html, line: The page visitors land on. }
+        tags: { default: {}, line: Extra labels on everything it makes. }
+      guidance: >-
+        The only module that serves files to the public. From staging up the site is
+        served from every location, as production is.
+
+    - id: custom_domain
+      source: modules/custom-domain
+      availability: available
+      builds_with: terraform
+      role: optional
+      line: Puts your app behind a name your organization owns, with a certificate that renews itself.
+      when: >-
+        Only for something public facing that people type or bookmark. Internal tools and
+        anything below staging use the address the platform generates.
+      signals:
+        - a domain the app is pinned to in its configuration
+      inputs:
+        name: { required: true, line: Your app's name. }
+        stage: { required: true, line: Which stage on the path to production. }
+        domain_name: { required: true, line: The full name to answer on. }
+        zone_id: { required: true, line: The zone that name is in. }
+        target_domain_name: { required: true, line: The address the name points at. }
+        target_zone_id: { required: true, line: That address's own zone. }
+        tags: { default: {}, line: Extra labels on everything it makes. }
+      guidance: >-
+        Only prod may use the bare product name; lower stages put the stage first. The
+        zone must be one the platform team manages. Never ask a developer for a name below
+        staging.
+
+    - id: http_api
+      source: modules/http-api
+      availability: available
+      builds_with: terraform
+      role: core
+      line: >-
+        Runs your code when a request arrives, behind an HTTPS address, and costs nothing
+        while nobody is calling it.
+      when: >-
+        The app answers HTTP requests and can start fresh for each one: a REST API, a
+        webhook receiver, a small service with a health route.
+      signals:
+        - a listen call
+        - a web framework in dependencies
+      inputs:
+        name: { required: true, line: Your app's name. }
+        stage: { required: true, line: Which stage on the path to production. }
+        package_path: { required: true, line: Your app, packaged once by the pipeline. }
+        handler: { default: index.handler, line: Where your code starts. }
+        environment: { default: {}, line: Settings your app reads, never a secret. }
+        permissions_boundary_arn: { required: true, line: The platform's limit on what your app may do. }
+        policy_arns: { default: [], line: What your app may read and write, as each module it uses offers it. }
+        secret_arns: { default: [], line: The secrets your app may read while it runs. }
+        tags: { default: {}, line: Extra labels on everything it makes. }
+      guidance: >-
+        Every function carries the platform's permissions boundary. An app that holds a
+        connection open, reads a stream or a queue in a loop, or warms up at start is not
+        this module: it is container_service.
+
+    - id: container_service
+      source: modules/container-service
+      availability: available
+      builds_with: terraform
+      role: core
+      line: Runs your app continuously, in the private network, and replaces it when it stops being well.
+      when: >-
+        The app cannot start fresh for each request: it reads a stream or a queue in a
+        loop, holds connections open, or takes a while to warm up.
+      signals:
+        - a loop that consumes rather than a request handler
+        - a long lived client opened at startup and kept open
+      inputs:
+        name: { required: true, line: Your app's name. }
+        stage: { required: true, line: Which stage on the path to production. }
+        image: { required: true, line: Your app, packaged once by the pipeline. }
+        container_port: { default: 8080, line: The port your app listens on. }
+        cluster_arn: { required: true, line: The shared place apps run in this stage. }
+        subnet_ids: { required: true, line: The stage's private network. }
+        security_group_ids: { required: true, line: Who may reach your app. }
+        execution_role_arn: { required: true, line: The platform's role for starting your app. }
+        tags: { default: {}, line: Extra labels on everything it makes. }
+      guidance: >-
+        A consumer that also answers a health check is still a continuously running
+        service. To be reached by other apps inside the organization, put internal_entry
+        in front of it. From staging up it runs more copies, across zones.
+
+    - id: internal_entry
+      source: modules/internal-entry
+      availability: available
+      builds_with: terraform
+      role: optional
+      line: A front door only your organization's own network can reach.
+      when: >-
+        The app must not be reachable from the public internet: back-office tools,
+        services other apps call, anything handling member data with no business being
+        public.
+      signals:
+        - a README that says it must not be reachable from the public internet
+      inputs:
+        name: { required: true, line: Your app's name. }
+        stage: { required: true, line: Which stage on the path to production. }
+        vpc_id: { required: true, line: The stage's network. }
+        subnet_ids: { required: true, line: The stage's private network. }
+        security_group_ids: { required: true, line: Who may call your app. }
+        certificate_arn: { required: true, line: The stage's internal certificate. }
+        target_port: { default: 8080, line: The port your app listens on. }
+        tags: { default: {}, line: Extra labels on everything it makes. }
+      guidance: Put it in front of a container_service. From staging up it is protected against deletion.
+
+    - id: postgres
+      source: modules/postgres
+      availability: available
+      builds_with: terraform
+      role: optional
+      line: A relational database for your app, below staging.
+      when: >-
+        The app's code uses SQL against a relational database, and the stage is dev, sit
+        or uat.
+      signals:
+        - a SQL client or ORM in dependencies
+        - migrations or SQL files
+      inputs:
+        name: { required: true, line: Your app's name. }
+        stage: { required: true, line: Which stage on the path to production. }
+        subnet_group_name: { required: true, line: The stage's database network. }
+        security_group_ids: { required: true, line: Who may connect. }
+        instance_class: { default: db.t4g.micro, line: How large the database is. }
+        master_password: { default: null, line: Leave unset; the platform makes and keeps it. }
+        tags: { default: {}, line: Extra labels on everything it makes. }
+      guidance: >-
+        Below staging only. From staging up every relational database is
+        postgres_cluster, which takes the same inputs. The password is made and kept by
+        the platform; master_password is only for restoring an old snapshot by hand.
+
+    - id: postgres_cluster
+      source: modules/postgres-cluster
+      availability: available
+      builds_with: terraform
+      role: optional
+      line: A relational database for your app that survives losing a zone, from staging up.
+      when: >-
+        The app's code uses SQL against a relational database, and the stage is staging,
+        perf or prod.
+      signals:
+        - a SQL client or ORM in dependencies
+        - migrations or SQL files
+      inputs:
+        name: { required: true, line: Your app's name. }
+        stage: { required: true, line: Which stage on the path to production. }
+        subnet_group_name: { required: true, line: The stage's database network. }
+        security_group_ids: { required: true, line: Who may connect. }
+        instance_class: { default: db.r6g.large, line: How large the database is. }
+        tags: { default: {}, line: Extra labels on everything it makes. }
+      guidance: >-
+        Always from staging up; below staging use postgres, which takes the same inputs.
+        From staging up it has a reader in another zone, five weeks of backups, and
+        protection against deletion.
+
+    - id: document_table
+      source: modules/document-table
+      availability: available
+      builds_with: terraform
+      role: optional
+      line: A table of documents, each found by its key, that grows by itself.
+      when: The app stores records by key rather than in related tables.
+      signals:
+        - a document database client in dependencies
+      inputs:
+        name: { required: true, line: Your app's name. }
+        stage: { required: true, line: Which stage on the path to production. }
+        key: { default: id, line: What each document is found by. }
+        tags: { default: {}, line: Extra labels on everything it makes. }
+      guidance: From staging up it can be restored to any point in the last five weeks and is protected against deletion.
+
+    - id: work_queue
+      source: modules/work-queue
+      availability: available
+      builds_with: terraform
+      role: optional
+      line: A queue between your app and the work it hands off, so nothing is lost and nothing loops forever.
+      when: The app hands work to something else to do later, or does work it was handed.
+      signals:
+        - a queue client in dependencies
+        - a worker that reads messages
+      inputs:
+        name: { required: true, line: Your app's name. }
+        stage: { required: true, line: Which stage on the path to production. }
+        max_receives: { default: 5, line: How many tries before work is set aside. }
+        tags: { default: {}, line: Extra labels on everything it makes. }
+      guidance: A stream of events that many readers each see in order is not a queue; the library has nothing for one yet.
+
+    - id: file_bucket
+      source: modules/file-bucket
+      availability: available
+      builds_with: terraform
+      role: optional
+      line: Somewhere for your app to keep the files it writes and reads back. Always private.
+      when: The app stores files it writes and reads back, such as uploads, exports or generated documents.
+      signals:
+        - a storage client in dependencies writing files
+      inputs:
+        name: { required: true, line: Your app's name. }
+        stage: { required: true, line: Which stage on the path to production. }
+        tags: { default: {}, line: Extra labels on everything it makes. }
+      guidance: Never for a website, and never public. From staging up every change to a file is kept.
+
+    - id: secrets
+      source: modules/secrets
+      availability: available
+      builds_with: terraform
+      role: optional
+      line: A place for the secrets your app reads while it runs. The values never pass through a plan.
+      when: The app reads a key, a token or a password from its environment.
+      signals:
+        - a .env.example naming keys or tokens
+      inputs:
+        name: { required: true, line: Your app's name. }
+        stage: { required: true, line: Which stage on the path to production. }
+        secret_names: { required: true, line: The names of the secrets your app reads. }
+        tags: { default: {}, line: Extra labels on everything it makes. }
+      guidance: Names only; the team puts the values in. A database's own password is the database module's, not this.
+
+    - id: logs_and_alarms
+      source: modules/logs-and-alarms
+      availability: available
+      builds_with: terraform
+      role: shared
+      line: Keeps your app's logs and raises an alarm when it starts logging errors.
+      when: Every app, at every stage.
+      signals: []
+      inputs:
+        name: { required: true, line: Your app's name. }
+        stage: { required: true, line: Which stage on the path to production. }
+        alarm_topic_arn: { required: true, line: Where alarms go, which depends on the stage. }
+        error_pattern: { default: ERROR, line: What an error line looks like. }
+        tags: { default: {}, line: Extra labels on everything it makes. }
+      guidance: >-
+        Below staging, alarms go to the team's own channel. From staging up, every app's
+        alarms go to the on-call topic, oncall-pager, and nowhere else; an app still
+        alarming to a team channel is stopped at the change review before production.
+
+    - id: cache_redis
+      source: modules/cache-redis
+      availability: deprecated
+      builds_with: terraform
+      role: optional
+      line: A cache in front of something slower. Deprecated, and not for new apps.
+      inputs:
+        name: { required: true, line: Your app's name. }
+        stage: { required: true, line: Which stage on the path to production. }
+        subnet_group_name: { required: true, line: The stage's cache network. }
+        security_group_ids: { required: true, line: Who may connect. }
+        tags: { default: {}, line: Extra labels on everything it makes. }
+      guidance: Deprecated since March 2025. There is no cache for new apps until it is replaced.
+
+    # Its standing is what the library leaves unclear (hard_cases.ambiguous): in trial with
+    # two teams, while cache-redis says there is no cache for new apps. A careful engineer
+    # asks. Until a run's question is answered, only the question is graded, never this
+    # entry's availability.
+    - id: cache_valkey
+      source: modules/cache-valkey
+      availability: available
+      builds_with: terraform
+      role: optional
+      line: A cache in front of something slower, encrypted when stored and on the way.
+      inputs:
+        name: { required: true, line: Your app's name. }
+        stage: { required: true, line: Which stage on the path to production. }
+        subnet_group_name: { required: true, line: The stage's cache network. }
+        security_group_ids: { required: true, line: Who may connect. }
+        tags: { default: {}, line: Extra labels on everything it makes. }
+      guidance: In trial with the payments and lending teams. Whether new apps may use it is the platform team's to say.
+
+  rules:
+    core_modules: [static_site, http_api, container_service]
+    exactly_one_core: true
+    always_enabled: [logs_and_alarms]
+
+  patterns:
+    dev:
+      line: Built every day by the team, with backups kept and failed work held onto.
+      modules:
+        logs_and_alarms: Alarms to the team's own channel.
+        work_queue: Failed work set aside, not lost.
+    prod:
+      line: Held to production's rules from staging up, across zones, with alarms to on-call.
+      modules:
+        logs_and_alarms: Alarms to on-call, and nowhere else.
+        container_service: More copies, across zones.
+        postgres_cluster: A reader in another zone, long backups, protected against deletion.
+        document_table: Restorable to any recent point, protected against deletion.
+        file_bucket: Every change to a file kept.
+
+# The cases planted in the library on purpose. Each says how it is graded, or what it
+# waits on before it can be.
+hard_cases:
+  overlap:
+    modules: [modules/postgres, modules/postgres-cluster]
+    resolved_by: stage
+    settled_by_library: true
+    rule: postgres below staging, postgres_cluster from staging up, said only in their READMEs.
+    graded: >-
+      The library settles it, so it is not a question (Greg, Oct 15, 2026): caught when
+      each entry says which stages it is for and names the other, so a planner sees the
+      pair. How a plan names a module per stage still waits on Q20.
+  ambiguous:
+    module: modules/cache-valkey
+    # The ambiguity spans both: cache-redis says there is no cache for new apps until it
+    # is replaced, and cache-valkey is a cache in trial. Only a question touching both
+    # is about it (Oct 15, after the third measured run passed on an unrelated one).
+    with: modules/cache-redis
+    must: >-
+      be asked about, since the library leaves its standing unclear, and its entry rest
+      on that question until it is answered.
+  deprecated:
+    module: modules/cache-redis
+    must: "never be offered, so its availability is not available"
+  readme_rule:
+    module: modules/logs-and-alarms
+    file: modules/logs-and-alarms/README.md
+    rule: From staging up, alarms go to the on-call topic oncall-pager and nowhere else.
+    must_mention: [oncall-pager, staging]
+  planted_secret:
+    file: modules/postgres/examples/restore-from-snapshot/main.tf
+    line: 11
+    rule: assigned-secret
+    must: be found by the scanner before any model reads the file.
+  secret_file:
+    file: modules/postgres/examples/restore-from-snapshot/terraform.tfvars
+    must: never be read; its name only.
+
+# The answers a script gives in the eval's second pass (PHASE4-PLAN Step 7), so a run
+# graded with answers repeats as one graded without them does. The unclear module's
+# question is answered the moment it goes out, while the run goes; every other question
+# still open once the draft is written is answered with its own guess, after, so both
+# ways an answer is taken are exercised. Juniper's platform team settles the caches this
+# way: cache-valkey is the cache for new apps now.
+answers:
+  ambiguous:
+    when: as_asked
+    answer: "Yes: cache-valkey is the cache for new apps now, and cache-redis stays deprecated."
+    then:
+      availability: available
+  others:
+    when: after_draft
+    answer: guess
+
+# What the library has nothing for. The gap report (PHASE4-PLAN Step 10) must find
+# these once apps ask for them; graded then.
+gaps: [event_stream, user_sign_in, scheduled_task]
+
+# The path to production, for Phase 5. Recorded so the library's evidence for it is
+# known; nothing grades it yet.
+stages:
+  path: [dev, sit, uat, staging, prod]
+  aside:
+    perf: built from staging for a load test, never promoted from
+  production_rules_from: staging
+  build_once: the package is built once and promoted by its checksum
+  gates:
+    staging: [a platform team approval]
+    prod: [a platform team approval, an approved change ticket]
+  evidence:
+    - .github/workflows/app-build.yml
+    - .github/workflows/app-promote.yml
+    - README.md

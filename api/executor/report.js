@@ -9,6 +9,7 @@ import { repoRoot } from "../../core/config.js";
 import { normalizeProfile } from "../../core/schema.js";
 import { region } from "./cfn.js";
 import { sourceInWords } from "./settings.js";
+import { commandLine } from "../../core/operations.js";
 
 const TEMPLATE_PATH = path.join(repoRoot, "prompts", "report.md");
 
@@ -26,8 +27,57 @@ function fence(command) {
   return ["```", command, "```"].join("\n");
 }
 
+/**
+ * What the developer now has, for an environment built from the organization's own
+ * module (PHASE4-PLAN Step 9): in their words, with the module's folder named, and no
+ * product name (principle 8).
+ */
+function whatWasCreatedFromModule(record) {
+  const t = record.terraform || {};
+  const o = record.outputs || {};
+  const lines = ["## What was created", ""];
+  if (record.kind === "static") {
+    lines.push(
+      "- A public website, served over HTTPS from your organization's content network. Anyone with the link can open it.",
+      `- The storage holding your files${o.BucketName ? ` (bucket \`${o.BucketName}\`)` : ""}, which only the website can read.`
+    );
+  } else {
+    lines.push(
+      "- A public HTTPS address for your app. There is no server for you to run, patch or scale.",
+      `- Your app running unchanged on Node.js 20, started from \`${record.entryPoint || "index.js"}\`. The platform's adapter starts it and hands it each request.`
+    );
+  }
+  // Each module the app uses, built beside it, and where the app finds it.
+  const finds = Object.entries(t.settings || {});
+  for (const p of t.parts || []) {
+    const what = String(p.line || `The module ${p.id}`).trim().replace(/[.!?]+$/, "");
+    const names = finds.filter(([, from]) => String(from).startsWith(`${p.id}.`)).map(([setting]) => `\`${setting}\``);
+    lines.push(`- ${what}${names.length ? `, which your app finds through ${names.join(" and ")}` : ""}. Your app is given what it needs to use it, and nothing more.`);
+  }
+  lines.push(
+    "",
+    ...versionChangeLines(t.module?.versionChange),
+    `All of it was built from your organization's own module, \`${t.module?.source || "its module"}\` in ${t.module?.repo || "its platform library"}${t.module?.version ? `, version ${t.module.version}` : ""}${t.module?.commit ? ` at ${t.module.commit.slice(0, 12)}` : ""}, as one environment, \`${record.stackName}\`, in ${region()}. Tearing it down removes everything above and nothing else.`
+  );
+  return lines.join("\n");
+}
+
+/**
+ * A newer release of the module than the environment had (api/executor/terraform/
+ * versions.js): which, and what its changelog says changed, in the library's words.
+ */
+function versionChangeLines(change) {
+  if (!change?.from || !change?.to) return [];
+  return [
+    `This deploy moved your environment from version ${change.from} of your organization's module to ${change.to}.${change.changes?.length ? " Its changelog says:" : " Its changelog says nothing about the change."}`,
+    ...(change.changes || []).map(c => `- ${c}`),
+    ""
+  ];
+}
+
 /** What the developer now has, named in their terms with the AWS name in brackets. */
 function whatWasCreated(record) {
+  if (record.backend === "terraform") return whatWasCreatedFromModule(record);
   const o = record.outputs || {};
   const lines = ["## What was created", ""];
 
@@ -58,7 +108,7 @@ function yourUrl(record) {
 
   // Say it where the address is, not three sections away: the http:// is the first
   // thing anyone notices.
-  if (url && record.kind === "static") {
+  if (url && record.kind === "static" && record.backend !== "terraform") {
     lines.push(
       "",
       "That address is `http://`, not `https://`. This profile serves your files straight out of storage with no CDN in front of them, and a storage-hosted site is plain HTTP. The CDN is what adds `https://` and your own domain name — it is a deliberate omission here, not something that went wrong."
@@ -71,6 +121,12 @@ function yourUrl(record) {
 function logs(record) {
   const logGroup = record.outputs?.LogGroup;
   const lines = ["## Logs", ""];
+  if (record.backend === "terraform") {
+    lines.push(record.kind === "static"
+      ? "A static site has no application logs: nothing of yours is running."
+      : "What your app prints is kept by your organization's platform. Reading it through seaLeye is not available for an environment built from your organization's modules yet; ask your platform team.");
+    return lines.join("\n");
+  }
 
   if (logGroup) {
     lines.push(
@@ -131,9 +187,9 @@ function tearDown(record) {
     "",
     "When you are finished with this environment:",
     "",
-    fence(`sealeye destroy ${record.deploymentId}`),
+    fence(commandLine("teardown", record.deploymentId)),
     "",
-    "That deletes the stack and everything in it."
+    record.backend === "terraform" ? "That removes the environment and everything in it." : "That deletes the stack and everything in it."
   ].join("\n");
 }
 
@@ -145,7 +201,7 @@ function changeRecord(record) {
   return [
     "## Change record",
     "",
-    `When someone asks what was built and why, \`sealeye evidence ${record.app?.name}\` writes DEPLOYMENT_EVIDENCE.md in this folder from seaLeye.run's records and from CloudFormation: who asked, what they answered, what was approved, what was built, and what AWS says about it now. It never contains a setting's value.`
+    `When someone asks what was built and why, \`sealeye evidence ${record.app?.name}\` writes DEPLOYMENT_EVIDENCE.md in this folder from seaLeye.run's records and ${record.backend === "terraform" ? "from the platform's record of the environment" : "from CloudFormation"}: who asked, what they answered, what was approved, what was built, and what AWS says about it now. It never contains a setting's value.`
   ].join("\n");
 }
 
@@ -186,7 +242,7 @@ function assumptions(record, plan) {
   lines.push(
     record.kind === "static"
       ? "- Your files were not modified. seaLeye.run uploaded a copy of them. This report is the only file it writes into your folder."
-      : "- Your app was not modified. The start script the platform needs was added to the uploaded copy, not to your source. This report is the only file seaLeye.run writes into your folder."
+      : `- Your app was not modified. The start script${record.backend === "terraform" ? " and the adapter" : ""} the platform needs ${record.backend === "terraform" ? "were" : "was"} added to the uploaded copy, not to your source. This report is the only file seaLeye.run writes into your folder.`
   );
   lines.push(
     "- Secret files (.env, .env.production, keys and credentials) were left out of what was packaged. Settings reach your app from the organization's store or with the deploy, never inside the code."

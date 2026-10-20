@@ -1,0 +1,50 @@
+{
+  "answers": [
+    {
+      "when": [
+        "trying something out",
+        "trying it out",
+        "headed for",
+        "pipeline to production",
+        "which stage",
+        "what is this for"
+      ],
+      "answer": "I'm trying it out in dev first."
+    },
+    {
+      "when": [
+        "reach",
+        "internal",
+        "public",
+        "inside",
+        "network",
+        "private",
+        "who uses",
+        "who will use",
+        "anything else"
+      ],
+      "answer": "It must only be reachable from inside the bank."
+    },
+    {
+      "when": [
+        "is that right",
+        "right?",
+        "looks like",
+        "what does your app do",
+        "when it runs",
+        "does it"
+      ],
+      "answer": "Yes, that's right."
+    }
+  ],
+  "expected": {
+    "status": "drafted",
+    "needs": [
+      "continuous_service",
+      "event_stream",
+      "internal_only",
+      "relational_database",
+      "runtime_secrets"
+    ]
+  }
+}

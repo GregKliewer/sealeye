@@ -10,6 +10,9 @@
 import { listDeployments, putDeployment } from "../store.js";
 import { finishCleanup, followStack, settersFor, startDestroy } from "./index.js";
 import { removeUpload, uploadDirFor } from "./uploads.js";
+import { interruptedBuild, startTerraformDestroy } from "./terraform/index.js";
+import { catalogOfRecord } from "../catalogs.js";
+import { withPlatform } from "../platform.js";
 
 const now = () => new Date().toISOString();
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -62,6 +65,22 @@ export function resumeInFlight({ nowMs = Date.now() } = {}) {
     dep.resumedAt = now();
     const { set, fail } = settersFor(dep);
     const done = () => { if (dep.source === "upload") removeUpload(dep.deploymentId); };
+
+    // A Terraform environment (PHASE4-PLAN Step 9): a tear-down starts again, as any
+    // other; a build does not, since OpenTofu's apply stopped with the API. It fails,
+    // saying so, and its state's lock is kept for a person to release.
+    if (dep.backend === "terraform") {
+      if (dep.status === "destroying") {
+        putDeployment(dep);
+        startTerraformDestroy(dep, withPlatform(dep.orgId || "default", catalogOfRecord(dep))).catch(err => fail(err.message));
+        picked.push({ deploymentId: dep.deploymentId, as: "tear-down started again" });
+      } else {
+        interruptedBuild(dep);
+        done();
+        picked.push({ deploymentId: dep.deploymentId, as: dep.lockKept ? "failed: restarted while building, its lock kept" : "failed: restarted while being prepared" });
+      }
+      continue;
+    }
 
     if (dep.status === "destroying") {
       putDeployment(dep);

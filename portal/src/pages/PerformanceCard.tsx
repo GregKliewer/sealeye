@@ -5,13 +5,15 @@ import { useState } from "react";
 import { api, SignedOut, type Performance, type Period } from "../api";
 import { useSession } from "../session";
 import { Problem } from "../Layout";
+import { Cmd } from "../Command";
+import { label } from "../../../core/operations.js";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 
 const WINDOWS: [string, string][] = [["1h", "1 hour"], ["6h", "6 hours"], ["1d", "1 day"], ["7d", "7 days"]];
 const n = (v: number) => v.toLocaleString();
 
-export function PerformanceCard({ deploymentId }: { deploymentId: string }) {
+export function PerformanceCard({ app, deploymentId }: { app: string; deploymentId: string }) {
   const { signedOut } = useSession();
   const [since, setSince] = useState("1d");
   const [perf, setPerf] = useState<Performance | null>(null);
@@ -36,7 +38,7 @@ export function PerformanceCard({ deploymentId }: { deploymentId: string }) {
   return (
     <Card className="mt-6" data-testid="performance">
       <CardHeader>
-        <CardTitle>Performance</CardTitle>
+        <CardTitle>{label("perf")}</CardTitle>
         <div className="ml-auto flex flex-wrap gap-1" role="group" aria-label="Over the last">
           {WINDOWS.map(([key, label]) => (
             <Button key={key} size="sm" variant={key === since ? "primary" : "ghost"} aria-pressed={key === since}
@@ -47,7 +49,7 @@ export function PerformanceCard({ deploymentId }: { deploymentId: string }) {
       <CardContent className="space-y-4 text-sm">
         {!perf || !t ? (
           <>
-            <p className="text-dim">What happened to your app: requests, errors and the time its code took, as <code className="font-mono text-ink">sealeye perf</code> shows them. Readings of what happened, not what it can take: that is set by a load test.</p>
+            <p className="text-dim">What happened to your app: requests, errors and the time its code took, as <Cmd op="perf" target={app} /> shows them. Readings of what happened, not what it can take: that is set by a load test.</p>
             <Button onClick={() => read()} disabled={busy}>{busy ? "Reading" : "Show readings"}</Button>
           </>
         ) : (

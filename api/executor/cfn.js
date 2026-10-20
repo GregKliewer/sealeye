@@ -12,10 +12,15 @@ import { normalizeTemplate } from "./package.js";
 // region() lives in core/config.js so the CLI can read it without importing the API.
 export { region };
 
-/** Spawn `aws ...` and resolve when it exits. Never rejects on a non-zero exit. */
-function runAws(args) {
+/**
+ * Spawn `aws ...` and resolve when it exits. Never rejects on a non-zero exit. A
+ * `profile` acts through another role than the API's own default: a Terraform
+ * environment's calls go through the Terraform deploy role (api/executor/terraform/).
+ */
+function runAws(args, { profile = null } = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn("aws", args, { stdio: ["ignore", "pipe", "pipe"] });
+    const env = profile ? { ...process.env, AWS_PROFILE: profile } : process.env;
+    const child = spawn("aws", args, { stdio: ["ignore", "pipe", "pipe"], env });
     let stdout = "";
     let stderr = "";
     child.stdout.on("data", d => (stdout += d));
@@ -127,8 +132,8 @@ export function deleteStack(stackName) {
  * Empty a bucket. CloudFormation will not delete a bucket with anything in it, so
  * this has to happen before delete-stack on the static path.
  */
-export function emptyBucket(bucketName) {
-  return runAws(["s3", "rm", `s3://${bucketName}`, "--recursive", "--region", region()]);
+export function emptyBucket(bucketName, { profile = null } = {}) {
+  return runAws(["s3", "rm", `s3://${bucketName}`, "--recursive", "--region", region()], { profile });
 }
 
 /**
@@ -136,13 +141,56 @@ export function emptyBucket(bucketName) {
  * being served on the next deploy, so the site matches the folder rather than
  * accumulating. The folder is only ever read.
  */
-export function syncSite(appPath, bucketName) {
+export function syncSite(appPath, bucketName, { profile = null } = {}) {
   return runAws([
     "s3", "sync", appPath, `s3://${bucketName}`,
     "--delete",
     "--exclude", ".git/*",
     "--region", region()
-  ]);
+  ], { profile });
+}
+
+/**
+ * A site served through the content network shows its new files at once: the network's
+ * copies are cleared (an invalidation of every path) on the distribution whose origin is
+ * the site's bucket. Its id is found by that origin, since a module need not say it.
+ * @returns {Promise<{ok: boolean, distribution?: string, error?: string}>}
+ */
+export async function refreshSite(bucketName, { profile = null } = {}) {
+  const listed = await runAws([
+    "cloudfront", "list-distributions",
+    "--query", `DistributionList.Items[?Origins.Items[?starts_with(DomainName, '${bucketName}.s3.')]].Id`,
+    "--output", "json"
+  ], { profile }).catch(err => ({ ok: false, stderr: err.message }));
+  if (!listed.ok) return { ok: false, error: firstLine(listed.stderr) };
+  let ids = [];
+  try { ids = JSON.parse(listed.stdout || "[]") || []; } catch { return { ok: false, error: "the content network's answer was not JSON" }; }
+  if (ids.length !== 1) return { ok: false, error: ids.length ? "more than one distribution serves this bucket" : "no distribution serves this bucket" };
+  const made = await runAws(["cloudfront", "create-invalidation", "--distribution-id", ids[0], "--paths", "/*", "--output", "json"], { profile })
+    .catch(err => ({ ok: false, stderr: err.message }));
+  return made.ok ? { ok: true, distribution: ids[0] } : { ok: false, error: firstLine(made.stderr) };
+}
+
+/** Copy an artifact an earlier deployment packaged back out of the bucket, to deploy it again. */
+export async function fetchArtifact(bucket, key, file) {
+  const r = await tryAws(["s3", "cp", `s3://${bucket}/${key}`, file, "--region", region(), "--only-show-errors"]);
+  return r.ok ? { ok: true } : { ok: false, error: firstLine(r.stderr) };
+}
+
+/**
+ * What holds a Terraform environment's state lock, read from the lock file OpenTofu
+ * keeps beside the state, or null when nothing does. For `deploy/server.sh tofu-unlock`.
+ */
+export async function stateLock(bucket, key, { profile = null } = {}) {
+  const r = await runAws(["s3", "cp", `s3://${bucket}/${key}.tflock`, "-", "--region", region()], { profile }).catch(err => ({ ok: false, stderr: err.message }));
+  if (!r.ok) return /404|Not Found|NoSuchKey|does not exist/i.test(r.stderr) ? { ok: true, lock: null } : { ok: false, error: firstLine(r.stderr) };
+  try { return { ok: true, lock: JSON.parse(r.stdout) }; } catch { return { ok: true, lock: { raw: "unreadable" } }; }
+}
+
+/** Release a Terraform environment's state lock, by removing its lock file. */
+export async function releaseStateLock(bucket, key, { profile = null } = {}) {
+  const r = await runAws(["s3", "rm", `s3://${bucket}/${key}.tflock`, "--region", region()], { profile }).catch(err => ({ ok: false, stderr: err.message }));
+  return r.ok ? { ok: true } : { ok: false, error: firstLine(r.stderr) };
 }
 
 /**

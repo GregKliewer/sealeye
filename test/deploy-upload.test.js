@@ -12,6 +12,7 @@ import YAML from "yaml";
 
 import { unzipInto, zipFolder } from "../core/upload.js";
 import { createDeployment } from "../cli/client.js";
+import { freePort } from "./helpers/free-port.js";
 
 const root = path.resolve(import.meta.dirname, "..");
 const SECRET = "sk-live-never-in-an-upload";
@@ -60,15 +61,16 @@ let home;
 
 before(async () => {
   home = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-deploy-api-"));
-  const port = 4300 + Math.floor(Math.random() * 90);
+  const port = await freePort();
   api = `http://localhost:${port}`;
   // A stand-in aws whose store has no settings for the app, so the deploy gets as far
   // as composing; it calls nothing else.
   fs.mkdirSync(path.join(home, "bin"), { recursive: true });
   fs.writeFileSync(path.join(home, "bin", "aws"), "#!/bin/sh\n[ \"$2\" = get-parameters-by-path ] && { echo '[]'; exit 0; }\necho 'not in this stand-in' >&2; exit 254\n", { mode: 0o755 });
   const env = { ...process.env, PORT: String(port), SEALEYE_HOME: home, HOME: home, SEALEYE_AUTH: "off", PATH: `${path.join(home, "bin")}:${process.env.PATH}` };
-  delete env.SEALEYE_LWA_VERSION;
-  delete env.SEALEYE_BUCKET;
+  // Blank rather than deleted: a setting missing from the environment is filled in from
+  // the repo's .env (core/config.js), which on a developer's machine may hold real ones.
+  for (const name of ["SEALEYE_LWA_VERSION", "SEALEYE_BUCKET", "DEPLOYME_LWA_VERSION", "DEPLOYME_BUCKET"]) env[name] = "";
   server = spawn(process.execPath, ["api/server.js"], { cwd: root, env, stdio: ["ignore", "pipe", "pipe"] });
   let log = "";
   server.stdout.on("data", d => (log += d));

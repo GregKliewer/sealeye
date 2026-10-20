@@ -11,8 +11,12 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import YAML from "yaml";
+import { freePort } from "./helpers/free-port.js";
 
 const root = path.resolve(import.meta.dirname, "..");
+// A sample app, not this repository: the repository's own tests hold fake secrets
+// on purpose, and the deploy scan (core/scan.js) rightly refuses them.
+const sampleApp = path.join(root, "apps", "beneficiary-lookup-api");
 let home, api, server, log = "";
 const env = () => ({ ...process.env, HOME: home, SEALEYE_HOME: home, DATABASE_URL: "", SEALEYE_AUTH: "" });
 
@@ -40,7 +44,7 @@ before(async () => {
   ana = issue("ana@example.com", "Ana P", "--team", "payments");
   outsider = issue("x@other.example", "Other Org", "--org", "other-org");
   boss = issue("boss@example.com", "Boss Person", "--org-wide");
-  const port = 4900 + Math.floor(Math.random() * 90);
+  const port = await freePort();
   api = `http://localhost:${port}`;
   const e = { ...env(), PORT: String(port), SEALEYE_TRACING: "off", ANTHROPIC_API_KEY: "sk-ant-test", SEALEYE_MODEL_URL: "http://127.0.0.1:9" };
   delete e.SEALEYE_LWA_VERSION;
@@ -202,7 +206,7 @@ test("two teams can each have an app of the same name, as two environments", asy
   // The same team deploying the same app again is the same environment: while Greg's
   // first deploy is still under way, his second is refused as a change to it, and once
   // it has ended, the second goes to the same stack.
-  const again = await call("/deployments", { method: "POST", token: greg, body: { backend: "cloudformation", plan: { ...plan, app: { ...plan.app, name: "test-app" } }, appPath: root } });
+  const again = await call("/deployments", { method: "POST", token: greg, body: { backend: "cloudformation", plan: { ...plan, app: { ...plan.app, name: "test-app" } }, appPath: sampleApp } });
   const body = await again.json();
   if (again.status === 409) {
     assert.equal(body.error.code, "ENVIRONMENT_BUSY");
@@ -222,7 +226,7 @@ test("the needs ledger is the organization's; another team's evidence is left ou
     status: "drafted",
     needs: [{ kind: "work_queue", line: "a queue between it and the work it hands off", evidence: [{ file: "index.js", shows: "hands work to a queue" }] }]
   };
-  const res = await call("/deployments", { method: "POST", token: ana, body: { backend: "cloudformation", plan: drafted, appPath: root } });
+  const res = await call("/deployments", { method: "POST", token: ana, body: { backend: "cloudformation", plan: drafted, appPath: sampleApp } });
   assert.equal(res.status, 422, await res.clone().text());
   const ledger = async token => {
     const { generatedAt, ...rest } = await (await call("/needs", { token })).json();
@@ -257,7 +261,7 @@ test("evidence shows only the record's own team's history, even for the same app
     status: "drafted",
     needs: [{ kind: "work_queue", line: "a queue between it and the work it hands off", evidence: [{ file: "index.js", shows: "hands work to a queue" }] }]
   };
-  const draft = async token => (await (await call("/deployments", { method: "POST", token, body: { backend: "cloudformation", plan: drafted, appPath: root } })).json()).error.details.deploymentId;
+  const draft = async token => (await (await call("/deployments", { method: "POST", token, body: { backend: "cloudformation", plan: drafted, appPath: sampleApp } })).json()).error.details.deploymentId;
   const gregs = await draft(greg);
   const anas = await draft(ana);
   const res = await call(`/deployments/${anas}/evidence`, { token: ana });

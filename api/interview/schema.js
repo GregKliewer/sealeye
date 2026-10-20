@@ -1,55 +1,73 @@
 // api/interview/schema.js
 // The input schema for the submit_plan tool the interview gives the model.
 //
-// The plan half is planSchema itself, not a copy: the contract is frozen and the
-// interview must not be able to drift from what POST /plans/validate accepts. The two
-// extra arguments are conversation output, not part of the plan, and are dropped
-// before the plan is validated or deployed.
-import { planSchema } from "../../core/schema.js";
+// The plan half is the contract itself, not a copy: interviewContract, the 0.4 shape
+// with the modules and need kinds of the catalog the interview was given (PHASE4-PLAN
+// Step 3), which for the starter is planSchema04 exactly. The model never names a
+// catalog: the graph stamps its plan 0.5 with the interview's own before checking it
+// as POST /plans/validate does. The two extra arguments are conversation output, not
+// part of the plan, and are dropped before the plan is validated or deployed.
+import { interviewContract } from "../../core/schema.js";
+import { interviewPassages, schemaFor, starterCatalog } from "../../core/catalog.js";
 
-export const submitPlanInputSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["plan", "summary", "assumptions"],
-  properties: {
-    plan: {
-      ...planSchema,
-      description:
-        "The planVersion 0.4 deployment plan. Exactly one of static_site_edge and " +
-        "http_api_serverless enabled, observability_basic always enabled. Modules are " +
-        "only ever those four: never name a module seaLeye.run cannot build. Anything " +
-        "else the app needs goes in needs, each with the code that shows it. status is " +
-        "drafted when needs is not empty, ready when it is."
-    },
-    summary: {
-      type: "string",
-      minLength: 1,
-      description:
-        "A few sentences in the developer's own language: what their app is, how it " +
-        "will run, what they get back. Names the enabled modules and explains each " +
-        "in plain language. When the plan carries needs, one sentence saying the plan " +
-        "is drafted and which needs have no module yet, never when they might. No " +
-        "cloud vendor terms, no invented URL, no em dash."
-    },
-    assumptions: {
-      type: "array",
-      items: { type: "string", minLength: 1 },
-      description:
-        "Every judgement made that the developer did not confirm out loud, one short " +
-        "string each. An empty list is almost always wrong."
+/**
+ * The submit_plan tool's input for one catalog: the plan in the shape the interview
+ * writes it, with that catalog's modules and need kinds and its words for the plan
+ * (interviewPassages in core/catalog.js). For the starter, exactly what it always was.
+ */
+export function submitPlanInputSchemaFor(catalog = starterCatalog(), { starter = false } = {}) {
+  const schema = schemaFor(catalog);
+  return {
+    type: "object",
+    additionalProperties: false,
+    required: ["plan", "summary", "assumptions"],
+    properties: {
+      plan: {
+        ...interviewContract({
+          moduleIds: schema.properties.modules.items.properties.id.enum || [],
+          needKinds: schema.properties.needs.items.properties.kind.enum.filter(k => k !== "unlisted"),
+          connects: Boolean(schema.properties.modules.items.properties.connect)
+        }),
+        description: interviewPassages(catalog, { starter }).plan_description
+      },
+      summary: {
+        type: "string",
+        minLength: 1,
+        description:
+          "A few sentences in the developer's own language: what their app is, how it " +
+          "will run, what they get back. Names the enabled modules and explains each " +
+          "in plain language. When the plan carries needs, one sentence saying the plan " +
+          "is drafted and which needs have no module yet, never when they might. No " +
+          "cloud vendor terms, no invented URL, no em dash."
+      },
+      assumptions: {
+        type: "array",
+        items: { type: "string", minLength: 1 },
+        description:
+          "Every judgement made that the developer did not confirm out loud, one short " +
+          "string each. An empty list is almost always wrong."
+      }
     }
-  }
-};
+  };
+}
+
+/** The starter's, as the eval and the tests read it. */
+export const submitPlanInputSchema = submitPlanInputSchemaFor(starterCatalog(), { starter: true });
 
 // The tool definition itself, so the interview loop and any test share one shape.
-export const submitPlanTool = {
-  name: "submit_plan",
-  description:
-    "Submit the finished deployment plan and end the interview. Call this exactly " +
-    "once, after every question you needed has been answered. If the result reports " +
-    "validation errors, correct the plan and call it again.",
-  input_schema: submitPlanInputSchema
-};
+export function submitPlanToolFor(catalog = starterCatalog(), { starter = false } = {}) {
+  return {
+    name: "submit_plan",
+    description:
+      "Submit the finished deployment plan and end the interview. Call this exactly " +
+      "once, after every question you needed has been answered. If the result reports " +
+      "validation errors, correct the plan and call it again.",
+    input_schema: submitPlanInputSchemaFor(catalog, { starter })
+  };
+}
+
+/** The starter's tool. */
+export const submitPlanTool = submitPlanToolFor(starterCatalog(), { starter: true });
 
 /**
  * Split a submit_plan tool input into the plan the API takes and the interview's own

@@ -1,0 +1,104 @@
+# The starter catalog's passages for the interview's prompt (PHASE4-PLAN Step 3).
+#
+# prompts/interview-system.md is the same for every catalog except where it speaks of the
+# modules: each {{name}} there is one of these, and plan_description is the submit_plan
+# tool's description of the plan. These are the starter's, word for word as the
+# interview was evaluated on Oct 15, 2026: change one and run `npm run eval:interview`
+# before and after. An organization's catalog carries its own as `interview:` in its
+# document; one without them gets passages written from its own modules and rules
+# (interviewPassages in core/catalog.js).
+#
+# Read only by the API, like the prompt itself: never in the command's package.
+plan_description: |-
+  The planVersion 0.4 deployment plan. Exactly one of static_site_edge and http_api_serverless enabled, observability_basic always enabled. Modules are only ever those four: never name a module seaLeye.run cannot build. Anything else the app needs goes in needs, each with the code that shows it. status is drafted when needs is not empty, ready when it is.
+redeploy_example: |-
+  "your app now reads DB_HOST and API_KEY from its
+     environment, so config_basic is switched on"
+rule_one_way: |-
+  One way of running the app, never two. Exactly one of `static_site_edge` and
+      `http_api_serverless` is enabled.
+      An app that cannot start fresh for each request is neither of them: it reads a
+      stream or a queue in a loop, holds a long lived connection, or warms something at
+      boot. That app takes the `continuous_service` need, and leaves both core modules
+      disabled. A consumer with a health endpoint is a continuously running service that
+      happens to answer a health check, not an HTTP API.
+modules_intro: |-
+  seaLeye.run builds four modules and no others: `static_site_edge`,
+  `http_api_serverless`, `observability_basic` and `config_basic`. Those are the only
+  module ids that exist. Never write any other id into a plan, a summary or an
+  assumption, and never invent one.
+catalog_source: |-
+  The whole catalog, generated from `prompts/module-catalog.yaml`, which is the one place
+  the modules and the need kinds are defined:
+module_guidance: |-
+  The four sections below are the modules, in more depth.
+
+  ### static_site_edge
+  Serves the app's HTML, CSS, images and other files straight to visitors over HTTPS.
+
+  Enable it when the app has no server: files a browser opens directly, or the built
+  output of a front end with nothing running behind it. Signals: `index.html` at the
+  root, no server file, no `listen` call, no dependency that runs a web server.
+
+  Inputs: `site_root` (default `.`), `entry_point` (default `index.html`),
+  `additional_pages` (other pages you found, default `[]`), `assets_path`
+  (default `images/`).
+
+  ### http_api_serverless
+  Runs the app's code on demand behind an HTTPS endpoint. It starts when a request
+  arrives and costs nothing while nothing is calling it.
+
+  Enable it when anything in the app listens for HTTP: an Express or Fastify or Koa
+  server, a bare `http.createServer`, a REST API, a webhook receiver, a small service
+  with a health route. Signals: a `listen` call, a `start` script that runs a server, a
+  web framework in `dependencies`.
+
+  Inputs: `runtime` (`nodejs`, the only runtime this version deploys), `entry_point`
+  (from `package.json` `main` or the `start` script, default `index.js`), `trigger`
+  (`http`).
+
+  If the app is a script that runs once and exits, a batch job, a worker, or a desktop
+  or mobile app, neither core module fits. Do not guess. Explain in one sentence that
+  this version of the platform deploys sites and HTTP apps, and stop without submitting
+  a plan.
+
+  ### observability_basic
+  Collects the app's logs and tracks requests, errors and response times, so the
+  developer can see what their app is doing without setting anything up.
+
+  Always enabled, for every app, static or HTTP. Never ask whether the developer wants
+  logging. It is part of every deployment and asking implies it is optional.
+
+  Inputs: `target` (`auto`), `metrics` (`[requests, errors, latency]`),
+  `retention_days` (default `30`, and `30` is the right answer unless the developer
+  volunteers otherwise).
+
+  ### config_basic
+  Passes settings the app reads from its environment through to it when it runs, so they
+  stay out of the code.
+
+  Enable it only if the app actually reads environment variables. Look for
+  `process.env`, a `.env.example`, a README that lists settings, a config module. If you
+  find any, ask the developer about them before you submit the plan. If you find none,
+  include the module with `enabled: false` so the plan records that you considered it and
+  it was not needed.
+
+  `PORT` does not count, and neither does `NODE_ENV`. The platform decides the port and
+  tells the app what it is, so an app that reads `process.env.PORT` and nothing else does
+  not need this module and the developer should not be asked about it.
+
+  Inputs: `variables` (a name to value map, default `{}`). Never put a secret value in
+  the plan. Record the names the app needs and note in your assumptions that the values
+  are supplied at deploy time. Never ask the developer for their values: the platform
+  takes those at deploy time, the plan holds only the names, and a question that cannot
+  change the plan is a question not worth asking.
+
+  A custom domain is not a module. If the folder shows the app is pinned to a domain it
+  already owns, that is the `custom_domain` need, with the file that shows it. Do not ask
+  the developer about a domain: the platform generates a public HTTPS URL either way, so
+  the answer cannot change the plan.
+settings_question: |-
+  - "Does your app read any settings from the environment when it starts, things like an
+    API key or a database URL?" Decides `config_basic`. Ask it before you submit, not
+    after. In the earlier run this question arrived after the plan was already written
+    and the plan had to be revised. Do not repeat that.

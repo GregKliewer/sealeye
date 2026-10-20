@@ -154,7 +154,9 @@ test("with no LangFuse keys, tracing is off and every helper passes through", ()
   `;
   const out = execFileSync(process.execPath, ["--input-type=module", "-e", code], {
     cwd: root,
-    env: { ...env, HOME: home, SEALEYE_HOME: home },
+    // Blank, not just left out: a key missing from the environment is filled in from the
+    // repo's .env, which on a developer's machine may hold real ones.
+    env: { ...env, HOME: home, SEALEYE_HOME: home, LANGFUSE_PUBLIC_KEY: "", LANGFUSE_SECRET_KEY: "" },
     encoding: "utf8"
   });
   assert.deepEqual(JSON.parse(out), {

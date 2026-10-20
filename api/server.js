@@ -3,11 +3,14 @@ import crypto from "crypto";
 import fs from "node:fs";
 import path from "node:path";
 
-import { isDrafted, upgradePlan } from "../core/schema.js";
-import { checkPlan, checkUpgraded } from "./validate.js";
+import { STARTER_VERSION, isDrafted, upgradePlan } from "../core/schema.js";
+import { catalogOfPlan, checkPlan, checkUpgraded, noLongerBuilt } from "./validate.js";
 import { backendMappings } from "./mappings.js";
-import { putDeployment, getDeployment, listDeployments, storeFile, count, openStore, flushStore } from "./store.js";
+import { putDeployment, getDeployment, listDeployments, storeFile, count, openStore, flushStore, onDeploymentSaved } from "./store.js";
 import { startDeployment, startDestroy } from "./executor/index.js";
+import { builtWithTerraform, checkBuildable, startTerraformDeployment, startTerraformDestroy } from "./executor/terraform/index.js";
+import { majorVersionWords, versionBuilt, versionMove, withLiveReleases } from "./executor/terraform/versions.js";
+import { terraformNotReady } from "./executor/terraform/tofu.js";
 import { entryPointFor, namingFor, sharedWithAnotherTeam } from "./executor/compose.js";
 import { acceptSent, MAX_STORED_BYTES, storableName, storeFolder } from "./executor/settings.js";
 import { deleteStoredSetting, listStoredSettings, putStoredSetting } from "./executor/cfn.js";
@@ -26,12 +29,28 @@ import { changePaused, pausedState } from "./pause.js";
 import { peopleOf } from "./team.js";
 import { readPerformance } from "./performance.js";
 import { readCosts } from "./costs.js";
-import { createInterviewService, NotWaiting, UploadRefused } from "./interview/service.js";
+import { createInterviewService, ModelNotPriced, NotWaiting, UploadRefused } from "./interview/service.js";
+import { createDiscoveryService, DiscoveryNotFound, mayDiscover, QuestionNotFound, RunGoing } from "./discovery/service.js";
+import { scanApp, ScanFailed } from "./secret-scan.js";
+import { deployRefusalMessage } from "../core/scan.js";
+import { interviewNotesFor, noteInterviewPlan, planDigest, planFilesFor, planView } from "./plan-record.js";
+
+// When the deeper check could not run, nothing that depended on it goes ahead.
+const SCAN_FAILED_WORDS = "seaLeye could not finish checking your code for secrets, so nothing went any further. Try again in a minute; if it keeps happening, tell your platform team.";
 import { postgresCheckpointer, postgresInterviewStore } from "./interview/pgstore.js";
 import { databaseUrl, closeDb } from "./db.js";
 import { startTracing } from "../core/tracing.js";
 import { authMode, callerFor, callerForSession, endSession, SESSION_COOKIE, SESSION_HOURS, startSession } from "./tokens.js";
-import { loadCatalog, needKinds, orgName } from "../core/catalog.js";
+import { buildableView, needKinds, orgName } from "../core/catalog.js";
+import { approveCatalog, catalogAt, catalogOfRecord, catalogsOf, changeDraft, liveCatalog, makeLive, openCatalogs } from "./catalogs.js";
+import { applyEdit } from "../core/catalog-edits.js";
+import { selfTest } from "./self-test.js";
+import { environmentsDropped } from "./catalog-use.js";
+import { selfTestSummary } from "../core/discovery-words.js";
+import { organizationInWords } from "../core/token.js";
+import { environmentOperations } from "../core/operations.js";
+import { openPlatform, platformValues, removePlatformValue, setPlatformValue, stageOf, withPlatform, PlatformValueRefused } from "./platform.js";
+import { DEVELOPER_STAGE, STAGES as PLATFORM_STAGES, platformWanted } from "../core/terraform-modules.js";
 
 const app = express();
 
@@ -134,6 +153,8 @@ app.use((req, res, next) => {
 // is open. The model key and any LangFuse keys are the API's own; developers hold
 // neither.
 let interviews;
+// Discovery runs (PHASE4-PLAN Step 6), made once the catalogs and records are open.
+let discoveries;
 
 // The version comes from the package, not from a literal, so it cannot drift from what
 // was actually shipped.
@@ -182,20 +203,102 @@ app.delete("/sessions", async (req, res) => {
   return res.status(200).json({ signedOut: true });
 });
 
+// The organization a request is made for: the token's, or "default" on a laptop API.
+const callerOrg = req => req.caller?.org || "default";
+// The catalog the organization plans and refuses against now (api/catalogs.js).
+// With the organization's platform values beside it (api/platform.js): what it builds
+// depends on them.
+const catalogOf = req => withPlatform(callerOrg(req), liveCatalog(callerOrg(req)).document);
+// The catalog a plan was written against (planVersion 0.5), in the caller's organization:
+// what its files and its record read. Asked only of a plan that has passed the contract,
+// which already refused one naming a catalog the organization does not have.
+const planCatalog = (req, plan) => catalogOfPlan(plan, callerOrg(req));
+// What a record keeps of it: which catalog, never the document.
+const planCatalogRef = (req, plan) => {
+  const { version, source } = planCatalog(req, plan);
+  return { version, source };
+};
+// A deploy is refused, with the modules, when the plan names a catalog that has since
+// been replaced and the live one no longer builds something it uses.
+const catalogChanged = lines => ({
+  error: {
+    code: "CATALOG_CHANGED",
+    message: `This plan was written against an earlier version of your organization's catalog, and the catalog no longer builds everything it uses. ${lines.map(l => (/[.!?]$/.test(l) ? l : `${l}.`)).join(" ")} Run sealeye run again to plan against the catalog as it is now. Nothing was deployed.`,
+    details: { noLongerBuilt: lines }
+  }
+});
+
+// A Terraform environment (PHASE4-PLAN Step 9) offers deploy, deploy again, status,
+// history, plan and report, evidence and tear down; what else an environment offers is
+// not built for one yet, and is refused rather than tried against AWS for a stack that
+// is not there (DESIGN.md, "A Terraform environment's names, status and operations").
+const builtByTerraform = dep => dep?.backend === "terraform";
+
+// Which release of the organization's module a deploy builds (DESIGN.md, "Each module is
+// built at the version its library released"): the live catalog's release of the same
+// module, so an environment moves to a newer version when a newer catalog goes live,
+// never before. A new major version is refused: it may take different inputs, and the
+// plan is written again with sealeye run. Returns the catalog to build from, or a refusal.
+function releaseToBuild(req, plan, planDoc, environment) {
+  const catalog = withLiveReleases(planDoc, catalogOf(req));
+  const { entry } = checkBuildable(plan, catalog);
+  const move = versionMove(versionBuilt(environment), entry);
+  if (move?.major) return { refusal: { error: { code: "MAJOR_VERSION", message: majorVersionWords(entry, move), details: { module: entry.source, from: move.from, to: move.to } } } };
+  return { catalog };
+}
+const notForThisEnvironment = (res, what) =>
+  res.status(409).json({ error: { code: "NOT_FOR_THIS_ENVIRONMENT", message: `${what} is not available for an environment built from your organization's own modules yet.` } });
+// The catalog a record was planned against, as the platform builds from it now.
+const recordCatalog = dep => withPlatform(orgOf(dep), catalogOfRecord(dep));
+// An environment is built one way: a plan for it built the other way is refused until
+// it is torn down, rather than building a second environment under the same name.
+function builtAnotherWay(environment, terraform) {
+  const latest = listDeployments().find(r => (r.stackName || r.environment) === environment && r.status !== "drafted" && r.backend);
+  if (!latest || latest.status === "destroyed") return false;
+  return (latest.backend === "terraform") !== terraform;
+}
+const ANOTHER_WAY = {
+  error: { code: "ENVIRONMENT_BUILT_ANOTHER_WAY", message: "This app's environment was built another way than this plan builds it. Tear it down first, then deploy this plan." }
+};
+const cannotBuild = message => ({ error: { code: "CANNOT_BUILD", message: `${message[0].toUpperCase()}${message.slice(1)}.`.replace(/\.\.$/, ".") } });
+
 // GET /catalog: what the platform can build, and the fixed list of needs it cannot yet,
-// in the catalog's own words (prompts/module-catalog.yaml).
-app.get("/catalog", (_req, res) => {
-  const catalog = loadCatalog();
+// in the words of the organization's live catalog, or the starter catalog
+// (prompts/module-catalog.yaml) when it has none. `catalog` says which; added Oct 14, 2026.
+// ?version=<v> asks for the catalog a plan names instead (planVersion 0.5): the starter,
+// or one of the organization's that is or was live. `document` is that catalog as the
+// clients draw a plan from it, the command's card and DEPLOYMENT_PLAN.md: only what the
+// platform builds, the need kinds, the profiles and their patterns. Added Oct 15, 2026.
+app.get("/catalog", (req, res) => {
+  const live = { ...liveCatalog(callerOrg(req)) };
+  live.document = withPlatform(callerOrg(req), live.document);
+  let chosen = live;
+  if (req.query.version !== undefined) {
+    const raw = String(req.query.version);
+    const version = raw === STARTER_VERSION ? raw : /^[1-9][0-9]*$/.test(raw) ? Number(raw) : null;
+    if (version === null) return res.status(400).json({ error: { code: "INVALID_VERSION", message: `version is ${STARTER_VERSION} or a catalog's number` } });
+    const found = catalogOfPlan({ catalog: version }, callerOrg(req));
+    if (found.error) return res.status(404).json({ error: { code: found.error.code, message: found.error.message.replace(/^\/catalog names/, "That names") } });
+    const row = version === live.version ? live : { version, source: found.source, document: found.document, approvedBy: null, approvedAt: null };
+    chosen = row;
+  }
+  const catalog = chosen.document;
+  const view = buildableView(catalog);
   return res.status(200).json({
+    catalog: { version: chosen.version, source: chosen.source, approvedBy: chosen.approvedBy, approvedAt: chosen.approvedAt, live: chosen.version === live.version },
     catalogVersion: catalog.catalogVersion,
-    modules: (catalog.modules || []).map(m => ({
+    // Only the modules the platform builds: seaLeye never names one it cannot.
+    modules: view.modules.map(m => ({
       id: m.id,
       availability: m.availability,
       role: m.role,
       line: String(m.line || "").trim(),
-      shortLine: String(m.short_line || "").trim() || null
+      shortLine: String(m.short_line || "").trim() || null,
+      // The release the platform builds, where the library releases it.
+      ...(m.version ? { version: m.version } : {})
     })),
-    needs: needKinds(catalog).map(n => ({ kind: n.key, line: String(n.line || "").trim() }))
+    needs: needKinds(catalog).map(n => ({ kind: n.key, line: String(n.line || "").trim() })),
+    document: view
   });
 });
 
@@ -213,10 +316,11 @@ app.get("/whoami", (req, res) => {
 // valid and errors fields are unchanged.
 app.post("/plans/validate", (req, res) => {
   // A plan written against an older contract is read as what it meant, then checked.
-  const result = checkPlan(req.body);
+  const result = checkPlan(req.body, { org: callerOrg(req) });
   if (!result.valid) return res.status(200).json(result);
   const plan = upgradePlan(req.body);
-  const lines = new Map(needKinds(loadCatalog()).map(n => [n.key, String(n.line || "").trim()]));
+  // In the words of the catalog the plan was written against.
+  const lines = new Map(needKinds(planCatalog(req, plan).document).map(n => [n.key, String(n.line || "").trim()]));
   const needs = (plan.needs || []).map(n => ({
     kind: n.kind,
     line: lines.get(n.kind) || n.line,
@@ -256,6 +360,7 @@ async function deployAgain(req, res) {
   if (source.kind === "static") {
     return refuse(409, "NOTHING_TO_DEPLOY_AGAIN", "A static site's files are not kept after it is deployed, so it cannot be deployed again from here. Run sealeye run in its folder.");
   }
+  const againTerraform = builtByTerraform(source);
   if (!source.artifactKey) {
     return refuse(409, "NOTHING_TO_DEPLOY_AGAIN", "That deployment never got as far as packaging its code, so there is nothing to deploy again. Choose one that did, or run sealeye run in the app's folder.");
   }
@@ -263,7 +368,7 @@ async function deployAgain(req, res) {
   const given = req.body?.plan !== undefined;
   const plan = upgradePlan(given ? req.body.plan : source.plan);
   if (!plan || typeof plan !== "object") return refuse(400, "MISSING_PLAN", "That deployment has no plan on record, so give one.");
-  const checked = checkUpgraded(plan);
+  const checked = checkUpgraded(plan, { org: callerOrg(req) });
   if (!checked.valid) {
     return res.status(400).json({ error: { code: "INVALID_PLAN", message: "plan failed validation", details: checked.errors } });
   }
@@ -273,6 +378,20 @@ async function deployAgain(req, res) {
   if (unsupportedNeeds(plan).length) {
     return refuse(422, "UNSUPPORTED_NEEDS", "This plan is drafted: it needs what the platform does not build yet, so there is nothing to deploy again. Validate it to see what it needs.");
   }
+  {
+    const gone = noLongerBuilt(plan, callerOrg(req));
+    if (gone.length) return res.status(409).json(catalogChanged(gone));
+  }
+  // A deploy reads its app's settings from the store, kept by team and not yet by
+  // organization, so outside the default organization it would read another's: refused
+  // there, once the catalog has had its say, until the organization is in the store's
+  // path (the review, Oct 16, 2026). A drafted plan is saved before this. A plan built
+  // from the organization's own modules reads no settings (PHASE4-PLAN Step 9).
+  const againCatalog = planCatalog(req, plan).document;
+  const terraform = builtWithTerraform(plan, againCatalog);
+  let againBuild = againCatalog;
+  if (callerOrg(req) !== "default" && !terraform) return notForThisOrganization(res, "Deploys");
+  if (terraform !== againTerraform) return res.status(409).json(ANOTHER_WAY);
 
   // One change at a time: the environment this goes to must not be changing now.
   {
@@ -281,13 +400,35 @@ async function deployAgain(req, res) {
     if (busy) return res.status(409).json(busyRefusal(busy));
   }
 
-  if (!(plan.modules || []).some(m => m && m.enabled !== false && m.id === "http_api_serverless")) {
-    return refuse(409, "DIFFERENT_APP", "That deployment's code is an API, and this plan does not describe one.");
-  }
-  const entryNow = entryPointFor(plan);
-  const entryThen = source.plan ? entryPointFor(upgradePlan(source.plan)) : null;
-  if (entryThen && entryNow !== entryThen) {
-    return refuse(409, "DIFFERENT_ENTRY_POINT", `This plan starts the app with ${entryNow}, and that deployment's code was packaged to start with ${entryThen}. Run sealeye run in the app's folder to package it again.`);
+  if (terraform) {
+    const notReady = terraformNotReady();
+    if (notReady) return res.status(503).json({ error: { code: "NOT_SET_UP", message: notReady } });
+    let found;
+    try {
+      found = checkBuildable(plan, againCatalog);
+    } catch (err) {
+      return res.status(409).json(cannotBuild(err.message));
+    }
+    if (found.entry.id !== source.terraform?.module?.id || found.entry.delivers?.kind !== "package") {
+      return refuse(409, "DIFFERENT_APP", "That deployment's code was packaged for another module than this plan uses. Run sealeye run in the app's folder to package it again.");
+    }
+    try {
+      const target = namingFor({ app: plan.app.name, org: req.caller?.org || "default", team: req.caller?.team || "default", records: listDeployments() }).stackName;
+      const release = releaseToBuild(req, plan, againCatalog, target);
+      if (release.refusal) return res.status(409).json(release.refusal);
+      againBuild = release.catalog;
+    } catch (err) {
+      return res.status(409).json(cannotBuild(err.message));
+    }
+  } else {
+    if (!(plan.modules || []).some(m => m && m.enabled !== false && m.id === "http_api_serverless")) {
+      return refuse(409, "DIFFERENT_APP", "That deployment's code is an API, and this plan does not describe one.");
+    }
+    const entryNow = entryPointFor(plan);
+    const entryThen = source.plan ? entryPointFor(upgradePlan(source.plan)) : null;
+    if (entryThen && entryNow !== entryThen) {
+      return refuse(409, "DIFFERENT_ENTRY_POINT", `This plan starts the app with ${entryNow}, and that deployment's code was packaged to start with ${entryThen}. Run sealeye run in the app's folder to package it again.`);
+    }
   }
 
   // Settings: every one comes from the store, or was the plan's own placeholder before.
@@ -332,30 +473,45 @@ async function deployAgain(req, res) {
   {
     const busy = changeUnderWay(naming.stackName);
     if (busy) return res.status(409).json(busyRefusal(busy));
+    // And the catalog, which may have been made live while this waited.
+    const gone = noLongerBuilt(plan, callerOrg(req));
+    if (gone.length) return res.status(409).json(catalogChanged(gone));
   }
   const record = putDeployment({
     deploymentId,
     status: "queued",
     source: "again",
     packagedBy,
+    // The same code, so the same scan: what the deployment that packaged it found.
+    ...(source.secretScan ? { secretScan: { ...source.secretScan, scannedBy: source.secretScan.scannedBy || packagedBy } } : {}),
     kind: "api",
     // The environment it is for, named from the start so a page following it sees it
     // at once. Not stackName: that is set only once the deployment has composed its
     // stack, and a record without one has nothing in AWS to tear down or describe.
     environment: naming.stackName,
     fromDeployment: source.deploymentId,
-    backend,
+    // What builds it, said by the catalog, never the request (PHASE4-PLAN Step 9).
+    backend: terraform ? "terraform" : backend,
+    ...(terraform && source.entryPoint ? { entryPoint: source.entryPoint } : {}),
+    ...(terraform && source.resourceName ? { resourceName: source.resourceName } : {}),
     planVersion: plan.planVersion,
     app: plan.app,
     // No folder was read: the code is the earlier artifact (the report says so).
     appPath: null,
     resolvedModules: (plan.modules || []).filter(m => m.enabled !== false).map(m => ({ id: m.id, mappedTo: backendMappings[backend][m.id] || null })),
     plan,
+    // The same plan as the deployment it repeats keeps that deployment's files, which are
+    // what was approved; a plan changed with Configure is written down from the plan.
+    // and the catalog they were written from: a record keeps which, never the document.
+    ...(source.planFiles && source.plan && planDigest(source.plan) === planDigest(plan)
+      ? { planFiles: source.planFiles, catalog: source.catalog || { version: STARTER_VERSION, source: "starter" } }
+      : { ...planFilesFor(plan, null, new Date(), planCatalog(req, plan).document), catalog: planCatalogRef(req, plan) }),
     ...(req.caller ? { orgId: req.caller.org, teamId: req.caller.team, tokenId: req.caller.tokenId } : {}),
     surface: req.surface || "cli",
     ...(requestedBy ? { requestedBy } : {}),
     origin,
-    planSha256: crypto.createHash("sha256").update(JSON.stringify(plan), "utf8").digest("hex"),
+    // Of the plan as given, or as the deployment it repeats keeps it.
+    planSha256: crypto.createHash("sha256").update(JSON.stringify(given ? req.body.plan : source.plan), "utf8").digest("hex"),
     // The code: the earlier deployment's artifact, as it is in S3, and its checksum.
     artifactKey: source.artifactKey,
     artifactSha256: source.artifactSha256 ?? null,
@@ -369,7 +525,7 @@ async function deployAgain(req, res) {
     finishedAt: null
   });
 
-  startDeployment(record, plan, null, {}).catch(err => {
+  (terraform ? startTerraformDeployment(record, plan, null, againBuild) : startDeployment(record, plan, null, {})).catch(err => {
     record.status = "failed";
     record.failureReason = err.message;
     record.finishedAt = new Date().toISOString();
@@ -381,6 +537,10 @@ async function deployAgain(req, res) {
 // POST /deployments
 app.post("/deployments", (req, res, next) => {
   if (req.body?.fromDeployment !== undefined) return deployAgain(req, res).catch(next);
+  return deployNew(req, res).catch(next);
+});
+
+async function deployNew(req, res) {
   const { backend, appPath, zip } = req.body || {};
   const plan = upgradePlan(req.body?.plan);
 
@@ -394,7 +554,9 @@ app.post("/deployments", (req, res, next) => {
     ? { user: req.caller.email, name: req.caller.name, host: typeof claimed?.host === "string" ? claimed.host : null, verified: "token" }
     : claimed;
   const origin = req.body?.origin && typeof req.body.origin === "object" ? req.body.origin : undefined;
-  const planSha256 = plan ? crypto.createHash("sha256").update(JSON.stringify(plan), "utf8").digest("hex") : undefined;
+  // Of the plan as it was sent, so the evidence's checksum matches the file it came from
+  // (a 0.4 sealeye.yaml is read as 0.5, and that reading is not what was sent).
+  const planSha256 = plan ? crypto.createHash("sha256").update(JSON.stringify(req.body.plan), "utf8").digest("hex") : undefined;
   const provenance = {
     ...(req.caller ? { orgId: req.caller.org, teamId: req.caller.team, tokenId: req.caller.tokenId } : {}),
     surface: req.surface || "cli",
@@ -450,7 +612,7 @@ app.post("/deployments", (req, res, next) => {
     }
   }
 
-  const checked = checkUpgraded(plan);
+  const checked = checkUpgraded(plan, { org: callerOrg(req) });
   if (!checked.valid) {
     return res.status(400).json({
       error: {
@@ -495,6 +657,10 @@ app.post("/deployments", (req, res, next) => {
       resolvedModules,
       plan,
       needs,
+      // The plan as the developer saw it, so either surface can show it later.
+      ...planFilesFor(plan, interviewNotesFor(req.caller, plan), new Date(), planCatalog(req, plan).document),
+      // Which catalog it was planned against, so its evidence and files read that one.
+      catalog: planCatalogRef(req, plan),
       ...provenance,
       outputs: {},
       failureReason: null,
@@ -511,12 +677,46 @@ app.post("/deployments", (req, res, next) => {
     });
   }
 
-  // One change at a time: the environment this goes to must not be changing now. (A
-  // drafted plan changes nothing, so it was saved above whatever was under way.)
+  // A plan written against a catalog that was since replaced is built only if the live
+  // catalog still builds everything it uses. (A drafted plan builds nothing, so it was
+  // saved above in the words of the catalog it names.)
+  {
+    const gone = noLongerBuilt(plan, callerOrg(req));
+    if (gone.length) return res.status(409).json(catalogChanged(gone));
+  }
+  // A deploy reads its app's settings from the store, kept by team and not yet by
+  // organization, so outside the default organization it would read another's: refused
+  // there, once the catalog has had its say, until the organization is in the store's
+  // path (the review, Oct 16, 2026). A drafted plan is saved before this. A plan built
+  // from the organization's own modules reads no settings, so it goes ahead anywhere
+  // (PHASE4-PLAN Step 9).
+  let catalog = planCatalog(req, plan).document;
+  const terraform = builtWithTerraform(plan, catalog);
+  if (callerOrg(req) !== "default" && !terraform) return notForThisOrganization(res, "Deploys");
+  if (terraform) {
+    const notReady = terraformNotReady();
+    if (notReady) return res.status(503).json({ error: { code: "NOT_SET_UP", message: notReady } });
+    try {
+      checkBuildable(plan, catalog);
+    } catch (err) {
+      return res.status(409).json(cannotBuild(err.message));
+    }
+    if (!uploaded && callerOrg(req) !== "default") {
+      return res.status(400).json({ error: { code: "MISSING_UPLOAD", message: "An app built from your organization's modules arrives as an upload (zip)." } });
+    }
+  }
   {
     const target = namingFor({ app: plan.app?.name, org: req.caller?.org || "default", team: req.caller?.team || "default", records: listDeployments() }).stackName;
-    const busy = changeUnderWay(target);
-    if (busy) return res.status(409).json(busyRefusal(busy));
+    if (builtAnotherWay(target, terraform)) return res.status(409).json(ANOTHER_WAY);
+    if (terraform) {
+      try {
+        const release = releaseToBuild(req, plan, catalog, target);
+        if (release.refusal) return res.status(409).json(release.refusal);
+        catalog = release.catalog;
+      } catch (err) {
+        return res.status(409).json(cannotBuild(err.message));
+      }
+    }
   }
 
   // An uploaded copy is unpacked now, so a bad upload is a 400 and never a queued
@@ -533,6 +733,47 @@ app.post("/deployments", (req, res, next) => {
     }
   }
 
+  // The code is scanned for secrets before anything is queued (PHASE3-PLAN Step 2, D4):
+  // the shared rules again and gitleaks. A finding refuses the deploy, with the file,
+  // the line and what to do; nothing is kept. The command and seaLeye.online ran the
+  // same rules before sending, so this mostly catches what only gitleaks knows.
+  let scan;
+  try {
+    scan = await scanApp(packageFrom);
+  } catch (err) {
+    if (uploaded) removeUpload(deploymentId);
+    if (err instanceof ScanFailed) return res.status(503).json({ error: { code: "SCAN_FAILED", message: SCAN_FAILED_WORDS } });
+    if (err instanceof UploadRefused) return res.status(400).json({ error: { code: "UPLOAD_REFUSED", message: err.message } });
+    throw err;
+  }
+  if (scan.found.length) {
+    if (uploaded) removeUpload(deploymentId);
+    return res.status(422).json({
+      error: { code: "SECRETS_FOUND", message: deployRefusalMessage(scan.found), details: { findings: scan.found } }
+    });
+  }
+
+  // One change at a time: the environment this goes to must not be changing now. (A
+  // drafted plan changes nothing, so it was saved above whatever was under way.)
+  // Checked after the scan, which waits, and right before the record is written, which
+  // does not, so two deploys cannot both pass it.
+  {
+    const target = namingFor({ app: plan.app?.name, org: req.caller?.org || "default", team: req.caller?.team || "default", records: listDeployments() }).stackName;
+    const busy = changeUnderWay(target);
+    if (busy) {
+      if (uploaded) removeUpload(deploymentId);
+      return res.status(409).json(busyRefusal(busy));
+    }
+    // A catalog made live while the scan ran is checked again here, where nothing waits
+    // before the record is written, so a deploy cannot slip past the guard against
+    // making live a catalog that drops what an environment uses (the review, Oct 16).
+    const gone = noLongerBuilt(plan, callerOrg(req));
+    if (gone.length) {
+      if (uploaded) removeUpload(deploymentId);
+      return res.status(409).json(catalogChanged(gone));
+    }
+  }
+
   // Which environment it goes to is known now, so the record names it from the start
   // (environment) and a page following that environment sees it at once. stackName is
   // set by the executor once it composes the stack, as before.
@@ -542,7 +783,8 @@ app.post("/deployments", (req, res, next) => {
     status: "queued",
     source: uploaded ? "upload" : "folder",
     environment: naming.stackName,
-    backend,
+    // What builds it, said by the catalog, never the request (PHASE4-PLAN Step 9).
+    backend: terraform ? "terraform" : backend,
     planVersion: plan.planVersion,
     app: plan.app,
     appPath: resolvedAppPath,
@@ -550,6 +792,14 @@ app.post("/deployments", (req, res, next) => {
     // The whole plan, so a later run can say what it is about to change. Additive:
     // records written before this exist without it and are read as before.
     plan,
+    // And written down as the developer approved it (api/plan-record.js), for
+    // GET /deployments/{id}/plan.
+    ...planFilesFor(plan, interviewNotesFor(req.caller, plan), new Date(), planCatalog(req, plan).document),
+    // Which catalog it was planned against, so its evidence and files read that one.
+    catalog: planCatalogRef(req, plan),
+    // What the secret scan let through on the developer's word (.sealeye-allow), and
+    // whether gitleaks ran: file, line and rule, never a value. The evidence lists it.
+    secretScan: { allowed: scan.allowed.map(({ file, line, rule }) => ({ file, line, rule })), gitleaks: scan.gitleaks },
     ...provenance,
     outputs: {},
     failureReason: null,
@@ -569,7 +819,7 @@ app.post("/deployments", (req, res, next) => {
     ? req.body.expectStored.filter(n => storableName(n)).slice(0, 200)
     : [];
 
-  startDeployment(record, plan, packageFrom, sent)
+  (terraform ? startTerraformDeployment(record, plan, packageFrom, catalog) : startDeployment(record, plan, packageFrom, sent))
     .catch(err => {
       record.status = "failed";
       record.failureReason = err.message;
@@ -580,7 +830,7 @@ app.post("/deployments", (req, res, next) => {
     .finally(() => { if (uploaded) removeUpload(deploymentId); });
 
   return res.status(201).json({ ...record });
-});
+}
 
 // GET /deployments — summary of every known deployment, newest first. Additive; the
 // three existing endpoints are unchanged. The full record stays at /deployments/{id},
@@ -603,6 +853,12 @@ app.get("/deployments", (req, res) => {
     failureReason: dep.failureReason || null,
     interrupted: dep.interrupted === true,
     kind: dep.kind || null,
+    // What this environment offers, by operation id (core/operations.js): one built from
+    // the organization's own modules offers less, for now (PHASE4-PLAN Step 9).
+    operations: environmentOperations(dep.backend),
+    // What a tear-down of it deletes that holds the app's data, in the catalog's words
+    // (core/plan-report-words.js): the modules the app uses, built beside it.
+    ...(dep.terraform?.parts?.length ? { terraform: { parts: dep.terraform.parts.map(({ id, line }) => ({ id, line: line || null })) } } : {}),
     profile: dep.plan?.profile || null,
     requestedBy: dep.requestedBy || null,
     surface: dep.surface || "cli",
@@ -637,6 +893,95 @@ app.get("/deployments", (req, res) => {
   return res.status(200).json({ deployments });
 });
 
+// GET /deployments/events: an event each time a deployment this caller can see is saved,
+// as server-sent events, so the portal shows a change made from the command line, or by
+// someone else, without being refreshed (DESIGN.md, "The portal follows changes as they
+// happen"). An event names the deployment and nothing more: the page reads it again
+// through GET /deployments, which checks the caller as every read does.
+// A stream lasts five minutes at most and then ends; the browser opens a new one by
+// itself, and that request is checked like any other. So a revoked token or an ended
+// sign-in stops hearing of changes within five minutes. Registered before
+// /deployments/:deploymentId, which would otherwise take "events" for an id.
+const STREAM_MS = Number(process.env.SEALEYE_TEST_STREAM_MS) || 5 * 60_000;
+// A record is saved on every look at its stack while it changes, most of them finding
+// nothing new. A stream hears of a save only when something GET /deployments shows has
+// changed, so an open page reads again when there is something to see.
+const shownOf = dep => JSON.stringify([
+  dep.status, dep.step || null, dep.outputs || {}, dep.stackName || null, dep.failureReason || null,
+  dep.interrupted === true, dep.destroyRequestedBy || null, dep.paused === true, dep.pauses?.length || 0,
+  dep.cleaningUp === true, dep.finishedAt || null, Boolean(dep.artifactKey)
+]);
+const lastShown = new Map();
+const shownListeners = new Set();
+const tell = dep => {
+  for (const listener of shownListeners) {
+    try { listener(dep); } catch {}
+  }
+};
+onDeploymentSaved(dep => {
+  const shown = shownOf(dep);
+  if (lastShown.get(dep.deploymentId) === shown) return;
+  lastShown.set(dep.deploymentId, shown);
+  tell(dep);
+  // A success replaces the one before it, which is not saved for that, so tell its
+  // readers too: on a stack from before teams had names, they can be another team.
+  if (dep.status === "succeeded") {
+    for (const [older, newer] of replacements(listDeployments())) {
+      if (newer === dep.deploymentId) tell(getDeployment(older));
+    }
+  }
+});
+const onShownChange = listener => {
+  shownListeners.add(listener);
+  return () => shownListeners.delete(listener);
+};
+const STREAMS_PER_PERSON = Number(process.env.SEALEYE_TEST_STREAMS_PER_PERSON) || 20;
+const openStreams = new Map();
+app.get("/deployments/events", (req, res) => {
+  // HEAD gets no stream (Express hands it to this route), and a client gone while its
+  // sign-in was checked is not given one to hold.
+  if (req.method === "HEAD") return res.status(405).end();
+  if (req.socket.destroyed || res.destroyed) return;
+  const person = req.caller?.email || "";
+  const open = openStreams.get(person) || 0;
+  if (open >= STREAMS_PER_PERSON) {
+    return res.status(429).json({ error: { code: "TOO_MANY_STREAMS", message: `You already have ${open} pages following changes. Close some, then try again.` } });
+  }
+  openStreams.set(person, open + 1);
+
+  res.writeHead(200, {
+    "content-type": "text/event-stream",
+    "cache-control": "no-cache, no-transform",
+    connection: "keep-alive",
+    "x-accel-buffering": "no"
+  });
+  // How long the browser waits before opening the next stream when this one ends.
+  res.write("retry: 2000\n: seaLeye deployment changes\n\n");
+
+  let closed = false;
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    clearInterval(keepAlive);
+    clearTimeout(lifetime);
+    stop();
+    const left = (openStreams.get(person) || 1) - 1;
+    if (left > 0) openStreams.set(person, left);
+    else openStreams.delete(person);
+    res.end();
+  };
+  // A comment line now and then keeps proxies from closing a quiet stream.
+  const keepAlive = setInterval(() => res.write(": still here\n\n"), 15_000);
+  const lifetime = setTimeout(close, STREAM_MS);
+  const stop = onShownChange(dep => {
+    if (closed || !canSee(req, dep)) return;
+    res.write(`event: changed\ndata: ${JSON.stringify({ deploymentId: dep.deploymentId })}\n\n`);
+  });
+
+  req.on("close", close);
+  res.on("close", close);
+});
+
 // GET /deployments/{deploymentId}
 app.get("/deployments/:deploymentId", (req, res) => {
   const dep = getDeployment(req.params.deploymentId);
@@ -647,8 +992,26 @@ app.get("/deployments/:deploymentId", (req, res) => {
   }
   // Whether a newer success has replaced it, as the list says (DESIGN.md).
   const replacedBy = replacements(listDeployments()).get(dep.deploymentId);
-  if (!replacedBy) return res.status(200).json(dep);
-  return res.status(200).json({ ...dep, replaced: true, replacedBy: canSee(req, getDeployment(replacedBy)) ? replacedBy : null });
+  // The plan's files are served at /plan, not here: this route is polled every few
+  // seconds while a change is watched.
+  const { planFiles: _files, ...withFiles } = dep;
+  const shown = { ...withFiles, operations: environmentOperations(dep.backend) };
+  if (!replacedBy) return res.status(200).json(shown);
+  return res.status(200).json({ ...shown, replaced: true, replacedBy: canSee(req, getDeployment(replacedBy)) ? replacedBy : null });
+});
+
+// GET /deployments/{deploymentId}/plan — the plan this deployment was approved with, as
+// DEPLOYMENT_PLAN.md and sealeye.yaml, and its DEPLOYMENT_REPORT.md when it has one. Reads
+// the record only. A record from before plans were kept has its files written from its
+// plan now, marked rebuilt (api/plan-record.js). Added Oct 14, 2026.
+app.get("/deployments/:deploymentId/plan", (req, res) => {
+  const dep = getDeployment(req.params.deploymentId);
+  if (!canSee(req, dep)) {
+    return res.status(404).json({
+      error: { code: "NOT_FOUND", message: "deploymentId not found" }
+    });
+  }
+  return res.status(200).json(planView(dep));
 });
 
 // GET /deployments/{deploymentId}/evidence — the change record: the evidence object
@@ -688,6 +1051,7 @@ function runsAnotherTeams(req, res, dep) {
 app.get("/deployments/:deploymentId/logs", async (req, res) => {
   const dep = getDeployment(req.params.deploymentId);
   if (!canSee(req, dep)) return res.status(404).json({ error: { code: "NOT_FOUND", message: "deploymentId not found" } });
+  if (builtByTerraform(dep)) return notForThisEnvironment(res, "Reading logs");
   if (runsAnotherTeams(req, res, dep)) return;
   const { status, body } = await readLogs(dep, { window: typeof req.query.since === "string" ? req.query.since : "1h" });
   return res.status(status).json(body);
@@ -699,6 +1063,7 @@ app.get("/deployments/:deploymentId/logs", async (req, res) => {
 app.get("/deployments/:deploymentId/paused", async (req, res) => {
   const dep = getDeployment(req.params.deploymentId);
   if (!canSee(req, dep)) return res.status(404).json({ error: { code: "NOT_FOUND", message: "deploymentId not found" } });
+  if (builtByTerraform(dep)) return notForThisEnvironment(res, "Pausing");
   if (runsAnotherTeams(req, res, dep)) return;
   const { status, body } = await pausedState(dep);
   return res.status(status).json(body);
@@ -707,6 +1072,7 @@ for (const [action, paused] of [["pause", true], ["resume", false]]) {
   app.post(`/deployments/:deploymentId/${action}`, async (req, res) => {
     const dep = getDeployment(req.params.deploymentId);
     if (!canSee(req, dep)) return res.status(404).json({ error: { code: "NOT_FOUND", message: "deploymentId not found" } });
+    if (builtByTerraform(dep)) return notForThisEnvironment(res, paused ? "Pausing" : "Resuming");
     if (runsAnotherTeams(req, res, dep)) return;
     const busy = changeUnderWay(dep.stackName || dep.environment);
     if (busy) return res.status(409).json(busyRefusal(busy));
@@ -721,6 +1087,7 @@ for (const [action, paused] of [["pause", true], ["resume", false]]) {
 app.get("/deployments/:deploymentId/performance", async (req, res) => {
   const dep = getDeployment(req.params.deploymentId);
   if (!canSee(req, dep)) return res.status(404).json({ error: { code: "NOT_FOUND", message: "deploymentId not found" } });
+  if (builtByTerraform(dep)) return notForThisEnvironment(res, "Reading performance");
   if (runsAnotherTeams(req, res, dep)) return;
   const { status, body } = await readPerformance(dep, { window: typeof req.query.since === "string" ? req.query.since : "1d" });
   return res.status(status).json(body);
@@ -729,6 +1096,7 @@ app.get("/deployments/:deploymentId/performance", async (req, res) => {
 // GET /costs?since=7d|30d — what each of your team's apps has cost (api/costs.js),
 // by the cost allocation tags; an organization-wide token sees every team's. Step 20.
 app.get("/costs", async (req, res) => {
+  if (callerOrg(req) !== "default") return notForThisOrganization(res, "Costs");
   const { status, body } = await readCosts(req.caller, { window: typeof req.query.since === "string" ? req.query.since : "30d" });
   return res.status(status).json(body);
 });
@@ -747,7 +1115,7 @@ app.get("/team", async (req, res) => {
 // Store only; no AWS call.
 app.get("/needs", (req, res) => {
   try {
-    return res.status(200).json(rollupNeeds(orgDeployments(req), { viewer: req.caller }));
+    return res.status(200).json(rollupNeeds(orgDeployments(req), { viewer: req.caller, catalog: catalogOf(req) }));
   } catch (err) {
     return res.status(500).json({ error: { code: "NEEDS_FAILED", message: err.message } });
   }
@@ -800,7 +1168,7 @@ app.delete("/deployments/:deploymentId", (req, res) => {
   }
   putDeployment(dep);
 
-  startDestroy(dep).catch(err => {
+  (builtByTerraform(dep) ? startTerraformDestroy(dep, recordCatalog(dep)) : startDestroy(dep)).catch(err => {
     dep.status = "failed";
     dep.failureReason = err.message;
     putDeployment(dep);
@@ -825,10 +1193,10 @@ app.get("/interviews", (req, res) => {
 });
 
 // POST /interviews: start an interview over an uploaded app folder.
-// Body: { app, zip (base64), deployed?, user?, trace? }. The zip is made by the CLI's
+// Body: { app, zip (base64), deployed?, user?, trace?, findings?, unread? }. The zip is made by the CLI's
 // zipFolder (core/upload.js): no dependencies, no git, secret files as names only.
-app.post("/interviews", (req, res) => {
-  const { app: appName, zip, deployed, user, trace } = req.body || {};
+app.post("/interviews", async (req, res) => {
+  const { app: appName, zip, deployed, user, trace, findings, unread } = req.body || {};
 
   if (!interviews.ready()) {
     return res.status(503).json({
@@ -840,19 +1208,32 @@ app.post("/interviews", (req, res) => {
   }
 
   try {
-    const started = interviews.startFromUpload({
+    const started = await interviews.startFromUpload({
       zip: Buffer.from(zip, "base64"),
       app: appName,
+      findings,
+      unread,
       deployed: deployed && typeof deployed === "object" ? upgradePlan(deployed) : null,
       // With a token, the person is the token's, not what the command line says.
       user: req.caller ? req.caller.email : (typeof user === "string" ? user : undefined),
       owner: req.caller ? req.caller.email : null,
+      // Who the model gateway logs each call as (api/gateway-token.js).
+      caller: req.caller ? { email: req.caller.email, org: req.caller.org, team: req.caller.team } : null,
+      surface: req.surface,
       trace: trace !== false
     });
     return res.status(201).json(started);
   } catch (err) {
     if (err instanceof UploadRefused) {
       return res.status(400).json({ error: { code: "UPLOAD_REFUSED", message: err.message } });
+    }
+    if (err instanceof ScanFailed) {
+      return res.status(503).json({ error: { code: "SCAN_FAILED", message: SCAN_FAILED_WORDS } });
+    }
+    // The platform's own setting, not the developer's doing: the model it runs has no
+    // price, so a run on it could not be kept to its cap.
+    if (err instanceof ModelNotPriced) {
+      return res.status(503).json({ error: { code: "MODEL_NOT_PRICED", message: err.message } });
     }
     return res.status(500).json({ error: { code: "INTERVIEW_FAILED", message: err.message } });
   }
@@ -869,6 +1250,10 @@ app.post("/interviews/:interviewId/answers", (req, res) => {
     return res.status(400).json({ error: { code: "MISSING_ANSWER", message: "answer is required" } });
   }
   try {
+    // "Deploy this?" is being answered: note what the interview said about its plan, so
+    // the deploy that follows keeps DEPLOYMENT_PLAN.md as the developer saw it.
+    const open = interviews.get(req.params.interviewId);
+    if (open?.waitingFor === "confirm" && open.result?.plan) noteInterviewPlan(req.caller, open.result);
     const result = interviews.answer(req.params.interviewId, value);
     if (!result) return res.status(404).json({ error: { code: "NOT_FOUND", message: "interviewId not found" } });
     return res.status(202).json(result);
@@ -933,11 +1318,110 @@ app.get("/interviews/:interviewId/events", (req, res) => {
   req.on("close", close);
 });
 
+// Discovery (PHASE4-PLAN Step 6): read the organization's platform library and write a
+// draft catalog, asking what it cannot settle. A platform engineer's: an
+// organization-wide token only (Greg, Oct 15, 2026). The repositories are the server's
+// to name (SEALEYE_LIBRARY_REPOS), never a request's.
+const discoveryForbidden = res =>
+  res.status(403).json({ error: { code: "ORG_WIDE_ONLY", message: "Discovery is for your platform team: it needs an organization-wide token." } });
+const discoveryNotFound = res => res.status(404).json({ error: { code: "NOT_FOUND", message: "discoveryId not found" } });
+const ownRun = (req, id) => {
+  const run = discoveries.get(id);
+  return run && run.org === (req.caller ? req.caller.org : "default") ? run : null;
+};
+
+// POST /discoveries: start a run over the named library. Body: {}.
+app.post("/discoveries", async (req, res) => {
+  if (!mayDiscover(req.caller)) return discoveryForbidden(res);
+  try {
+    const started = await discoveries.start({ caller: req.caller, surface: req.surface });
+    return res.status(202).json(started);
+  } catch (err) {
+    if (err instanceof RunGoing) return res.status(409).json({ error: { code: "RUN_GOING", message: "A discovery run is already going for your organization. Follow that one, or wait for it to end." } });
+    if (err.code === "ONE_LIBRARY") return res.status(409).json({ error: { code: "ONE_LIBRARY", message: "Discovery reads one library a run for now, and more than one is named. Ask whoever runs seaLeye to name one." } });
+    if (err.code === "NO_LIBRARY") return res.status(409).json({ error: { code: "NO_LIBRARY", message: "No platform library is named for discovery yet. Ask whoever runs seaLeye to name it." } });
+    if (err.code === "NO_MODEL_KEY") return res.status(503).json({ error: { code: "NO_MODEL_KEY", message: "the seaLeye API has no model key set, so it cannot run discovery" } });
+    return res.status(500).json({ error: { code: "DISCOVERY_FAILED", message: String(err.message || "discovery could not start") } });
+  }
+});
+
+// GET /discoveries: the organization's runs, newest first.
+app.get("/discoveries", (req, res) => {
+  if (!mayDiscover(req.caller)) return discoveryForbidden(res);
+  return res.status(200).json({ discoveries: discoveries.list(req.caller ? req.caller.org : "default") });
+});
+
+// GET /discoveries/{id}: the run, its questions with any answers, and its draft's version.
+app.get("/discoveries/:discoveryId", (req, res) => {
+  if (!mayDiscover(req.caller)) return discoveryForbidden(res);
+  const run = ownRun(req, req.params.discoveryId);
+  if (!run) return discoveryNotFound(res);
+  return res.status(200).json({ ...run, questions: discoveries.questions(run.discoveryId) });
+});
+
+// GET /discoveries/{id}/catalog: the draft the run wrote, as it stands with the answers so far.
+app.get("/discoveries/:discoveryId/catalog", (req, res) => {
+  if (!mayDiscover(req.caller)) return discoveryForbidden(res);
+  const run = ownRun(req, req.params.discoveryId);
+  if (!run) return discoveryNotFound(res);
+  if (!run.catalog) return res.status(409).json({ error: { code: "NO_DRAFT_YET", message: "This run has not written its draft yet." } });
+  return res.status(200).json({ version: run.catalog.version, document: catalogAt(run.org, run.catalog.version) });
+});
+
+// POST /discoveries/{id}/answers: { question, answer }, while the run goes or after it.
+app.post("/discoveries/:discoveryId/answers", async (req, res) => {
+  if (!mayDiscover(req.caller)) return discoveryForbidden(res);
+  const run = ownRun(req, req.params.discoveryId);
+  if (!run) return discoveryNotFound(res);
+  const { question, answer } = req.body || {};
+  try {
+    const saved = await discoveries.answer({ id: run.discoveryId, questionId: String(question || ""), answer, by: req.caller?.email || null });
+    return res.status(200).json({ question: saved });
+  } catch (err) {
+    if (err instanceof QuestionNotFound) return res.status(404).json({ error: { code: "NOT_FOUND", message: "question not found in this run" } });
+    if (err instanceof DiscoveryNotFound) return discoveryNotFound(res);
+    if (err.code === "BAD_ANSWER") return res.status(400).json({ error: { code: "BAD_ANSWER", message: err.message } });
+    throw err;
+  }
+});
+
+// GET /discoveries/{id}/events: the run as it goes, as server-sent events: what was read,
+// each question as it arises, answers taken, the draft, and how it ended. Every event so
+// far is sent first; a run that is over ends the stream once they are.
+app.get("/discoveries/:discoveryId/events", (req, res) => {
+  if (!mayDiscover(req.caller)) return discoveryForbidden(res);
+  const after = Number(req.get("Last-Event-ID") ?? req.query.after ?? 0) || 0;
+  const run = ownRun(req, req.params.discoveryId);
+  if (!run) return discoveryNotFound(res);
+  res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache, no-transform", connection: "keep-alive", "x-accel-buffering": "no" });
+  res.write(": seaLeye discovery events\n\n");
+  let closed = false;
+  let unsubscribe = () => {};
+  const keepAlive = setInterval(() => res.write(": still here\n\n"), 15_000);
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    clearInterval(keepAlive);
+    unsubscribe();
+    res.end();
+  };
+  unsubscribe = discoveries.subscribe(run.discoveryId, after, event => {
+    if (closed) return;
+    if (!event) return close();
+    res.write(`id: ${event.seq}\nevent: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
+    if (["finished", "stopped", "failed"].includes(event.type)) close();
+  }) || (() => {});
+  req.on("close", close);
+});
+
 const port = process.env.PORT || 3000;
 startTracing();
 sweepUploads();
 // Records first: nothing is served until the store has everything it knew.
 const opened = await openStore();
+// Each organization's catalogs, and its platform values, after the migrations openStore ran.
+await openCatalogs();
+await openPlatform();
 // Then whatever was in flight when the API last stopped is picked up again: deployments,
 // and, with a database, interviews.
 const resumed = resumeInFlight();
@@ -949,6 +1433,8 @@ if (databaseUrl()) {
   interviews = createInterviewService();
 }
 const restoredInterviews = await interviews.restore();
+discoveries = createDiscoveryService();
+await discoveries.open();
 
 // A stop (a release, a reboot) waits for the last record to be written.
 for (const signal of ["SIGTERM", "SIGINT"]) {
@@ -962,6 +1448,231 @@ for (const signal of ["SIGTERM", "SIGINT"]) {
     setTimeout(() => process.exit(0), 5000).unref();
   });
 }
+
+// An organization's catalogs, and making one live (PHASE4-PLAN Step 7; DESIGN.md, "A
+// catalog goes live through a self-test, approved and made live apart"). A platform
+// engineer's, as discovery is: an organization-wide token only. A catalog is approved,
+// then made live, and the self-test runs at each, on the catalog as it is when the
+// change's turn comes. A retired catalog may go live again.
+const catalogVersionOf = raw => (/^[1-9][0-9]{0,8}$/.test(String(raw)) ? Number(raw) : null);
+const catalogNotFound = res => res.status(404).json({ error: { code: "CATALOG_NOT_FOUND", message: "Your organization has no catalog of that version." } });
+
+/** A question's words, from the run that wrote the catalog. */
+const questionTextFor = document => id => {
+  const runId = document?.discovery?.run;
+  if (!runId || !discoveries) return null;
+  return (discoveries.questions(runId) || []).find(q => q.id === id)?.question || null;
+};
+
+// Tested as the platform would build from it: with the organization's platform values.
+const runSelfTest = (org, row) => selfTest({ document: withPlatform(org, row.document), version: row.version, questionText: questionTextFor(row.document) });
+
+/** What a list of catalogs says of each: never its document. */
+function catalogSummary(org, row, liveVersion) {
+  const doc = catalogAt(org, row.version) || {};
+  const modules = Array.isArray(doc.modules) ? doc.modules : [];
+  return {
+    ...row,
+    live: row.version === liveVersion,
+    discovery: doc.discovery?.run || null,
+    library: doc.discovery?.library || [],
+    modules: modules.length,
+    open: modules.filter(m => Array.isArray(m?.open) && m.open.length).length + (Array.isArray(doc.discovery?.open) ? doc.discovery.open.length : 0)
+  };
+}
+
+const selfTestFailed = (verb, result) => ({
+  error: {
+    code: "SELF_TEST_FAILED",
+    message: `Catalog ${result.version} cannot be ${verb}. ${selfTestSummary(result)}`,
+    details: { selfTest: result }
+  }
+});
+
+// GET /catalogs: the organization's catalogs, newest first, and which is live.
+app.get("/catalogs", (req, res) => {
+  if (!mayDiscover(req.caller)) return discoveryForbidden(res);
+  const org = callerOrg(req);
+  const live = liveCatalog(org);
+  return res.status(200).json({
+    live: { version: live.version, source: live.source },
+    catalogs: catalogsOf(org).map(row => catalogSummary(org, row, live.version)).reverse()
+  });
+});
+
+// GET /catalogs/{version}: one of the organization's catalogs, with its document, for
+// whoever reviews it before approving (its words, what rests on a question, what a
+// person edited). A platform engineer's, as the list is.
+app.get("/catalogs/:version", (req, res) => {
+  if (!mayDiscover(req.caller)) return discoveryForbidden(res);
+  const org = callerOrg(req);
+  const version = catalogVersionOf(req.params.version);
+  const row = version && catalogsOf(org).find(c => c.version === version);
+  if (!row) return catalogNotFound(res);
+  return res.status(200).json({ catalog: row, document: catalogAt(org, version) });
+});
+
+// GET /catalogs/{version}/self-test: the self-test, run now. Plain code; nothing spent.
+app.get("/catalogs/:version/self-test", (req, res) => {
+  if (!mayDiscover(req.caller)) return discoveryForbidden(res);
+  const org = callerOrg(req);
+  const version = catalogVersionOf(req.params.version);
+  const row = version && catalogsOf(org).find(c => c.version === version);
+  if (!row) return catalogNotFound(res);
+  return res.status(200).json({ selfTest: runSelfTest(org, { ...row, document: catalogAt(org, version) }) });
+});
+
+/** Answer a refused catalog change in the API's words. */
+function catalogChangeRefused(res, err) {
+  if (err.code === "CATALOG_NOT_FOUND") return catalogNotFound(res);
+  if (err.code === "CATALOG_STATUS") return res.status(409).json({ error: { code: "CATALOG_STATUS", message: err.message.replace(/^catalog/, "Catalog") } });
+  if (err.code === "CATALOG_INVALID") return res.status(400).json({ error: { code: "CATALOG_INVALID", message: err.message } });
+  if (err.code === "SELF_TEST_FAILED") return res.status(422).json(err.body);
+  if (err.code === "CATALOG_IN_USE") return res.status(409).json(err.body);
+  throw err;
+}
+
+// POST /catalogs/{version}/edits: { module, field, text }. A platform engineer changes the
+// words of one entry of a draft, before approving it: what a developer reads, or the
+// planner's guidance, never ids, inputs or availability (core/catalog-edits.js). Kept on
+// the entry with who and when, so an answer's rewrite never writes over it. Answered with
+// the self-test, run again on the draft as it now is.
+app.post("/catalogs/:version/edits", async (req, res) => {
+  if (!mayDiscover(req.caller)) return discoveryForbidden(res);
+  const org = callerOrg(req);
+  const version = catalogVersionOf(req.params.version);
+  if (!version) return catalogNotFound(res);
+  const { module, field, text } = req.body || {};
+  if (typeof module !== "string" || typeof field !== "string" || typeof text !== "string") {
+    return res.status(400).json({ error: { code: "BAD_EDIT", message: "An edit names the module, the field and its new words." } });
+  }
+  try {
+    await changeDraft({ org, version, change: doc => applyEdit(doc, { module, field, text, by: req.caller?.email || "someone, with sign-in off", at: new Date().toISOString() }) });
+  } catch (err) {
+    if (err.code === "BAD_EDIT") return res.status(400).json({ error: { code: "BAD_EDIT", message: `${err.message}.` } });
+    return catalogChangeRefused(res, err);
+  }
+  const row = catalogsOf(org).find(c => c.version === version);
+  return res.status(200).json({ catalog: row, selfTest: runSelfTest(org, { ...row, document: catalogAt(org, version) }) });
+});
+
+// POST /catalogs/{version}/approve: a draft that passes its self-test is approved, with
+// who approved it. Body: {}.
+app.post("/catalogs/:version/approve", async (req, res) => {
+  if (!mayDiscover(req.caller)) return discoveryForbidden(res);
+  const org = callerOrg(req);
+  const version = catalogVersionOf(req.params.version);
+  if (!version) return catalogNotFound(res);
+  try {
+    let tested = null;
+    const approved = await approveCatalog({
+      org, version, by: req.caller?.email || "someone, with sign-in off",
+      gate: row => {
+        tested = runSelfTest(org, row);
+        if (!tested.passed) throw Object.assign(new Error("self-test failed"), { code: "SELF_TEST_FAILED", body: selfTestFailed("approved", tested) });
+      }
+    });
+    return res.status(200).json({ catalog: approved, selfTest: tested });
+  } catch (err) {
+    return catalogChangeRefused(res, err);
+  }
+});
+
+// POST /catalogs/{version}/live: an approved catalog, or a retired one going back, is
+// made the organization's live one when it passes its self-test again and no
+// environment runs on a module it would not build. The live one it replaces is retired.
+app.post("/catalogs/:version/live", async (req, res) => {
+  if (!mayDiscover(req.caller)) return discoveryForbidden(res);
+  const org = callerOrg(req);
+  const version = catalogVersionOf(req.params.version);
+  if (!version) return catalogNotFound(res);
+  try {
+    let tested = null;
+    const made = await makeLive({
+      org, version, by: req.caller?.email || "someone, with sign-in off",
+      gate: row => {
+        tested = runSelfTest(org, row);
+        if (!tested.passed) throw Object.assign(new Error("self-test failed"), { code: "SELF_TEST_FAILED", body: selfTestFailed("made live", tested) });
+        const environments = environmentsDropped({ org, document: withPlatform(org, row.document), records: listDeployments() });
+        if (environments.length) {
+          throw Object.assign(new Error("in use"), {
+            code: "CATALOG_IN_USE",
+            body: {
+              error: {
+                code: "CATALOG_IN_USE",
+                message: `Catalog ${version} cannot be made live: it does not build what ${environments.length === 1 ? "an environment runs" : `${environments.length} environments run`}. ${environments.map(e => `${e.app || e.environment} (team ${e.team}) uses ${e.modules.join(", ")}.`).join(" ")} Tear ${environments.length === 1 ? "it" : "them"} down first, or keep a catalog that builds ${environments.length === 1 ? "it" : "them"}.`,
+                details: { environments }
+              }
+            }
+          });
+        }
+      }
+    });
+    return res.status(200).json({ catalog: made, selfTest: tested });
+  } catch (err) {
+    return catalogChangeRefused(res, err);
+  }
+});
+
+// An organization's platform values (PHASE4-PLAN Step 9; DESIGN.md, "An organization's
+// platform values"): what only its platform team can give a module, by stage. An
+// organization-wide token's only, as discovery is. Identifiers, never secrets.
+const platformForbidden = res =>
+  res.status(403).json({ error: { code: "ORG_WIDE_ONLY", message: "Platform values are for your platform team: they need an organization-wide token." } });
+const platformRefused = (res, err) => {
+  if (err instanceof PlatformValueRefused) return res.status(400).json({ error: { code: err.code, message: err.message } });
+  throw err;
+};
+
+// GET /platform?stage=dev: the organization's values at a stage, and, for the live
+// catalog's Terraform modules, each input only the platform can give, with the value that
+// fills it or none (`wanted`), so a platform engineer sees what a module still lacks.
+app.get("/platform", (req, res) => {
+  if (!mayDiscover(req.caller)) return platformForbidden(res);
+  const org = callerOrg(req);
+  let stage;
+  try { stage = stageOf(req.query.stage); } catch (err) { return platformRefused(res, err); }
+  const values = platformValues(org, stage);
+  const live = liveCatalog(org);
+  return res.status(200).json({
+    organization: organizationInWords({ org, organizationName: orgName() }),
+    stage,
+    stages: PLATFORM_STAGES,
+    developerStage: DEVELOPER_STAGE,
+    values: Object.entries(values).map(([name, v]) => ({ name, value: v.value, setBy: v.setBy, setAt: v.setAt })),
+    catalog: { version: live.version, source: live.source },
+    wanted: platformWanted(live.document, Object.keys(values))
+  });
+});
+
+// PUT /platform/values/{name} ({ value, stage? }): set one value, replacing any before it.
+app.put("/platform/values/:name", async (req, res) => {
+  if (!mayDiscover(req.caller)) return platformForbidden(res);
+  try {
+    const stage = stageOf(req.body?.stage ?? req.query.stage);
+    const org = callerOrg(req);
+    const kept = await setPlatformValue({ org, stage, name: req.params.name, value: req.body?.value, by: req.caller?.email || null });
+    // Which organization it changed, in words: a value set with the wrong token lands in
+    // the wrong one, silently (the first build, Oct 17, 2026).
+    return res.status(200).json({ value: { ...kept, organization: organizationInWords({ org, organizationName: orgName() }) } });
+  } catch (err) {
+    return platformRefused(res, err);
+  }
+});
+
+// DELETE /platform/values/{name}?stage=: remove one. An environment that used it says so
+// at its next deploy; nothing stops the removal (DESIGN.md).
+app.delete("/platform/values/:name", async (req, res) => {
+  if (!mayDiscover(req.caller)) return platformForbidden(res);
+  try {
+    const stage = stageOf(req.query.stage);
+    const org = callerOrg(req);
+    const removed = await removePlatformValue({ org, stage, name: req.params.name });
+    return res.status(200).json({ ...removed, organization: organizationInWords({ org, organizationName: orgName() }) });
+  } catch (err) {
+    return platformRefused(res, err);
+  }
+});
 
 // An app's settings in the organization's store (PHASE2-PLAN Step 8, D3). A team's app
 // keeps them in its own folder, /sealeye-apps/<team>/<app>/, so a team reaches only its
@@ -977,11 +1688,19 @@ function settingsScope(req) {
   if (!asked || asked === req.caller.team) return { org, team: req.caller.team, app };
   return req.caller.scope === "org" ? { org, team: asked, app } : null;
 }
+// The store keeps an app's settings by team (/sealeye-apps/<team>/<app>/), and costs are
+// tagged by team and app, neither yet by organization. So with a second organization on
+// the server (juniper, PHASE4-PLAN Step 7) one could reach another's settings or see its
+// costs: both stay the default organization's until the organization is in the path and
+// the tags.
+const notForThisOrganization = (res, what) =>
+  res.status(409).json({ error: { code: "NOT_FOR_THIS_ORGANIZATION", message: `${what} are not available to your organization yet: the platform keeps them by team, and not yet by organization.` } });
 const noSuchApp = res => res.status(404).json({ error: { code: "NOT_FOUND", message: "No app of that name that you can see." } });
 
 // GET /apps/{app}/settings: the settings its latest plan asks for and the ones stored,
 // each with whether it is set and who last changed it.
 app.get("/apps/:app/settings", async (req, res) => {
+  if (callerOrg(req) !== "default") return notForThisOrganization(res, "App settings");
   const scope = settingsScope(req);
   if (!scope) return noSuchApp(res);
   const folder = storeFolder(scope);
@@ -1010,6 +1729,7 @@ app.get("/apps/:app/settings", async (req, res) => {
 
 // PUT /apps/{app}/settings/{name} { value }: store one, encrypted, replacing any before.
 app.put("/apps/:app/settings/:name", async (req, res) => {
+  if (callerOrg(req) !== "default") return notForThisOrganization(res, "App settings");
   const scope = settingsScope(req);
   if (!scope) return noSuchApp(res);
   const name = req.params.name;
@@ -1030,6 +1750,7 @@ app.put("/apps/:app/settings/:name", async (req, res) => {
 
 // DELETE /apps/{app}/settings/{name}: remove one.
 app.delete("/apps/:app/settings/:name", async (req, res) => {
+  if (callerOrg(req) !== "default") return notForThisOrganization(res, "App settings");
   const scope = settingsScope(req);
   if (!scope) return noSuchApp(res);
   const name = req.params.name;

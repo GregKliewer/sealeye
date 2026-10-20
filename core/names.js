@@ -41,6 +41,22 @@ export function environmentName({ org = "default", team = "default", app }) {
   return `sealeye-${readable}-${hash}`;
 }
 
+/**
+ * The name a Terraform environment gives the organization's module (DESIGN.md, "A
+ * Terraform environment's names, status and operations"): "sealeye-<app>-<hash>", at
+ * most 31 characters, since a module names things after it and the stage, and starting
+ * with "sealeye-", which is what the Terraform deploy role reaches. The hash is
+ * environmentName's, so two teams' apps of one name are two names here too.
+ *
+ * @returns {string} lowercase, starting with a letter, [a-z0-9-], at most 31 characters
+ */
+export function moduleName({ org = "default", team = "default", app }) {
+  const full = environmentName({ org, team, app });
+  const hash = full.slice(-6);
+  const readable = safeName(app).slice(0, 16).replace(/-+$/, "") || "app";
+  return `sealeye-${readable}-${hash}`;
+}
+
 /** The file seaLeye.run writes into the developer's folder: the plan as submitted. */
 export const CONFIG_FILE = "sealeye.yaml";
 

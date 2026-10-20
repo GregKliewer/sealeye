@@ -4,24 +4,6 @@ Decisions not yet made. Each has why it matters, the options, a leaning where th
 one, and what it blocks. When one is answered, record the answer in DESIGN.md with its
 date and reason, and delete it from here.
 
-## Blocking Phase 4
-
-### Q17. How does the discovery swarm read the platform library?
-
-The swarm (ROADMAP Phase 4) reads an organization's repositories, module registry and
-pipeline definitions. seaLeye is a client of those services here, not their owner.
-
-**Options:**
-- **The provider's own MCP server** where one exists (GitHub's, HashiCorp's for the
-  Terraform registry), routed through agentgateway so every read is named and logged.
-- **Plain code in the graph** that fetches the files (a clone, the registry's API) and
-  hands each worker its module. The model chooses nothing about what is read.
-- **seaLeye builds MCP servers** for the services that have none.
-
-**Leaning:** the first where it exists, the second otherwise, never the third. Wrapping
-another team's service is that team's job, and fetching in code keeps the model from
-choosing what it reads. Blocks Phase 4.
-
 ## Blocking Phase 5
 
 ### Q16. How does Cognito sign-in replace tokens?
@@ -35,31 +17,54 @@ tokens survive for automation; how a person's team and an organization-wide scop
 **Leaning:** its own plan, once seaLeye goes past a handful of people or to a bank.
 Moved to Phase 5 on Oct 13, 2026. Blocks a wider pilot, not the friendly team.
 
-### Q18. Must model inference stay in Canada?
+### Q20. How does a plan name a different module for a later stage?
 
-Checked Oct 13, 2026. Bedrock serves Claude Sonnet 5.5 and Haiku 5.5 to ca-central-1
-and ca-west-1 only through cross-region profiles (geographic or global), not in-region.
-AWS's Canada guidance names only US and global profiles, and says logs and stored data
-stay in Canada while inference may run in other regions. AWS's own advice is to read a
-profile's destinations rather than trust its prefix. Greg can do that from his Mac:
+Raised Oct 15, 2026, building the made-up organization (PHASE4-PLAN Step 4). A plan names
+one set of modules, and its profile says which patterns later stages apply to them. Real
+libraries also change the module itself on the way to production: Juniper Mutual's
+`postgres` is for dev, sit and uat only, and from staging up the same app's database is
+a `postgres-cluster`, which takes the same inputs. Today's contract cannot say that, so
+a plan written in dev is either wrong for production or not buildable in dev.
 
-```sh
-aws bedrock list-inference-profiles --region ca-central-1 --type-equals SYSTEM_DEFINED \
-  --query "inferenceProfileSummaries[?contains(inferenceProfileId,'claude')].inferenceProfileId" --output text
-aws bedrock get-inference-profile --region ca-central-1 \
-  --inference-profile-identifier <an id from the first command> --query 'models[].modelArn' --output text
-```
+**Options:**
+- **One module per need, a stage map in the catalog.** The plan names what the app
+  needs ("a relational database") and the catalog says which module serves it at each
+  stage. Plans stay short and stage-free; the catalog carries the rule, which is where
+  the platform team wrote it.
+- **Modules per stage in the plan.** A plan lists, for each module, which stages it is
+  for. Explicit and reviewable, but every plan repeats the platform team's rule, and a
+  rule that changes means every plan changes.
+- **A plan per stage.** Promotion writes the next stage's plan from the last one. Each
+  plan stays as simple as today's, but a developer's one plan becomes several, and
+  what was approved in dev is no longer what reaches production word for word.
 
-Each region in the second command's ARNs is somewhere a call may run. The interview
-uses `claude-sonnet-5`; the Bedrock list for Canada names Sonnet 5.5, so the Bedrock
-route would use that, after the interview's eval set passes on it. Today the
-interview sends an app's code to the Anthropic API, in the US, which is acceptable for
-the friendly team and the sample apps.
+**Leaning:** the first: the rule is the platform team's, and it belongs in their
+catalog; the plan the developer approved stays the plan that is promoted. It changes
+the plan contract, so it is a DESIGN.md decision when it is made. Blocks Phase 5
+(`sealeye promote`), not Phase 4: until then, plans are for dev.
 
-**Options:** accept a geographic profile, disclosed, with stored data in Canada; wait
-for in-region Claude in Canada; or a model the organization runs (Phase 7).
-**Leaning:** the first for a pilot, stated in the evidence, and the bank decides. Blocks a
-bank pilot (Phase 5), not Phase 3: Phase 3 builds the route and its setting either way.
+### Q23. How does an app reach a database in the private network?
+
+Raised Oct 17, 2026, connecting modules (PHASE4-PLAN Step 9; Greg chose to build the
+database with the table, bucket and queue, W3b). A table, a bucket and a queue are
+reached over AWS's own addresses; a database is in the foundation network's private
+subnets, so the app's function has to be in that network too: `http-api` takes subnets
+and a security group (the foundation's apps group), and its role may join the network.
+The private network has no way out, so an app inside it reaches nothing else, the
+database's password included, unless the network is given one.
+
+**Options:**
+- **Private endpoints** in the foundation network: free for tables and buckets, about
+  $15 a month for the password service; nothing leaves the network.
+- **A gateway to the internet** (NAT): about $35 a month; anything is reachable.
+
+And the password: the app reads it with an SDK, or seaLeye's adapter reads it at start
+(signing its own request, as it does for settings) and hands the app `DATABASE_PASSWORD`
+beside the address.
+
+**Leaning:** private endpoints, and the adapter reads the password. Until then a module
+an app reaches over the private network is not built ("not connected yet"), and an app
+that needs a database is drafted. Blocks the database in Step 9's second pull request.
 
 ## Later
 

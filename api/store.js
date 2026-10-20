@@ -142,24 +142,34 @@ function upsertArgs(dep) {
 // map, with the next write of anything and at shutdown, so a database that was away for
 // a moment ends up with every change rather than only the ones that happened to retry.
 let writes = Promise.resolve();
-const unsaved = new Set();
+// Each record waiting to be written, with the number of its latest change. A write marks
+// its record saved only if no change came while it was under way: one that did is
+// written again by the next pass. Without the number, a save made during a write was
+// marked saved by that write and never reached the database, which a restart then lost
+// (a Terraform build's report, saved a moment after its success; Oct 17, 2026).
+const unsaved = new Map();
+const failing = new Set();
+let changes = 0;
 
 async function writeOne(id) {
   const dep = deployments.get(id);
   if (!dep) return unsaved.delete(id);
+  const change = unsaved.get(id);
   try {
     await db().query(UPSERT, upsertArgs(dep));
-    unsaved.delete(id);
+    if (unsaved.get(id) === change) unsaved.delete(id);
+    failing.delete(id);
   } catch (err) {
-    if (!unsaved.has(id)) console.error(`could not save deployment ${id}: ${err.message}`);
-    unsaved.add(id);
+    // Said once, not on every retry while the database is away.
+    if (!failing.has(id)) console.error(`could not save deployment ${id}: ${err.message}`);
+    failing.add(id);
   }
 }
 
 function persistRow(dep) {
-  unsaved.add(dep.deploymentId);
+  unsaved.set(dep.deploymentId, ++changes);
   writes = writes.then(async () => {
-    for (const id of [...unsaved]) await writeOne(id);
+    for (const id of [...unsaved.keys()]) await writeOne(id);
   });
   return writes;
 }
@@ -174,11 +184,11 @@ export async function flushStore() {
   if (!usingDatabase) return [];
   if (unsaved.size) {
     writes = writes.then(async () => {
-      for (const id of [...unsaved]) await writeOne(id);
+      for (const id of [...unsaved.keys()]) await writeOne(id);
     });
   }
   await writes;
-  return [...unsaved];
+  return [...unsaved.keys()];
 }
 
 // ---------------------------------------------------------------------------------
@@ -222,10 +232,25 @@ export async function openStore() {
   return { kind: "postgres", records: deployments.size, migrations: applied, ...(adopted ? { adopted, from: STORE_FILE } : {}) };
 }
 
+// Whoever wants to know each time a record is saved (GET /deployments/events). This
+// process's own saves only, as the store itself is one process's (DESIGN.md, "The
+// portal follows changes as they happen").
+const watchers = new Set();
+
+/** Call `listener(record)` after each record is saved. Returns the function that stops it. */
+export function onDeploymentSaved(listener) {
+  watchers.add(listener);
+  return () => watchers.delete(listener);
+}
+
 export function putDeployment(dep) {
   deployments.set(dep.deploymentId, dep);
   if (usingDatabase) persistRow(dep);
   else persistFile();
+  // A listener that throws must not stop the save, or the others hearing of it.
+  for (const listener of watchers) {
+    try { listener(dep); } catch {}
+  }
   return dep;
 }
 

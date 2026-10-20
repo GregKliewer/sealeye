@@ -8,21 +8,10 @@ cd /opt/sealeye
 # REGION, CONFIG_BUCKET and REPOSITORY, written when the server was created.
 source ./server.env
 
-aws s3 cp "s3://${CONFIG_BUCKET}/server/compose.yaml" compose.yaml --region "$REGION" --only-show-errors
-aws s3 cp "s3://${CONFIG_BUCKET}/server/Caddyfile" Caddyfile --region "$REGION" --only-show-errors
-
-# The pages Caddy serves: seaLeye.online, seaLeye.run and the package it installs.
-# --exact-timestamps, because without it a download skips any file whose size has not
-# changed, however new: the portal's index.html is always the same size (only the hashes
-# in its asset names change), so the server kept the old page while --delete removed the
-# assets it names, and the portal went blank (Oct 11, 2026).
-mkdir -p sites
-aws s3 sync "s3://${CONFIG_BUCKET}/server/sites/" sites/ --region "$REGION" --delete --exact-timestamps --only-show-errors
-
-for f in backup.sh restore-check.sh; do
+for f in backup.sh restore-check.sh gateway.sh; do
   aws s3 cp "s3://${CONFIG_BUCKET}/server/$f" "$f" --region "$REGION" --only-show-errors
 done
-chmod +x backup.sh restore-check.sh
+chmod +x backup.sh restore-check.sh gateway.sh
 
 # The database password, from Parameter Store, for the Postgres container. Postgres
 # reads it only when it first creates the database, so changing the parameter later
@@ -35,6 +24,25 @@ if ! aws ssm get-parameter --region "$REGION" --name /sealeye/POSTGRES_PASSWORD 
   exit 1
 fi
 chmod 644 secrets/pg_password.new && mv secrets/pg_password.new secrets/pg_password
+
+# The model gateway's keys and budget, from Parameter Store, in a file only root reads
+# (deploy/gateway.sh). It stops the release, changing nothing, when a key is missing.
+bash ./gateway.sh settings
+
+# Only once every secret is read does anything the running containers use change: a
+# release that stops above leaves the server's compose.yaml, Caddyfile and pages as
+# they were, so deploy/server.sh still works.
+aws s3 cp "s3://${CONFIG_BUCKET}/server/compose.yaml" compose.yaml --region "$REGION" --only-show-errors
+aws s3 cp "s3://${CONFIG_BUCKET}/server/Caddyfile" Caddyfile --region "$REGION" --only-show-errors
+aws s3 cp "s3://${CONFIG_BUCKET}/server/gateway.yaml" gateway.yaml --region "$REGION" --only-show-errors
+
+# The pages Caddy serves: seaLeye.online, seaLeye.run and the package it installs.
+# --exact-timestamps, because without it a download skips any file whose size has not
+# changed, however new: the portal's index.html is always the same size (only the hashes
+# in its asset names change), so the server kept the old page while --delete removed the
+# assets it names, and the portal went blank (Oct 11, 2026).
+mkdir -p sites
+aws s3 sync "s3://${CONFIG_BUCKET}/server/sites/" sites/ --region "$REGION" --delete --exact-timestamps --only-show-errors
 
 # The nightly backup, at 03:15 Toronto time. Installed or updated every
 # release; Persistent=true runs a missed one after the server was off.
@@ -55,14 +63,42 @@ Persistent=true
 [Install]
 WantedBy=timers.target
 UNIT
+# The model gateway's record of calls keeps 90 days (deploy/gateway.sh prune), nightly
+# after the backup.
+cat > /etc/systemd/system/sealeye-gateway-prune.service <<UNIT
+[Unit]
+Description=seaLeye: remove model calls older than 90 days from the gateway's record
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/sealeye
+ExecStart=/bin/bash /opt/sealeye/gateway.sh prune
+UNIT
+cat > /etc/systemd/system/sealeye-gateway-prune.timer <<UNIT
+[Unit]
+Description=seaLeye nightly gateway record prune
+[Timer]
+OnCalendar=*-*-* 03:45:00 America/Toronto
+Persistent=true
+[Install]
+WantedBy=timers.target
+UNIT
 systemctl daemon-reload
 systemctl enable --now sealeye-backup.timer >/dev/null
+systemctl enable --now sealeye-gateway-prune.timer >/dev/null
 
 # Compose reads .env, so a reboot or a later `docker compose` keeps the same image.
 echo "SEALEYE_IMAGE=${REPOSITORY}:${TAG}" > .env
 
+# Room for the new image first: every image no container is using goes, the running
+# ones stay. A release's image is tagged (main-<commit>), so `prune -f`, which removes
+# only untagged ones, never removed any, and twenty releases filled the disk (Oct 20,
+# 2026: "no space left on device" mid-pull, the old release still running).
+docker image prune -af >/dev/null
+docker builder prune -af >/dev/null 2>&1 || true
 aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "${REPOSITORY%%/*}" >/dev/null
 docker compose pull --quiet
+# The gateway's settings in this release, checked before anything restarts.
+bash ./gateway.sh validate
 docker compose up -d --remove-orphans
 # Caddy reads its Caddyfile when it starts, and the file is mounted on its own, so a new
 # copy reaches it only in a new container. .caddyfile-started records the one the
@@ -75,16 +111,25 @@ if [ "$CADDYFILE_NOW" != "$(cat .caddyfile-started 2>/dev/null || true)" ]; then
   echo "$CADDYFILE_NOW" > .caddyfile-started
   echo "Caddy restarted with this release's Caddyfile"
 fi
-docker image prune -f >/dev/null
+# The gateway reads its settings file and its keys when it starts, so a release that
+# changes either restarts it; its spending stays.
+bash ./gateway.sh restart-if-changed
+# And the release just replaced, now that nothing uses it.
+docker image prune -af >/dev/null
 
+API_UP=""
 for _ in $(seq 1 36); do
   if [ "$(docker compose ps --format '{{.Health}}' api)" = "healthy" ]; then
-    echo "The API is up, running ${REPOSITORY}:${TAG}"
-    exit 0
+    API_UP=1
+    break
   fi
   sleep 5
 done
+if [ -z "$API_UP" ]; then
+  echo "The API did not become healthy within three minutes. Its last lines:"
+  docker compose logs --tail 40 api
+  exit 1
+fi
+echo "The API is up, running ${REPOSITORY}:${TAG}"
 
-echo "The API did not become healthy within three minutes. Its last lines:"
-docker compose logs --tail 40 api
-exit 1
+bash ./gateway.sh ready

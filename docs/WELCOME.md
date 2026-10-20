@@ -84,7 +84,7 @@ Tear one of them down from the website: open it and choose "Tear it down". It as
 to type the app's name to confirm. Tear down the other one from the command line:
 
 ```bash
-sealeye destroy static-website
+sealeye teardown static-website
 ```
 
 When you are done, `sealeye list` and the website should both show nothing live of
@@ -99,7 +99,10 @@ shows them), take a screenshot, and send both to Greg.
 ## What seaLeye keeps
 
 seaLeye sends a copy of your app's folder to the platform to read and build it. It
-never sends `.env` files or other files that hold secrets, only their names. For these
+never sends `.env` files or other files that hold secrets, only their names. It also
+checks your code for values that look like secrets, a key written into a file say: a
+line with one is not sent (the rest of the file is), and a deploy is refused until the value moves
+into a setting. The sample apps have none. For these
 sample apps, each interview is recorded so it can be improved: the questions, your
 answers and the plan, never the contents of your files. `sealeye run --no-trace` turns
 that off for a run.

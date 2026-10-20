@@ -13,8 +13,8 @@ import path from "node:path";
 
 import YAML from "yaml";
 
-import { normalizeProfile, isBuildable, MODULE_IDS, STRAY_MODULE_ID } from "./schema.js";
-import { loadCatalog, unsupportedNeeds } from "./catalog.js";
+import { normalizeProfile, LEGACY_MODULE_IDS, MODULE_IDS, moduleIdSource } from "./schema.js";
+import { buildableModules, catalogModuleIds, isBuildable, loadCatalog, planOffers, unsupportedNeeds } from "./catalog.js";
 import { repoRoot } from "./config.js";
 import { CONFIG_FILE } from "./names.js";
 
@@ -191,14 +191,24 @@ function selectedModules({ plan, catalog }) {
       const entry = catalog.modules.find(m => m.id === module.id);
       const role = entry?.role === "core" ? "Core" : entry?.role === "shared" ? "Observability" : "Optional";
       const line = entry?.line?.trim() || "";
-      return `### ${module.id} - ${role}\n${line}${inputLines(module)}`;
+      return `### ${module.id} - ${role}\n${line}${inputLines(module)}${connectLines(module)}`;
     })
     .join("\n\n");
+}
+
+/** The setting each value a module the app uses reaches the app under (planVersion 0.6). */
+const idWords = ids => (ids.length < 2 ? ids.join("") : `${ids.slice(0, -1).join(", ")} and ${ids[ids.length - 1]}`);
+
+function connectLines(module) {
+  const pairs = Object.entries(module.connect || {});
+  if (!pairs.length) return "";
+  return `\n${pairs.map(([value, setting]) => `- Your app reads its ${value.replace(/_/g, " ")} from ${setting}.`).join("\n")}`;
 }
 
 function whatWillBeCreated({ plan }) {
   const core = coreModule(plan);
   const steps = [];
+  const connected = enabledModules(plan).filter(m => m.connect && Object.keys(m.connect).length);
 
   if (core?.id === "static_site_edge") {
     steps.push("Your files are uploaded exactly as they are, with nothing added to your folder.");
@@ -227,6 +237,13 @@ function whatWillBeCreated({ plan }) {
     );
   }
 
+  if (connected.length) {
+    steps.push(
+      `${idWords(connected.map(m => m.id))} ${connected.length === 1 ? "is" : "are"} built beside your app, and your app is given what it needs to use ${connected.length === 1 ? "it" : "them"}, ` +
+      `with ${connected.flatMap(m => Object.values(m.connect)).join(", ")} set to where to find ${connected.length === 1 ? "it" : "them"}.`
+    );
+  }
+
   // A plan with no public URL in its outputs has no address to hand back, so it is not
   // promised one.
   steps.push(
@@ -250,17 +267,19 @@ function whatWillBeCreated({ plan }) {
   return numbered;
 }
 
-function expectedOutput({ plan }) {
+function expectedOutput({ plan, catalog }) {
   const outputs = plan.outputs || [];
   const lines = [];
 
   if (outputs.includes("public_url")) {
     lines.push("Public URL: generated when the deployment finishes, HTTPS included. Shareable immediately.");
   }
-  if (outputs.includes("logs") || outputs.includes("log_stream")) {
+  // Only what the environment then offers: one built from the organization's own module
+  // keeps its logs where that module puts them, and seaLeye does not read them back.
+  if ((outputs.includes("logs") || outputs.includes("log_stream")) && planOffers(plan, catalog, "logs")) {
     lines.push("Logs: everything your app prints, from the first request, with no setup.");
   }
-  if (outputs.includes("metrics") || outputs.includes("metrics_dashboard")) {
+  if ((outputs.includes("metrics") || outputs.includes("metrics_dashboard")) && planOffers(plan, catalog, "perf")) {
     lines.push("Metrics: requests, errors and response times, tracked automatically.");
   }
 
@@ -270,7 +289,7 @@ function expectedOutput({ plan }) {
 function modulesNotRequired({ plan, catalog }) {
   // Only modules seaLeye.run builds are ever named here. What the app needs beyond
   // them has its own section and is not a module that was "not required".
-  const skipped = disabledModules(plan).filter(m => isBuildable(m.id));
+  const skipped = disabledModules(plan).filter(m => isBuildable(m.id, catalog));
   if (!skipped.length) return "Every module seaLeye.run builds is in use for this app.";
 
   return bullets(
@@ -281,7 +300,15 @@ function modulesNotRequired({ plan, catalog }) {
   );
 }
 
-function notes({ summary, assumptions }) {
+function notes({ summary, assumptions, notesKept }) {
+  // A plan written down after the fact, for a deployment whose interview's summary and
+  // assumptions the platform did not keep (a plan from a file, one changed with
+  // Configure, or a deployment from before they were kept). It never claims that no
+  // assumptions were needed: it says it does not know.
+  if (notesKept === false) {
+    return "This copy was written from the plan this deployment used. The interview's summary and assumptions are not part of this deployment's record, so they are not shown here.";
+  }
+
   const lines = [];
   if (summary) lines.push(summary.trim(), "");
 
@@ -342,18 +369,30 @@ export function renderPlanMarkdown(submission, { template = loadTemplate(), cata
 
   // The one rule this file exists to keep. A module id in here that seaLeye.run cannot
   // build is a promise to a developer that nobody can keep, so it fails here, loudly,
-  // rather than reaching their folder.
-  const stray = STRAY_MODULE_ID.exec(markdown);
-  if (stray && !isBuildable(stray[0])) {
+  // rather than reaching their folder. Any id the catalog names, the four, and the ids
+  // of plans before 0.4 are looked for; only what this catalog builds may appear.
+  const stray = strayModule(markdown, catalog);
+  if (stray) {
     throw new Error(
-      `DEPLOYMENT_PLAN.md names ${stray[0]}, which seaLeye.run does not build. ` +
-        "Only " + MODULE_IDS.join(", ") + " may appear in a plan file."
+      `DEPLOYMENT_PLAN.md names ${stray}, which seaLeye.run does not build. ` +
+        "Only " + buildableModules(catalog).map(m => m.id).join(", ") + " may appear in a plan file."
     );
   }
 
   return markdown;
 }
 
+
+/** The first module id in `text` that this catalog does not build, or null. */
+function strayModule(text, catalog) {
+  const ids = [...new Set([...MODULE_IDS, ...LEGACY_MODULE_IDS, ...catalogModuleIds(catalog)])];
+  const pattern = new RegExp(`(?:${ids.map(moduleIdSource).join("|")})`, "g");
+  for (const [match] of String(text).matchAll(pattern)) {
+    const id = match.replace(/`/g, "");
+    if (!isBuildable(id, catalog)) return id;
+  }
+  return null;
+}
 
 /** sealeye.yaml: the plan as submitted, nothing added. */
 export function renderPlanYaml(plan) {

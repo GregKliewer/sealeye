@@ -1,23 +1,30 @@
 // api/interview/model.js
 // Talking to the model: the client, the system prompt, one turn retried once, and
 // reading what a turn said. The graph (graph.js) decides what happens between turns.
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
 import Anthropic from "@anthropic-ai/sdk";
 
-import { catalogForPrompt, orgName } from "../../core/catalog.js";
+import { catalogForPrompt, interviewPassages, orgName, starterCatalog } from "../../core/catalog.js";
 import { repoRoot, loadEnv, loadUserConfig, setting } from "../../core/config.js";
 import { traceTurn } from "../../core/tracing.js";
+import { spendingLimitWords } from "../../core/model-prices.js";
 
 // The Sonnet id from the Day 1 curl test. Overridable, because the id is the one
 // thing here that changes without the platform changing.
 export const DEFAULT_MODEL = "claude-sonnet-5";
 
 export const MAX_TOKENS = 16000;
-// The SDK's default is ten minutes. A turn that writes a whole plan after a correction
-// is the slowest one, so leave room for it: 120 s, retried once.
+// How long to wait for the model to start answering: 120 s, retried once. Its reply is
+// streamed (`askModel`), so a long reply is not cut off by this: once it has started,
+// what ends it is silence (IDLE_MS), not length (Greg, Oct 16, 2026, after a plan
+// against Juniper Mutual's catalog took longer than two minutes to write, every time).
 const TIMEOUT_MS = 120_000;
+// How long the model may go quiet in the middle of a reply before the turn is given up
+// and retried. A streamed reply sends something every few seconds while it is working.
+export const IDLE_MS = 60_000;
 // What the retry calls a long wait. A dropped connection comes back in well under a
 // second, so a retry after this much silence is worth saying out loud.
 const SLOW_MS = 30_000;
@@ -41,6 +48,34 @@ export function resolveApiKey() {
   return process.env.ANTHROPIC_API_KEY || null;
 }
 
+/** An Anthropic client that never resolves a credential of its own: the gateway holds it. */
+class GatewayClient extends Anthropic {
+  _shouldResolveDefaultCredentials() {
+    return false;
+  }
+}
+
+/** The header the platform's own gateway reads the API's key from (deploy/gateway.yaml). */
+export const GATEWAY_KEY_HEADER = "x-sealeye-gateway-key";
+
+/**
+ * What the API calls the model with, or null when it has nothing to call it with.
+ *
+ * With SEALEYE_MODEL_URL and SEALEYE_GATEWAY_KEY both set, the API talks to the
+ * platform's own gateway (deploy/gateway.yaml), which holds the model key: the API sends
+ * only its key for the gateway, never a model key, even if it has one (DESIGN.md, "The
+ * model gateway on the server"). Otherwise it uses ANTHROPIC_API_KEY, as before, sent
+ * to SEALEYE_MODEL_URL when that is set (an organization's own gateway that takes one).
+ *
+ * @returns {{ gatewayKey: string } | { apiKey: string } | null}
+ */
+export function modelCredential() {
+  const gatewayKey = setting("GATEWAY_KEY");
+  if (gatewayKey && setting("MODEL_URL")) return { gatewayKey };
+  const apiKey = resolveApiKey();
+  return apiKey ? { apiKey } : null;
+}
+
 /**
  * The Anthropic client the interview talks to.
  *
@@ -49,10 +84,29 @@ export function resolveApiKey() {
  * (often to Claude on Bedrock in its own AWS account) points this at the gateway, and
  * seaLeye needs no route of its own to api.anthropic.com. Unset changes nothing.
  * The SDK's own retries are off: one retry, announced, beats three silent ones.
+ *
+ * @param credential what `modelCredential()` returned, or an Anthropic key on its own
  */
-export function modelClient(apiKey) {
+export function modelClient(credential) {
   const baseURL = setting("MODEL_URL");
-  return new Anthropic({ apiKey, timeout: TIMEOUT_MS, maxRetries: 0, ...(baseURL ? { baseURL } : {}) });
+  const options = { timeout: TIMEOUT_MS, maxRetries: 0, fetch: watchedFetch(), ...(baseURL ? { baseURL } : {}) };
+  if (credential && typeof credential === "object" && credential.gatewayKey) {
+    // No model credential at all. `apiKey: null` and `authToken: null` keep the SDK
+    // from reading ANTHROPIC_API_KEY and ANTHROPIC_AUTH_TOKEN; GatewayClient keeps it from
+    // looking for any other credential (a profile, a config file, a token exchange);
+    // the null headers tell it none is meant, and win over ANTHROPIC_CUSTOM_HEADERS.
+    // The log level is fixed because the SDK's debug log masks the model's own key
+    // headers, not the gateway's.
+    return new GatewayClient({
+      ...options,
+      apiKey: null,
+      authToken: null,
+      logLevel: "warn",
+      defaultHeaders: { [GATEWAY_KEY_HEADER]: credential.gatewayKey, "x-api-key": null, authorization: null }
+    });
+  }
+  const apiKey = typeof credential === "string" ? credential : credential?.apiKey;
+  return new Anthropic({ ...options, apiKey });
 }
 
 /**
@@ -60,13 +114,46 @@ export function modelClient(apiKey) {
  * folder.
  *
  * The catalog is substituted in rather than written out twice: a module described in
- * two places eventually says two different things. The organization's name comes from
+ * two places eventually says two different things. Since PHASE4-PLAN Step 3 it is the
+ * interview's catalog, the organization's live one when it started, with the passages
+ * that speak of its modules (interviewPassages in core/catalog.js); the starter's are
+ * the prompt exactly as it was before. The organization's name comes from
  * the platform's config, because whose platform library this is was never ours to hard
  * code.
  */
-export function loadSystemPrompt() {
-  const text = fs.readFileSync(path.join(repoRoot, "prompts", "interview-system.md"), "utf8");
-  return text.split("{{catalog}}").join(catalogForPrompt()).split("{{org}}").join(orgName());
+export function loadSystemPrompt(catalog, { starter = catalog === undefined } = {}) {
+  const doc = catalog || starterCatalog();
+  let text = fs.readFileSync(path.join(repoRoot, "prompts", "interview-system.md"), "utf8");
+  // The passages that speak of the modules are the catalog's (PHASE4-PLAN Step 3). One
+  // the catalog has nothing for goes, with its line, rather than leaving a gap.
+  const org = orgName();
+  const passages = interviewPassages(doc, { starter });
+  for (const [name, value] of Object.entries(passages)) {
+    if (value) continue;
+    const mark = `{{${name}}}`;
+    text = text.split(`${mark}\n\n`).join("").split(`${mark}\n`).join("").split(mark).join("");
+  }
+  // Every {{name}} filled in one pass over the template, so nothing put in is read again:
+  // a {{name}} inside a catalog's own words is never filled, and never filled twice. A
+  // passage may say {{org}} (catalogProblems allows that and no other), filled first.
+  const values = {
+    ...Object.fromEntries(Object.entries(passages).map(([k, v]) => [k, String(v).split("{{org}}").join(org)])),
+    catalog: catalogForPrompt(doc),
+    org
+  };
+  return text.replace(/\{\{([a-z_]+)\}\}/g, (mark, name) => (Object.hasOwn(values, name) ? values[name] : mark));
+}
+
+/**
+ * A plan in the shape the model writes one: 0.4, with no catalog. A plan deployed since
+ * Oct 15, 2026 is 0.5 and names its catalog, which the model's tool does not have and
+ * the platform fills in itself; shown as it is, the model could copy them back and have
+ * its plan refused.
+ */
+export function asTheModelWritesIt(plan) {
+  if (!plan || typeof plan !== "object" || plan.planVersion !== "0.5") return plan;
+  const { catalog, ...rest } = plan;
+  return { ...rest, planVersion: "0.4" };
 }
 
 /** The plan the live environment was built from, for the first message. */
@@ -75,7 +162,7 @@ export function deployedContext(plan) {
   return [
     "This app already has a live environment with this plan:",
     "",
-    JSON.stringify(plan, null, 2),
+    JSON.stringify(asTheModelWritesIt(plan), null, 2),
     "",
     "This run updates that environment rather than creating a second one."
   ].join("\n");
@@ -146,8 +233,36 @@ export function userFacing(message, cause) {
   return err;
 }
 
+/**
+ * The platform's gateway refused the call because its money budget for the period is
+ * spent (deploy/gateway.yaml). It answers 429 like a busy model, but waiting a moment
+ * does not help, so it is never retried and never called busy.
+ */
+export function isBudgetSpent(err) {
+  return err?.status === 429 && err?.error?.error?.code === "budget_exceeded";
+}
+
+/**
+ * The platform's gateway refused the call because this run has used its tokens for the
+ * day (deploy/gateway.yaml, the per-run limit). Waiting does not help this run, so it is
+ * never retried. The gateway adds x-ratelimit-* headers to every reply it lets through,
+ * Anthropic's own 429 included, so those alone do not tell them apart. Only the
+ * gateway's own refusal is plain text (the SDK finds no error object in it) and carries
+ * no Anthropic request id.
+ */
+export function isRunLimitReached(err) {
+  return (
+    err?.status === 429 &&
+    !isBudgetSpent(err) &&
+    !err?.error &&
+    !err?.headers?.get?.("request-id") &&
+    Boolean(err?.headers?.get?.("x-ratelimit-limit"))
+  );
+}
+
 /** A timeout, a dropped connection, a rate limit or a server fault is worth one retry. */
 function isRetryable(err) {
+  if (isBudgetSpent(err) || isRunLimitReached(err)) return false;
   if (err instanceof Anthropic.APIConnectionError) return true;   // timeouts included
   const status = err?.status;
   return status === 408 || status === 429 || (typeof status === "number" && status >= 500);
@@ -168,7 +283,22 @@ function asUserFacing(err) {
 
   // The key is the platform's now, not the developer's, so the fix is theirs too.
   if (err?.status === 401 || err?.status === 403) {
-    return userFacing("The model key the seaLeye API is using was refused. Tell whoever runs the API.", err);
+    return userFacing("The seaLeye API's credentials for the model were refused. Tell whoever runs the API.", err);
+  }
+
+  if (isBudgetSpent(err)) {
+    return userFacing(
+      "seaLeye has used its model budget for this period, so the interview stopped. Nothing was written to your folder and nothing was built. Tell whoever runs the API.",
+      err
+    );
+  }
+
+  // The same words as the run's own cap: to the developer it is one limit. The reason
+  // lets the graph end the run as the cap does, stopped rather than failed.
+  if (isRunLimitReached(err)) {
+    const stopped = userFacing(spendingLimitWords(COMMAND), err);
+    stopped.reason = "spending_limit";
+    return stopped;
   }
 
   if (err?.status === 429) {
@@ -186,11 +316,91 @@ function asUserFacing(err) {
  * sentence rather than a stack. One generation in the trace per turn, retry included;
  * the trace sees the shape of the conversation, never its contents (core/tracing.js).
  */
-export async function createWithOneRetry(client, params, onStep, turn = 0) {
-  return traceTurn({ turn, model: params.model, messages: params.messages }, async traced => {
+/**
+ * One model call, its reply streamed and returned whole, as `messages.create` would
+ * return it. Streamed so a long reply is never cut off by a limit on the whole call: it
+ * is given up only when the model goes quiet for IDLE_MS, as a timeout, which is
+ * retried like any other. A client without `messages.stream` (a test's stand-in) is
+ * called the old way.
+ */
+export async function askModel(client, params, { idleMs = IDLE_MS, startMs = TIMEOUT_MS } = {}) {
+  if (typeof client?.messages?.stream !== "function") return client.messages.create(params);
+  const controller = new AbortController();
+  let quiet = null;
+  let timer;
+  const wait = (ms = idleMs) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      quiet = ms;
+      controller.abort();
+    }, ms);
+  };
+  // Until the reply starts, the longer wait; after that, silence.
+  wait(startMs);
+  const id = crypto.randomUUID();
+  watchers.set(id, () => wait());
+  try {
+    const stream = client.messages.stream(params, { signal: controller.signal, headers: { [WATCH_HEADER]: id } });
+    // A client without watchedFetch (a test's own) is watched by the SDK's events only.
+    stream.on("streamEvent", () => wait());
+    return await stream.finalMessage();
+  } catch (err) {
+    if (quiet !== null) throw new Anthropic.APIConnectionTimeoutError({ message: `the model sent nothing for ${Math.round(quiet / 1000)} s` });
+    throw err;
+  } finally {
+    clearTimeout(timer);
+    watchers.delete(id);
+  }
+}
+
+// What counts as the model still answering is every byte that arrives, not only the
+// events the SDK passes on. While the model thinks before it writes, the model API
+// keeps the connection alive with ping events, which the SDK drops without a word, so a
+// model thinking for a minute looked silent and was given up (Greg's run, Oct 16, 2026,
+// Juniper's payment events processor: "the model sent nothing for 60 s", twice).
+const WATCH_HEADER = "x-sealeye-watch";
+const watchers = new Map();
+
+/**
+ * The fetch the model client uses: a call askModel marks (WATCH_HEADER, never sent on)
+ * tells it each time bytes arrive. Any other call is fetched as it is.
+ */
+export function watchedFetch(base = globalThis.fetch) {
+  return async (url, init = {}) => {
+    const headers = new Headers(init.headers || {});
+    const id = headers.get(WATCH_HEADER);
+    if (!id) return base(url, init);
+    headers.delete(WATCH_HEADER);
+    const res = await base(url, { ...init, headers });
+    const tick = watchers.get(id);
+    if (!tick || !res.body) return res;
+    tick();
+    const reader = res.body.getReader();
+    const body = new ReadableStream({
+      async pull(out) {
+        const { done, value } = await reader.read();
+        if (done) return out.close();
+        tick();
+        out.enqueue(value);
+      },
+      cancel(reason) {
+        return reader.cancel(reason);
+      }
+    });
+    return new Response(body, { status: res.status, statusText: res.statusText, headers: res.headers });
+  };
+}
+
+export async function createWithOneRetry(client, params, onStep, turn = 0, { traceAs = "interview", idleMs = IDLE_MS } = {}) {
+  // Discovery records its own generation, with no reply in it (core/tracing.js,
+  // traceDiscoveryCall), so the interview's, which records the model's text, is not made.
+  const traced = traceAs === "interview"
+    ? fn => traceTurn({ turn, model: params.model, messages: params.messages }, fn)
+    : fn => fn({ retried() {} });
+  return traced(async traced => {
     const startedAt = Date.now();
     try {
-      return await client.messages.create(params);
+      return await askModel(client, params, { idleMs });
     } catch (err) {
       if (!isRetryable(err)) throw asUserFacing(err);
       traced.retried(err);
@@ -208,7 +418,7 @@ export async function createWithOneRetry(client, params, onStep, turn = 0) {
       }
 
       try {
-        return await client.messages.create(params);
+        return await askModel(client, params, { idleMs });
       } catch (retryErr) {
         throw asUserFacing(retryErr);
       }

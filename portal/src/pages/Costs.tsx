@@ -3,21 +3,37 @@
 // behind, and only what carries the tags; the page says both.
 import { useState } from "react";
 import { api } from "../api";
-import { useLoad } from "../session";
+import { useLoad, useSession } from "../session";
 import { when } from "../model";
 import { PageTitle, Problem } from "../Layout";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
+import { label } from "../../../core/operations.js";
+import { hasSettingsAndCosts, notKeptForOrganization } from "../../../core/token.js";
 
 export function CostsPage() {
+  const { person } = useSession();
+  // Reached by its address only: the navigation leaves it out where it is not kept.
+  if (person && !hasSettingsAndCosts(person)) {
+    return (
+      <>
+        <PageTitle title={label("costs")} />
+        <p className="text-dim" data-testid="not-kept">{notKeptForOrganization("costs")}</p>
+      </>
+    );
+  }
+  return <Costs />;
+}
+
+function Costs() {
   const [since, setSince] = useState("30d");
   const costs = useLoad(() => api.costs(since), [since]);
   const data = costs.data;
   const money = (v: number) => `${v.toFixed(2)} ${data?.unit || ""}`.trim();
   return (
     <>
-      <PageTitle title="Costs" sub={data?.everyTeam ? "What each app in your organization has cost." : "What each of your team's apps has cost."}
+      <PageTitle title={label("costs")} sub={data?.everyTeam ? "What each app in your organization has cost." : "What each of your team's apps has cost."}
         action={
           <div className="flex gap-1" role="group" aria-label="Over the last">
             {[["7d", "7 days"], ["30d", "30 days"]].map(([key, label]) => (

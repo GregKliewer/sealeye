@@ -14,7 +14,24 @@
 // names only, even when a .gitignore names them: each is an empty file in the zip, so
 // the interview's list_files still shows that a .env exists, while its contents never
 // leave the developer's machine.
+//
+// Every file that travels is also scanned for values that look like secrets
+// (core/scan.js, PHASE3-PLAN Step 2). For an interview, each flagged line travels as a
+// line that says why, so the rest of the file can still be read; a private key, which
+// runs over many lines, sends its file as an empty name, as a .env is. The findings
+// (file, line, rule; never the value) go with the upload so the API can say what it
+// left out. For a deploy, a finding
+// refuses the upload (D4) unless .sealeye-allow names its line.
+import { ALLOW_FILE, applyAllow, deployRefusalMessage, linesByFile, looksBinary, markWhole, onePerLine, parseAllowFile, redactLines, scanText, uniqueFindings } from "./scan.js";
 import { secretFileReason } from "./secrets.js";
+
+// Files neither scanner can see into: an archive's contents are compressed, and gitleaks
+// does not open archives unless told to; and a file that is not text says nothing an
+// interview or a discovery worker reads. Both travel as their names only, as a secret
+// file does, rather than with contents nobody scanned (DESIGN.md, "Archives and files
+// that are not text travel as names", Greg, Oct 15, 2026).
+export const ARCHIVE_NAME = /\.(zip|jar|war|ear|whl|tar|tgz|tbz2?|txz|gz|bz2|xz|zst|7z|rar|nupkg|apk|ipa)$/i;
+export const isNotText = (name, data) => ARCHIVE_NAME.test(String(name)) || (data && data.length > 0 && looksBinary(data));
 
 export const EXCLUDED_FOLDERS = new Set(["node_modules", ".git", ".github", ".do", ".sealeye", ".deployme"]);
 
@@ -39,6 +56,7 @@ const PURPOSES = {
     secrets: "names",
     maxBytes: MAX_UPLOAD_BYTES,
     maxFiles: MAX_UPLOAD_FILES,
+    notText: "names",
     readsAs: "an interview can read",
     leftOut: "node_modules, .git and what your .gitignore leaves out"
   },
@@ -54,6 +72,24 @@ const PURPOSES = {
     maxFiles: 20000,
     readsAs: "the platform can package",
     leftOut: "node_modules, .git and secret files"
+  },
+  // A platform library, read by discovery in the API (PHASE4-PLAN Step 5). Read as an
+  // interview reads an app (.gitignore followed, secret files as names, a flagged line
+  // replaced by one that says why), with two differences: the pipeline under .github
+  // is read, since how an app reaches production is part of what discovery learns, and
+  // no .sealeye-allow is honoured, since a library's findings are the platform team's
+  // to fix, not to wave through (Greg, Oct 15, 2026).
+  discovery: {
+    excludedFolders: new Set(["node_modules", ".git", ".do", ".sealeye", ".deployme"]),
+    gitignore: true,
+    secrets: "names",
+    allowFile: false,
+    notText: "names",
+    maxBytes: 50 * 1024 * 1024,
+    maxFiles: 20000,
+    subject: "The library",
+    readsAs: "discovery reads",
+    leftOut: "node_modules, .git and what its .gitignore leaves out"
   }
 };
 
@@ -70,6 +106,20 @@ export const isLeftOutOfDeploy = name => Boolean(secretFileReason(String(name)))
 export class UploadRefused extends Error {}
 
 /**
+ * A deploy upload refused because the code looks like it holds a secret (D4). The
+ * message is the whole refusal, in core/scan.js's words; `findings` are file, line,
+ * rule and kind, never a value.
+ */
+export class SecretsFound extends UploadRefused {
+  constructor(findings, { allowed = [], ...options } = {}) {
+    super(deployRefusalMessage(findings, options));
+    this.name = "SecretsFound";
+    this.findings = findings;
+    this.allowed = allowed;
+  }
+}
+
+/**
  * Walk a folder and decide what travels. The folder is any tree of nodes:
  *
  *   { name, kind: "dir", children(): node[] | Promise<node[]> }
@@ -80,18 +130,24 @@ export class UploadRefused extends Error {}
  *
  * @param {object} root                      the folder's own node
  * @param {object} options
- * @param {"interview"|"deploy"} [options.purpose]
+ * @param {"interview"|"deploy"|"discovery"} [options.purpose]
  * @param {() => {add(text: string): object, test(path: string): {ignored: boolean, unignored: boolean}}} options.ignore
  *        a .gitignore matcher factory (the `ignore` package's default export)
- * @returns {Promise<{ entries: Record<string, Uint8Array>, files: number, bytes: number, withheld: string[], ignored: number }>}
- *          withheld lists the secret files sent as empty names; ignored counts what a
- *          .gitignore left out.
+ * @returns {Promise<{ entries: Record<string, Uint8Array>, files: number, bytes: number, withheld: string[], unread: string[], ignored: number, findings: object[], allowed: object[] }>}
+ *          withheld lists the secret files sent as empty names; unread the archives and
+ *          files that are not text, sent the same way; ignored counts what a
+ *          .gitignore left out; findings are the values that look like secrets in what
+ *          travels (an interview's files with one are sent empty; a deploy with one is
+ *          refused with SecretsFound before this returns); allowed are the findings
+ *          .sealeye-allow excuses.
  */
 export async function collectUpload(root, { purpose = "interview", ignore } = {}) {
   const rules_ = rulesOf(purpose);
   if (rules_.gitignore && typeof ignore !== "function") throw new Error("collectUpload needs a .gitignore matcher for an interview upload");
   const entries = {};
   const withheld = [];
+  const unread = [];
+  const scanned = [];
   let files = 0;
   let bytes = 0;
   let ignored = 0;
@@ -114,7 +170,7 @@ export async function collectUpload(root, { purpose = "interview", ignore } = {}
   const countFile = () => {
     files++;
     if (files > rules_.maxFiles) {
-      throw new UploadRefused(`Your folder has more than ${rules_.maxFiles} files, leaving out ${rules_.leftOut}, which is more than ${rules_.readsAs}.`);
+      throw new UploadRefused(`${rules_.subject || "Your folder"} has more than ${rules_.maxFiles} files, leaving out ${rules_.leftOut}, which is more than ${rules_.readsAs}.`);
     }
   };
 
@@ -164,15 +220,46 @@ export async function collectUpload(root, { purpose = "interview", ignore } = {}
       bytes += data.length;
       if (bytes > rules_.maxBytes) throw tooBig();
       entries[childRel] = data;
+      scanned.push(...scanText(childRel, data));
+      // Scanned first, so a key in one is still reported; then sent as its name only.
+      if (rules_.notText === "names" && isNotText(child.name, data)) {
+        entries[childRel] = new Uint8Array(0);
+        unread.push(childRel);
+      }
     }
   };
 
   function tooBig() {
-    return new UploadRefused(`Your folder is bigger than ${rules_.maxBytes / 1024 / 1024} MB, leaving out ${rules_.leftOut}, which is more than ${rules_.readsAs}.`);
+    return new UploadRefused(`${rules_.subject || "Your folder"} is bigger than ${rules_.maxBytes / 1024 / 1024} MB, leaving out ${rules_.leftOut}, which is more than ${rules_.readsAs}.`);
   }
 
   await walk(root, "", []);
-  return { entries, files, bytes, withheld, ignored };
+
+  // The allow file is the developer's word, read from the folder's top level only, and
+  // never a library's (see discovery above).
+  let allowEntries = [];
+  const allowNode = rules_.allowFile === false ? null : (await root.children()).find(c => c.kind === "file" && c.name === ALLOW_FILE);
+  if (allowNode) {
+    try {
+      allowEntries = parseAllowFile(String(await allowNode.text())).entries;
+    } catch {
+      allowEntries = [];
+    }
+  }
+  const split = applyAllow(uniqueFindings(scanned), allowEntries);
+  const found = onePerLine(split.found);
+  const allowed = onePerLine(split.allowed);
+
+  if (found.length && purpose === "deploy") throw new SecretsFound(found, { allowed });
+
+  // An interview or a library: each flagged line is replaced by one that says why, or, for a value
+  // over many lines or a file that is not text, the file travels as its name only.
+  const binaryFiles = [...new Set(found.map(f => f.file))].filter(file => looksBinary(entries[file]) || unread.includes(file));
+  const marked = markWhole(found, { binaryFiles });
+  for (const file of new Set(marked.filter(f => f.whole).map(f => f.file))) entries[file] = new Uint8Array(0);
+  for (const [file, kinds] of linesByFile(marked)) entries[file] = redactLines(entries[file], kinds);
+
+  return { entries, files, bytes, withheld, unread, ignored, findings: marked, allowed };
 }
 
 /**
@@ -185,7 +272,7 @@ export async function collectUpload(root, { purpose = "interview", ignore } = {}
  */
 export function treeFromPaths(rootName, files) {
   const root = { name: rootName, kind: "dir", map: new Map() };
-  for (const file of files) {
+  each: for (const file of files) {
     const parts = String(file.path).split("/").filter(p => p && p !== ".");
     if (!parts.length || parts.includes("..")) continue;
     let dir = root;
@@ -195,7 +282,9 @@ export function treeFromPaths(rootName, files) {
         next = { name: part, kind: "dir", map: new Map() };
         dir.map.set(part, next);
       }
-      if (next.kind !== "dir") break;
+      // A path that runs into a file ("x" and "x/y.tf") is skipped, never put somewhere
+      // else: where a file sits decides which .gitignore rules apply to it.
+      if (next.kind !== "dir") continue each;
       dir = next;
     }
     const name = parts[parts.length - 1];

@@ -12,6 +12,9 @@ import { busyRefusal, changeUnderWay } from "../api/busy.js";
 import { startApi, token } from "./helpers/api-with-aws.js";
 
 const root = path.resolve(import.meta.dirname, "..");
+// A sample app, not this repository: the repository's own tests hold fake secrets
+// on purpose, and the deploy scan (core/scan.js) rightly refuses them.
+const sampleApp = path.join(root, "apps", "beneficiary-lookup-api");
 const ANA = token("a");
 const stack = "sealeye-default-orders-api-aaaaaa";
 const quiet = "sealeye-default-quiet-api-bbbbbb";
@@ -59,7 +62,7 @@ const busy = (res, label) => {
 
 test("nothing else changes an environment while it is being built", async () => {
   busy(await api.call("/deployments", { token: ANA, method: "POST", body: { backend: "cloudformation", fromDeployment: "dep_orders00001" } }), "deploy again");
-  busy(await api.call("/deployments", { token: ANA, method: "POST", body: { backend: "cloudformation", plan: plan("orders-api"), appPath: root } }), "deploy");
+  busy(await api.call("/deployments", { token: ANA, method: "POST", body: { backend: "cloudformation", plan: plan("orders-api"), appPath: sampleApp } }), "deploy");
   busy(await api.call("/deployments/dep_orders00001", { token: ANA, method: "DELETE" }), "tear down from an older record");
   busy(await api.call("/deployments/dep_orders00002", { token: ANA, method: "DELETE" }), "tear down the one being built");
   busy(await api.call("/deployments/dep_orders00001/pause", { token: ANA, method: "POST" }), "pause");
@@ -70,7 +73,7 @@ test("nothing else changes an environment while it is being built", async () => 
 
 test("a drafted plan is still saved while the environment is busy", async () => {
   const drafted = { ...plan("orders-api"), needs: [{ kind: "continuous_service", line: "x", evidence: [{ file: "index.js", shows: "reads a stream in a loop" }] }] };
-  const res = await api.call("/deployments", { token: ANA, method: "POST", body: { backend: "cloudformation", plan: drafted, appPath: root } });
+  const res = await api.call("/deployments", { token: ANA, method: "POST", body: { backend: "cloudformation", plan: drafted, appPath: sampleApp } });
   assert.equal(res.status, 422);
   assert.equal(res.body.error.code, "UNSUPPORTED_NEEDS");
 });
@@ -84,7 +87,7 @@ test("sealeye says the same sentence and how to follow it", async () => {
   const run = (...args) => promisify(execFile)(process.execPath, [path.join(root, "cli/bin/sealeye"), ...args, "--api", api.api], {
     cwd: api.home, env: { ...process.env, HOME: api.home, SEALEYE_HOME: api.home, SEALEYE_TOKEN: ANA, NO_COLOR: "1" }
   });
-  for (const args of [["destroy", "orders-api", "--yes"], ["pause", "orders-api"], ["deploy", "--again", "dep_orders00001"]]) {
+  for (const args of [["teardown", "orders-api", "--yes"], ["destroy", "orders-api", "--yes"], ["pause", "orders-api"], ["deploy", "--again", "dep_orders00001"]]) {
     await assert.rejects(run(...args), err => {
       const said = err.stdout + err.stderr;
       assert.match(said, /orders-api is being built right now/, args.join(" "));

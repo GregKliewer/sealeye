@@ -13,6 +13,8 @@ import { InMemorySpanExporter } from "@opentelemetry/sdk-trace-node";
 import {
   addCosts,
   allCorrect,
+  answerFor,
+  summaryLines,
   costLines,
   evaluate,
   grade,
@@ -24,6 +26,7 @@ import {
   DATASET
 } from "../scripts/eval-interview.js";
 import { startTracing, useLangfuseTransport } from "../core/tracing.js";
+import { freePort } from "./helpers/free-port.js";
 
 const root = path.resolve(import.meta.dirname, "..");
 
@@ -70,6 +73,49 @@ test("needs must match exactly, and the difference is named", () => {
   assert.equal(exact.needsCorrect, true);
   assert.equal(exact.modulesCorrect, null, "a drafted plan is not graded on modules");
   assert.ok(allCorrect(exact));
+});
+
+test("each question gets the answer written for it, whatever order the model asks in", () => {
+  const answers = [
+    { when: ["setting", "environment"], answer: "No, nothing else." },
+    { when: ["is that right", "when it runs"], answer: "Yes, it answers requests." }
+  ];
+  const settings = "Does your app read any settings from the environment?";
+  const confirm = "This looks like an API. Is that right?";
+  for (const order of [[settings, confirm], [confirm, settings]]) {
+    const state = {};
+    const got = order.map(q => answerFor(q, answers, state).answer);
+    assert.deepEqual(got, order.map(q => (q === settings ? "No, nothing else." : "Yes, it answers requests.")));
+  }
+  // The specific answer wins over the general one when a question holds both.
+  assert.equal(answerFor("It reads settings from the environment, is that right?", answers).answer, "No, nothing else.");
+  assert.deepEqual(answerFor("What is this for?", answers), { answer: "I'm not sure. Use your best judgement from the code.", by: "no answer fits" });
+
+  // Plain strings still go in order, once each, as every fixture did before.
+  const state = {};
+  assert.deepEqual(["a?", "b?", "c?"].map(q => answerFor(q, ["one", "two"], state).answer), ["one", "two", "I'm not sure. Use your best judgement from the code."]);
+});
+
+test("every fixture's answers say which questions they answer", () => {
+  for (const { app, answers } of loadCases()) {
+    for (const a of answers) {
+      assert.ok(a && typeof a === "object" && Array.isArray(a.when) && a.when.length && typeof a.answer === "string", `${app}: ${JSON.stringify(a)}`);
+    }
+  }
+});
+
+test("a run not as expected shows what was asked, how it was answered, and why it stopped", () => {
+  const row = {
+    app: "beneficiary-lookup-api",
+    ...grade({ status: "stopped", questions: 1 }, { status: "ready", modules: ["http_api_serverless"], needs: [] }),
+    asked: [{ question: "What does your app do when it runs?", by: "matched \"when it runs\"" }],
+    stopped: "This version of the platform deploys sites and HTTP apps."
+  };
+  const lines = summaryLines([row]).join("\n");
+  assert.match(lines, /asked: What does your app do when it runs\? \(matched "when it runs"\)/);
+  assert.match(lines, /stopped: This version of the platform deploys sites and HTTP apps\./);
+  const fine = { app: "static-website", ...grade({ status: "submitted", plan: staticPlan, questions: 1 }, { status: "ready", modules: ["static_site_edge"], needs: [] }), asked: [{ question: "x?", by: "next in order" }] };
+  assert.doesNotMatch(summaryLines([fine]).join("\n"), /asked:/, "an app as expected is one line");
 });
 
 test("a run that stopped instead of refusing is not correct", () => {
@@ -166,7 +212,7 @@ test("with no price, the table says how to add one in LangFuse", () => {
 // ---------------------------------------------------------------------------------
 // A whole pass, offline.
 
-const port = 3895 + Math.floor(Math.random() * 4);
+const port = await freePort();
 // Tracing starts once per process, so both passes below share one exporter.
 const exporter = new InMemorySpanExporter();
 const api = `http://localhost:${port}`;
@@ -193,9 +239,11 @@ after(() => server?.kill());
 function plans() {
   const read = f => YAML.parse(fs.readFileSync(path.join(root, "plans", f), "utf8"));
   const drafted = { ...read("static-plan.yaml"), planVersion: "0.4", app: { name: "payment-events-processor", type: "api" }, needs: FIVE.map(need) };
+  const orders = { ...read("api-plan.yaml"), planVersion: "0.4", app: { name: "orders-api", type: "api" }, needs: [need("document_database")] };
   return {
     "static-website": read("static-plan.yaml"),
     "beneficiary-lookup-api": read("api-plan.yaml"),
+    "orders-api": orders,
     "payment-events-processor": drafted
   };
 }
@@ -214,7 +262,7 @@ function clientFor(plan) {
   return { messages: { create: async () => turns[i++] } };
 }
 
-test("one pass grades all three apps and records a dataset run in LangFuse", async () => {
+test("one pass grades all four apps and records a dataset run in LangFuse", async () => {
   process.env.LANGFUSE_PUBLIC_KEY ||= "pk-lf-test";
   process.env.LANGFUSE_SECRET_KEY ||= "sk-lf-test-only";
   assert.equal(startTracing({ exporter }), true);
@@ -239,8 +287,8 @@ test("one pass grades all three apps and records a dataset run in LangFuse", asy
   });
 
   for (const row of rows) assert.ok(allCorrect(row), JSON.stringify(row));
-  assert.deepEqual(rows.map(r => r.outcome), ["ready", "drafted", "ready"]);
-  assert.deepEqual(rows.map(r => r.turns), [2, 2, 2], "each run says how many model calls it made");
+  assert.deepEqual(rows.map(r => r.outcome), ["ready", "drafted", "drafted", "ready"]);
+  assert.deepEqual(rows.map(r => r.turns), [2, 2, 2, 2], "each run says how many model calls it made");
 
   const posts = path => requests.filter(r => r.method === "POST" && r.apiPath === path).map(r => r.body);
 
@@ -257,13 +305,13 @@ test("one pass grades all three apps and records a dataset run in LangFuse", asy
   // What the Experiments view is built from, as LangFuse's own runner leaves it.
   const spans = exporter.getFinishedSpans();
   const roots = spans.filter(sp => sp.name === "experiment-item-run");
-  assert.equal(roots.length, 3);
+  assert.equal(roots.length, 4);
   for (const root of roots) {
     assert.equal(root.attributes["langfuse.environment"], "sdk-experiment");
     assert.ok(root.attributes["langfuse.experiment.item.expected_output"]);
   }
   const marked = spans.filter(sp => sp.name === "sealeye run");
-  assert.equal(marked.length, 3);
+  assert.equal(marked.length, 4);
   for (const sp of marked) {
     assert.equal(sp.attributes["langfuse.experiment.id"], "run_1");
     assert.equal(sp.attributes["langfuse.experiment.name"], "test run");
@@ -275,9 +323,10 @@ test("one pass grades all three apps and records a dataset run in LangFuse", asy
 
   const scores = posts("/api/public/scores");
   const named = name => scores.filter(s => s.name === name).map(s => s.value);
-  assert.deepEqual(named("outcome_correct"), [1, 1, 1]);
-  assert.deepEqual(named("needs_correct"), [1, 1, 1]);
-  assert.deepEqual(named("modules_correct"), [1, 1], "the drafted app is not graded on modules");
+  assert.deepEqual(named("outcome_correct"), [1, 1, 1, 1]);
+  assert.deepEqual(named("needs_correct"), [1, 1, 1, 1]);
+  assert.deepEqual(named("modules_correct"), [1, 1], "the drafted apps are not graded on modules");
+  assert.deepEqual(named("connect_correct"), [], "against the starter nothing connects, so nothing is graded on it");
 });
 
 test("with the older dataset-run link refused, a run still records as one experiment", async () => {
@@ -309,4 +358,186 @@ test("with the older dataset-run link refused, a run still records as one experi
   const ids = new Set(exporter.getFinishedSpans().filter(sp => sp.name === "sealeye run").map(sp => sp.attributes["langfuse.experiment.id"]));
   assert.equal(ids.size, 1);
   assert.match([...ids][0], /^[0-9a-f]{16}$/);
+});
+
+test("a run whose own count differs from LangFuse's by more than five percent is flagged", async () => {
+  const { costLines } = await import("../scripts/eval-interview.js");
+  const spend = cost => ({ turns: 2, input: 1, output: 1, cacheRead: 0, cacheWrite: 0, cost, unpricedModels: [] });
+  const text = costLines([
+    { app: "close", spent: 0.0102, spend: spend(0.01) },
+    { app: "far", spent: 0.02, spend: spend(0.01) }
+  ], "claude-sonnet-5").join("\n");
+  assert.match(text, /far: seaLeye's own count, \$0\.0200, differs from LangFuse's, \$0\.0100, by more than 5%\./);
+  assert.doesNotMatch(text, /close: seaLeye's own count/);
+});
+
+// ---------------------------------------------------------------------------------
+// Juniper Mutual's set (PHASE4-PLAN Step 8): the same apps, planned against the catalog
+// discovery wrote for the made-up organization, its Terraform modules treated as built
+// for the eval only.
+
+test("every Juniper case is a sample app, and names only modules its catalog has", async () => {
+  const { SETS } = await import("../scripts/eval-interview.js");
+  const apps = new Set(fs.readdirSync(path.join(root, "apps")));
+  const doc = JSON.parse(fs.readFileSync(SETS.juniper.catalog, "utf8"));
+  const ids = new Set(doc.modules.map(m => m.id));
+  const kinds = new Set(doc.need_kinds.map(n => n.key));
+  const cases = loadCases(SETS.juniper.dir, { set: "juniper", org: SETS.juniper.org });
+  assert.ok(cases.length >= 3);
+  for (const c of cases) {
+    assert.ok(apps.has(c.app), c.app);
+    for (const id of [...(c.expected.modules || []), ...(c.expected.notModules || [])]) assert.ok(ids.has(id), `${c.app}: ${id}`);
+    for (const k of c.expected.needs) assert.ok(kinds.has(k), `${c.app}: ${k}`);
+  }
+  assert.ok(!JSON.stringify(doc).includes("@"), "the snapshot holds no one's address");
+});
+
+test("the eval's organization gets a placeholder value for every required input Juniper's modules want, and the real executor decides", async () => {
+  const { SETS, seedPlatformValues } = await import("../scripts/eval-interview.js");
+  const { withPlatform } = await import("../api/platform.js");
+  const { buildableModules } = await import("../core/catalog.js");
+  const before = process.env.SEALEYE_HOME;
+  process.env.SEALEYE_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-eval-platform-"));
+  try {
+    const doc = JSON.parse(fs.readFileSync(SETS.juniper.catalog, "utf8"));
+    assert.deepEqual(buildableModules(withPlatform("eval-juniper", doc)).map(m => m.id), ["static_site"], "with no platform values only the site, which wants none, is built");
+    const names = await seedPlatformValues({ org: "eval-juniper", document: doc });
+    assert.ok(names.includes("permissions_boundary_arn") && names.includes("subnet_ids"));
+    assert.ok(!names.includes("environment") && !names.includes("policy_arns"), "an optional input is left to the plan and the wiring");
+    // What the server builds from catalog 8: the modules that run an app, and the modules
+    // an app uses that offer it access. A database waits on the network (Q23); a container
+    // service, secrets and the rest run no app and offer none.
+    assert.deepEqual(buildableModules(withPlatform("eval-juniper", doc)).map(m => m.id).sort(), ["document_table", "file_bucket", "http_api", "static_site", "work_queue"]);
+    assert.deepEqual(await seedPlatformValues({ org: "eval-juniper", document: doc }), [], "a second seeding sets nothing again");
+  } finally {
+    if (before === undefined) delete process.env.SEALEYE_HOME;
+    else process.env.SEALEYE_HOME = before;
+  }
+});
+
+test("Juniper's set plans each app against its live catalog, graded on Juniper's modules", async () => {
+  const { prepareSets, promptFor } = await import("../scripts/eval-interview.js");
+  assert.equal(startTracing({ exporter }), true);
+  const requests = [];
+  useLangfuseTransport((method, apiPath, body) => {
+    requests.push({ method, apiPath, body });
+    if (apiPath === "/api/public/v2/datasets") return { id: "ds_1" };
+    if (apiPath === "/api/public/dataset-run-items") return { datasetRunId: "run_1" };
+    return {};
+  });
+  const before = process.env.SEALEYE_HOME;
+  try {
+    const cases = await prepareSets(["juniper"]);
+    assert.ok(cases.every(c => c.set === "juniper" && c.org === "eval-juniper"));
+    const juniperPrompt = promptFor("eval-juniper");
+    assert.notEqual(juniperPrompt, promptFor(null), "Juniper's interview reads a prompt of its own");
+
+    const plan = (app, type, modules, needs = []) => ({ planVersion: "0.4", app: { name: app, type }, profile: "dev", modules, outputs: ["logs"], ...(needs.length ? { needs } : {}) });
+    const on = (id, inputs = {}, more = {}) => ({ id, enabled: true, inputs, ...more });
+    // What the real interview plans against catalog 8 (test/fixtures/eval-juniper): the
+    // processor needs what the catalog does not build, and the orders app connects the table.
+    const byApp = {
+      "static-website": plan("static-website", "static-site", [on("static_site", { index_document: "index.html" })]),
+      "beneficiary-lookup-api": plan("beneficiary-lookup-api", "api", [on("http_api")]),
+      "orders-api": plan("orders-api", "api", [on("http_api"), on("document_table", {}, { connect: { table_name: "ORDERS_TABLE" } })]),
+      "payment-events-processor": plan("payment-events-processor", "api", [on("http_api")], FIVE.map(need))
+    };
+    const systems = [];
+    const clientWith = p => {
+      const c = clientFor(p);
+      return { messages: { create: async params => { systems.push(typeof params.system === "string" ? params.system : JSON.stringify(params.system)); return c.messages.create(params); } } };
+    };
+    const rows = await evaluate({ cases, runName: "juniper run", model: "claude-sonnet-5", clientFor: app => clientWith(byApp[app]) });
+
+    for (const row of rows) assert.ok(allCorrect(row), JSON.stringify(row));
+    assert.deepEqual(rows.map(r => r.app), ["juniper-beneficiary-lookup-api", "juniper-orders-api", "juniper-payment-events-processor", "juniper-static-website"]);
+    assert.deepEqual(rows.map(r => r.outcome), ["ready", "ready", "drafted", "ready"]);
+    assert.deepEqual(rows.find(r => r.app === "juniper-orders-api").connections, ["table_name=ORDERS_TABLE"]);
+    assert.ok(systems.length && systems.every(s => s.includes("`document_table`") && s.includes("ORDERS_TABLE")), "the model was told Juniper's modules and how to connect one");
+    assert.ok(systems.every(s => !s.includes("`container_service`") && !s.includes("`postgres`")), "and never of a module the platform does not build");
+
+    const items = requests.filter(r => r.method === "POST" && r.apiPath === "/api/public/dataset-items").map(r => r.body);
+    assert.deepEqual(items.map(b => b.id), rows.map(r => `${DATASET}-${r.app}`));
+    assert.ok(items.every(b => b.input.catalog === "juniper"));
+    const connectScores = requests.filter(r => r.method === "POST" && r.apiPath === "/api/public/scores" && r.body.name === "connect_correct").map(r => r.body.value);
+    assert.deepEqual(connectScores, [1], "only the orders app is graded on what it connects");
+  } finally {
+    if (before === undefined) delete process.env.SEALEYE_HOME;
+    else process.env.SEALEYE_HOME = before;
+  }
+});
+
+test("what the plan connects is graded only when the fixture says what the app reads, and is named when wrong", () => {
+  const expected = { status: "ready", modules: ["http_api", "document_table"], connect: { table_name: "ORDERS_TABLE" }, needs: [] };
+  const wired = { modules: [{ id: "http_api", enabled: true }, { id: "document_table", enabled: true, connect: { table_name: "ORDERS_TABLE" } }], needs: [] };
+  const row = grade({ status: "submitted", plan: wired, questions: 1 }, expected);
+  assert.equal(row.connectCorrect, true);
+  assert.deepEqual(row.connections, ["table_name=ORDERS_TABLE"]);
+  assert.ok(allCorrect(row));
+
+  // The modules are right, and the table reaches the app under the wrong name.
+  const misnamed = { modules: [{ id: "http_api", enabled: true }, { id: "document_table", enabled: true, connect: { table_name: "TABLE" } }], needs: [] };
+  const wrong = { app: "orders-api", ...grade({ status: "submitted", plan: misnamed, questions: 1 }, expected) };
+  assert.equal(wrong.modulesCorrect, true);
+  assert.equal(wrong.connectCorrect, false);
+  assert.deepEqual(wrong.missingConnect, ["table_name=ORDERS_TABLE"]);
+  assert.ok(!allCorrect(wrong));
+  const lines = summaryLines([wrong]).join("\n");
+  assert.match(lines, /connected: table_name=TABLE/);
+  assert.match(lines, /not connected: table_name=ORDERS_TABLE/);
+
+  // A module switched off connects nothing, and a value the app does not read is named.
+  const off = { modules: [{ id: "http_api", enabled: true }, { id: "document_table", enabled: false, connect: { table_name: "ORDERS_TABLE" } }, { id: "file_bucket", enabled: true, connect: { bucket_name: "FILES" } }], needs: [] };
+  const extra = grade({ status: "submitted", plan: off, questions: 1 }, { ...expected, notConnect: ["bucket_name"] });
+  assert.deepEqual(extra.connections, ["bucket_name=FILES"]);
+  assert.deepEqual(extra.missingConnect, ["table_name=ORDERS_TABLE"]);
+  assert.deepEqual(extra.unwantedConnect, ["bucket_name"]);
+  assert.match(summaryLines([{ app: "orders-api", ...extra }]).join("\n"), /should not connect: bucket_name/);
+
+  // A fixture that says nothing about connections grades none.
+  const ungraded = grade({ status: "submitted", plan: wired, questions: 1 }, { status: "ready", modules: ["http_api"], needs: [] });
+  assert.equal(ungraded.connectCorrect, null);
+  assert.ok(allCorrect(ungraded));
+});
+
+test("modules not as expected say what was planned, what was missing, and what should not be there", () => {
+  const expected = { status: "drafted", modules: ["container_service", "postgres", "secrets"], notModules: ["postgres_cluster"], needs: ["event_stream"] };
+  const plan = { modules: [{ id: "container_service" }, { id: "postgres_cluster" }, { id: "secrets", enabled: false }], needs: [need("event_stream")] };
+  const row = { app: "juniper-payment-events-processor", ...grade({ status: "submitted", plan, questions: 0 }, expected) };
+  assert.deepEqual(row.missingModules, ["postgres", "secrets"]);
+  assert.deepEqual(row.unwantedModules, ["postgres_cluster"]);
+  const lines = summaryLines([row]).join("\n");
+  assert.match(lines, /planned: container_service, postgres_cluster/);
+  assert.match(lines, /missing: postgres, secrets/);
+  assert.match(lines, /should not have: postgres_cluster/);
+});
+
+test("each run's plan, summary and questions are kept as a file, and a run that could not finish says why", async () => {
+  assert.equal(startTracing({ exporter }), true);
+  useLangfuseTransport((method, apiPath) => (apiPath === "/api/public/v2/datasets" ? { id: "ds_1" } : {}));
+  const outDir = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-eval-out-"));
+  const byApp = plans();
+  const broken = { messages: { create: async () => { throw Object.assign(new Error("connection dropped"), { status: 400 }); } } };
+  await evaluate({
+    cases: loadCases(), runName: "kept run", model: "claude-sonnet-5", outDir,
+    clientFor: app => (app === "static-website" ? broken : clientFor(byApp[app]))
+  });
+  const kept = YAML.parse(fs.readFileSync(path.join(outDir, "beneficiary-lookup-api.yaml"), "utf8"));
+  assert.equal(kept.status, "submitted");
+  assert.ok(kept.plan.modules.length, "the plan as submitted");
+  assert.ok(Array.isArray(kept.asked));
+  const failed = YAML.parse(fs.readFileSync(path.join(outDir, "static-website.yaml"), "utf8"));
+  assert.ok(failed.status === "error" || failed.message, JSON.stringify(failed));
+});
+
+test("each app is interviewed from a clean copy: a plan left in its folder is never read (Greg's run, Oct 16)", async () => {
+  const { cleanCopy } = await import("../scripts/eval-interview.js");
+  const app = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-eval-app-"));
+  fs.writeFileSync(path.join(app, "index.js"), "console.log(1)");
+  for (const f of ["sealeye.yaml", "deployme.yaml", "DEPLOYMENT_PLAN.md", "DEPLOYMENT_REPORT.md", "DEPLOYMENT_EVIDENCE.md"]) fs.writeFileSync(path.join(app, f), "profile: prod");
+  fs.mkdirSync(path.join(app, ".sealeye"));
+  fs.mkdirSync(path.join(app, "node_modules"));
+  const copy = cleanCopy(app, fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-eval-scratch-")));
+  assert.deepEqual(fs.readdirSync(copy).sort(), ["index.js"]);
+  assert.deepEqual(fs.readdirSync(app).length, 8, "the app's own folder is left as it was");
 });

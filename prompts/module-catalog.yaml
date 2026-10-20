@@ -17,6 +17,11 @@
 # has no id the developer ever sees: it is a sentence about the app, and the evidence
 # is the code that shows it.
 #
+# A module is buildable when it is available and the platform has an executor for what
+# builds_with names (EXECUTORS in core/schema.js). seaLeye's own executor is
+# cloudformation, which builds these four from templates/. The interview never reads
+# builds_with: it is the platform's to know.
+#
 # short_line is the same module in a few words, for places where a list has to be read
 # at a glance. "line" is the sentence the card and the plan file use.
 #
@@ -30,6 +35,7 @@ catalogVersion: "0.4"
 modules:
   - id: static_site_edge
     availability: available
+    builds_with: cloudformation
     role: core
     line: >-
       Serves your HTML, CSS, images and other files straight to visitors over HTTPS.
@@ -60,6 +66,7 @@ modules:
 
   - id: http_api_serverless
     availability: available
+    builds_with: cloudformation
     role: core
     line: >-
       Runs your code on demand behind an HTTPS endpoint. It starts when a request
@@ -91,6 +98,7 @@ modules:
 
   - id: observability_basic
     availability: available
+    builds_with: cloudformation
     role: shared
     always_enabled: true
     line: >-
@@ -114,6 +122,7 @@ modules:
 
   - id: config_basic
     availability: available
+    builds_with: cloudformation
     role: optional
     line: >-
       Passes the settings your app reads from its environment through to it when it
@@ -145,8 +154,12 @@ modules:
 # plan file. profile_expects is what the profile will ask of this need once something
 # supports it, in the same words the patterns use and with no number among them.
 #
-# This list is fixed so that the same need is described the same way in every run. A
-# need is a sentence about the app, never an id, and never a module in disguise.
+# These are the words to use, so the same need is described the same way in every run.
+# They are not a fence: when the folder shows a need none of them fits, the interview
+# records it as `unlisted`, with a line of its own in the same form, rather than forcing
+# it into the nearest kind or leaving it out. A recurring unlisted need is a candidate
+# for this list. A need is a sentence about the app, never an id, never a product, and
+# never a module in disguise.
 
 need_kinds:
   - key: continuous_service
@@ -169,6 +182,16 @@ need_kinds:
     profile_expects:
       dev: A single zone, with backups kept and restorable.
       prod: Across more than one zone, with a standby ready to take over and backups kept.
+
+  - key: document_database
+    line: a document database
+    signals:
+      - a document database client among the dependencies (mongoose, mongodb, a DynamoDB or Firestore client)
+      - a connection setting such as MONGODB_URL
+      - schemas or models of documents and collections rather than tables
+    profile_expects:
+      dev: A single zone, with backups kept and restorable.
+      prod: Across more than one zone, with copies ready to take over and backups kept.
 
   - key: event_stream
     line: a stream of events it publishes or reads

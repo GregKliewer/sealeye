@@ -13,7 +13,7 @@ import { db } from "../db.js";
 export const INTERVIEW_SCHEMA = "interview_state";
 
 // What of a record is worth keeping: everything but the live parts.
-const KEPT = ["id", "app", "appDir", "ownsDir", "scratchRoot", "user", "owner", "trace", "mode", "model",
+const KEPT = ["id", "app", "appDir", "ownsDir", "scratchRoot", "user", "owner", "caller", "surface", "trace", "mode", "model",
   "status", "waitingFor", "result", "approved", "failure", "traceId", "createdAt", "endedAt"];
 
 /**

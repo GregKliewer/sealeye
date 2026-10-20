@@ -4,8 +4,9 @@
 // drafted three times counts once, and a need reads the way the catalog says it
 // reads, so the same need reads one way everywhere.
 import { listDeployments } from "./store.js";
-import { loadCatalog, needKinds, profileExpectsFor, orgName } from "../core/catalog.js";
-import { normalizeProfile } from "../core/schema.js";
+import { needKinds, profileExpectsFor, orgName } from "../core/catalog.js";
+import { catalogFor } from "./catalogs.js";
+import { normalizeProfile, UNLISTED_NEED } from "../core/schema.js";
 
 /**
  * Roll the drafted plans up by need kind.
@@ -17,12 +18,12 @@ import { normalizeProfile } from "../core/schema.js";
  * team sees its own environments").
  *
  * @param {object[]} [records] newest first
- * @param {{viewer?: {org: string, team: string, scope: string} | null}} [options]
+ * @param {{viewer?: {org: string, team: string, scope: string} | null, catalog?: object}} [options]
+ *   catalog: the organization's live catalog, whose lines the needs read in
  * @returns {{org: string, generatedAt: string, apps: number, needs: object[]}}
  */
-export function rollupNeeds(records = listDeployments(), { viewer = null } = {}) {
+export function rollupNeeds(records = listDeployments(), { viewer = null, catalog = catalogFor(viewer?.org || "default") } = {}) {
   const sees = dep => !viewer || viewer.scope === "org" || (dep.teamId || "default") === viewer.team;
-  const catalog = loadCatalog();
   const lineFor = Object.fromEntries(needKinds(catalog).map(n => [n.key, n.line]));
 
   // Newest drafted record per app, so a rerun does not count twice. An app is a team's:
@@ -43,9 +44,15 @@ export function rollupNeeds(records = listDeployments(), { viewer = null } = {})
     const when = dep.startedAt || dep.finishedAt || null;
 
     for (const need of dep.needs || dep.plan?.needs || []) {
-      const kind = need.kind;
-      if (!kind) continue;
-      const entry = byKind.get(kind) || { kind, line: lineFor[kind] || need.line, apps: [], count: 0, firstSeen: null, lastSeen: null };
+      if (!need.kind) continue;
+      // An unlisted need is counted by its own words, apart from the known kinds, so a
+      // need that keeps coming back can be seen and added to the list (DESIGN.md,
+      // "Needs: known kinds, and the rest in the model's own words").
+      const unlisted = need.kind === UNLISTED_NEED;
+      const words = String(need.line || "").trim();
+      const kind = unlisted ? `unlisted:${words.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}` : need.kind;
+      if (unlisted && kind === "unlisted:") continue;
+      const entry = byKind.get(kind) || { kind, listed: !unlisted, line: unlisted ? words.toLowerCase() : lineFor[kind] || need.line, apps: [], count: 0, firstSeen: null, lastSeen: null };
 
       const own = sees(dep);
       entry.apps.push({
