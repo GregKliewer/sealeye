@@ -94,6 +94,8 @@ catalog:
         permissions_boundary_arn: { required: true, line: The platform's limit on what your app may do. }
         policy_arns: { default: [], line: What your app may read and write, as each module it uses offers it. }
         secret_arns: { default: [], line: The secrets your app may read while it runs. }
+        subnet_ids: { default: [], line: The stage's private subnets, only when your app uses a database. }
+        security_group_ids: { default: [], line: The group apps connect from inside the network, given with subnet_ids. }
         tags: { default: {}, line: Extra labels on everything it makes. }
       guidance: >-
         Every function carries the platform's permissions boundary. An app that holds a
@@ -167,13 +169,16 @@ catalog:
         stage: { required: true, line: Which stage on the path to production. }
         subnet_group_name: { required: true, line: The stage's database network. }
         security_group_ids: { required: true, line: Who may connect. }
-        instance_class: { default: db.t4g.micro, line: How large the database is. }
+        instance_class: { default: db.t4g.small, line: How large the database is; the smallest cannot sign an app in. }
         master_password: { default: null, line: Leave unset; the platform makes and keeps it. }
+        permissions_boundary_arn: { default: null, line: The platform's limit, carried by the database's one-time setup too. }
         tags: { default: {}, line: Extra labels on everything it makes. }
       guidance: >-
         Below staging only. From staging up every relational database is
-        postgres_cluster, which takes the same inputs. The password is made and kept by
-        the platform; master_password is only for restoring an old snapshot by hand.
+        postgres_cluster, which takes the same required inputs. Your app gets a database
+        and a user of its own and signs in with its own identity, never a password; the
+        master password is made and kept by the platform, and master_password is only for
+        restoring an old snapshot by hand.
 
     - id: postgres_cluster
       source: modules/postgres-cluster
