@@ -17,6 +17,7 @@
 import crypto from "node:crypto";
 
 import { setting, settingName } from "../../core/config.js";
+import { moduleRelease } from "../../core/module-versions.js";
 
 const API = "https://api.github.com";
 const API_VERSION = "2022-11-28";
@@ -206,6 +207,37 @@ export async function githubReader(target, { credential = githubCredential(), fe
       const sha = (await res.text()).trim();
       if (!SHA.test(sha)) throw new LibraryUnreadable(`seaLeye could not find ${JSON.stringify(wanted)} in ${name}`);
       return sha;
+    },
+
+    /**
+     * Each tag that releases a module (`http-api/v1.4.0`, core/module-versions.js), with
+     * the commit it points to. An annotated tag is followed to its commit. At most a
+     * thousand tags are looked at.
+     *
+     * @returns {Promise<{ name: string, commit: string }[]>}
+     */
+    async tags() {
+      const out = [];
+      for (let page = 1; page <= 10; page++) {
+        const res = await call(`/repos/${target.owner}/${target.repo}/git/matching-refs/tags?per_page=100&page=${page}`, { bearer: token });
+        if (!res.ok) throw refused(res, "read the tags of");
+        const refs = await jsonOf(res, "read the tags of");
+        if (!Array.isArray(refs)) throw new LibraryUnreadable(`seaLeye could not read the tags of ${name}: GitHub's answer was not what it expected`);
+        for (const ref of refs) {
+          const tagName = String(ref?.ref || "").replace(/^refs\/tags\//, "");
+          if (!moduleRelease(tagName)) continue;
+          let sha = ref?.object?.sha;
+          if (ref?.object?.type === "tag" && SHA.test(String(sha))) {
+            const t = await call(`/repos/${target.owner}/${target.repo}/git/tags/${sha}`, { bearer: token });
+            if (!t.ok) throw refused(t, `read the tag ${tagName} of`);
+            const body = await jsonOf(t, `read the tag ${tagName} of`);
+            sha = body?.object?.type === "commit" ? body.object.sha : null;
+          }
+          if (SHA.test(String(sha || ""))) out.push({ name: tagName, commit: sha });
+        }
+        if (refs.length < 100) break;
+      }
+      return out;
     },
 
     /**

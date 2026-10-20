@@ -208,3 +208,73 @@ test("the change record says which attributes changed outside seaLeye, and lists
   assert.deepEqual(builtParts("module.app.data.aws_iam_policy_document.assume\nmodule.app.aws_lambda_function.fn\n\n"), ["module.app.aws_lambda_function.fn"]);
   assert.deepEqual(builtParts("data.aws_caller_identity.me\naws_s3_bucket.b\n"), ["aws_s3_bucket.b"]);
 });
+
+test("a module's version comes from its library's tags: releases, the newest, and what changed", async () => {
+  const { changesBetween, compareVersions, majorOf, moduleRelease, newestReleases, releaseFor } = await import("../core/module-versions.js");
+  assert.deepEqual(moduleRelease("http-api/v1.4.0"), { module: "http-api", version: "1.4.0", parts: [1, 4, 0] });
+  assert.deepEqual(moduleRelease("modules/http-api/v2.0.1")?.module, "modules/http-api");
+  for (const not of ["v1.0.0", "http-api/v2.0.0-rc1", "http-api/1.0.0", "http-api/v01.0.0", "release-2026"]) assert.equal(moduleRelease(not), null, not);
+  assert.ok(compareVersions("1.10.0", "1.9.3") > 0, "by number, not by letter");
+  assert.equal(majorOf("2.3.4"), 2);
+  const releases = newestReleases([{ name: "http-api/v1.9.0", commit: "a" }, { name: "http-api/v1.10.0", commit: "b" }, { name: "site/v1.0.0", commit: "c" }]);
+  assert.deepEqual(releaseFor(releases, "modules/http-api"), { version: "1.10.0", tag: "http-api/v1.10.0", commit: "b" });
+  assert.equal(releaseFor(releases, "modules/queue"), null);
+  const log = "# Changelog\n\n## 1.2.0\n\n- Takes policy_arns.\n- Logs for a year from staging.\n\n## 1.1.0\n\n- Outputs role_name.\n\n## 1.0.0\n\n- First.\n";
+  assert.deepEqual(changesBetween(log, "1.0.0", "1.2.0"), ["Takes policy_arns.", "Logs for a year from staging.", "Outputs role_name."]);
+  assert.deepEqual(changesBetween(log, "1.1.0", "1.1.0"), []);
+  assert.deepEqual(changesBetween("", "1.0.0", "2.0.0"), []);
+});
+
+test("in a library that releases its modules, one with no release is not built", async () => {
+  const { terraformBuilds } = await import("../core/terraform-modules.js");
+  const entry = { id: "site", source: "modules/site", builds_with: "terraform", runs: [], delivers: { kind: "files", output: "bucket_name" }, inputs: { name: { required: true }, stage: { required: true } } };
+  assert.equal(terraformBuilds(entry).builds, true);
+  const no = terraformBuilds({ ...entry, unreleased: true });
+  assert.equal(no.builds, false);
+  assert.match(no.why, /has not released it yet \(a release is a tag such as site\/v1\.0\.0\)/);
+});
+
+test("a released module is fetched at the commit its release points to, not the catalog's", async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-release-"));
+  const was = process.env.SEALEYE_HOME;
+  process.env.SEALEYE_HOME = home;
+  try {
+    const { moduleCode, librariesDir } = await import("../api/executor/terraform/library.js");
+    const READ = "a".repeat(40);
+    const RELEASED = "b".repeat(40);
+    const lib = path.join(librariesDir(), `acme--library--${RELEASED}`);
+    fs.mkdirSync(path.join(lib, "modules/site"), { recursive: true });
+    fs.writeFileSync(path.join(lib, "modules/site/main.tf"), 'resource "aws_s3_bucket" "b" {}\n');
+    fs.writeFileSync(path.join(lib, ".complete"), `acme/library@${RELEASED}\n`);
+    const catalog = { discovery: { library: [{ repo: "acme/library", commit: READ }] } };
+    const got = await moduleCode(catalog, { source: "modules/site", version: "1.1.0", tag: "site/v1.1.0", commit: RELEASED });
+    assert.equal(got.library.commit, RELEASED);
+    assert.equal(got.library.version, "1.1.0");
+    assert.equal(got.libraryDir, lib, "no reader was needed: that commit was already here");
+    await assert.rejects(moduleCode(catalog, { source: "modules/site", unreleased: true }), /has not released modules\/site yet/);
+  } finally {
+    if (was === undefined) delete process.env.SEALEYE_HOME; else process.env.SEALEYE_HOME = was;
+  }
+});
+
+test("a deploy builds the live catalog's release of the module; a new major version is refused", async () => {
+  const { majorVersionWords, versionMove, withLiveReleases } = await import("../api/executor/terraform/versions.js");
+  const entry = (version, commit) => ({ id: "http_api", source: "modules/http-api", builds_with: "terraform", version, tag: `http-api/v${version}`, commit });
+  const planDoc = { catalogVersion: 3, modules: [entry("1.0.0", "a".repeat(40)), { id: "static_site_edge", builds_with: "static_site_edge" }] };
+  const liveDoc = { catalogVersion: 4, modules: [entry("1.1.0", "b".repeat(40))] };
+  const built = withLiveReleases(planDoc, liveDoc);
+  assert.equal(built.modules[0].version, "1.1.0");
+  assert.equal(built.modules[0].commit, "b".repeat(40));
+  assert.equal(built.modules[1], planDoc.modules[1], "anything else is as the plan's catalog has it");
+  assert.equal(planDoc.modules[0].version, "1.0.0", "the plan's catalog is not changed");
+  assert.equal(withLiveReleases(planDoc, { modules: [{ ...entry("1.1.0", "b".repeat(40)), source: "modules/other" }] }).modules[0].version, "1.0.0", "only the same module");
+  assert.equal(withLiveReleases(planDoc, { modules: [{ id: "http_api", source: "modules/http-api", builds_with: "terraform" }] }).modules[0].version, "1.0.0", "a live catalog that releases nothing changes nothing");
+
+  const had = { version: "1.0.0", source: "modules/http-api" };
+  assert.equal(versionMove(had, entry("1.0.0")), null);
+  assert.equal(versionMove(null, entry("1.1.0")), null, "a first build moves nothing");
+  assert.deepEqual(versionMove(had, entry("1.1.0")), { from: "1.0.0", to: "1.1.0", major: false });
+  const major = versionMove(had, entry("2.0.0"));
+  assert.equal(major.major, true);
+  assert.match(majorVersionWords(entry("2.0.0"), major), /new major version of modules\/http-api \(1\.0\.0 to 2\.0\.0\).*Run sealeye run again.*Nothing was deployed\./);
+});

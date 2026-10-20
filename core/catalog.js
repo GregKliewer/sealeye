@@ -232,11 +232,12 @@ export function buildableView(catalog = loadCatalog()) {
     // client is told only that the platform builds it.
     // Nor who edited an entry's words (catalog-edits.js): people are GET /team's to name.
     // Nor what code read of a Terraform module to build it (its outputs, how it takes an
-    // app, what it would run): the platform's to know too.
+    // app, what it would run), nor which commit its release is: the platform's to know
+    // too. Its version is the developer's to read.
     // What an environment built from it offers (core/operations.js), so a card promises
     // only what the developer can then do: logs and readings come back only from what
     // seaLeye's own templates build.
-    modules: modules.map(({ builds_with, guidance, edited, outputs, delivers, runs, ...m }) => ({ ...m, buildable: true, operations: operationsOf({ builds_with }) })),
+    modules: modules.map(({ builds_with, guidance, edited, outputs, delivers, runs, tag, commit, unreleased, ...m }) => ({ ...m, buildable: true, operations: operationsOf({ builds_with }) })),
     need_kinds: catalog.need_kinds || [],
     profiles: catalog.profiles || [],
     patterns

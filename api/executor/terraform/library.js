@@ -97,7 +97,13 @@ export async function libraryAt(lib, { reader } = {}) {
  * @returns {Promise<{ libraryDir: string, source: string, library: object }>}
  */
 export async function moduleCode(catalog, entry, options = {}) {
-  const library = libraryOf(catalog);
+  // At its release when the library releases it (the commit its tag points to, recorded
+  // by discovery), else at the commit the catalog was read at (core/module-versions.js).
+  if (entry?.unreleased) throw new ModuleUnusable(`your organization's library has not released ${entry.source || "this module"} yet, so the platform does not build it`);
+  const read = libraryOf(catalog);
+  const library = SHA.test(String(entry?.commit || ""))
+    ? { ...read, commit: entry.commit, version: entry.version || null, tag: entry.tag || null }
+    : read;
   const source = moduleFolder(entry?.source);
   const libraryDir = await libraryAt(library, options);
   const dir = path.join(libraryDir, source);

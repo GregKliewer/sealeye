@@ -304,7 +304,9 @@ Keep existing endpoints and commands working; add, do not break.
   the sync. ROLLBACK_COMPLETE is deleted; UPDATE_ROLLBACK_COMPLETE is not.
 - Static destroy empties the bucket before delete-stack.
 - **The Terraform executor** (`api/executor/terraform/`, PHASE4-PLAN Step 9) builds a
-  plan of one module from the organization's library at the commit its catalog names,
+  plan of one module from the organization's library at the release its catalog names
+  (or the commit, for a library that releases none; the live catalog's release of the
+  same module, and a new major version refused with 409 MAJOR_VERSION, `versions.js`),
   fetched read-only with discovery's reader and checked again for anything it would
   run. It writes `main.tf.json` (the module by its folder, inputs from seaLeye, the
   app's code and the platform values, the plan's own optional inputs; S3 state under
@@ -445,7 +447,8 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   the library and the scanner against its planted secret; with `SEALEYE_SAMPLE_PLATFORM`
   set to a clone, `npm test` does too. No model, no keys.
 - A platform library is read by `readLibrary` (`api/discovery/library.js`): one commit,
-  read-only, walked by `core/upload-rules.js` with purpose `discovery` (`.github` read,
+  with each module a tag releases (`http-api/v1.1.0`, `core/module-versions.js`) read at
+  its newest release's commit instead, read-only, walked by `core/upload-rules.js` with purpose `discovery` (`.github` read,
   secret files as names), scanned again with gitleaks, each flagged line replaced, and no
   `.sealeye-allow` honoured. `deploy/server.sh library-check` reads the repositories in
   `SEALEYE_LIBRARY_REPOS` on the server that way. A discovery worker asks the gateway for

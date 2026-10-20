@@ -17,6 +17,7 @@ import { moduleName } from "../../../core/names.js";
 import { settingNamesFor } from "../../../core/setting-names.js";
 import { terraformBuilds } from "../../../core/terraform-modules.js";
 import { putDeployment } from "../../store.js";
+import { changesIn, versionBuilt, versionMove } from "./versions.js";
 import { valuesAt } from "../../platform.js";
 import { closeSiblings, settersFor } from "../index.js";
 import { emptyBucket, fetchArtifact, refreshSite, syncSite } from "../cfn.js";
@@ -87,7 +88,11 @@ async function prepare(record, catalog, { entry, planModule, inputs = null, code
   const pinned = record.terraform?.module?.commit
     ? { ...catalog, discovery: { ...(catalog.discovery || {}), library: [{ repo: record.terraform.module.repo, commit: record.terraform.module.commit }] } }
     : catalog;
-  const code = await moduleCode(pinned, entry, { reader });
+  // What was built is torn down with the same code: the record's commit and release,
+  // whatever the catalog releases now.
+  const built = record.terraform?.module;
+  const pinnedEntry = built?.commit ? { ...entry, commit: built.commit, version: built.version, tag: built.tag, unreleased: false } : entry;
+  const code = await moduleCode(pinned, pinnedEntry, { reader });
   const bucket = requireSetting("BUCKET");
   const team = record.teamId || "default";
   const tags = { "sealeye:app": record.app?.name || "", "sealeye:team": team, "sealeye:environment": record.stackName };
@@ -107,7 +112,7 @@ async function prepare(record, catalog, { entry, planModule, inputs = null, code
   const state = { bucket, key: record.terraform?.stateKey || stateKeyFor({ org: record.orgId || "default", environment: record.stackName }) };
   const root = rootModule({ moduleSource: `./library/${code.source}`, inputs: given, outputs: outputsWanted(entry), state, tags });
   const rootSha256 = writeRoot(dir, { root, libraryDir: code.libraryDir });
-  return { dir, home: homeFor(dir), inputs: given, sources, ignored, state, rootSha256, library: code.library, source: code.source };
+  return { dir, home: homeFor(dir), inputs: given, sources, ignored, state, rootSha256, library: code.library, source: code.source, moduleDir: path.join(code.libraryDir, code.source) };
 }
 
 /** `tofu init`, with the image's lock file when it has one, which init may not change. */
@@ -193,7 +198,7 @@ export async function startTerraformDeployment(record, plan, appPath, catalog, o
     record.terraform = {
       tofuVersion: TOFU_VERSION,
       providerVersion: AWS_PROVIDER_VERSION,
-      module: { id: entry.id, source: ready.source, repo: ready.library.repo, commit: ready.library.commit },
+      module: { id: entry.id, source: ready.source, repo: ready.library.repo, commit: ready.library.commit, ...(ready.library.version ? { version: ready.library.version, tag: ready.library.tag } : {}) },
       stateKey: ready.state.key,
       rootSha256: ready.rootSha256,
       // Each input by name and where it came from. The values are the platform's ids and
@@ -203,6 +208,10 @@ export async function startTerraformDeployment(record, plan, appPath, catalog, o
       ignoredInputs: ready.ignored,
       phase: null
     };
+    // A newer release than the environment had: which, and what its changelog says
+    // changed, for the report and the evidence (versions.js).
+    const move = versionMove(versionBuilt(record.environment || record.stackName, { except: record.deploymentId }), { source: ready.source, version: ready.library.version });
+    if (move) record.terraform.module.versionChange = { from: move.from, to: move.to, changes: changesIn(ready.moduleDir, move) };
     putDeployment(record);
 
     set("running", { step: "Getting your organization's module ready to build" });
