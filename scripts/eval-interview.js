@@ -16,10 +16,10 @@
 // Two sets (PHASE4-PLAN Step 8): the starter's, each app planned against seaLeye's own
 // modules, and Juniper Mutual's, each app planned against the catalog discovery wrote
 // for the made-up organization (a snapshot of its live catalog,
-// test/fixtures/juniper-catalog-3.json). Juniper's modules are Terraform, and the snapshot
-// was written before discovery recorded what the Terraform executor needs to build one,
-// so for this eval only they are treated as built (`treatAsBuilt`): the plans are graded
-// on being right, not on being buildable. `--set starter` or
+// test/fixtures/juniper-catalog-8.json). The eval's organization is given a placeholder
+// platform value for every input Juniper's modules want (`seedPlatformValues`), and the
+// real executor decides what is built, as it does on the server: a module that waits on
+// something only seaLeye can change, or that runs no app, is not. `--set starter` or
 // `--set juniper` runs one.
 //
 // It calls the model and LangFuse, so it is not part of `npm test`, which stays offline.
@@ -32,7 +32,8 @@ import YAML from "yaml";
 
 import { DEFAULT_MODEL, loadSystemPrompt, resolveApiKey } from "../api/interview/model.js";
 import { addCatalog, approveCatalog, liveCatalog, makeLive, openCatalogs } from "../api/catalogs.js";
-import { EXECUTORS } from "../core/schema.js";
+import { openPlatform, platformValues, setPlatformValue } from "../api/platform.js";
+import { DEVELOPER_STAGE, platformWanted } from "../core/terraform-modules.js";
 import { CONFIG_FILE, LEGACY_CONFIG_FILE } from "../core/names.js";
 import { runInterview } from "../api/interview/service.js";
 import { loadEnv, loadUserConfig, repoRoot, setting } from "../core/config.js";
@@ -52,7 +53,7 @@ import {
 export const DATASET = "sealeye-interview";
 const FIXTURES = path.join(repoRoot, "test", "fixtures", "eval");
 const JUNIPER_FIXTURES = path.join(repoRoot, "test", "fixtures", "eval-juniper");
-const JUNIPER_CATALOG = path.join(repoRoot, "test", "fixtures", "juniper-catalog-3.json");
+const JUNIPER_CATALOG = path.join(repoRoot, "test", "fixtures", "juniper-catalog-8.json");
 
 /**
  * The sets the eval runs: each its cases, and the organization whose live catalog they
@@ -114,30 +115,23 @@ export function loadCases(dir = FIXTURES, { set = "starter", org = null } = {}) 
 }
 
 /**
- * For this eval only: the catalog's Terraform modules are built, so a catalog of them can
- * be planned against and its plans graded on their modules. The snapshot (catalog 3,
- * Oct 16, 2026) was written before discovery recorded how a module takes an app and
- * what it would run, and the eval's organization has no platform values, so the real
- * executor (PHASE4-PLAN Step 9) would build none of it. So in this process the executor
- * is the catalog's own list of Terraform modules; whether a module is offered and whether
- * it rests on a question are left to the catalog, as ever. `builtAsBefore` puts the real
- * executor back. Once a snapshot of a catalog discovery wrote since, with the eval's
- * platform values, is in the eval, this goes.
+ * Give the eval's organization a placeholder platform value for every required input the
+ * catalog's modules want and nothing fills (`platformWanted`), at the developer's stage, so the
+ * real executor decides what the catalog builds the way it does on the server, where
+ * the platform team has set them. The values are words that build nothing: the eval
+ * deploys nothing, and the interview reads only their names. Returns the names set.
  */
-const realExecutors = new Map();
-export function treatAsBuilt(document, executor = "terraform") {
-  if (!realExecutors.has(executor)) realExecutors.set(executor, EXECUTORS[executor]);
-  EXECUTORS[executor] = (document.modules || []).filter(m => m?.builds_with === executor).map(m => m.id);
-  return true;
-}
-
-/** The real executor again, after treatAsBuilt. */
-export function builtAsBefore(executor = "terraform") {
-  if (!realExecutors.has(executor)) return;
-  const real = realExecutors.get(executor);
-  if (real === undefined) delete EXECUTORS[executor];
-  else EXECUTORS[executor] = real;
-  realExecutors.delete(executor);
+export async function seedPlatformValues({ org, document }) {
+  await openPlatform();
+  const names = [];
+  for (const { inputs } of platformWanted(document, Object.keys(platformValues(org, DEVELOPER_STAGE)))) {
+    for (const { input, required, filledBy } of inputs) {
+      if (!required || filledBy || names.includes(input)) continue;
+      await setPlatformValue({ org, stage: DEVELOPER_STAGE, name: input, value: `eval-placeholder-${input.replace(/_/g, "-")}`, by: "eval@sealeye" });
+      names.push(input);
+    }
+  }
+  return names.sort();
 }
 
 /**
@@ -568,8 +562,8 @@ export async function prepareSets(names) {
     const { dir, org, catalog } = SETS[set];
     if (catalog) {
       const document = JSON.parse(fs.readFileSync(catalog, "utf8"));
-      treatAsBuilt(document);
       await seedCatalog({ org, document });
+      await seedPlatformValues({ org, document });
     }
     cases.push(...loadCases(dir, { set, org }));
   }

@@ -246,7 +246,10 @@ Built Fri Oct 16, 2026 (DESIGN.md, "The front door plans from a discovered catal
 `npm run eval:interview` runs a second set, the three sample apps against a snapshot of
 Juniper Mutual's live catalog 3, its Terraform modules treated as built in the eval only
 (Greg chose this over grading needs only, or waiting for Step 9). The glossary turn is
-not in it (Greg).
+not in it (Greg). Tue Oct 20, 2026 (DESIGN.md, "The eval plans against what the server
+builds"): the snapshot is catalog 8, the eval's organization is given a placeholder
+platform value for each required input, and the real executor decides; a fourth sample
+app, `orders-api`, connects a table, and the eval grades what a plan connects.
 
 ### Step 9. A Terraform executor (D8)
 

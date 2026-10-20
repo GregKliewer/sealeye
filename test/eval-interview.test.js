@@ -239,9 +239,11 @@ after(() => server?.kill());
 function plans() {
   const read = f => YAML.parse(fs.readFileSync(path.join(root, "plans", f), "utf8"));
   const drafted = { ...read("static-plan.yaml"), planVersion: "0.4", app: { name: "payment-events-processor", type: "api" }, needs: FIVE.map(need) };
+  const orders = { ...read("api-plan.yaml"), planVersion: "0.4", app: { name: "orders-api", type: "api" }, needs: [need("document_database")] };
   return {
     "static-website": read("static-plan.yaml"),
     "beneficiary-lookup-api": read("api-plan.yaml"),
+    "orders-api": orders,
     "payment-events-processor": drafted
   };
 }
@@ -260,7 +262,7 @@ function clientFor(plan) {
   return { messages: { create: async () => turns[i++] } };
 }
 
-test("one pass grades all three apps and records a dataset run in LangFuse", async () => {
+test("one pass grades all four apps and records a dataset run in LangFuse", async () => {
   process.env.LANGFUSE_PUBLIC_KEY ||= "pk-lf-test";
   process.env.LANGFUSE_SECRET_KEY ||= "sk-lf-test-only";
   assert.equal(startTracing({ exporter }), true);
@@ -285,8 +287,8 @@ test("one pass grades all three apps and records a dataset run in LangFuse", asy
   });
 
   for (const row of rows) assert.ok(allCorrect(row), JSON.stringify(row));
-  assert.deepEqual(rows.map(r => r.outcome), ["ready", "drafted", "ready"]);
-  assert.deepEqual(rows.map(r => r.turns), [2, 2, 2], "each run says how many model calls it made");
+  assert.deepEqual(rows.map(r => r.outcome), ["ready", "drafted", "drafted", "ready"]);
+  assert.deepEqual(rows.map(r => r.turns), [2, 2, 2, 2], "each run says how many model calls it made");
 
   const posts = path => requests.filter(r => r.method === "POST" && r.apiPath === path).map(r => r.body);
 
@@ -303,13 +305,13 @@ test("one pass grades all three apps and records a dataset run in LangFuse", asy
   // What the Experiments view is built from, as LangFuse's own runner leaves it.
   const spans = exporter.getFinishedSpans();
   const roots = spans.filter(sp => sp.name === "experiment-item-run");
-  assert.equal(roots.length, 3);
+  assert.equal(roots.length, 4);
   for (const root of roots) {
     assert.equal(root.attributes["langfuse.environment"], "sdk-experiment");
     assert.ok(root.attributes["langfuse.experiment.item.expected_output"]);
   }
   const marked = spans.filter(sp => sp.name === "sealeye run");
-  assert.equal(marked.length, 3);
+  assert.equal(marked.length, 4);
   for (const sp of marked) {
     assert.equal(sp.attributes["langfuse.experiment.id"], "run_1");
     assert.equal(sp.attributes["langfuse.experiment.name"], "test run");
@@ -321,9 +323,10 @@ test("one pass grades all three apps and records a dataset run in LangFuse", asy
 
   const scores = posts("/api/public/scores");
   const named = name => scores.filter(s => s.name === name).map(s => s.value);
-  assert.deepEqual(named("outcome_correct"), [1, 1, 1]);
-  assert.deepEqual(named("needs_correct"), [1, 1, 1]);
-  assert.deepEqual(named("modules_correct"), [1, 1], "the drafted app is not graded on modules");
+  assert.deepEqual(named("outcome_correct"), [1, 1, 1, 1]);
+  assert.deepEqual(named("needs_correct"), [1, 1, 1, 1]);
+  assert.deepEqual(named("modules_correct"), [1, 1], "the drafted apps are not graded on modules");
+  assert.deepEqual(named("connect_correct"), [], "against the starter nothing connects, so nothing is graded on it");
 });
 
 test("with the older dataset-run link refused, a run still records as one experiment", async () => {
@@ -389,30 +392,31 @@ test("every Juniper case is a sample app, and names only modules its catalog has
   assert.ok(!JSON.stringify(doc).includes("@"), "the snapshot holds no one's address");
 });
 
-test("treated as built for the eval only: a Terraform module is planned, and the real executor comes back after", async () => {
-  const { builtAsBefore, treatAsBuilt } = await import("../scripts/eval-interview.js");
-  const { EXECUTORS } = await import("../core/schema.js");
+test("the eval's organization gets a placeholder value for every required input Juniper's modules want, and the real executor decides", async () => {
+  const { SETS, seedPlatformValues } = await import("../scripts/eval-interview.js");
+  const { withPlatform } = await import("../api/platform.js");
   const { buildableModules } = await import("../core/catalog.js");
-  const real = EXECUTORS.terraform;
-  const doc = { modules: [
-    { id: "web", availability: "available", builds_with: "terraform" },
-    { id: "old", availability: "deprecated", builds_with: "terraform" },
-    { id: "guess", availability: "available", builds_with: "terraform", open: ["q_1"] }
-  ] };
-  // The real executor builds none of it: nothing says how a module takes an app.
-  assert.deepEqual(buildableModules(doc), []);
+  const before = process.env.SEALEYE_HOME;
+  process.env.SEALEYE_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-eval-platform-"));
   try {
-    assert.equal(treatAsBuilt(doc), true);
-    assert.deepEqual(buildableModules(doc).map(m => m.id), ["web"], "still not what is deprecated or rests on a question");
-    assert.deepEqual(EXECUTORS.terraform, ["web", "old", "guess"]);
+    const doc = JSON.parse(fs.readFileSync(SETS.juniper.catalog, "utf8"));
+    assert.deepEqual(buildableModules(withPlatform("eval-juniper", doc)).map(m => m.id), ["static_site"], "with no platform values only the site, which wants none, is built");
+    const names = await seedPlatformValues({ org: "eval-juniper", document: doc });
+    assert.ok(names.includes("permissions_boundary_arn") && names.includes("subnet_ids"));
+    assert.ok(!names.includes("environment") && !names.includes("policy_arns"), "an optional input is left to the plan and the wiring");
+    // What the server builds from catalog 8: the modules that run an app, and the modules
+    // an app uses that offer it access. A database waits on the network (Q23); a container
+    // service, secrets and the rest run no app and offer none.
+    assert.deepEqual(buildableModules(withPlatform("eval-juniper", doc)).map(m => m.id).sort(), ["document_table", "file_bucket", "http_api", "static_site", "work_queue"]);
+    assert.deepEqual(await seedPlatformValues({ org: "eval-juniper", document: doc }), [], "a second seeding sets nothing again");
   } finally {
-    builtAsBefore();
+    if (before === undefined) delete process.env.SEALEYE_HOME;
+    else process.env.SEALEYE_HOME = before;
   }
-  assert.equal(EXECUTORS.terraform, real, "the real executor is back");
 });
 
 test("Juniper's set plans each app against its live catalog, graded on Juniper's modules", async () => {
-  const { builtAsBefore, prepareSets, promptFor } = await import("../scripts/eval-interview.js");
+  const { prepareSets, promptFor } = await import("../scripts/eval-interview.js");
   assert.equal(startTracing({ exporter }), true);
   const requests = [];
   useLangfuseTransport((method, apiPath, body) => {
@@ -429,12 +433,14 @@ test("Juniper's set plans each app against its live catalog, graded on Juniper's
     assert.notEqual(juniperPrompt, promptFor(null), "Juniper's interview reads a prompt of its own");
 
     const plan = (app, type, modules, needs = []) => ({ planVersion: "0.4", app: { name: app, type }, profile: "dev", modules, outputs: ["logs"], ...(needs.length ? { needs } : {}) });
-    const on = (id, inputs = {}) => ({ id, enabled: true, inputs });
+    const on = (id, inputs = {}, more = {}) => ({ id, enabled: true, inputs, ...more });
+    // What the real interview plans against catalog 8 (test/fixtures/eval-juniper): the
+    // processor needs what the catalog does not build, and the orders app connects the table.
     const byApp = {
-      "static-website": plan("static-website", "static-site", [on("static_site", { index_document: "index.html" }), on("logs_and_alarms")]),
-      "beneficiary-lookup-api": plan("beneficiary-lookup-api", "api", [on("http_api"), on("logs_and_alarms")]),
-      "payment-events-processor": plan("payment-events-processor", "api", [on("container_service"), on("postgres"), on("secrets", { secret_names: ["SIGNING_KEY"] })],
-        [need("event_stream")])
+      "static-website": plan("static-website", "static-site", [on("static_site", { index_document: "index.html" })]),
+      "beneficiary-lookup-api": plan("beneficiary-lookup-api", "api", [on("http_api")]),
+      "orders-api": plan("orders-api", "api", [on("http_api"), on("document_table", {}, { connect: { table_name: "ORDERS_TABLE" } })]),
+      "payment-events-processor": plan("payment-events-processor", "api", [on("http_api")], FIVE.map(need))
     };
     const systems = [];
     const clientWith = p => {
@@ -444,15 +450,18 @@ test("Juniper's set plans each app against its live catalog, graded on Juniper's
     const rows = await evaluate({ cases, runName: "juniper run", model: "claude-sonnet-5", clientFor: app => clientWith(byApp[app]) });
 
     for (const row of rows) assert.ok(allCorrect(row), JSON.stringify(row));
-    assert.deepEqual(rows.map(r => r.app), ["juniper-beneficiary-lookup-api", "juniper-payment-events-processor", "juniper-static-website"]);
-    assert.deepEqual(rows.map(r => r.outcome), ["ready", "drafted", "ready"]);
-    assert.ok(systems.length && systems.every(s => s.includes("`container_service`")), "the model was told Juniper's modules");
+    assert.deepEqual(rows.map(r => r.app), ["juniper-beneficiary-lookup-api", "juniper-orders-api", "juniper-payment-events-processor", "juniper-static-website"]);
+    assert.deepEqual(rows.map(r => r.outcome), ["ready", "ready", "drafted", "ready"]);
+    assert.deepEqual(rows.find(r => r.app === "juniper-orders-api").connections, ["table_name=ORDERS_TABLE"]);
+    assert.ok(systems.length && systems.every(s => s.includes("`document_table`") && s.includes("ORDERS_TABLE")), "the model was told Juniper's modules and how to connect one");
+    assert.ok(systems.every(s => !s.includes("`container_service`") && !s.includes("`postgres`")), "and never of a module the platform does not build");
 
     const items = requests.filter(r => r.method === "POST" && r.apiPath === "/api/public/dataset-items").map(r => r.body);
     assert.deepEqual(items.map(b => b.id), rows.map(r => `${DATASET}-${r.app}`));
     assert.ok(items.every(b => b.input.catalog === "juniper"));
+    const connectScores = requests.filter(r => r.method === "POST" && r.apiPath === "/api/public/scores" && r.body.name === "connect_correct").map(r => r.body.value);
+    assert.deepEqual(connectScores, [1], "only the orders app is graded on what it connects");
   } finally {
-    builtAsBefore();
     if (before === undefined) delete process.env.SEALEYE_HOME;
     else process.env.SEALEYE_HOME = before;
   }
