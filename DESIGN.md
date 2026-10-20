@@ -3920,3 +3920,42 @@ and `unpark` (deploy/README.md, "Parking between bursts of work").
   kernel, then `/health`, and whether the server runs the newest release.
 - The marker that it is parked is `/sealeye-pilot/PARKED`, outside `/sealeye/`, whose
   every parameter the API reads as a setting.
+    
+## A save made while a record is being written is never lost
+
+Oct 17, 2026. Terraform environments on the pilot had no report: GET /deployments/{id}/plan
+said "This deployment has no report", with no reason. The build saves its success and,
+a moment later, its report; with Postgres, the first write was still under way when the
+second save came, and when it finished it marked the record saved, so the report never
+reached the database. The API kept it in memory until `deploy/release.sh` restarted it.
+The store now numbers each record's latest change (`unsaved` in `api/store.js`), and a
+write marks a record saved only if nothing changed while it was under way; anything that
+did is written by the next pass. `test/store-postgres.test.js` reproduces it. A record
+written before this keeps what the database has: an environment that lost its report gets
+one at its next deploy.
+
+## Each module is built at the version its library released
+
+Oct 17, 2026. PHASE4-PLAN Step 9, the second pull request, first half (Greg: V1a, V2a,
+V3a, V4 as recommended).
+
+- **A library releases each module on its own, by tag**: `<folder>/v<major>.<minor>.<patch>`,
+  such as `http-api/v1.1.0`, as Juniper's library now does, each module with a
+  `CHANGELOG.md`. A pre-release (`v2.0.0-rc1`) is not a release
+  (`core/module-versions.js`).
+- **Discovery reads each released module at the commit its newest release points to**
+  (`atReleases` in `api/discovery/library.js`, from GitHub's list of tags), so the
+  catalog describes exactly what is built, and records each module's `version`, `tag`
+  and `commit`. The rest of the library is read where its branch is. A clone read from
+  disk (the eval) is read as one commit.
+- **In a library that releases any of its modules, one with no release is not built**:
+  `unreleased`, "your organization's library has not released it yet", and an app that
+  needs it is drafted. A library that releases none is read and built at one commit, as
+  before.
+- **An environment keeps its module's version until a newer catalog goes live.** A
+  deploy, or deploy again, builds the live catalog's release of the same module
+  (`withLiveReleases` in `api/executor/terraform/versions.js`); the report and the
+  evidence say "from 1.0.0 to 1.1.0" with the changelog's lines. A new major version is
+  refused, 409 MAJOR_VERSION, since it may take what the app gives it differently, and
+  `sealeye run` plans against it again. A tear-down uses the code that was built.
+- The client's catalog carries a module's version and never its tag or commit.

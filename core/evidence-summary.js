@@ -90,7 +90,7 @@ export function evidenceSummary(ev, product = { name: "seaLeye", command: "seale
     const art = /^none:/.test(String(b.artifactKey)) ? "no artifact" : `artifact ${b.artifactKey}`;
     const parts = Array.isArray(b.resources) ? plural(b.resources.length, "part") + " made or changed" : "parts not recorded";
     const took = typeof r.durationSeconds === "number" ? `, ${humanDuration(r.durationSeconds)}` : "";
-    row("Built", `${b.module?.source || "the organization's module"}${commit ? ` at ${commit.slice(0, 12)}` : ""}, ${art}, ${parts}${took}`);
+    row("Built", `${b.module?.source || "the organization's module"}${b.module?.version ? ` ${b.module.version}` : ""}${commit ? ` at ${commit.slice(0, 12)}` : ""}, ${art}, ${parts}${took}`);
   } else {
     // Which module's template this stack is built from. The file on disk may be the
     // dist copy with the plan's setting names written into it, so the name comes from

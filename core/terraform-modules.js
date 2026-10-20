@@ -67,6 +67,9 @@ export function terraformBuilds(entry, platform = {}) {
   if (!entry || entry.builds_with !== "terraform") return no("it is not a Terraform module");
   if (!Array.isArray(entry.runs)) return no("its code has not been checked for commands it would run (discovery must read the library again)");
   if (entry.runs.length) return no(`its code would run commands on the platform's server (${entry.runs.join(", ")})`);
+  // In a library that releases its modules by tag, only a released module is built, at
+  // its release (core/module-versions.js).
+  if (entry.unreleased) return no(`your organization's library has not released it yet (a release is a tag such as ${String(entry.source || "").split("/").pop() || "its-folder"}/v1.0.0)`);
   const delivers = entry.delivers;
   if (!delivers || (delivers.kind !== "package" && delivers.kind !== "files")) {
     return no("it does not take an app's code, and the platform does not connect modules to each other yet");
