@@ -3960,6 +3960,42 @@ V3a, V4 as recommended).
   `sealeye run` plans against it again. A tear-down uses the code that was built.
 - The client's catalog carries a module's version and never its tag or commit.
 
+## Modules are connected through what the library offers
+
+Oct 17, 2026. PHASE4-PLAN Step 9, the second pull request, second half (Greg: W1a, W2,
+W3b, W4, W5, W6, W7).
+
+- **The library offers what an app needs, and seaLeye only connects it.** A data module
+  makes the policy that grants an app access and outputs it (`access_policy_arn`, with
+  a narrower one beside it); an app module takes `policy_arns`, `secret_arns` and its
+  `environment`. Code reads both from the module's outputs and inputs (`connectsOf` in
+  `api/discovery/terraform.js`: `offers` and `accepts` on the catalog entry). The root
+  module calls the library's modules and passes outputs to inputs; it makes no resource
+  of its own, and no policy is ever written by seaLeye.
+- **The plan names the modules and the settings; code does the wiring** (W1a). A module
+  the app uses is enabled beside the one that runs it, and says in `connect` the setting
+  the app reads each of its values from: `connect: { table_name: "ORDERS_TABLE" }`. The
+  plan is then planVersion 0.6; 0.5 plans are read as they are. `connectionProblems` in
+  `core/terraform-modules.js` checks it with the contract: exactly one module that runs
+  the app, one that takes what each part offers, a value the part has, a setting's name,
+  no setting twice. The interview hears of it only from a catalog that has such modules,
+  so the starter's prompt is as it was.
+- **One state per environment** (W5): the app's module stays `module.app`, so an
+  environment built before keeps its addresses, and each part is `module.<id>`, each at
+  its own release. Torn down together; a bucket a part made is emptied first.
+- **A tear-down names what holds data** (W6), on both surfaces, in the catalog's words:
+  "This also deletes ..., and everything in it." It still runs: it is dev.
+- **What is built now** (W3): `document-table`, `file-bucket` and `work-queue`. The
+  database waits on how an app reaches the private network (OPEN-QUESTIONS Q23): a part
+  that offers a secret and no access policy is "not connected yet". `secrets` is not
+  built (W4): filling its values is the settings question.
+- **The Terraform role and the function boundary widen** (W7) to those modules'
+  resources and policies, under `sealeye-*-dev` names; the boundary bounds what any
+  policy the library makes can grant.
+- The report and the evidence list each part with its release and the settings it gave
+  the app, by name. `scripts/tofu-check.js` has real OpenTofu validate and plan a root
+  with a table connected to a function.
+    
 ## A release removes the images nothing uses
 
 Oct 20, 2026. A release stopped mid-pull with "no space left on device": the server's

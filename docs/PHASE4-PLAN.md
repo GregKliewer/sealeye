@@ -273,6 +273,13 @@ deploy/README.md, "The Terraform executor". The second pull request: each module
 version from the library's tags, and connecting modules through what the library offers
 (a module's access outputs to another's inputs), with the sample library given both.
 
+The second, Sat Oct 17, 2026 (DESIGN.md, "Each module is built at the version its library
+released" and "Modules are connected through what the library offers"; Greg: V1a, V2a,
+V3a, V4, W1a to W7): versions from `<module>/vX.Y.Z` tags, read at each release's
+commit, a new major version refused; a table, a bucket and a queue connected to the app
+by their access outputs and the settings the plan names (planVersion 0.6), torn down
+together. The database waits on the network (OPEN-QUESTIONS Q23).
+
 ## Part D: what was asked for, and writing it down
 
 ### Step 10. The gap report

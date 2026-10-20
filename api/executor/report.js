@@ -47,6 +47,13 @@ function whatWasCreatedFromModule(record) {
       `- Your app running unchanged on Node.js 20, started from \`${record.entryPoint || "index.js"}\`. The platform's adapter starts it and hands it each request.`
     );
   }
+  // Each module the app uses, built beside it, and where the app finds it.
+  const finds = Object.entries(t.settings || {});
+  for (const p of t.parts || []) {
+    const what = String(p.line || `The module ${p.id}`).trim().replace(/[.!?]+$/, "");
+    const names = finds.filter(([, from]) => String(from).startsWith(`${p.id}.`)).map(([setting]) => `\`${setting}\``);
+    lines.push(`- ${what}${names.length ? `, which your app finds through ${names.join(" and ")}` : ""}. Your app is given what it needs to use it, and nothing more.`);
+  }
   lines.push(
     "",
     ...versionChangeLines(t.module?.versionChange),

@@ -18,6 +18,7 @@ import { Address } from "../Address";
 import { Cmd, CommandHint } from "../Command";
 import { commandLine, label } from "../../../core/operations.js";
 import { hasSettingsAndCosts } from "../../../core/token.js";
+import { teardownDataWords } from "../../../core/plan-report-words.js";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -168,7 +169,7 @@ export function Control() {
             ) : null}
             {offers("teardown") ? <div className="space-y-1.5" data-testid="teardown">
               {canTearDown ? (<>
-                <TearDown app={env.app} deploymentId={(env.deploys.find(d => d.stackName) || latest).deploymentId} locked={Boolean(locked)} onDone={deployments.reload} />
+                <TearDown app={env.app} deploymentId={(env.deploys.find(d => d.stackName) || latest).deploymentId} record={env.deploys.find(d => d.stackName) || latest} locked={Boolean(locked)} onDone={deployments.reload} />
                 <CommandHint op="teardown" target={env.app} />
               </>) : (
                 <p className="text-dim">{latest.status === "drafted" ? "Nothing was built for a drafted plan, so there is nothing to tear down." : "There is nothing standing to tear down."}</p>
@@ -648,7 +649,8 @@ function DeployAgain({ app, fromDeployment, packagedBy, locked, onDone }: { app:
 }
 
 /** A tear-down is asked for twice: once with the button, once by typing the app's name. */
-function TearDown({ app, deploymentId, locked, onDone }: { app: string; deploymentId: string; locked: boolean; onDone: () => void }) {
+function TearDown({ app, deploymentId, record, locked, onDone }: { app: string; deploymentId: string; record?: unknown; locked: boolean; onDone: () => void }) {
+  const holdsData: string[] = teardownDataWords(record);
   const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState("");
   const [busy, setBusy] = useState(false);
@@ -677,6 +679,7 @@ function TearDown({ app, deploymentId, locked, onDone }: { app: string; deployme
       <DialogContent>
         <DialogTitle>{label("teardown")} {app}?</DialogTitle>
         <DialogDescription>Everything the platform built for it is removed, and its address stops working. The plan stays in the developer's folder, so <Cmd op="run" /> can build it again. Type <span className="font-mono text-ink">{app}</span> to confirm.</DialogDescription>
+        {holdsData.length ? <ul className="mt-3 space-y-1 text-amber" data-testid="teardown-data">{holdsData.map((line: string) => <li key={line}>{line}</li>)}</ul> : null}
         <Input className="mt-4 font-mono" aria-label="Type the app's name to confirm" value={typed} onChange={e => setTyped(e.target.value)} autoFocus />
         {error ? <div className="mt-3"><Problem message={error} /></div> : null}
         <div className="mt-5 flex justify-end gap-3">

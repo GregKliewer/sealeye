@@ -29,7 +29,7 @@ import { unsupportedNeeds } from "../../core/catalog.js";
 import { addSpend, priceUsage, spendingLimitWords } from "../../core/model-prices.js";
 import { scoreTrace, traceEvent, traceStep, traceTool } from "../../core/tracing.js";
 import { catalogOfPlan, checkPlan } from "../validate.js";
-import { PLAN_VERSION, STARTER_VERSION, upgradePlan } from "../../core/schema.js";
+import { CONNECTED_PLAN_VERSION, PLAN_VERSION, STARTER_VERSION, upgradePlan } from "../../core/schema.js";
 import { starterCatalog } from "../../core/catalog.js";
 import {
   createWithOneRetry,
@@ -123,7 +123,9 @@ export function stampCatalog(plan, ref) {
   // The model writes the 0.4 shape. Any other version is left as written, for the check
   // to refuse and the model to correct, rather than hidden by the stamp.
   if (written.planVersion !== undefined && written.planVersion !== "0.4") return { ...written, catalog: version };
-  return { ...written, planVersion: PLAN_VERSION, catalog: version };
+  // 0.6 when it connects a module the app uses to the app's (core/schema.js).
+  const connects = (written.modules || []).some(m => m && m.enabled !== false && m.connect && Object.keys(m.connect).length);
+  return { ...written, planVersion: connects ? CONNECTED_PLAN_VERSION : PLAN_VERSION, catalog: version };
 }
 
 /**

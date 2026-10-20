@@ -4,10 +4,10 @@ Description: >-
   Step 9; DESIGN.md, "A Terraform executor builds an organization's own modules"). A
   second role beside platform-sealeye-deploy-role, which is unchanged. Deploy it in the
   account the environments live in, as platform-sealeye-terraform-role. It can create
-  what the made-up organization's http-api and static-site modules create, under the
+  what the made-up organization's http-api and static-site modules create, and the
+  document-table, file-bucket and work-queue modules an app uses beside them, under the
   names seaLeye gives them (sealeye-<app>-<hash>, at the dev stage), and read and write
-  their state, and nothing else. Connecting modules (the next pull request) widens it to
-  what those modules create.
+  their state, and nothing else.
 
 Parameters:
   ServerRoleArn:
@@ -27,9 +27,12 @@ Parameters:
 
 Resources:
   # The most a function built from an organization's module may do, whatever its own
-  # role says: write its logs. Set it as the organization's permissions_boundary_arn
-  # platform value (sealeye platform set permissions_boundary_arn <arn>). The role below
-  # creates a function's role only with this boundary on it.
+  # role says: write its logs, and use the table, bucket and queue of its own
+  # environment, the ones the modules it uses make (sealeye-<app>-<hash>-dev). The
+  # policies that grant it are the library's (access_policy_arn); this only bounds them.
+  # Set it as the organization's permissions_boundary_arn platform value (sealeye
+  # platform set permissions_boundary_arn <arn>). The role below creates a function's
+  # role only with this boundary on it.
   FunctionBoundary:
     Type: AWS::IAM::ManagedPolicy
     Properties:
@@ -40,6 +43,20 @@ Resources:
           - Effect: Allow
             Action: [logs:CreateLogGroup, logs:CreateLogStream, logs:PutLogEvents]
             Resource: "*"
+          - Effect: Allow
+            Action: [dynamodb:GetItem, dynamodb:BatchGetItem, dynamodb:Query, dynamodb:Scan, dynamodb:PutItem, dynamodb:UpdateItem, dynamodb:DeleteItem, dynamodb:BatchWriteItem, dynamodb:ConditionCheckItem, dynamodb:DescribeTable]
+            Resource:
+              - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/sealeye-*-dev"
+              - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/sealeye-*-dev/index/*"
+          - Effect: Allow
+            Action: s3:ListBucket
+            Resource: "arn:aws:s3:::*-files-sealeye-*-dev"
+          - Effect: Allow
+            Action: [s3:GetObject, s3:PutObject, s3:DeleteObject]
+            Resource: "arn:aws:s3:::*-files-sealeye-*-dev/*"
+          - Effect: Allow
+            Action: [sqs:SendMessage, sqs:ReceiveMessage, sqs:DeleteMessage, sqs:ChangeMessageVisibility, sqs:GetQueueAttributes, sqs:GetQueueUrl]
+            Resource: !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:sealeye-*-dev"
 
   TerraformRole:
     Type: AWS::IAM::Role
@@ -99,13 +116,40 @@ Resources:
                 Condition:
                   ArnEquals:
                     iam:PermissionsBoundary: !Ref FunctionBoundary
+              # Lambda's basic logging policy, and the policies the modules an app uses
+              # make for it (access_policy_arn, under its environment's name). The
+              # boundary above bounds what any of them can grant.
               - Sid: FunctionRolePolicy
                 Effect: Allow
                 Action: [iam:AttachRolePolicy, iam:DetachRolePolicy]
                 Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/sealeye-*-dev-api"
                 Condition:
-                  ArnEquals:
-                    iam:PolicyARN: arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+                  ArnLike:
+                    iam:PolicyARN:
+                      - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+                      - !Sub "arn:aws:iam::${AWS::AccountId}:policy/sealeye-*-dev-*"
+              # The secrets an app may read, as the role's own policy (http-api's
+              # secret_arns).
+              - Sid: FunctionRoleOwnPolicy
+                Effect: Allow
+                Action: [iam:PutRolePolicy, iam:DeleteRolePolicy, iam:GetRolePolicy]
+                Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/sealeye-*-dev-api"
+              # The policies a table, bucket or queue module makes for the app that uses
+              # it: named after its environment, at dev.
+              - Sid: AccessPolicies
+                Effect: Allow
+                Action:
+                  - iam:CreatePolicy
+                  - iam:DeletePolicy
+                  - iam:GetPolicy
+                  - iam:GetPolicyVersion
+                  - iam:ListPolicyVersions
+                  - iam:CreatePolicyVersion
+                  - iam:DeletePolicyVersion
+                  - iam:TagPolicy
+                  - iam:UntagPolicy
+                  - iam:ListEntitiesForPolicy
+                Resource: !Sub "arn:aws:iam::${AWS::AccountId}:policy/sealeye-*-dev-*"
               - Sid: KeepTheBoundary
                 Effect: Deny
                 Action: iam:DeleteRolePermissionsBoundary
@@ -167,6 +211,37 @@ Resources:
                   - !Sub "arn:aws:apigateway:${AWS::Region}::/apis/*"
                   - !Sub "arn:aws:apigateway:${AWS::Region}::/tags/*"
 
+              # document-table: the table, ${name}-${stage}, so sealeye-*-dev.
+              - Sid: Tables
+                Effect: Allow
+                Action:
+                  - dynamodb:CreateTable
+                  - dynamodb:DeleteTable
+                  - dynamodb:DescribeTable
+                  - dynamodb:UpdateTable
+                  - dynamodb:DescribeContinuousBackups
+                  - dynamodb:UpdateContinuousBackups
+                  - dynamodb:DescribeTimeToLive
+                  - dynamodb:TagResource
+                  - dynamodb:UntagResource
+                  - dynamodb:ListTagsOfResource
+                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/sealeye-*-dev"
+              # work-queue: the queue and its failed queue, sealeye-*-dev and -dev-failed.
+              - Sid: Queues
+                Effect: Allow
+                Action:
+                  - sqs:CreateQueue
+                  - sqs:DeleteQueue
+                  - sqs:GetQueueAttributes
+                  - sqs:SetQueueAttributes
+                  - sqs:GetQueueUrl
+                  - sqs:TagQueue
+                  - sqs:UntagQueue
+                  - sqs:ListQueueTags
+                  - sqs:PurgeQueue
+                Resource:
+                  - !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:sealeye-*-dev"
+                  - !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:sealeye-*-dev-failed"
               # static-site: the site's bucket, juniper-site-${name}-${stage}, so a name
               # with sealeye- in it that ends -dev. Never the platform's own bucket, whose
               # name does not end -dev. Files uploaded, and emptied before a tear-down.

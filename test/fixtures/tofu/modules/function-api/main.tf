@@ -128,3 +128,15 @@ output "url" {
   description = "The API's address."
   value       = aws_apigatewayv2_api.api.api_endpoint
 }
+
+variable "policy_arns" {
+  description = "Policies the app's role is given, from each data module's access_policy_arn."
+  type        = list(string)
+  default     = []
+}
+
+resource "aws_iam_role_policy_attachment" "granted" {
+  count      = length(var.policy_arns)
+  role       = aws_iam_role.fn.name
+  policy_arn = var.policy_arns[count.index]
+}

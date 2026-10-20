@@ -96,6 +96,10 @@ function entryFor(module, written, finding, questions, library) {
     ...(module.outputs ? { outputs: module.outputs } : {}),
     ...(module.outputs ? { delivers: module.delivers || null } : {}),
     ...(Array.isArray(module.runs) ? { runs: module.runs } : {}),
+    // How it connects to another module, by code (terraform.js, connectsOf): what it
+    // offers an app that uses it, and what an app module takes of that.
+    ...(module.offers ? { offers: module.offers } : {}),
+    ...(module.accepts ? { accepts: module.accepts } : {}),
     // Which release of it was read and is built, by code from the library's tags: its
     // version, its tag and the commit the tag points to. In a library that releases its
     // modules, one with no release is not built (core/terraform-modules.js).

@@ -15,6 +15,7 @@ import path from "node:path";
 import YAML from "yaml";
 
 import { repoRoot, loadUserConfig } from "./config.js";
+import { isPart } from "./terraform-modules.js";
 import { environmentOperations } from "./operations.js";
 import { EXECUTORS, LEGACY_MODULE_IDS, MODULE_IDS, STARTER_VERSION, contractSchema, moduleIdSource, normalizeProfile } from "./schema.js";
 
@@ -204,9 +205,11 @@ export function buildableModules(catalog = loadCatalog()) {
  * name and the need kinds it knows. A JSON schema; the API compiles it (api/validate.js).
  */
 export function schemaFor(catalog = loadCatalog()) {
+  const built = buildableModules(catalog);
   return contractSchema({
-    moduleIds: buildableModules(catalog).map(m => m.id),
-    needKinds: (catalog.need_kinds || []).map(n => n?.key).filter(Boolean)
+    moduleIds: built.map(m => m.id),
+    needKinds: (catalog.need_kinds || []).map(n => n?.key).filter(Boolean),
+    connects: built.some(isPart)
   });
 }
 
@@ -232,12 +235,12 @@ export function buildableView(catalog = loadCatalog()) {
     // client is told only that the platform builds it.
     // Nor who edited an entry's words (catalog-edits.js): people are GET /team's to name.
     // Nor what code read of a Terraform module to build it (its outputs, how it takes an
-    // app, what it would run), nor which commit its release is: the platform's to know
-    // too. Its version is the developer's to read.
+    // app, what it would run, how it connects to another), nor which commit its release
+    // is: the platform's to know too. Its version is the developer's to read.
     // What an environment built from it offers (core/operations.js), so a card promises
     // only what the developer can then do: logs and readings come back only from what
     // seaLeye's own templates build.
-    modules: modules.map(({ builds_with, guidance, edited, outputs, delivers, runs, tag, commit, unreleased, ...m }) => ({ ...m, buildable: true, operations: operationsOf({ builds_with }) })),
+    modules: modules.map(({ builds_with, guidance, edited, outputs, delivers, runs, offers, accepts, tag, commit, unreleased, ...m }) => ({ ...m, buildable: true, operations: operationsOf({ builds_with }) })),
     need_kinds: catalog.need_kinds || [],
     profiles: catalog.profiles || [],
     patterns
@@ -499,5 +502,34 @@ export function interviewPassages(catalog = loadCatalog(), { starter = false } =
     const usable = typeof own[key] === "string" && !names(own[key]) && (key !== "catalog_source" || starter);
     passages[key] = usable ? own[key] : written[key];
   }
+  // How the modules an app uses are connected to the one that runs it, for a catalog that
+  // has any (core/terraform-modules.js, isPart): written from the catalog by code, after
+  // whatever the catalog says itself. The starter has none, so its prompt is as it was.
+  const connecting = connectingPassage(modules);
+  if (connecting) {
+    passages.module_guidance = [passages.module_guidance, connecting.guidance].filter(Boolean).join("\n\n");
+    passages.plan_description = `${passages.plan_description} ${connecting.plan}`;
+  }
   return passages;
+}
+
+/** What the interview is told about connecting modules, or null when nothing connects. */
+function connectingPassage(modules) {
+  const parts = modules.filter(m => isPart(m) && !m.delivers);
+  const runs = modules.filter(m => m.delivers?.kind === "package" && m.accepts && (m.accepts.policies || m.accepts.secrets));
+  if (!parts.length || !runs.length) return null;
+  const offers = parts.map(m => `- ${m.id} gives the app ${idList(m.offers.values || [])}`).join("\n");
+  return {
+    guidance: [
+      "### Connecting modules",
+      `${idList(parts.map(m => m.id))} are modules an app uses, built beside the module that runs it (${idList(runs.map(m => m.id))}) and connected to it. ` +
+        "Enable each one the app's code uses, with the file that shows it in the assumptions, and exactly one module that runs the app. " +
+        "The platform gives the app what it needs to use each; never write a grant, a policy, a secret or a resource's name into inputs.",
+      "For each module the app uses, `connect` says the setting the app reads each of its values from, by the name the code reads: " +
+        "`connect: { table_name: \"ORDERS_TABLE\" }` for code that reads `process.env.ORDERS_TABLE`. Each value it gives:",
+      offers,
+      "A setting the code reads that no module gives is not connected: it is a need."
+    ].join("\n"),
+    plan: "A module the app uses (a table, a bucket, a queue) is enabled beside the one that runs it, with connect naming the setting the app reads each of its values from."
+  };
 }

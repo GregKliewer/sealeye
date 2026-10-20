@@ -31,7 +31,7 @@ import { readLibrary as readFromGitHub } from "./library.js";
 import { ANSWER_LIMIT } from "../../core/discovery-words.js";
 import { createBudget, readLibraryLevel, readModule, SpendingLimit, superviseEntries } from "./readers.js";
 import * as store from "./store.js";
-import { deliversOf, idFor, listModules, moduleHash, moduleInputs, moduleOutputs, moduleRuns } from "./terraform.js";
+import { connectsOf, deliversOf, idFor, listModules, moduleHash, moduleInputs, moduleOutputs, moduleRuns } from "./terraform.js";
 
 // Set from the first measured run on the made-up organization, Oct 15, 2026 (PHASE4-PLAN
 // D6): its most expensive worker spent half a cent and the whole run eighteen cents;
@@ -356,7 +356,7 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
         // What code read of each module goes with it into the draft: its inputs and
         // outputs, how it takes an app, what it would run (PHASE4-PLAN Step 9). Leaving
         // them out leaves the Terraform executor nothing to build (found Oct 17, 2026).
-        run.modules = modules.map(m => ({ source: m.source, id: m.id, repo: m.repo, hash: m.hash, inputs: m.inputs, outputs: m.outputs, delivers: m.delivers ?? null, runs: m.runs, release: m.release ?? null, unreleased: Boolean(m.unreleased), status: m.failed ? "not_read" : "read", finding: m.finding || null, failed: m.failed || null }));
+        run.modules = modules.map(m => ({ source: m.source, id: m.id, repo: m.repo, hash: m.hash, inputs: m.inputs, outputs: m.outputs, delivers: m.delivers ?? null, runs: m.runs, offers: m.offers ?? null, accepts: m.accepts ?? null, release: m.release ?? null, unreleased: Boolean(m.unreleased), status: m.failed ? "not_read" : "read", finding: m.finding || null, failed: m.failed || null }));
         run.library = st.library;
         await save(run.id);
         await writeAll(run);
@@ -617,7 +617,7 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
           // Which release of it was read (core/module-versions.js), or, in a library that
           // releases its modules, that it has none.
           const release = snap.releases?.[source] || null;
-          modules.push({ source, id, repo, hash: moduleHash(snap.dir, source), inputs, outputs, delivers: deliversOf(inputs, outputs), runs: moduleRuns(snap.dir, source), release, unreleased: Boolean(snap.tagged && !release) });
+          modules.push({ source, id, repo, hash: moduleHash(snap.dir, source), inputs, outputs, delivers: deliversOf(inputs, outputs), runs: moduleRuns(snap.dir, source), ...connectsOf(inputs, outputs), release, unreleased: Boolean(snap.tagged && !release) });
         }
       });
       run.modules = modules.map(m => ({ ...m, status: "reading" }));

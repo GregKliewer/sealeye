@@ -8,7 +8,8 @@
 import Ajv from "ajv";
 import addFormats from "ajv-formats";
 
-import { STARTER_VERSION, unlistedNeedProblems, upgradePlan } from "../core/schema.js";
+import { CONNECTED_PLAN_VERSION, STARTER_VERSION, unlistedNeedProblems, upgradePlan } from "../core/schema.js";
+import { connectionProblems } from "../core/terraform-modules.js";
 import { catalogModuleIds, firstSentence, isBuildable, moduleEntry, schemaFor } from "../core/catalog.js";
 import { catalogGoingLive, catalogsOf, catalogAt, liveCatalog } from "./catalogs.js";
 import { withPlatform } from "./platform.js";
@@ -92,8 +93,15 @@ export function checkUpgraded(plan, { org = "default" } = {}) {
 export function checkAgainst(plan, catalog) {
   const validate = validatorFor(catalog);
   const ok = validate(plan);
-  const errors = ok ? unlistedNeedProblems(plan, catalogModuleIds(catalog)) : formatAjvErrors(validate.errors);
+  const errors = ok ? [...unlistedNeedProblems(plan, catalogModuleIds(catalog)), ...connectionProblems(plan, catalog), ...connectedVersion(plan)] : formatAjvErrors(validate.errors);
   return { valid: errors.length === 0, errors };
+}
+
+/** A plan that connects modules says so in its version, 0.6 (core/schema.js). */
+function connectedVersion(plan) {
+  const connects = (plan?.modules || []).some(m => m && m.enabled !== false && m.connect && Object.keys(m.connect).length);
+  if (connects && plan.planVersion !== CONNECTED_PLAN_VERSION) return [{ code: "CONNECTION", path: "/planVersion", message: `a plan that connects modules is planVersion ${CONNECTED_PLAN_VERSION}` }];
+  return [];
 }
 
 /**
