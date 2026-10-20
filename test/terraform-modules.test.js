@@ -205,6 +205,16 @@ test("the change record says which attributes changed outside seaLeye, and lists
   ] }] } } } });
   assert.deepEqual(driftDetail(bucket(JSON.stringify({ Statement: [{ Action: "s3:GetObject", Effect: "Allow" }], Version: "2012-10-17" }))), []);
   assert.deepEqual(driftDetail(bucket(JSON.stringify({ Version: "2012-10-17", Statement: [{ Effect: "Allow", Action: "s3:*" }] }))), [{ address: "module.app.aws_s3_bucket.site", action: "update", attributes: ["policy"] }]);
+  // A table's access policy counts the environment's own attachment of it (the first
+  // connected build): not a change. Attached once more by something else, it is.
+  const access = "arn:aws:iam::123456789012:policy/sealeye-x-dev-table-read-write";
+  const policy = count => ({ resource_drift: [
+    { address: "module.document_table.aws_iam_policy.read_write", type: "aws_iam_policy", mode: "managed", change: { actions: ["update"], before: { arn: access, attachment_count: 0 }, after: { arn: access, attachment_count: count } } }
+  ], prior_state: { values: { root_module: { child_modules: [{ resources: [
+    { type: "aws_iam_role_policy_attachment", mode: "managed", values: { role: "sealeye-x-dev-api", policy_arn: access } }
+  ] }] } } } });
+  assert.deepEqual(driftDetail(policy(1)), []);
+  assert.deepEqual(driftDetail(policy(2)), [{ address: "module.document_table.aws_iam_policy.read_write", action: "update", attributes: ["attachment_count"] }]);
   assert.deepEqual(builtParts("module.app.data.aws_iam_policy_document.assume\nmodule.app.aws_lambda_function.fn\n\n"), ["module.app.aws_lambda_function.fn"]);
   assert.deepEqual(builtParts("data.aws_caller_identity.me\naws_s3_bucket.b\n"), ["aws_s3_bucket.b"]);
 });
