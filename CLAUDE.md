@@ -447,7 +447,7 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   Postgres run only with `SEALEYE_TEST_DATABASE_URL` set (a server they may create
   databases on), and are skipped without it.
 - `npm run eval:discovery` grades a catalog against the made-up organization's answer key
-  (`test/fixtures/sample-platform/answer-key.yaml`; the library is the private
+  (`test/fixtures/sample-platform/answer-key.yaml`; the library is the public
   `GregKliewer/sealeye-sample-platform`). `--library <clone>` also checks the key against
   the library and the scanner against its planted secret; with `SEALEYE_SAMPLE_PLATFORM`
   set to a clone, `npm test` does too. No model, no keys.
