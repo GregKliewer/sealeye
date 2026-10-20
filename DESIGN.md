@@ -3874,6 +3874,24 @@ with no notification).
 - **`sealeye watch` ends on a tear-down.** It counted `destroyed` as still going, so
   watching a tear-down never ended; found while making this change.
 
+## Three things the first builds showed a person was told wrong
+
+Oct 17, 2026, from the first builds of Juniper's own modules on the pilot.
+
+- **`sealeye evidence` writes into the app's own folder only** (principle 5): the folder
+  it runs in when that folder's sealeye.yaml plans the app, or the file `--out` names.
+  Run for an app from anywhere else, it prints the summary and writes nothing, saying
+  where to run it. It had written DEPLOYMENT_EVIDENCE.md into whatever folder it was in.
+- **A card and DEPLOYMENT_PLAN.md promise logs and readings only where the environment
+  offers them.** GET /catalog's document now carries each module's `operations` (what an
+  environment built from it offers, `environmentOperations`), never what builds it, and
+  `planOffers` in `core/catalog.js` checks every module a plan uses. One built from the
+  organization's own module had been promised "your logs and basic metrics", which
+  seaLeye does not read back from it.
+- **Setting or removing a platform value names the organization it changed**, on both
+  surfaces (`organization` on the answers of PUT and DELETE /platform/values/{name}, and
+  on GET /platform). A value set with another organization's token had landed there
+  without a word.
 ## Each module is built at the version its library released
 
 Oct 17, 2026. PHASE4-PLAN Step 9, the second pull request, first half (Greg: V1a, V2a,

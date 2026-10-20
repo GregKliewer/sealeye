@@ -15,6 +15,7 @@ import path from "node:path";
 import YAML from "yaml";
 
 import { repoRoot, loadUserConfig } from "./config.js";
+import { environmentOperations } from "./operations.js";
 import { EXECUTORS, LEGACY_MODULE_IDS, MODULE_IDS, STARTER_VERSION, contractSchema, moduleIdSource, normalizeProfile } from "./schema.js";
 
 /**
@@ -233,11 +234,33 @@ export function buildableView(catalog = loadCatalog()) {
     // Nor what code read of a Terraform module to build it (its outputs, how it takes an
     // app, what it would run), nor which commit its release is: the platform's to know
     // too. Its version is the developer's to read.
-    modules: modules.map(({ builds_with, guidance, edited, outputs, delivers, runs, tag, commit, unreleased, ...m }) => ({ ...m, buildable: true })),
+    // What an environment built from it offers (core/operations.js), so a card promises
+    // only what the developer can then do: logs and readings come back only from what
+    // seaLeye's own templates build.
+    modules: modules.map(({ builds_with, guidance, edited, outputs, delivers, runs, tag, commit, unreleased, ...m }) => ({ ...m, buildable: true, operations: operationsOf({ builds_with }) })),
     need_kinds: catalog.need_kinds || [],
     profiles: catalog.profiles || [],
     patterns
   };
+}
+
+/** What an environment built from a catalog entry offers: its operations, by what builds it. */
+function operationsOf(entry) {
+  if (Array.isArray(entry?.operations)) return entry.operations;
+  return environmentOperations(entry?.builds_with === "terraform" ? "terraform" : "cloudformation");
+}
+
+/**
+ * Whether the environment a plan builds offers an operation (`logs`, `perf`): every
+ * module it uses must. A plan the catalog does not describe offers what seaLeye's own
+ * templates do.
+ */
+export function planOffers(plan, catalog, id) {
+  const used = (plan?.modules || []).filter(m => m?.enabled !== false && m?.id);
+  return used.every(m => {
+    const entry = (catalog?.modules || []).find(e => e?.id === m.id);
+    return !entry || operationsOf(entry).includes(id);
+  });
 }
 
 /** Every module id a catalog names, built or not: what a plan file must not name unless it is built. */

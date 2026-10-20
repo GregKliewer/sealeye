@@ -289,6 +289,9 @@ test("a site is built, its files uploaded through the Terraform role, and emptie
   assert.equal(done.status, "succeeded", done.failureReason);
   assert.equal(done.outputs.WebsiteUrl, "https://d111.cloudfront.net");
   assert.equal(done.outputs.BucketName, "juniper-site-sealeye-x-dev");
+  // A site's report is written too, in the developer's words (the first builds, Oct 17).
+  assert.equal(done.reportError, undefined, done.reportError);
+  assert.match(done.report || "", /A public website/);
   assert.equal(lastRoot().module.app.index_document, "index.html", "an optional input the plan gives is passed on");
   assert.match(fs.readFileSync(path.join(logDir, "aws-profile.log"), "utf8"), /^sealeye-deploy-terraform s3 sync$/m);
 

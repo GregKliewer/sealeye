@@ -187,7 +187,7 @@ Options:
       --deployments
                   with list: every deploy, instead of one row per environment
       --out       with evidence: where to write DEPLOYMENT_EVIDENCE.md (default: the
-                  current folder). With plan: a folder to write DEPLOYMENT_PLAN.md,
+                  current folder, when its sealeye.yaml plans that app). With plan: a folder to write DEPLOYMENT_PLAN.md,
                   sealeye.yaml and DEPLOYMENT_REPORT.md into; a file already there is
                   never replaced
       --report    with plan: print the deployment's report instead of its plan
@@ -831,13 +831,24 @@ async function main() {
       return;
     }
 
-    const outFile = path.resolve(getArg("--out") || path.join(process.cwd(), "DEPLOYMENT_EVIDENCE.md"));
-    fs.writeFileSync(outFile, markdown);
+    // The file goes into the app's own folder (principle 5): the folder this command runs
+    // in when its sealeye.yaml plans this app, or wherever --out says. Run for an app
+    // from another folder, it writes nothing there (the first build, Oct 17, 2026: the
+    // evidence landed in the folder above the app's).
+    const here = readCurrentPlanName();
+    const app = evidence?.subject?.app?.name || resolved.label;
+    const outArg = getArg("--out");
+    const outFile = outArg ? path.resolve(outArg) : here && here === app ? path.join(process.cwd(), "DEPLOYMENT_EVIDENCE.md") : null;
+    if (outFile) fs.writeFileSync(outFile, markdown);
 
     console.log("");
     for (const line of evidenceSummaryLines(evidence)) console.log(line);
     console.log("");
-    say(`Wrote ${outFile}`);
+    if (outFile) say(`Wrote ${outFile}`);
+    else {
+      say(`Wrote nothing here: ${here ? `this folder's ${CONFIG_FILE} plans ${here}, not ${app}` : `this folder has no ${CONFIG_FILE}, so it is not ${app}'s`}.`);
+      say(`Run this in ${app}'s folder to write DEPLOYMENT_EVIDENCE.md there, or name a file with --out.`);
+    }
     return;
   }
 

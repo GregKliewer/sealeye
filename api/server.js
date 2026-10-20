@@ -47,6 +47,7 @@ import { applyEdit } from "../core/catalog-edits.js";
 import { selfTest } from "./self-test.js";
 import { environmentsDropped } from "./catalog-use.js";
 import { selfTestSummary } from "../core/discovery-words.js";
+import { organizationInWords } from "../core/token.js";
 import { environmentOperations } from "../core/operations.js";
 import { openPlatform, platformValues, removePlatformValue, setPlatformValue, stageOf, withPlatform, PlatformValueRefused } from "./platform.js";
 import { DEVELOPER_STAGE, STAGES as PLATFORM_STAGES, platformWanted } from "../core/terraform-modules.js";
@@ -1629,6 +1630,7 @@ app.get("/platform", (req, res) => {
   const values = platformValues(org, stage);
   const live = liveCatalog(org);
   return res.status(200).json({
+    organization: organizationInWords({ org, organizationName: orgName() }),
     stage,
     stages: PLATFORM_STAGES,
     developerStage: DEVELOPER_STAGE,
@@ -1643,8 +1645,11 @@ app.put("/platform/values/:name", async (req, res) => {
   if (!mayDiscover(req.caller)) return platformForbidden(res);
   try {
     const stage = stageOf(req.body?.stage ?? req.query.stage);
-    const kept = await setPlatformValue({ org: callerOrg(req), stage, name: req.params.name, value: req.body?.value, by: req.caller?.email || null });
-    return res.status(200).json({ value: kept });
+    const org = callerOrg(req);
+    const kept = await setPlatformValue({ org, stage, name: req.params.name, value: req.body?.value, by: req.caller?.email || null });
+    // Which organization it changed, in words: a value set with the wrong token lands in
+    // the wrong one, silently (the first build, Oct 17, 2026).
+    return res.status(200).json({ value: { ...kept, organization: organizationInWords({ org, organizationName: orgName() }) } });
   } catch (err) {
     return platformRefused(res, err);
   }
@@ -1656,8 +1661,9 @@ app.delete("/platform/values/:name", async (req, res) => {
   if (!mayDiscover(req.caller)) return platformForbidden(res);
   try {
     const stage = stageOf(req.query.stage);
-    const removed = await removePlatformValue({ org: callerOrg(req), stage, name: req.params.name });
-    return res.status(200).json(removed);
+    const org = callerOrg(req);
+    const removed = await removePlatformValue({ org, stage, name: req.params.name });
+    return res.status(200).json({ ...removed, organization: organizationInWords({ org, organizationName: orgName() }) });
   } catch (err) {
     return platformRefused(res, err);
   }
