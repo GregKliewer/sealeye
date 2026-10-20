@@ -356,7 +356,7 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
         // What code read of each module goes with it into the draft: its inputs and
         // outputs, how it takes an app, what it would run (PHASE4-PLAN Step 9). Leaving
         // them out leaves the Terraform executor nothing to build (found Oct 17, 2026).
-        run.modules = modules.map(m => ({ source: m.source, id: m.id, repo: m.repo, hash: m.hash, inputs: m.inputs, outputs: m.outputs, delivers: m.delivers ?? null, runs: m.runs, status: m.failed ? "not_read" : "read", finding: m.finding || null, failed: m.failed || null }));
+        run.modules = modules.map(m => ({ source: m.source, id: m.id, repo: m.repo, hash: m.hash, inputs: m.inputs, outputs: m.outputs, delivers: m.delivers ?? null, runs: m.runs, release: m.release ?? null, unreleased: Boolean(m.unreleased), status: m.failed ? "not_read" : "read", finding: m.finding || null, failed: m.failed || null }));
         run.library = st.library;
         await save(run.id);
         await writeAll(run);
@@ -600,7 +600,7 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
       for (const [i, target] of targets.entries()) {
         const snap = await readLibrary(target, { scratchBase: scratchBase || path.join(os.tmpdir(), "sealeye-discovery") });
         s.snapshots.push(snap);
-        run.repos[i] = { repo: target.owner && target.repo ? repoName(target) : snap.repo, ref: target.ref || null, commit: snap.commit, via: snap.via, files: snap.files, secretFiles: snap.secretFiles.length, findings: snap.findings.length };
+        run.repos[i] = { repo: target.owner && target.repo ? repoName(target) : snap.repo, ref: target.ref || null, commit: snap.commit, via: snap.via, tagged: Boolean(snap.tagged), files: snap.files, secretFiles: snap.secretFiles.length, findings: snap.findings.length };
         emit(run.id, { type: "library", repo: snap.repo, commit: snap.commit, files: snap.files, held: snap.secretFiles.length + (snap.unreadFiles || []).length, replaced: snap.findings.length });
       }
       const modules = [];
@@ -614,7 +614,10 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
           // and anything it would run on the platform's server (core/terraform-modules.js).
           const inputs = moduleInputs(path.join(snap.dir, source));
           const outputs = moduleOutputs(path.join(snap.dir, source));
-          modules.push({ source, id, repo, hash: moduleHash(snap.dir, source), inputs, outputs, delivers: deliversOf(inputs, outputs), runs: moduleRuns(snap.dir, source) });
+          // Which release of it was read (core/module-versions.js), or, in a library that
+          // releases its modules, that it has none.
+          const release = snap.releases?.[source] || null;
+          modules.push({ source, id, repo, hash: moduleHash(snap.dir, source), inputs, outputs, delivers: deliversOf(inputs, outputs), runs: moduleRuns(snap.dir, source), release, unreleased: Boolean(snap.tagged && !release) });
         }
       });
       run.modules = modules.map(m => ({ ...m, status: "reading" }));

@@ -96,6 +96,11 @@ function entryFor(module, written, finding, questions, library) {
     ...(module.outputs ? { outputs: module.outputs } : {}),
     ...(module.outputs ? { delivers: module.delivers || null } : {}),
     ...(Array.isArray(module.runs) ? { runs: module.runs } : {}),
+    // Which release of it was read and is built, by code from the library's tags: its
+    // version, its tag and the commit the tag points to. In a library that releases its
+    // modules, one with no release is not built (core/terraform-modules.js).
+    ...(module.release ? { version: module.release.version, tag: module.release.tag, commit: module.release.commit } : {}),
+    ...(module.unreleased ? { unreleased: true } : {}),
     ...(guidance ? { guidance } : {}),
     // Each rule as found, with where, for whoever approves the catalog (Step 7).
     ...(rules.length ? { rules } : {})

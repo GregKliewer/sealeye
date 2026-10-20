@@ -39,7 +39,7 @@ const LIBRARY = {
 };
 
 /** A stand-in for GitHub: records every request, answers as GitHub does. */
-function standInGitHub({ tarball = githubTarball(LIBRARY, { commit: COMMIT }), app = null, status = {} } = {}) {
+function standInGitHub({ tarball = githubTarball(LIBRARY, { commit: COMMIT }), app = null, status = {}, tags = [], tarballs = {} } = {}) {
   const calls = [];
   const json = (body, init = {}) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" }, ...init });
   const fetch = async (url, init = {}) => {
@@ -47,13 +47,21 @@ function standInGitHub({ tarball = githubTarball(LIBRARY, { commit: COMMIT }), a
     const headers = Object.fromEntries(Object.entries(init.headers || {}).map(([k, v]) => [k.toLowerCase(), v]));
     calls.push({ host: u.host, path: u.pathname, method: init.method || "GET", headers, body: init.body ? JSON.parse(init.body) : undefined, redirect: init.redirect });
     if (status[u.pathname]) return new Response("{}", { status: status[u.pathname] });
-    if (u.host === "codeload.github.com") return new Response(tarball, { status: 200 });
+    if (u.host === "codeload.github.com") {
+      const at = u.pathname.split("/").pop();
+      return new Response(tarballs[at] || tarball, { status: 200 });
+    }
+    // Lightweight tags as GitHub lists them; none unless a test gives some.
+    if (u.pathname === "/repos/acme/library/git/matching-refs/tags") {
+      return json(tags.map(t => ({ ref: `refs/tags/${t.name}`, object: { sha: t.commit, type: "commit" } })));
+    }
     if (u.pathname === "/repos/acme/library/installation") return json({ id: 42 });
     if (u.pathname === "/app/installations/42/access_tokens") return json({ token: "ghs_InstallationStandIn", expires_at: "2026-10-15T20:00:00Z" }, { status: 201 });
     if (u.pathname === "/repos/acme/library") return json({ default_branch: "main" });
     if (u.pathname.startsWith("/repos/acme/library/commits/")) return new Response(`${COMMIT}\n`, { status: 200 });
-    if (u.pathname === `/repos/acme/library/tarball/${COMMIT}`) {
-      return new Response(null, { status: 302, headers: { location: `https://codeload.github.com/acme/library/legacy.tar.gz/${COMMIT}?token=SHORTLIVED` } });
+    const asked = /^\/repos\/acme\/library\/tarball\/([0-9a-f]{40})$/.exec(u.pathname)?.[1];
+    if (asked === COMMIT || tarballs[asked]) {
+      return new Response(null, { status: 302, headers: { location: `https://codeload.github.com/acme/library/legacy.tar.gz/${asked}?token=SHORTLIVED` } });
     }
     return new Response("{}", { status: 404 });
   };
@@ -83,8 +91,10 @@ test("with a read-only token: the commit is pinned, and the token goes to GitHub
       "api.github.com/repos/acme/library",
       "api.github.com/repos/acme/library/commits/main",
       `api.github.com/repos/acme/library/tarball/${COMMIT}`,
-      `codeload.github.com/acme/library/legacy.tar.gz/${COMMIT}`
+      `codeload.github.com/acme/library/legacy.tar.gz/${COMMIT}`,
+      "api.github.com/repos/acme/library/git/matching-refs/tags"
     ]);
+    assert.equal(snapshot.tagged, false, "a library that tags none of its modules is read at one commit");
     for (const c of gh.calls.filter(c => c.host === "api.github.com")) assert.equal(c.headers.authorization, `Bearer ${TOKEN}`);
     const download = gh.calls.find(c => c.host === "codeload.github.com");
     assert.equal(download.headers.authorization, undefined, "the download carries its own permission, never the token");
@@ -326,4 +336,28 @@ test("the archive is downloaded only from GitHub's download host", async () => {
     ? new Response(null, { status: 302, headers: { location: "https://gist.githubusercontent.com/x.tgz" } })
     : standInGitHub().fetch(url, init);
   await assert.rejects(readLibrary(target, { credential: { kind: "token", token: TOKEN }, fetch: other }), /download link is not GitHub's/);
+});
+
+test("each released module is read at the commit its newest release points to; a pre-release is not a release", async () => {
+  const OLD = "1".repeat(40);
+  const tags = [
+    { name: "db/v1.0.0", commit: OLD },
+    { name: "db/v1.2.0", commit: OLD },
+    { name: "db/v1.10.0-rc1", commit: COMMIT },
+    { name: "v3.0.0", commit: COMMIT }
+  ];
+  const old = githubTarball({ "modules/db/main.tf": 'resource "x" "y" {\n  name = var.name\n}\n', "modules/db/variables.tf": 'variable "name" {\n  type = string\n}\nvariable "released" {\n  type = string\n}\n' }, { commit: OLD });
+  const gh = standInGitHub({ tags, tarballs: { [OLD]: old } });
+  const snapshot = await readLibrary(target, { credential: { kind: "token", token: TOKEN }, fetch: gh.fetch });
+  try {
+    assert.equal(snapshot.commit, COMMIT, "the library is still read where its branch is");
+    assert.equal(snapshot.tagged, true);
+    assert.deepEqual(snapshot.releases["modules/db"], { version: "1.2.0", tag: "db/v1.2.0", commit: OLD });
+    const vars = fs.readFileSync(path.join(snapshot.dir, "modules/db/variables.tf"), "utf8");
+    assert.match(vars, /variable "released"/, "the module's files are its release's");
+    assert.ok(!fs.existsSync(path.join(snapshot.dir, "modules/db/README.md")), "nothing of the branch's copy is left beside them");
+    assert.ok(fs.existsSync(path.join(snapshot.dir, ".github/workflows/app-build.yml")), "the rest of the library is the branch's");
+  } finally {
+    snapshot.remove();
+  }
 });

@@ -49,9 +49,23 @@ function whatWasCreatedFromModule(record) {
   }
   lines.push(
     "",
-    `All of it was built from your organization's own module, \`${t.module?.source || "its module"}\` in ${t.module?.repo || "its platform library"}${t.module?.commit ? ` at ${t.module.commit.slice(0, 12)}` : ""}, as one environment, \`${record.stackName}\`, in ${region()}. Tearing it down removes everything above and nothing else.`
+    ...versionChangeLines(t.module?.versionChange),
+    `All of it was built from your organization's own module, \`${t.module?.source || "its module"}\` in ${t.module?.repo || "its platform library"}${t.module?.version ? `, version ${t.module.version}` : ""}${t.module?.commit ? ` at ${t.module.commit.slice(0, 12)}` : ""}, as one environment, \`${record.stackName}\`, in ${region()}. Tearing it down removes everything above and nothing else.`
   );
   return lines.join("\n");
+}
+
+/**
+ * A newer release of the module than the environment had (api/executor/terraform/
+ * versions.js): which, and what its changelog says changed, in the library's words.
+ */
+function versionChangeLines(change) {
+  if (!change?.from || !change?.to) return [];
+  return [
+    `This deploy moved your environment from version ${change.from} of your organization's module to ${change.to}.${change.changes?.length ? " Its changelog says:" : " Its changelog says nothing about the change."}`,
+    ...(change.changes || []).map(c => `- ${c}`),
+    ""
+  ];
 }
 
 /** What the developer now has, named in their terms with the AWS name in brackets. */
