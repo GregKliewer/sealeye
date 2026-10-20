@@ -3850,6 +3850,12 @@ showed the same thing on its bucket: the bucket's `policy` reads back what the m
 own `aws_s3_bucket_policy` set, and is left out when it is that policy; a policy changed
 by hand still shows, as a change to the bucket policy part itself.
 
+The first connected build (Oct 20, 2026, the orders app and its table) showed the same
+thing the other way round: the table's access policy, made by the table's module and
+attached to the app's role by the root, read back `attachment_count` 1. So a policy's
+count is left out when it equals the environment's own attachments of that policy, read
+from the same state; a policy that something else attached as well is still a change.
+
 ## A tear-down carries on in the background
 
 Sat Oct 17, 2026. Greg: tear-downs take longer now that environments are built from an
@@ -4030,3 +4036,32 @@ the name was not typed, as before, and also when it was typed and there is data 
 since what it holds is only known once the record is read. A script with no terminal
 has the words and goes on, as it typed the name; an environment that holds nothing is
 torn down on a typed name without a question, as before.
+## The eval plans against what the server builds
+
+Tue Oct 20, 2026 (Greg chose 2 of 2). The first sample app that uses a module beside the
+one that runs it, `apps/orders-api`, keeps orders in a table whose name arrives in
+`ORDERS_TABLE`, and its eval case expects `http_api` and `document_table` connected
+under that setting. Grading it needed a catalog that records what a module offers and
+accepts, which Juniper's catalog 3 (Oct 16) predates.
+
+- **The snapshot is catalog 8** (`test/fixtures/juniper-catalog-8.json`), Juniper's live
+  catalog on the server on Oct 20, discovered after the library tagged its releases: it
+  carries each module's version, what it runs, offers and accepts. Catalog 3 stays for
+  the tests that read it for other things.
+- **The real executor decides, with placeholder platform values.** `treatAsBuilt` forced
+  every Terraform module buildable in the eval's process, so the eval's interview heard
+  of `postgres`, `secrets` and `container_service`, which the server never offers.
+  Instead the eval gives its organization a placeholder value for every required input
+  the catalog's modules want (`seedPlatformValues` in `scripts/eval-interview.js`, over
+  `platformWanted`), as the platform team has on the server, and the executor builds what
+  it builds there: the modules that run an app and the modules an app uses that offer it
+  access. A database still waits on the network (Q23), and the payment events app drafts
+  with its five needs, as it would on the pilot. Greg chose this over keeping
+  `treatAsBuilt`, so the eval's prompt is the server's. Optional inputs get no value:
+  those come from the plan and the wiring.
+- **A fixture may say what the plan connects.** `connect` names each value a module the
+  app uses gives and the setting the app reads it from; `notConnect` names values the
+  app does not read. The grader compares the plan's wiring across its enabled modules,
+  says what was not connected or should not be, and records `connect_correct` beside
+  `modules_correct`. An app's fixture against the starter, where nothing connects, grades
+  none of it; there the orders app drafts with a document database need.

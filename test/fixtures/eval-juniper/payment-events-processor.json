@@ -39,17 +39,12 @@
   ],
   "expected": {
     "status": "drafted",
-    "modules": [
-      "container_service",
-      "postgres",
-      "secrets"
-    ],
-    "notModules": [
-      "http_api",
-      "postgres_cluster"
-    ],
     "needs": [
-      "event_stream"
+      "continuous_service",
+      "event_stream",
+      "internal_only",
+      "relational_database",
+      "runtime_secrets"
     ]
   }
 }

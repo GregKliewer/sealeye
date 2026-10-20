@@ -178,12 +178,17 @@ export function driftedResources(messages = []) {
  * - a bucket's `policy` read back from the environment's own bucket policy part
  *   (`aws_s3_bucket_policy`). A policy changed by hand still shows, as a change to that
  *   part.
+ * - a policy's `attachment_count`, when it counts the environment's own attachments of
+ *   that policy (the first connected build, Oct 20, 2026: a table's access policy, made
+ *   and then attached to the app's role by the same environment, read back as attached
+ *   once). An attachment nothing in the environment made still shows.
  * A part with nothing left is not a change.
  */
 export function driftDetail(plan) {
   const empty = v => v == null || v === "" || (Array.isArray(v) && !v.length) || (typeof v === "object" && !Array.isArray(v) && !Object.keys(v).length);
   const same = (x, y) => (empty(x) && empty(y)) || JSON.stringify(x ?? null) === JSON.stringify(y ?? null);
   const attached = attachedPolicies(plan);
+  const attachments = attachmentsOf(attached);
   const bucketPolicies = ownParts(plan, "aws_s3_bucket_policy", v => [v.bucket, v.policy]);
   const sameJson = (x, y) => {
     if (empty(x) || empty(y)) return false;
@@ -195,8 +200,10 @@ export function driftDetail(plan) {
     const rest = v => (Array.isArray(v) ? v : []).filter(arn => !mine.has(arn)).sort();
     return same(rest(b?.managed_policy_arns), rest(a?.managed_policy_arns));
   };
+  const ownAttachments = a => Number(a?.attachment_count) === (attachments.get(a?.arn) || 0);
   const cloudSets = (type, before, after, key) =>
     (type === "aws_apigatewayv2_stage" && key === "deployment_id" && after?.auto_deploy === true) ||
+    (type === "aws_iam_policy" && key === "attachment_count" && ownAttachments(after)) ||
     (type === "aws_iam_role" && key === "managed_policy_arns" && ownPolicies(before, after)) ||
     (type === "aws_s3_bucket" && key === "policy" && empty(before?.policy) && sameJson(after?.policy, bucketPolicies.get(after?.bucket || after?.id)));
   const changed = (type, before, after) => {
@@ -228,6 +235,13 @@ function ownParts(plan, type, pick) {
   };
   walk(plan?.prior_state?.values?.root_module);
   walk(plan?.planned_values?.root_module);
+  return out;
+}
+
+/** How many times the environment attached each policy, by its address, from the roles' attachments. */
+function attachmentsOf(attached) {
+  const out = new Map();
+  for (const arns of attached.values()) for (const arn of arns) out.set(arn, (out.get(arn) || 0) + 1);
   return out;
 }
 
