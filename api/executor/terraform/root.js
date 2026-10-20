@@ -45,7 +45,7 @@ export function stateKeyFor({ org = "default", environment }) {
  * @returns {{ inputs: Record<string, any>, sources: { name: string, source: string, from?: string }[], ignored: string[] }}
  * @throws Error naming what the plan asks that cannot be given
  */
-export function inputsFor({ entry, planModule, name, tags, platform = {}, code = {} }) {
+export function inputsFor({ entry, planModule, name, tags, platform = {}, code = {}, connected = new Set() }) {
   const declared = entry.inputs || {};
   const inputs = {};
   const sources = [];
@@ -68,7 +68,8 @@ export function inputsFor({ entry, planModule, name, tags, platform = {}, code =
   // What the plan asks for itself: an optional input the module takes, with a plain
   // value. seaLeye's own inputs and the platform's are never the plan's to set, so a
   // plan that names one is built with seaLeye's or the platform's (`ignored`).
-  const filled = new Set(Object.keys(inputs));
+  // An input the modules the app uses fill (connectionInputs) is never the plan's either.
+  const filled = new Set([...Object.keys(inputs), ...connected]);
   const own = new Set([...SEALEYE_INPUTS, ...codeInputs(entry)]);
   const ignored = [];
   for (const [input, value] of Object.entries(planModule?.inputs || {})) {
@@ -88,6 +89,40 @@ export function inputsFor({ entry, planModule, name, tags, platform = {}, code =
 }
 
 /**
+ * What the app's module is given of the modules the app uses (DESIGN.md, "Modules are
+ * connected through what the library offers"): each one's access policy in the inputs
+ * that take policies, each secret in the one that takes secrets, and each value the plan
+ * names a setting for in the app's settings, as references OpenTofu resolves. Nothing
+ * here makes a resource: the library's modules made every policy.
+ *
+ * @param {object} appEntry
+ * @param {{ key: string, entry: object, planModule: object }[]} parts
+ * @returns {{ inputs: Record<string, any>, sources: object[], settings: Record<string, string> }}
+ */
+export function connectionInputs(appEntry, parts) {
+  const takes = appEntry?.accepts || {};
+  const policies = [];
+  const secrets = [];
+  const environment = {};
+  const settings = {};
+  for (const { key, entry, planModule } of parts) {
+    const o = entry.offers || {};
+    if (o.access) policies.push(`\${module.${key}.${o.access}}`);
+    for (const secret of o.secrets || []) secrets.push(`\${module.${key}.${secret}}`);
+    for (const [value, setting] of Object.entries(planModule.connect || {})) {
+      environment[setting] = `\${module.${key}.${value}}`;
+      settings[setting] = `${entry.id}.${value}`;
+    }
+  }
+  const inputs = {};
+  const sources = [];
+  if (policies.length && takes.policies) { inputs[takes.policies] = policies; sources.push({ name: takes.policies, source: "the modules your app uses", from: parts.filter(p => p.entry.offers?.access).map(p => p.entry.id).join(", ") }); }
+  if (secrets.length && takes.secrets) { inputs[takes.secrets] = secrets; sources.push({ name: takes.secrets, source: "the modules your app uses", from: parts.filter(p => p.entry.offers?.secrets?.length).map(p => p.entry.id).join(", ") }); }
+  if (Object.keys(environment).length && takes.environment) { inputs[takes.environment] = environment; sources.push({ name: takes.environment, source: "the modules your app uses", from: Object.keys(environment).sort().join(", ") }); }
+  return { inputs, sources, settings };
+}
+
+/**
  * The root module, as the JSON OpenTofu reads.
  *
  * @param {object} p
@@ -97,7 +132,7 @@ export function inputsFor({ entry, planModule, name, tags, platform = {}, code =
  * @param {{ bucket: string, key: string }} p.state
  * @param {Record<string,string>} p.tags  on every resource the provider makes
  */
-export function rootModule({ moduleSource, inputs, outputs, state, tags }) {
+export function rootModule({ moduleSource, inputs, outputs, state, tags, parts = [] }) {
   return {
     terraform: {
       required_version: ">= 1.10.0",
@@ -105,8 +140,16 @@ export function rootModule({ moduleSource, inputs, outputs, state, tags }) {
       backend: { s3: { bucket: state.bucket, key: state.key, region: region(), encrypt: true, use_lockfile: true } }
     },
     provider: { aws: [{ region: region(), default_tags: [{ tags }] }] },
-    module: { app: { source: moduleSource, ...inputs } },
-    output: Object.fromEntries(outputs.map(o => [o, { value: `\${module.app.${o}}` }]))
+    // The app's module is always `app`, so an environment built before modules could be
+    // connected keeps its state's addresses; each module it uses goes by its id.
+    module: { app: { source: moduleSource, ...inputs }, ...Object.fromEntries(parts.map(p => [p.key, { source: p.moduleSource, ...p.inputs }])) },
+    // The app's address and where a site's files go; and what each module the app uses
+    // gives it (a table's name, a bucket's), as <module>__<value>, for the record and
+    // for emptying a bucket before a tear-down. Never a policy or a secret.
+    output: {
+      ...Object.fromEntries(outputs.map(o => [o, { value: `\${module.app.${o}}` }])),
+      ...Object.fromEntries(parts.flatMap(p => (p.entry?.offers?.values || []).map(v => [`${p.key}__${v}`, { value: `\${module.${p.key}.${v}}` }])))
+    }
   };
 }
 
@@ -120,11 +163,15 @@ export function outputsWanted(entry) {
  * Write the root module into `dir`, with the library beside it, and the provider's lock
  * file when the image has one. Returns the file's sha256, for the change record.
  */
-export function writeRoot(dir, { root, libraryDir }) {
+export function writeRoot(dir, { root, libraryDir, libraries = {} }) {
   fs.mkdirSync(dir, { recursive: true });
-  const lib = path.join(dir, "library");
-  fs.rmSync(lib, { recursive: true, force: true });
-  fs.cpSync(libraryDir, lib, { recursive: true });
+  // The app's module's library as `library`; a module the app uses from another release
+  // of it, beside it, by folder name (prepare in index.js).
+  for (const [folder, from] of Object.entries({ library: libraryDir, ...libraries })) {
+    const lib = path.join(dir, folder);
+    fs.rmSync(lib, { recursive: true, force: true });
+    fs.cpSync(from, lib, { recursive: true });
+  }
   const text = `${JSON.stringify(root, null, 2)}\n`;
   fs.writeFileSync(path.join(dir, "main.tf.json"), text);
   if (fs.existsSync(IMAGE_LOCK_FILE)) fs.copyFileSync(IMAGE_LOCK_FILE, path.join(dir, ".terraform.lock.hcl"));

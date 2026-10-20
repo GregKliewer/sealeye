@@ -619,6 +619,36 @@ deploy/server.sh tofu-unlock dep_... --release  # release it
 
 The developer's next deploy, or a tear-down, finishes what the build left.
 
+## Once: versions and connected modules
+
+PHASE4-PLAN Step 9, the second pull request (DESIGN.md, "Each module is built at the
+version its library released" and "Modules are connected through what the library
+offers"). In order, after the pull requests are merged and released:
+
+**1. Tag Juniper's library.** Every module at the commit it was first discovered at, and
+the five that changed at the merge of sealeye-sample-platform#3:
+
+```bash
+cd ~/dev/sealeye-sample-platform && git switch main && git pull
+for m in $(ls modules); do git tag "$m/v1.0.0" 5e63aa5; done
+for m in document-table file-bucket work-queue postgres http-api; do git tag -f "$m/v1.1.0" HEAD; done
+git push origin --tags
+```
+
+**2. The Terraform deploy role again**, the same command as step 2 above: the role now
+makes tables, buckets and queues, their access policies, and attaches those to an app's
+role, and the boundary lets an app use its own environment's table, bucket and queue.
+
+**3. Discover the library again**, then approve and make it live, as in step 4 above.
+`sealeye catalog versions` and the Platform page show each module's version; `sealeye
+platform` says `document_table`, `file_bucket` and `work_queue` are built, and why
+`postgres` is not yet (docs/OPEN-QUESTIONS.md, Q23).
+
+**4. An app that uses a table.** With a Juniper developer's token, in an app whose code
+reads a table's name from its environment: `sealeye run` should enable `http_api` and
+`document_table`, naming the setting; then the URL, `sealeye evidence` (its parts and
+settings) and `sealeye teardown`, which says the table and everything in it go too.
+
 ## Every release
 
 Merge to main, wait for the run on GitHub to go green, then on your Mac, on main and up

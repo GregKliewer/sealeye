@@ -43,7 +43,7 @@ test("a module not checked, one that runs commands, and one that takes no app ar
   const { runs: _r, ...unchecked } = api();
   assert.match(terraformBuilds(unchecked, { names: ["permissions_boundary_arn"] }).why, /not been checked for commands/);
   assert.match(terraformBuilds(api({ runs: ["a provisioner (local-exec)"] }), { names: ["permissions_boundary_arn"] }).why, /would run commands on the platform's server \(a provisioner \(local-exec\)\)/);
-  assert.match(terraformBuilds(api({ delivers: null }), { names: ["permissions_boundary_arn"] }).why, /does not connect modules to each other yet/);
+  assert.match(terraformBuilds(api({ delivers: null }), { names: ["permissions_boundary_arn"] }).why, /offers an app nothing it can connect to/);
   assert.match(terraformBuilds(api({ delivers: { kind: "package", package: "package_path" } }), {}).why, /which input takes the app/);
   assert.match(terraformBuilds({ ...api(), builds_with: "cloudformation" }).why, /not a Terraform module/);
 });
@@ -277,4 +277,53 @@ test("a deploy builds the live catalog's release of the module; a new major vers
   const major = versionMove(had, entry("2.0.0"));
   assert.equal(major.major, true);
   assert.match(majorVersionWords(entry("2.0.0"), major), /new major version of modules\/http-api \(1\.0\.0 to 2\.0\.0\).*Run sealeye run again.*Nothing was deployed\./);
+});
+
+test("how modules connect is read by code: what one offers an app, and what an app's module takes", async () => {
+  const { connectsOf } = await import("../api/discovery/terraform.js");
+  const table = connectsOf({ name: {}, stage: {}, key: {} }, { table_name: {}, table_arn: {}, access_policy_arn: {}, read_only_policy_arn: {} });
+  assert.deepEqual(table, { offers: { access: "access_policy_arn", narrower: ["read_only_policy_arn"], secrets: [], values: ["table_name"] } });
+  const db = connectsOf({ name: {} }, { address: {}, port: {}, password_secret_arn: {} });
+  assert.deepEqual(db.offers, { access: null, narrower: [], secrets: ["password_secret_arn"], values: ["address", "port"] });
+  assert.deepEqual(connectsOf({ package_path: {}, handler: {}, environment: {}, policy_arns: {}, secret_arns: {} }, { url: {}, role_name: {} }), { accepts: { policies: "policy_arns", secrets: "secret_arns", environment: "environment" } });
+  assert.deepEqual(connectsOf({ name: {} }, { secret_arns: {} }), {}, "a map of secrets is not one an app can be given");
+  assert.deepEqual(connectsOf({ name: {} }, { url: {} }), {}, "a module that grants nothing offers nothing");
+});
+
+test("a plan connects what its app uses to exactly one module that runs it, by the settings the code reads", async () => {
+  const { connectionProblems, isPart } = await import("../core/terraform-modules.js");
+  const catalog = { modules: [
+    { id: "api", delivers: { kind: "package" }, accepts: { policies: "policy_arns", secrets: "secret_arns", environment: "environment" } },
+    { id: "site", delivers: { kind: "files" } },
+    { id: "table", offers: { access: "access_policy_arn", narrower: [], secrets: [], values: ["table_name"] } },
+    { id: "db", offers: { access: null, narrower: [], secrets: ["password_secret_arn"], values: ["address"] } }
+  ] };
+  assert.equal(isPart(catalog.modules[2]), true);
+  assert.equal(isPart(catalog.modules[0]), false);
+  const words = plan => connectionProblems(plan, catalog).map(p => p.message);
+  assert.deepEqual(words({ modules: [{ id: "api" }] }), [], "nothing to connect");
+  assert.deepEqual(words({ modules: [{ id: "api" }, { id: "table", connect: { table_name: "ORDERS" } }, { id: "db", connect: { address: "DB_HOST" } }] }), []);
+  assert.match(words({ modules: [{ id: "site" }, { id: "table", connect: { table_name: "ORDERS" } }] }).join(" "), /site cannot be given what the app needs to use table: it takes no policies/);
+  assert.match(words({ modules: [{ id: "api" }, { id: "table", connect: { table_name: "orders" } }] })[0], /orders is not a setting's name/);
+  assert.match(words({ modules: [{ id: "api", inputs: { environment: { ORDERS: "x" } } }, { id: "table", connect: { table_name: "ORDERS" } }] })[0], /ORDERS is already a setting the app reads/);
+  assert.match(words({ modules: [{ id: "api", connect: { x: "Y" } }] })[0], /is not a module the app uses, so it connects nothing/);
+  assert.deepEqual(words({ modules: [{ id: "api" }, { id: "table", enabled: false }] }), [], "a module left out connects nothing");
+});
+
+test("the interview hears how to connect modules only from a catalog that has them", async () => {
+  const { interviewPassages } = await import("../core/catalog.js");
+  const doc = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, "fixtures/juniper-catalog-3.json"), "utf8"));
+  const plain = interviewPassages(doc);
+  assert.doesNotMatch(plain.module_guidance, /Connecting modules/, "catalog 3, as discovery first wrote it, connects nothing");
+  for (const m of doc.modules) { m.runs = []; m.outputs = m.outputs || {}; }
+  const http = doc.modules.find(m => m.id === "http_api");
+  http.delivers = { kind: "package", package: "package_path", handler: "handler", address: "url" };
+  http.accepts = { policies: "policy_arns", environment: "environment" };
+  const table = doc.modules.find(m => m.id === "document_table");
+  table.offers = { access: "access_policy_arn", narrower: [], secrets: [], values: ["table_name"] };
+  doc.platform = { names: ["permissions_boundary_arn"] };
+  const connected = interviewPassages(doc);
+  assert.match(connected.module_guidance, /### Connecting modules/);
+  assert.match(connected.module_guidance, /- document_table gives the app \W*table_name/);
+  assert.match(connected.plan_description, /with connect naming the setting the app reads each of its values from/);
 });

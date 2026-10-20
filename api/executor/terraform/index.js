@@ -12,10 +12,10 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { requireSetting, sealeyeHome } from "../../../core/config.js";
-import { moduleEntry } from "../../../core/catalog.js";
+import { firstSentence, moduleEntry } from "../../../core/catalog.js";
 import { moduleName } from "../../../core/names.js";
 import { settingNamesFor } from "../../../core/setting-names.js";
-import { terraformBuilds } from "../../../core/terraform-modules.js";
+import { connectionProblems, isPart, terraformBuilds } from "../../../core/terraform-modules.js";
 import { putDeployment } from "../../store.js";
 import { changesIn, versionBuilt, versionMove } from "./versions.js";
 import { valuesAt } from "../../platform.js";
@@ -24,7 +24,7 @@ import { emptyBucket, fetchArtifact, refreshSite, syncSite } from "../cfn.js";
 import { cleanStage, entryPointOfFolder, sha256File, stage, stagePaths } from "../package.js";
 import { renderReport } from "../report.js";
 import { moduleCode } from "./library.js";
-import { inputsFor, lockedProviders, outputsWanted, rootModule, stateKeyFor, writeRoot } from "./root.js";
+import { connectionInputs, inputsFor, lockedProviders, outputsWanted, rootModule, stateKeyFor, writeRoot } from "./root.js";
 import {
   AWS_PROVIDER_VERSION, TOFU_VERSION, appliedResources, builtParts, changeSummary, driftDetail, driftedResources, firstError,
   homeFor, lockHeld, runTofu, terraformNotReady, terraformProfile
@@ -38,7 +38,12 @@ export const workDirFor = deploymentId => path.join(sealeyeHome(), "tofu", deplo
 /** The words for a state another change holds. */
 const LOCKED = "Another change to this environment holds its lock, so nothing was changed. If nothing else is under way, ask your platform team to release it, then try again.";
 
-/** A Terraform plan's one module, and its catalog entry, or an error in words. */
+/**
+ * A Terraform plan's modules: the one that runs the app (`entry`, `planModule`), and the
+ * modules the app uses, connected to it (`parts`, DESIGN.md, "Modules are connected
+ * through what the library offers"). Null when it uses none; an error in words when it
+ * cannot be built as one environment.
+ */
 export function terraformModuleOf(plan, catalog) {
   const enabled = (plan?.modules || []).filter(m => m && m.enabled !== false);
   const entries = enabled.map(m => ({ planModule: m, entry: moduleEntry(m.id, catalog) }));
@@ -47,10 +52,16 @@ export function terraformModuleOf(plan, catalog) {
   if (tf.length !== enabled.length) {
     throw new Error("this plan uses modules built two different ways, and the platform builds a plan one way, so nothing was built");
   }
-  if (tf.length > 1) {
-    throw new Error("this plan uses more than one module, and the platform does not connect your organization's modules to each other yet, so nothing was built");
+  const apps = tf.filter(e => e.entry.delivers);
+  const parts = tf.filter(e => !e.entry.delivers && isPart(e.entry));
+  if (apps.length + parts.length !== tf.length) {
+    const odd = tf.find(e => !e.entry.delivers && !isPart(e.entry));
+    throw new Error(`this plan uses ${odd.entry.id}, which neither runs the app nor offers it anything to connect to, so nothing was built`);
   }
-  return tf[0];
+  if (apps.length !== 1) {
+    throw new Error(apps.length ? "this plan uses more than one module that runs the app, and an environment has one, so nothing was built" : "this plan uses no module that runs the app, so there is nothing to connect the others to, and nothing was built");
+  }
+  return { ...apps[0], parts };
 }
 
 /** Whether a plan is built by this executor, from the catalog it names. */
@@ -65,8 +76,12 @@ export function builtWithTerraform(plan, catalog) {
 export function checkBuildable(plan, catalog) {
   const found = terraformModuleOf(plan, catalog);
   if (!found) throw new Error("this plan uses no module your organization's library builds");
-  const why = terraformBuilds(found.entry, catalog?.platform).why;
-  if (why) throw new Error(`the platform cannot build ${found.entry.id}: ${why}`);
+  for (const { entry } of [found, ...found.parts]) {
+    const why = terraformBuilds(entry, catalog?.platform).why;
+    if (why) throw new Error(`the platform cannot build ${entry.id}: ${why}`);
+  }
+  const wiring = connectionProblems(plan, catalog);
+  if (wiring.length) throw new Error(`the plan cannot be built as one environment: ${wiring[0].message}`);
   const settings = settingNamesFor(plan);
   if (settings.length) {
     throw new Error(`this plan gives the app settings (${settings.join(", ")}), and settings do not reach an app built from your organization's modules yet, so nothing was built`);
@@ -79,30 +94,55 @@ const EMPTY_ZIP = Buffer.from([0x50, 0x4b, 0x05, 0x06, ...new Array(18).fill(0)]
 
 /**
  * The root module for a record, written to its working folder, ready for `init`: the
- * module at the commit the record was built from, with the inputs it was built with.
+ * app's module and each module the app uses, at the commit the record was built from,
+ * with the inputs they were built with.
  */
-async function prepare(record, catalog, { entry, planModule, inputs = null, codePackage = null, reader } = {}) {
+async function prepare(record, catalog, { entry, planModule, parts = [], inputs = null, codePackage = null, reader } = {}) {
   const dir = workDirFor(record.deploymentId);
   fs.rmSync(dir, { recursive: true, force: true });
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-  const pinned = record.terraform?.module?.commit
-    ? { ...catalog, discovery: { ...(catalog.discovery || {}), library: [{ repo: record.terraform.module.repo, commit: record.terraform.module.commit }] } }
+  const pinnedTo = built => built?.commit
+    ? { ...catalog, discovery: { ...(catalog.discovery || {}), library: [{ repo: built.repo, commit: built.commit }] } }
     : catalog;
   // What was built is torn down with the same code: the record's commit and release,
   // whatever the catalog releases now.
+  const pinnedEntry = (e, built) => built?.commit ? { ...e, commit: built.commit, version: built.version, tag: built.tag, unreleased: false } : e;
   const built = record.terraform?.module;
-  const pinnedEntry = built?.commit ? { ...entry, commit: built.commit, version: built.version, tag: built.tag, unreleased: false } : entry;
-  const code = await moduleCode(pinned, pinnedEntry, { reader });
+  const code = await moduleCode(pinnedTo(built), pinnedEntry(entry, built), { reader });
   const bucket = requireSetting("BUCKET");
   const team = record.teamId || "default";
   const tags = { "sealeye:app": record.app?.name || "", "sealeye:team": team, "sealeye:environment": record.stackName };
+  const platform = valuesAt(record.orgId || "default");
+
+  // Each module the app uses, as the record has it when it was built before.
+  const builtParts = new Map((record.terraform?.parts || []).map(p => [p.id, p]));
+  const libraries = {};
+  const readyParts = [];
+  for (const part of parts) {
+    const was = builtParts.get(part.entry.id);
+    const partCode = await moduleCode(pinnedTo(was), pinnedEntry(part.entry, was), { reader });
+    const folder = partCode.library.commit === code.library.commit ? "library" : `library-${partCode.library.commit.slice(0, 12)}`;
+    if (folder !== "library") libraries[folder] = partCode.libraryDir;
+    let given = was?.inputValues;
+    let sources = was?.inputs || [];
+    let ignored = was?.ignoredInputs || [];
+    if (!given) ({ inputs: given, sources, ignored } = inputsFor({ entry: part.entry, planModule: part.planModule, name: record.resourceName, tags, platform }));
+    readyParts.push({
+      key: part.entry.id, entry: part.entry, planModule: part.planModule, moduleSource: `./${folder}/${partCode.source}`,
+      inputs: given, sources, ignored, library: partCode.library, source: partCode.source, moduleDir: path.join(partCode.libraryDir, partCode.source)
+    });
+  }
+  const connected = connectionInputs(entry, readyParts);
+
   let given = inputs;
   let sources = record.terraform?.inputs || [];
   let ignored = record.terraform?.ignoredInputs || [];
   if (!given) {
     ({ inputs: given, sources, ignored } = inputsFor({
-      entry, planModule, name: record.resourceName, tags, platform: valuesAt(record.orgId || "default"), code: { package: codePackage }
+      entry, planModule, name: record.resourceName, tags, platform, code: { package: codePackage }, connected: new Set(Object.keys(connected.inputs))
     }));
+    given = { ...given, ...connected.inputs };
+    sources = [...sources, ...connected.sources];
   } else if (entry.delivers?.kind === "package") {
     // A package input names a file in the working folder, which a later run has to have.
     const file = path.join(dir, "package.zip");
@@ -110,9 +150,12 @@ async function prepare(record, catalog, { entry, planModule, inputs = null, code
     given = { ...given, [entry.delivers.package]: file };
   }
   const state = { bucket, key: record.terraform?.stateKey || stateKeyFor({ org: record.orgId || "default", environment: record.stackName }) };
-  const root = rootModule({ moduleSource: `./library/${code.source}`, inputs: given, outputs: outputsWanted(entry), state, tags });
-  const rootSha256 = writeRoot(dir, { root, libraryDir: code.libraryDir });
-  return { dir, home: homeFor(dir), inputs: given, sources, ignored, state, rootSha256, library: code.library, source: code.source, moduleDir: path.join(code.libraryDir, code.source) };
+  const root = rootModule({ moduleSource: `./library/${code.source}`, inputs: given, outputs: outputsWanted(entry), state, tags, parts: readyParts });
+  const rootSha256 = writeRoot(dir, { root, libraryDir: code.libraryDir, libraries });
+  return {
+    dir, home: homeFor(dir), inputs: given, sources, ignored, state, rootSha256, library: code.library, source: code.source,
+    moduleDir: path.join(code.libraryDir, code.source), parts: readyParts, settings: connected.settings
+  };
 }
 
 /** `tofu init`, with the image's lock file when it has one, which init may not change. */
@@ -163,7 +206,7 @@ export async function startTerraformDeployment(record, plan, appPath, catalog, o
     set("packaging", { step: "Reading your plan and your organization's module" });
     const notReady = terraformNotReady();
     if (notReady) throw new Error(notReady);
-    const { entry, planModule } = checkBuildable(plan, catalog);
+    const { entry, planModule, parts } = checkBuildable(plan, catalog);
     const again = record.source === "again";
     record.backend = "terraform";
     record.kind = entry.delivers.kind === "files" ? "static" : "api";
@@ -194,7 +237,7 @@ export async function startTerraformDeployment(record, plan, appPath, catalog, o
     }
 
     step("Fetching your organization's module");
-    const ready = await prepare(record, catalog, { entry, planModule, codePackage, reader: options.reader });
+    const ready = await prepare(record, catalog, { entry, planModule, parts, codePackage, reader: options.reader });
     record.terraform = {
       tofuVersion: TOFU_VERSION,
       providerVersion: AWS_PROVIDER_VERSION,
@@ -206,6 +249,18 @@ export async function startTerraformDeployment(record, plan, appPath, catalog, o
       inputs: ready.sources,
       inputValues: Object.fromEntries(Object.entries(ready.inputs).filter(([k]) => k !== entry.delivers?.package)),
       ignoredInputs: ready.ignored,
+      // Each module the app uses, built beside it: its release, its inputs as the app's
+      // are kept, and the setting each of its values reaches the app under, by name.
+      ...(ready.parts.length ? {
+        parts: ready.parts.map(p => ({
+          id: p.entry.id, source: p.source, repo: p.library.repo, commit: p.library.commit,
+          // The catalog's own words for it, what the report and a tear-down name it by.
+          line: firstSentence(p.entry.short_line || p.entry.line || "") || null,
+          ...(p.library.version ? { version: p.library.version, tag: p.library.tag } : {}),
+          inputs: p.sources, inputValues: p.inputs, ignoredInputs: p.ignored
+        })),
+        settings: ready.settings
+      } : {}),
       phase: null
     };
     // A newer release than the environment had: which, and what its changelog says
@@ -274,7 +329,13 @@ function builtModuleOf(record, catalog) {
   const entry = id ? moduleEntry(id, catalog) : null;
   const planModule = (record.plan?.modules || []).find(m => m?.id === id) || { id, inputs: {} };
   if (!entry) throw new Error(`the catalog this environment was built from no longer has ${id || "its module"}, so the platform cannot read it`);
-  return { entry, planModule };
+  // Each module the app uses, as the record has it: its folder and release are enough to
+  // read it again, whatever the catalog says of it now.
+  const parts = (record.terraform?.parts || []).map(p => ({
+    entry: moduleEntry(p.id, catalog) || { id: p.id, source: p.source, builds_with: "terraform", inputs: {} },
+    planModule: (record.plan?.modules || []).find(m => m?.id === p.id) || { id: p.id, inputs: {} }
+  }));
+  return { entry, planModule, parts };
 }
 
 /**
@@ -297,8 +358,8 @@ export async function startTerraformDestroy(record, catalog, options = {}) {
     if (!record.terraform?.stateKey || !record.terraform?.inputValues) return done("Nothing was ever built for this deployment.");
     const notReady = terraformNotReady();
     if (notReady) return fail(notReady.replace("nothing was built", "nothing was torn down"));
-    const { entry, planModule } = builtModuleOf(record, catalog);
-    const ready = await prepare(record, catalog, { entry, planModule, inputs: record.terraform.inputValues, reader: options.reader });
+    const { entry, planModule, parts } = builtModuleOf(record, catalog);
+    const ready = await prepare(record, catalog, { entry, planModule, parts, inputs: record.terraform.inputValues, reader: options.reader });
     const inited = await init(ready.dir, ready.home);
     if (!inited.ok) return fail(firstError(inited));
 
@@ -308,6 +369,15 @@ export async function startTerraformDestroy(record, catalog, options = {}) {
       set("destroying", { step: "Emptying your site's storage" });
       const emptied = await emptyBucket(bucket, { profile: terraformProfile() });
       if (!emptied.ok && !/NoSuchBucket/.test(emptied.stderr)) return fail(`could not empty your site's storage: ${emptied.stderr.trim() || `exit ${emptied.code}`}`);
+    }
+
+    // And the files in a bucket a module the app uses made (file-bucket's bucket_name).
+    for (const part of record.terraform.parts || []) {
+      const name = Object.entries(record.moduleOutputs || {}).find(([k, v]) => k.startsWith(`${part.id}__`) && /bucket/.test(k) && typeof v === "string")?.[1];
+      if (!name) continue;
+      set("destroying", { step: "Emptying the storage your app kept its files in" });
+      const emptied = await emptyBucket(name, { profile: terraformProfile() });
+      if (!emptied.ok && !/NoSuchBucket/.test(emptied.stderr)) return fail(`could not empty the storage your app kept its files in: ${emptied.stderr.trim() || `exit ${emptied.code}`}`);
     }
 
     set("destroying", { step: "Removing everything your environment is made of" });
@@ -338,8 +408,8 @@ export async function checkTerraformNow(record, catalog, options = {}) {
   const scratch = { ...record, deploymentId: `${record.deploymentId}-check` };
   try {
     if (!record.terraform?.inputValues) return { ok: false, error: "nothing was built" };
-    const { entry, planModule } = builtModuleOf(record, catalog);
-    const ready = await prepare(scratch, catalog, { entry, planModule, inputs: record.terraform.inputValues, reader: options.reader });
+    const { entry, planModule, parts } = builtModuleOf(record, catalog);
+    const ready = await prepare(scratch, catalog, { entry, planModule, parts, inputs: record.terraform.inputValues, reader: options.reader });
     const inited = await init(ready.dir, ready.home);
     if (!inited.ok) return { ok: false, error: firstError(inited) };
     const listed = await runTofu(["state", "list", "-no-color"], { cwd: ready.dir, home: ready.home });

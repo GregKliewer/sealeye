@@ -11,7 +11,7 @@
 // names only the four modules the executor deploys, and everything else the app turns
 // out to need is recorded as a NEED: a sentence about the app, with the code that
 // shows it. A plan carrying needs is a draft.
-import { terraformBuilds } from "./terraform-modules.js";
+import { acceptsOf, terraformBuilds } from "./terraform-modules.js";
 
 /**
  * The four modules seaLeye's own executor deploys, from templates/: the starter
@@ -34,7 +34,14 @@ export const MODULE_IDS = [
  */
 export const EXECUTORS = {
   cloudformation: MODULE_IDS,
-  terraform: (entry, catalog) => terraformBuilds(entry, catalog?.platform).builds
+  // A module an app uses is built only where an app module the platform builds can be
+  // connected to it (core/terraform-modules.js).
+  terraform: (entry, catalog) => {
+    const built = terraformBuilds(entry, catalog?.platform);
+    if (!built.builds || !built.part) return built.builds;
+    return (catalog?.modules || []).some(m => m !== entry && m?.builds_with === "terraform" && m?.availability === "available" &&
+      m.delivers?.kind === "package" && acceptsOf(m) && terraformBuilds(m, catalog?.platform).builds);
+  }
 };
 
 /** The catalog a plan names when it was written against seaLeye's own four modules. */
@@ -42,6 +49,16 @@ export const STARTER_VERSION = "starter";
 
 /** The contract this version writes and checks. Older plans are upgraded to it first. */
 export const PLAN_VERSION = "0.5";
+/**
+ * 0.5 with modules connected to each other (PHASE4-PLAN Step 9; DESIGN.md, "Modules are
+ * connected through what the library offers"): a module the app uses says, in `connect`,
+ * the setting each value it offers reaches the app under. A plan is stamped 0.6 only when
+ * it connects something; 0.5 plans are read as they are.
+ */
+export const CONNECTED_PLAN_VERSION = "0.6";
+
+/** A setting's name as an app reads it from its environment. */
+export const SETTING_NAME = /^[A-Z][A-Z0-9_]{0,63}$/;
 
 /**
  * The known kinds of need, so the same need is described the same way every run. They
@@ -205,8 +222,8 @@ export const isDrafted = plan => (plan?.needs || []).length > 0;
  * (those the catalog marks buildable and the platform has an executor for), its need
  * kinds the known needs. core/catalog.js's schemaFor builds it from a catalog document.
  */
-export function contractSchema({ moduleIds = MODULE_IDS, needKinds = NEED_KINDS } = {}) {
-  return contractShape({ versions: [PLAN_VERSION], moduleIds: [...moduleIds], needKinds: [...needKinds], catalogField: true });
+export function contractSchema({ moduleIds = MODULE_IDS, needKinds = NEED_KINDS, connects = false } = {}) {
+  return contractShape({ versions: connects ? [PLAN_VERSION, CONNECTED_PLAN_VERSION] : [PLAN_VERSION], moduleIds: [...moduleIds], needKinds: [...needKinds], catalogField: true, connects });
 }
 
 /** The contract against the starter catalog: seaLeye's own four modules. */
@@ -218,8 +235,8 @@ export const planSchema = contractSchema();
  * which catalog: the platform stamps the plan 0.5 with the interview's own. For the
  * starter catalog it is planSchema04 exactly.
  */
-export function interviewContract({ moduleIds = MODULE_IDS, needKinds = NEED_KINDS } = {}) {
-  return contractShape({ versions: ["0.2", "0.3", "0.4"], moduleIds: [...moduleIds], needKinds: [...needKinds], catalogField: false });
+export function interviewContract({ moduleIds = MODULE_IDS, needKinds = NEED_KINDS, connects = false } = {}) {
+  return contractShape({ versions: ["0.2", "0.3", "0.4"], moduleIds: [...moduleIds], needKinds: [...needKinds], catalogField: false, connects });
 }
 
 /**
@@ -235,7 +252,7 @@ export const planSchema04 = contractShape({
   catalogField: false
 });
 
-function contractShape({ versions, moduleIds, needKinds, catalogField }) {
+function contractShape({ versions, moduleIds, needKinds, catalogField, connects = false }) {
   // A catalog the platform builds nothing from yet: a plan names no module, and is the
   // record of what the app needs, drafted. Without this no plan could be written against
   // it, and every interview failed on the contract (Oct 17, 2026, Juniper's catalog before
@@ -274,7 +291,15 @@ function contractShape({ versions, moduleIds, needKinds, catalogField }) {
           properties: {
             id: moduleIds.length ? { type: "string", enum: moduleIds } : { type: "string", not: {} },
             enabled: { type: "boolean", default: true },
-            inputs: { type: "object", additionalProperties: true }
+            inputs: { type: "object", additionalProperties: true },
+            // Only for a catalog with modules an app uses: each value such a module offers
+            // (a table's name, a queue's address) by the setting the app reads it from.
+            ...(connects ? {
+              connect: {
+                type: "object",
+                additionalProperties: { type: "string", pattern: SETTING_NAME.source }
+              }
+            } : {})
           }
         }
       },
