@@ -875,6 +875,20 @@ to calling the model directly ("Once: the model gateway", "To switch back"):
 deploy/server.sh gateway-logs
 ```
 
+A release that stops with "no space left on device": the server's disk is full, and
+the release before it is still running, unchanged. See what fills it, remove the images
+no container uses, then release again:
+
+```bash
+deploy/server.sh disk
+deploy/server.sh disk --prune
+deploy/release.sh
+```
+
+Each release now removes the images nothing uses, before it pulls and after it
+switches, so this should not come back; a disk that still fills is the database, the
+API's home or the logs, and `deploy/server.sh disk` says which.
+
 Or open a shell on the server, with no SSH key needed:
 
 ```bash

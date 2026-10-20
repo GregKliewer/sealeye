@@ -89,6 +89,12 @@ systemctl enable --now sealeye-gateway-prune.timer >/dev/null
 # Compose reads .env, so a reboot or a later `docker compose` keeps the same image.
 echo "SEALEYE_IMAGE=${REPOSITORY}:${TAG}" > .env
 
+# Room for the new image first: every image no container is using goes, the running
+# ones stay. A release's image is tagged (main-<commit>), so `prune -f`, which removes
+# only untagged ones, never removed any, and twenty releases filled the disk (Oct 20,
+# 2026: "no space left on device" mid-pull, the old release still running).
+docker image prune -af >/dev/null
+docker builder prune -af >/dev/null 2>&1 || true
 aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "${REPOSITORY%%/*}" >/dev/null
 docker compose pull --quiet
 # The gateway's settings in this release, checked before anything restarts.
@@ -108,7 +114,8 @@ fi
 # The gateway reads its settings file and its keys when it starts, so a release that
 # changes either restarts it; its spending stays.
 bash ./gateway.sh restart-if-changed
-docker image prune -f >/dev/null
+# And the release just replaced, now that nothing uses it.
+docker image prune -af >/dev/null
 
 API_UP=""
 for _ in $(seq 1 36); do

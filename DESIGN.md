@@ -3995,3 +3995,14 @@ W3b, W4, W5, W6, W7).
 - The report and the evidence list each part with its release and the settings it gave
   the app, by name. `scripts/tofu-check.js` has real OpenTofu validate and plan a root
   with a table connected to a function.
+    
+## A release removes the images nothing uses
+
+Oct 20, 2026. A release stopped mid-pull with "no space left on device": the server's
+20 GB disk was full of earlier releases' images. Each release ran `docker image prune
+-f`, which removes only untagged images, and a release's image is tagged
+(`main-<commit>`), so none ever went. `deploy/update.sh` now runs `docker image prune
+-af` before it pulls, so there is room, and after it switches, so the release it
+replaced goes: an image a container uses, running or stopped, is never removed, so the
+running release and the database's, the gateway's and Caddy's stay. `deploy/server.sh
+disk` shows what fills the disk, and `--prune` does the same removal by hand.
