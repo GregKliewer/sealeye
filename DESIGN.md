@@ -4024,6 +4024,18 @@ beside a module that runs the app and takes what it offers, with a setting for e
 seaLeye can change (a database, reached over the private network, Q23) says that first,
 before the platform values it also lacks: setting them would build nothing yet.
 
+## A tear-down that deletes data is asked about after it says so
+
+Oct 20, 2026, Greg, from the first connected build's tear-down. The command printed
+"This also deletes a table ..., and everything in it" after "Tear down orders-api?
+[y/N]" was answered, and with the name typed there was no question at all, so the words
+could change nothing. The portal already shows them inside the dialog, before the name
+is typed to confirm. Now the command reads the record first, says what the environment
+holds, and then asks "Tear down orders-api, and everything it holds? [y/N]": always when
+the name was not typed, as before, and also when it was typed and there is data to name,
+since what it holds is only known once the record is read. A script with no terminal
+has the words and goes on, as it typed the name; an environment that holds nothing is
+torn down on a typed name without a question, as before.
 ## The eval plans against what the server builds
 
 Tue Oct 20, 2026 (Greg chose 2 of 2). The first sample app that uses a module beside the

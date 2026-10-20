@@ -1348,11 +1348,32 @@ async function main() {
     }
     const target = nameOrHere(`${product.command} teardown <app | deploymentId>`);
     if (!target) return;
-    if (!typed) {
+
+    // Typing the app name is how a developer thinks about what they are deleting. A
+    // deployment id still works, and still means exactly the record it names.
+    const resolved = await resolveTarget({ apiBaseUrl, target });
+    if (!resolved) return;
+
+    const { deploymentId, label } = resolved;
+
+    // What it deletes that holds the app's data, said before the question, so the
+    // answer can take it into account. The record says what; a record that could not be
+    // read names nothing, and the tear-down is still asked about.
+    let holdsData = [];
+    try {
+      holdsData = teardownDataWords(await getDeployment({ apiBaseUrl, deploymentId }));
+    } catch {}
+    for (const line of holdsData) console.log(c.prompt(line));
+
+    // A name not typed is asked about first. A name typed is asked about too when the
+    // environment holds data, since what it holds is only known once the record is read
+    // (Greg, Oct 20, 2026): the question names it. A script with no terminal has the
+    // words and goes on, as it typed the name.
+    if (!typed || (holdsData.length && process.stdin.isTTY && !jsonOut)) {
       const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
       let go;
       try {
-        go = await askLine(rl, `Tear down ${target}? [y/N]`);
+        go = await askLine(rl, `Tear down ${target}${holdsData.length ? ", and everything it holds" : ""}? [y/N]`);
       } finally {
         rl.close();
       }
@@ -1362,17 +1383,6 @@ async function main() {
       }
     }
 
-    // Typing the app name is how a developer thinks about what they are deleting. A
-    // deployment id still works, and still means exactly the record it names.
-    const resolved = await resolveTarget({ apiBaseUrl, target });
-    if (!resolved) return;
-
-    const { deploymentId, label } = resolved;
-
-    // What it deletes that holds the app's data, said before it is asked for.
-    try {
-      for (const line of teardownDataWords(await getDeployment({ apiBaseUrl, deploymentId }))) console.log(c.prompt(line));
-    } catch {}
     say(`Asking seaLeye.run to tear down ${label}`);
     const started = await refusedInWords(() => destroyDeployment({ apiBaseUrl, deploymentId }));
     if (!started) return;
