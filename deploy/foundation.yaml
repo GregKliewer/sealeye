@@ -6,10 +6,13 @@ Description: >-
   platform-sealeye-foundation in the account its environments live in, then set each
   output as one of the organization's platform values (deploy/README.md, "The Terraform
   executor"). A Virtual Private Cloud (VPC) with two private subnets in two data
-  centres, subnet groups for databases and caches, security groups for each, and a topic
-  for alarms. No NAT gateway and no endpoints, so it costs nothing while nothing is built
-  in it: a module that needs to reach the internet from inside it (a container pulling
-  its image) waits until one is added.
+  centres, subnet groups for databases and caches, security groups for each, a topic
+  for alarms, and the free private endpoints for tables and buckets, so an app inside the
+  network still reaches its table (Q23; Greg, Oct 20, 2026: private endpoints, never a
+  NAT gateway). No NAT gateway and no paid endpoint, so it costs nothing while nothing
+  is built in it; the paid endpoints are platform-sealeye-endpoints (endpoints.yaml),
+  which park removes. A module that needs to reach the internet from inside it (a
+  container pulling its image) waits until a way out is added.
 
 Parameters:
   CidrBlock:
@@ -44,6 +47,44 @@ Resources:
       CidrBlock: !Select [1, !Cidr [!Ref CidrBlock, 4, 12]]
       MapPublicIpOnLaunch: false
       Tags: [{ Key: Name, Value: platform-sealeye-private-b }]
+
+  # One route table for the private subnets, so the free endpoints below have a table to
+  # put their routes in. Nothing leaves the network through it.
+  PrivateRoutes:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Network
+      Tags: [{ Key: Name, Value: platform-sealeye-private }]
+
+  PrivateRoutesA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateA
+      RouteTableId: !Ref PrivateRoutes
+
+  PrivateRoutesB:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateB
+      RouteTableId: !Ref PrivateRoutes
+
+  # Free: an app inside the network reaches its table and bucket through these, and
+  # the state and packages the platform keeps in its bucket.
+  TableEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref Network
+      VpcEndpointType: Gateway
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.dynamodb"
+      RouteTableIds: [!Ref PrivateRoutes]
+
+  BucketEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref Network
+      VpcEndpointType: Gateway
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.s3"
+      RouteTableIds: [!Ref PrivateRoutes]
 
   DatabaseSubnets:
     Type: AWS::RDS::DBSubnetGroup
@@ -90,12 +131,23 @@ Resources:
     Properties:
       TopicName: platform-sealeye-alarms
 
+# The exports are what endpoints.yaml reads, so park and unpark can make the paid
+# endpoints with no values typed in.
 Outputs:
   VpcId:
     Description: platform value vpc_id
     Value: !Ref Network
+    Export: { Name: platform-sealeye-foundation-VpcId }
+  CidrBlock:
+    Description: The network's address range, for the endpoints' security group
+    Value: !Ref CidrBlock
+    Export: { Name: platform-sealeye-foundation-CidrBlock }
+  PrivateSubnetA:
+    Description: The first private subnet, where the paid endpoints go
+    Value: !Ref PrivateA
+    Export: { Name: platform-sealeye-foundation-PrivateSubnetA }
   SubnetIds:
-    Description: platform value subnet_ids (a list of two)
+    Description: platform value subnet_ids (a list of two), for apps that join the network
     Value: !Join [" ", [!Ref PrivateA, !Ref PrivateB]]
   DatabaseSubnetGroup:
     Description: platform values postgres.subnet_group_name and postgres_cluster.subnet_group_name
@@ -104,7 +156,7 @@ Outputs:
     Description: platform values cache_valkey.subnet_group_name and cache_redis.subnet_group_name
     Value: !Ref CacheSubnets
   AppsSecurityGroup:
-    Description: platform value security_group_ids, for apps (container_service, internal_entry)
+    Description: platform value security_group_ids, for apps that join the network (http_api beside a database, container_service, internal_entry)
     Value: !Ref AppsGroup
   DatabasesSecurityGroup:
     Description: platform values postgres.security_group_ids and postgres_cluster.security_group_ids

@@ -1,0 +1,35 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  The foundation network's paid endpoints (Q23; Greg, Oct 20, 2026: private endpoints,
+  never a NAT gateway). Deploy as platform-sealeye-endpoints, after
+  platform-sealeye-foundation, whose exports it reads; deploy/server.sh park deletes it
+  and unpark makes it again, so it costs nothing between bursts of work. One endpoint,
+  for the service that keeps secrets, in one data centre: the one-time setup a database
+  module runs inside the network reads the master password through it, once. An app
+  never does. Nothing else inside the network calls out: signing in to a database is a
+  token made from the app's own credentials, and logs are delivered by the platform.
+
+Resources:
+  EndpointsGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: The network's endpoints, reached from inside the network only
+      VpcId: !ImportValue platform-sealeye-foundation-VpcId
+      SecurityGroupIngress:
+        - { IpProtocol: tcp, FromPort: 443, ToPort: 443, CidrIp: !ImportValue platform-sealeye-foundation-CidrBlock }
+      Tags: [{ Key: Name, Value: platform-sealeye-endpoints }]
+
+  SecretsEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !ImportValue platform-sealeye-foundation-VpcId
+      VpcEndpointType: Interface
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.secretsmanager"
+      SubnetIds: [!ImportValue platform-sealeye-foundation-PrivateSubnetA]
+      SecurityGroupIds: [!Ref EndpointsGroup]
+      PrivateDnsEnabled: true
+
+Outputs:
+  SecretsEndpointId:
+    Description: The secrets endpoint
+    Value: !Ref SecretsEndpoint

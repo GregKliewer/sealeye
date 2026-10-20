@@ -5,9 +5,11 @@ Description: >-
   second role beside platform-sealeye-deploy-role, which is unchanged. Deploy it in the
   account the environments live in, as platform-sealeye-terraform-role. It can create
   what the made-up organization's http-api and static-site modules create, and the
-  document-table, file-bucket and work-queue modules an app uses beside them, under the
-  names seaLeye gives them (sealeye-<app>-<hash>, at the dev stage), and read and write
-  their state, and nothing else.
+  document-table, file-bucket, work-queue and postgres modules an app uses beside them
+  (a database with its one-time setup function and the security group of its own that
+  function connects from), under the names seaLeye gives them (sealeye-<app>-<hash>, at
+  the dev stage), and read and write their state, and nothing else. The platform's own
+  security groups (platform-sealeye-*) it can never change.
 
 Parameters:
   ServerRoleArn:
@@ -27,9 +29,12 @@ Parameters:
 
 Resources:
   # The most a function built from an organization's module may do, whatever its own
-  # role says: write its logs, and use the table, bucket and queue of its own
-  # environment, the ones the modules it uses make (sealeye-<app>-<hash>-dev). The
-  # policies that grant it are the library's (access_policy_arn); this only bounds them.
+  # role says: write its logs, join the private network, use the table, bucket and queue
+  # of its own environment, the ones the modules it uses make (sealeye-<app>-<hash>-dev),
+  # and sign in to its database with its own identity. A database's one-time setup
+  # function carries it too, and may read the master password the platform keeps. The
+  # policies that grant any of it are the library's (access_policy_arn); this only
+  # bounds them.
   # Set it as the organization's permissions_boundary_arn platform value (sealeye
   # platform set permissions_boundary_arn <arn>). The role below creates a function's
   # role only with this boundary on it.
@@ -57,6 +62,22 @@ Resources:
           - Effect: Allow
             Action: [sqs:SendMessage, sqs:ReceiveMessage, sqs:DeleteMessage, sqs:ChangeMessageVisibility, sqs:GetQueueAttributes, sqs:GetQueueUrl]
             Resource: !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:sealeye-*-dev"
+          # Joining the private network: the network interfaces the platform makes for a
+          # function there (the role needs them only to make the interfaces).
+          - Effect: Allow
+            Action: [ec2:CreateNetworkInterface, ec2:DescribeNetworkInterfaces, ec2:DeleteNetworkInterface, ec2:DescribeSubnets, ec2:AssignPrivateIpAddresses, ec2:UnassignPrivateIpAddresses]
+            Resource: "*"
+          # Signing in to a database as the user its module made. The ARN names the
+          # database by the id the platform gave it, not its name, so this is bounded by
+          # the library's policy (one database, one user) and not by a name here.
+          - Effect: Allow
+            Action: rds-db:connect
+            Resource: !Sub "arn:aws:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:*/*"
+          # The master password the platform keeps for a database (rds!db-...), read by
+          # the database module's one-time setup function. No app's policy grants it.
+          - Effect: Allow
+            Action: [secretsmanager:GetSecretValue, secretsmanager:DescribeSecret]
+            Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:rds!db-*"
 
   TerraformRole:
     Type: AWS::IAM::Role
@@ -94,9 +115,11 @@ Resources:
                   StringLike:
                     s3:prefix: ["tofu-state/*"]
 
-              # http-api: the function's role, ${name}-${stage}-api, so sealeye-*-dev-api.
+              # http-api: the function's role, ${name}-${stage}-api, so sealeye-*-dev-api;
+              # postgres: its one-time setup function's role, sealeye-*-dev-db-setup.
               # Created only with the boundary above on it; its policies changed only while
-              # it is; only Lambda's basic logging policy attached.
+              # it is; only Lambda's own logging and network policies attached, and the
+              # library's.
               - Sid: FunctionRoles
                 Effect: Allow
                 Action:
@@ -108,32 +131,41 @@ Resources:
                   - iam:ListAttachedRolePolicies
                   - iam:ListInstanceProfilesForRole
                   - iam:ListRoleTags
-                Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/sealeye-*-dev-api"
+                Resource:
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/sealeye-*-dev-api"
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/sealeye-*-dev-db-setup"
               - Sid: FunctionRolesWithinBoundary
                 Effect: Allow
                 Action: [iam:CreateRole, iam:PutRolePermissionsBoundary]
-                Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/sealeye-*-dev-api"
+                Resource:
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/sealeye-*-dev-api"
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/sealeye-*-dev-db-setup"
                 Condition:
                   ArnEquals:
                     iam:PermissionsBoundary: !Ref FunctionBoundary
-              # Lambda's basic logging policy, and the policies the modules an app uses
-              # make for it (access_policy_arn, under its environment's name). The
-              # boundary above bounds what any of them can grant.
+              # Lambda's basic logging and network policies, and the policies the modules
+              # an app uses make for it (access_policy_arn, under its environment's name).
+              # The boundary above bounds what any of them can grant.
               - Sid: FunctionRolePolicy
                 Effect: Allow
                 Action: [iam:AttachRolePolicy, iam:DetachRolePolicy]
-                Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/sealeye-*-dev-api"
+                Resource:
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/sealeye-*-dev-api"
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/sealeye-*-dev-db-setup"
                 Condition:
                   ArnLike:
                     iam:PolicyARN:
                       - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+                      - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
                       - !Sub "arn:aws:iam::${AWS::AccountId}:policy/sealeye-*-dev-*"
               # The secrets an app may read, as the role's own policy (http-api's
-              # secret_arns).
+              # secret_arns), and the master password the setup function reads once.
               - Sid: FunctionRoleOwnPolicy
                 Effect: Allow
                 Action: [iam:PutRolePolicy, iam:DeleteRolePolicy, iam:GetRolePolicy]
-                Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/sealeye-*-dev-api"
+                Resource:
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/sealeye-*-dev-api"
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/sealeye-*-dev-db-setup"
               # The policies a table, bucket or queue module makes for the app that uses
               # it: named after its environment, at dev.
               - Sid: AccessPolicies
@@ -157,13 +189,16 @@ Resources:
               - Sid: PassFunctionRole
                 Effect: Allow
                 Action: iam:PassRole
-                Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/sealeye-*-dev-api"
+                Resource:
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/sealeye-*-dev-api"
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/sealeye-*-dev-db-setup"
                 Condition:
                   StringEquals:
                     iam:PassedToService: lambda.amazonaws.com
 
               # http-api: the function, sealeye-*-dev-api, read the way the provider reads
-              # one, and its log group.
+              # one, and its log group; postgres: its one-time setup function,
+              # sealeye-*-dev-db-setup, which the build runs once.
               - Sid: Functions
                 Effect: Allow
                 Action:
@@ -177,7 +212,19 @@ Resources:
                   - lambda:UntagResource
                   - lambda:Get*
                   - lambda:List*
-                Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sealeye-*-dev-api"
+                Resource:
+                  - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sealeye-*-dev-api"
+                  - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sealeye-*-dev-db-setup"
+              - Sid: SetupFunctionRuns
+                Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sealeye-*-dev-db-setup"
+              # Putting a function in the private network: what the platform checks of the
+              # network when it is asked to.
+              - Sid: NetworkRead
+                Effect: Allow
+                Action: [ec2:DescribeSecurityGroups, ec2:DescribeSecurityGroupRules, ec2:DescribeSubnets, ec2:DescribeVpcs, ec2:GetSecurityGroupsForVpc, ec2:DescribeNetworkInterfaces, ec2:DescribeTags]
+                Resource: "*"
               - Sid: Logs
                 Effect: Allow
                 Action:
@@ -242,6 +289,67 @@ Resources:
                 Resource:
                   - !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:sealeye-*-dev"
                   - !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:sealeye-*-dev-failed"
+              # postgres: the database, ${name}-${stage}, so sealeye-*-dev, in the
+              # foundation's subnet group, with the platform keeping its master password
+              # (a secret named rds!db-..., which the platform makes and tags on the
+              # caller's behalf).
+              - Sid: Databases
+                Effect: Allow
+                Action:
+                  - rds:CreateDBInstance
+                  - rds:DeleteDBInstance
+                  - rds:ModifyDBInstance
+                  - rds:DescribeDBInstances
+                  - rds:AddTagsToResource
+                  - rds:RemoveTagsFromResource
+                  - rds:ListTagsForResource
+                Resource:
+                  - !Sub "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:sealeye-*-dev"
+                  - !Sub "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:subgrp:platform-sealeye-databases"
+                  - !Sub "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:pg:default*"
+                  - !Sub "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:og:default*"
+              - Sid: DatabasesRead
+                Effect: Allow
+                Action: [rds:DescribeDBSubnetGroups, rds:DescribeDBParameterGroups, rds:DescribeOptionGroups, rds:DescribeDBEngineVersions, rds:DescribeOrderableDBInstanceOptions]
+                Resource: "*"
+              - Sid: MasterPasswords
+                Effect: Allow
+                Action: [secretsmanager:CreateSecret, secretsmanager:TagResource, secretsmanager:DescribeSecret, secretsmanager:DeleteSecret, secretsmanager:RotateSecret]
+                Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:rds!db-*"
+              # postgres: the security group of its own that its one-time setup function
+              # connects from, in the foundation network, with its two rules. The
+              # platform's own groups, named platform-sealeye-*, are never changed: see
+              # KeepThePlatformsGroups below.
+              - Sid: SetupGroups
+                Effect: Allow
+                Action:
+                  - ec2:CreateSecurityGroup
+                  - ec2:DeleteSecurityGroup
+                  - ec2:AuthorizeSecurityGroupIngress
+                  - ec2:AuthorizeSecurityGroupEgress
+                  - ec2:RevokeSecurityGroupIngress
+                  - ec2:RevokeSecurityGroupEgress
+                  - ec2:ModifySecurityGroupRules
+                  - ec2:CreateTags
+                  - ec2:DeleteTags
+                Resource:
+                  - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:security-group/*"
+                  - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:security-group-rule/*"
+                  - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:vpc/*"
+              - Sid: KeepThePlatformsGroups
+                Effect: Deny
+                Action:
+                  - ec2:DeleteSecurityGroup
+                  - ec2:AuthorizeSecurityGroupIngress
+                  - ec2:AuthorizeSecurityGroupEgress
+                  - ec2:RevokeSecurityGroupIngress
+                  - ec2:RevokeSecurityGroupEgress
+                  - ec2:ModifySecurityGroupRules
+                  - ec2:DeleteTags
+                Resource: !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:security-group/*"
+                Condition:
+                  StringLike:
+                    aws:ResourceTag/Name: "platform-sealeye-*"
               # static-site: the site's bucket, juniper-site-${name}-${stage}, so a name
               # with sealeye- in it that ends -dev. Never the platform's own bucket, whose
               # name does not end -dev. Files uploaded, and emptied before a tear-down.
