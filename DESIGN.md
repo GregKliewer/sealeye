@@ -3892,6 +3892,20 @@ Oct 17, 2026, from the first builds of Juniper's own modules on the pilot.
   surfaces (`organization` on the answers of PUT and DELETE /platform/values/{name}, and
   on GET /platform). A value set with another organization's token had landed there
   without a word.
+    
+## A save made while a record is being written is never lost
+
+Oct 17, 2026. Terraform environments on the pilot had no report: GET /deployments/{id}/plan
+said "This deployment has no report", with no reason. The build saves its success and,
+a moment later, its report; with Postgres, the first write was still under way when the
+second save came, and when it finished it marked the record saved, so the report never
+reached the database. The API kept it in memory until `deploy/release.sh` restarted it.
+The store now numbers each record's latest change (`unsaved` in `api/store.js`), and a
+write marks a record saved only if nothing changed while it was under way; anything that
+did is written by the next pass. `test/store-postgres.test.js` reproduces it. A record
+written before this keeps what the database has: an environment that lost its report gets
+one at its next deploy.
+
 ## Each module is built at the version its library released
 
 Oct 17, 2026. PHASE4-PLAN Step 9, the second pull request, first half (Greg: V1a, V2a,
