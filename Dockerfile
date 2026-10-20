@@ -73,6 +73,11 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --no-audit --no-fund
 COPY . .
+# The image takes each file's mode from the machine that built it, and the API runs as
+# `node`: a file that was private there (Greg's Mac had prompts/report.md at 0600, Oct 20,
+# 2026) could not be read on the server, and no report was written. Every file the API
+# reads is readable in the image, whoever built it.
+RUN chmod -R a+rX /app
 
 FROM base AS test
 RUN npm test
