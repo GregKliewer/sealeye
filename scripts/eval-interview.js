@@ -16,7 +16,7 @@
 // Two sets (PHASE4-PLAN Step 8): the starter's, each app planned against seaLeye's own
 // modules, and Juniper Mutual's, each app planned against the catalog discovery wrote
 // for the made-up organization (a snapshot of its live catalog,
-// test/fixtures/juniper-catalog-8.json). The eval's organization is given a placeholder
+// test/fixtures/juniper-catalog-8-with-database.json). The eval's organization is given a placeholder
 // platform value for every input Juniper's modules want (`seedPlatformValues`), and the
 // real executor decides what is built, as it does on the server: a module that waits on
 // something only seaLeye can change, or that runs no app, is not. `--set starter` or
@@ -53,7 +53,10 @@ import {
 export const DATASET = "sealeye-interview";
 const FIXTURES = path.join(repoRoot, "test", "fixtures", "eval");
 const JUNIPER_FIXTURES = path.join(repoRoot, "test", "fixtures", "eval-juniper");
-const JUNIPER_CATALOG = path.join(repoRoot, "test", "fixtures", "juniper-catalog-8.json");
+// Catalog 8's words, with postgres and http-api as discovery's code reads the library's
+// 1.2.0 releases of them (the app signs in to its database with its own identity).
+// Replace it with the catalog discovered after those releases once one is live.
+const JUNIPER_CATALOG = path.join(repoRoot, "test", "fixtures", "juniper-catalog-8-with-database.json");
 
 /**
  * The sets the eval runs: each its cases, and the organization whose live catalog they

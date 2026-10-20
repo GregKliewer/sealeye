@@ -1,0 +1,2364 @@
+{
+  "modules": [
+    {
+      "id": "cache_redis",
+      "tag": "cache-redis/v1.0.0",
+      "line": "A fast in-memory cache that sits in front of a slower store, kept only for apps that already use it.",
+      "role": "optional",
+      "runs": [],
+      "when": "Do not use for new apps. It is deprecated as of March 2025 and stays only so existing apps keep working until they move. Ask in the platform channel before planning around a cache.",
+      "rules": [
+        {
+          "rule": "Deprecated: do not use for new apps. Kept only so apps already using it keep working until they move.",
+          "evidence": {
+            "file": "modules/cache-redis/README.md"
+          }
+        },
+        {
+          "rule": "Until there is a replacement there is no cache module for new apps; ask in the platform channel before planning around a cache.",
+          "evidence": {
+            "file": "modules/cache-redis/README.md"
+          }
+        },
+        {
+          "rule": "The module is frozen as it is: its engine version and encryption settings are not changed in place, because that would replace every existing cache.",
+          "evidence": {
+            "file": "modules/cache-redis/README.md"
+          }
+        },
+        {
+          "rule": "From staging up, the cache runs two copies; below staging, one copy. Staging-and-up environments are held to production's rules.",
+          "stages": "staging, perf, prod",
+          "evidence": {
+            "file": "modules/cache-redis/main.tf"
+          }
+        },
+        {
+          "rule": "An app's package is built once and the same package, identified by its sha256, is promoted unchanged; promotion re-checks the checksum before applying.",
+          "evidence": {
+            "file": ".github/workflows/app-build.yml"
+          }
+        },
+        {
+          "rule": "Promotion moves one stage at a time in the order dev, sit, uat, staging, prod; dev cannot be promoted to, perf is never promoted to, and any other name is refused.",
+          "stages": "sit, uat, staging, prod",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "A prod promotion must carry a change ticket in the form CHG plus seven digits, or the promotion stops before the job runs.",
+          "stages": "prod",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "Each stage has its own root module and its own state, in the stage's own account, kept by the app repository under stages/<stage>/.",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "Every stage takes a stage input of dev, sit, uat, staging, perf or prod; from staging up an environment is held to production's rules: more copies, more backups, deletion protection and alarms to on-call.",
+          "stages": "staging, prod (and perf where it mirrors staging)",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "App teams use a module only at a released tag named after the module (for example http-api/v1.1.0), never at a branch; a major version change alters what the module takes or gives.",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "cache-redis is deprecated and not for new apps.",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "Every module must be formatted with terraform fmt and pass terraform init and validate; this runs on every push and pull request to the library.",
+          "stages": "not a stage; library check",
+          "evidence": {
+            "file": ".github/workflows/module-check.yml"
+          }
+        },
+        {
+          "rule": "The library offers nothing yet for an event stream, for signing in an app's own users, or for work on a schedule.",
+          "evidence": {
+            "file": "README.md"
+          }
+        }
+      ],
+      "commit": "5e63aa573473e988a2e2e40616ad32614a30e98b",
+      "inputs": {
+        "name": {
+          "line": "The app's name, in lowercase letters, digits and hyphens; every resource is named after it and the stage.",
+          "required": true
+        },
+        "tags": {
+          "line": "Extra labels added to every resource, beside the ones the module sets.",
+          "default": {},
+          "required": false
+        },
+        "stage": {
+          "line": "Which stage this is: dev, sit, uat, staging, perf or prod.",
+          "required": true
+        },
+        "subnet_group_name": {
+          "line": "The stage's private network group the cache is placed in.",
+          "required": true
+        },
+        "security_group_ids": {
+          "line": "The network rules that say which apps may connect to the cache.",
+          "required": true
+        }
+      },
+      "source": "modules/cache-redis",
+      "outputs": {
+        "address": {
+          "line": "Where the app connects."
+        }
+      },
+      "signals": [
+        "An existing app already reads a cache address from its environment settings",
+        "Code connects to a cache endpoint using a Redis client library",
+        "The app's configuration names a cache host or port that this module's output supplies"
+      ],
+      "version": "1.0.0",
+      "delivers": null,
+      "guidance": "Deprecated (all stages): do not use for new apps; kept only so apps already using it keep working until they move. Frozen as it is: its engine version and encryption settings are not changed in place, because that would replace every existing cache. From staging up (staging, perf, prod) the cache runs two copies; below staging, one copy; staging-and-up environments are held to production's rules. cache-valkey is the replacement for new apps (see open question). Deprecated: do not use for new apps. Kept only so apps already using it keep working until they move. Until there is a replacement there is no cache module for new apps; ask in the platform channel before planning around a cache. The module is frozen as it is: its engine version and encryption settings are not changed in place, because that would replace every existing cache. From staging up, the cache runs two copies; below staging, one copy. Staging-and-up environments are held to production's rules (staging, perf, prod). An app's package is built once and the same package, identified by its sha256, is promoted unchanged; promotion re-checks the checksum before applying. Promotion moves one stage at a time in the order dev, sit, uat, staging, prod; dev cannot be promoted to, perf is never promoted to, and any other name is refused (sit, uat, staging, prod). A prod promotion must carry a change ticket in the form CHG plus seven digits, or the promotion stops before the job runs (prod). Each stage has its own root module and its own state, in the stage's own account, kept by the app repository under stages/<stage>/. Every stage takes a stage input of dev, sit, uat, staging, perf or prod; from staging up an environment is held to production's rules: more copies, more backups, deletion protection and alarms to on-call (staging, prod (and perf where it mirrors staging)). App teams use a module only at a released tag named after the module (for example http-api/v1.1.0), never at a branch; a major version change alters what the module takes or gives. cache-redis is deprecated and not for new apps. Every module must be formatted with terraform fmt and pass terraform init and validate; this runs on every push and pull request to the library (not a stage; library check). The library offers nothing yet for an event stream, for signing in an app's own users, or for work on a schedule.",
+      "builds_with": "terraform",
+      "availability": "deprecated"
+    },
+    {
+      "id": "cache_valkey",
+      "tag": "cache-valkey/v1.0.0",
+      "line": "Gives an app a fast in-memory cache that sits in front of something slower, kept encrypted when stored and on the wire, reachable at a single address.",
+      "role": "optional",
+      "runs": [],
+      "when": "Use it for an app that needs a cache in front of something slower. It is the replacement for cache-redis, which is deprecated, so new apps use this one. Pass it the stage's cache network group and the list of who may connect.",
+      "rules": [
+        {
+          "rule": "Encrypted at rest and in transit, in every stage. Not a choice the caller makes.",
+          "evidence": {
+            "file": "modules/cache-valkey/main.tf",
+            "line": 21
+          }
+        },
+        {
+          "rule": "From staging up (staging, perf, prod) the cache runs two copies; below staging, one copy.",
+          "evidence": {
+            "file": "modules/cache-valkey/main.tf",
+            "line": 18
+          }
+        },
+        {
+          "rule": "perf is treated as upper stage (two copies) and is built from staging for load tests; nothing is promoted from it.",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "Use a released tag of the module, never a branch.",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "cache-redis is deprecated and not for new apps; cache-valkey is the module new apps use instead.",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "An app's package is built once and the same package, identified by its sha256, is promoted unchanged; promotion re-checks the checksum before applying.",
+          "evidence": {
+            "file": ".github/workflows/app-build.yml"
+          }
+        },
+        {
+          "rule": "Promotion moves one stage at a time in the order dev, sit, uat, staging, prod; dev cannot be promoted to, perf is never promoted to, and any other name is refused.",
+          "stages": "sit, uat, staging, prod",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "A prod promotion must carry a change ticket in the form CHG plus seven digits, or the promotion stops before the job runs.",
+          "stages": "prod",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "Each stage has its own root module and its own state, in the stage's own account, kept by the app repository under stages/<stage>/.",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "Every stage takes a stage input of dev, sit, uat, staging, perf or prod; from staging up an environment is held to production's rules: more copies, more backups, deletion protection and alarms to on-call.",
+          "stages": "staging, prod (and perf where it mirrors staging)",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "App teams use a module only at a released tag named after the module (for example http-api/v1.1.0), never at a branch; a major version change alters what the module takes or gives.",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "Every module must be formatted with terraform fmt and pass terraform init and validate; this runs on every push and pull request to the library.",
+          "stages": "not a stage; library check",
+          "evidence": {
+            "file": ".github/workflows/module-check.yml"
+          }
+        },
+        {
+          "rule": "The library offers nothing yet for an event stream, for signing in an app's own users, or for work on a schedule.",
+          "evidence": {
+            "file": "README.md"
+          }
+        }
+      ],
+      "commit": "5e63aa573473e988a2e2e40616ad32614a30e98b",
+      "inputs": {
+        "name": {
+          "line": "The app's name, lowercase letters, digits and hyphens. Every resource is named after it and the stage.",
+          "required": true
+        },
+        "tags": {
+          "line": "Tags added to every resource, beside the ones this module sets.",
+          "default": {},
+          "required": false
+        },
+        "stage": {
+          "line": "Which stage on the path to production this is: dev, sit, uat, staging, perf or prod.",
+          "required": true
+        },
+        "subnet_group_name": {
+          "line": "The stage's private network group the cache is placed in.",
+          "required": true
+        },
+        "security_group_ids": {
+          "line": "The list of who may connect to the cache.",
+          "required": true
+        }
+      },
+      "source": "modules/cache-valkey",
+      "outputs": {
+        "address": {
+          "line": "Where the app connects."
+        }
+      },
+      "signals": [
+        "App code or config that keeps a cache connection, a cache address or endpoint setting, or reads and writes short-lived keyed data to speed up a slower store",
+        "Config that names a Valkey or Redis cache, or a cache-redis dependency that needs moving to this module"
+      ],
+      "version": "1.0.0",
+      "delivers": null,
+      "guidance": "Encrypted at rest and in transit, in every stage; not a choice the caller makes. From staging up (staging, perf, prod) the cache runs two copies; below staging, one copy. perf is built from staging for a load test and nothing is promoted from it. Use a released tag, never a branch. cache-redis is deprecated and not for new apps; cache-valkey is the module new apps use instead (answered: cache-valkey is the replacement). From staging up, backups and protection against deletion also apply, same as every environment held to production's rules; the planner must provide them since the module does not set these itself (answered). perf is treated as upper stage (two copies) and is built from staging for load tests; nothing is promoted from it. Use a released tag of the module, never a branch. An app's package is built once and the same package, identified by its sha256, is promoted unchanged; promotion re-checks the checksum before applying. Promotion moves one stage at a time in the order dev, sit, uat, staging, prod; dev cannot be promoted to, perf is never promoted to, and any other name is refused (sit, uat, staging, prod). A prod promotion must carry a change ticket in the form CHG plus seven digits, or the promotion stops before the job runs (prod). Each stage has its own root module and its own state, in the stage's own account, kept by the app repository under stages/<stage>/. Every stage takes a stage input of dev, sit, uat, staging, perf or prod; from staging up an environment is held to production's rules: more copies, more backups, deletion protection and alarms to on-call (staging, prod (and perf where it mirrors staging)). App teams use a module only at a released tag named after the module (for example http-api/v1.1.0), never at a branch; a major version change alters what the module takes or gives. Every module must be formatted with terraform fmt and pass terraform init and validate; this runs on every push and pull request to the library (not a stage; library check). The library offers nothing yet for an event stream, for signing in an app's own users, or for work on a schedule.",
+      "builds_with": "terraform",
+      "availability": "available"
+    },
+    {
+      "id": "container_service",
+      "tag": "container-service/v1.0.0",
+      "line": "Runs an app as always-on containers in the private network, with its logs kept.",
+      "role": "core",
+      "runs": [],
+      "when": "For an app that cannot start fresh for each request: one that reads a stream or queue in a loop, holds connections open, or takes a while to warm up. An app that only answers requests should use http-api instead.",
+      "rules": [
+        {
+          "rule": "An app's package is built once and the same package, identified by its sha256, is promoted unchanged; promotion re-checks the checksum before applying.",
+          "evidence": {
+            "file": ".github/workflows/app-build.yml"
+          }
+        },
+        {
+          "rule": "Promotion moves one stage at a time in the order dev, sit, uat, staging, prod; dev cannot be promoted to, perf is never promoted to, and any other name is refused.",
+          "stages": "sit, uat, staging, prod",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "A prod promotion must carry a change ticket in the form CHG plus seven digits, or the promotion stops before the job runs.",
+          "stages": "prod",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "Each stage has its own root module and its own state, in the stage's own account, kept by the app repository under stages/<stage>/.",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "Every stage takes a stage input of dev, sit, uat, staging, perf or prod; from staging up an environment is held to production's rules: more copies, more backups, deletion protection and alarms to on-call.",
+          "stages": "staging, prod (and perf where it mirrors staging)",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "App teams use a module only at a released tag named after the module (for example http-api/v1.1.0), never at a branch; a major version change alters what the module takes or gives.",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "Data modules (document-table, file-bucket, work-queue, postgres) offer access_policy_arn and, for a database, password_secret_arn as outputs; app modules take them in policy_arns and secret_arns; a root module only passes outputs to inputs and never writes a policy.",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "Every module must be formatted with terraform fmt and pass terraform init and validate; this runs on every push and pull request to the library.",
+          "stages": "not a stage; library check",
+          "evidence": {
+            "file": ".github/workflows/module-check.yml"
+          }
+        },
+        {
+          "rule": "The library offers nothing yet for an event stream, for signing in an app's own users, or for work on a schedule.",
+          "evidence": {
+            "file": "README.md"
+          }
+        }
+      ],
+      "commit": "5e63aa573473e988a2e2e40616ad32614a30e98b",
+      "inputs": {
+        "name": {
+          "line": "The app's name, lowercase letters, digits and hyphens. Every resource is named after it and the stage.",
+          "required": true
+        },
+        "tags": {
+          "line": "Tags added to every resource, beside the ones this module sets.",
+          "default": {},
+          "required": false
+        },
+        "image": {
+          "line": "The container image, built once by the pipeline and promoted unchanged.",
+          "required": true
+        },
+        "stage": {
+          "line": "Which stage on the path to production this is: dev, sit, uat, staging, perf or prod.",
+          "required": true
+        },
+        "subnet_ids": {
+          "line": "The private network subnets for this stage that the app runs in.",
+          "required": true
+        },
+        "cluster_arn": {
+          "line": "The shared cluster this app runs on, for this stage.",
+          "required": true
+        },
+        "container_port": {
+          "line": "The port the app listens on.",
+          "default": 8080,
+          "required": false
+        },
+        "execution_role_arn": {
+          "line": "The platform's role that lets the service fetch its container image and write its logs.",
+          "required": true
+        },
+        "security_group_ids": {
+          "line": "The rules that decide which traffic may reach the app.",
+          "required": true
+        }
+      },
+      "source": "modules/container-service",
+      "outputs": {
+        "log_group": {
+          "line": "Where the service's logs go."
+        },
+        "service_name": {
+          "line": "The running service."
+        }
+      },
+      "signals": [
+        "Code that loops over a queue or stream of messages",
+        "A long-lived consumer or worker",
+        "A health-check endpoint on a worker",
+        "A process that holds connections open or warms up slowly",
+        "A container image built by the pipeline that listens on a port"
+      ],
+      "version": "1.0.0",
+      "delivers": null,
+      "guidance": "Dev, sit and uat run one copy of the service; from staging up (staging, perf, prod) it runs three copies, spread across zones. Logs are kept for a year from staging up and for seven days below staging. Task size is larger from staging up (1024 CPU, 2048 memory) than below (256 CPU, 512 memory); the module's own README does not state this. The service runs only in the private network at every stage; other apps reach it only through internal-entry. The container image is built once by the pipeline and promoted unchanged, by its checksum, one stage at a time. Promotion needs approval: staging needs a platform team approval; prod needs a platform team approval and an approved change ticket; perf is not on the path and nothing is promoted from it. This module creates its own log store; add logs-and-alarms alongside it for alarms (its log store stays this module's own). It takes no policy_arns or secret_arns, so access to a database, bucket, queue or secret cannot currently be wired through it as the module stands. An app's package is built once and the same package, identified by its sha256, is promoted unchanged; promotion re-checks the checksum before applying. Promotion moves one stage at a time in the order dev, sit, uat, staging, prod; dev cannot be promoted to, perf is never promoted to, and any other name is refused (sit, uat, staging, prod). A prod promotion must carry a change ticket in the form CHG plus seven digits, or the promotion stops before the job runs (prod). Each stage has its own root module and its own state, in the stage's own account, kept by the app repository under stages/<stage>/. Every stage takes a stage input of dev, sit, uat, staging, perf or prod; from staging up an environment is held to production's rules: more copies, more backups, deletion protection and alarms to on-call (staging, prod (and perf where it mirrors staging)). App teams use a module only at a released tag named after the module (for example http-api/v1.1.0), never at a branch; a major version change alters what the module takes or gives. Data modules (document-table, file-bucket, work-queue, postgres) offer access_policy_arn and, for a database, password_secret_arn as outputs; app modules take them in policy_arns and secret_arns; a root module only passes outputs to inputs and never writes a policy. Every module must be formatted with terraform fmt and pass terraform init and validate; this runs on every push and pull request to the library (not a stage; library check). The library offers nothing yet for an event stream, for signing in an app's own users, or for work on a schedule.",
+      "builds_with": "terraform",
+      "availability": "available"
+    },
+    {
+      "id": "custom_domain",
+      "tag": "custom-domain/v1.0.0",
+      "line": "Gives an app a name on the organization's own domain that answers over an encrypted connection, with a certificate that renews itself.",
+      "role": "optional",
+      "runs": [],
+      "when": "Use only for an app that is public facing, where customers type or bookmark its address. Internal tools, and anything below staging, use the address the platform generates instead; there is no need to ask for a name.",
+      "rules": [
+        {
+          "rule": "Use only for an app reached at a name the organization owns, anything public facing that customers type or bookmark. Internal tools and anything below staging use the address the platform generates; there is no need to ask for one.",
+          "stages": "dev, sit, uat",
+          "evidence": {
+            "file": "modules/custom-domain/README.md"
+          }
+        },
+        {
+          "rule": "The name must be in a zone the platform team manages. Ask for the zone's id in the platform channel.",
+          "evidence": {
+            "file": "modules/custom-domain/README.md"
+          }
+        },
+        {
+          "rule": "For a static-site, the content network's certificate is the platform team's own and this module is not used.",
+          "evidence": {
+            "file": "modules/custom-domain/README.md"
+          }
+        },
+        {
+          "rule": "Only prod may use the bare product name. Lower stages put the stage first, for example staging.rates.junipermutual.example.",
+          "stages": "dev, sit, uat, staging, perf put the stage first; prod uses the bare name",
+          "evidence": {
+            "file": "modules/custom-domain/README.md"
+          }
+        },
+        {
+          "rule": "From staging up, an environment is held to production's rules: more copies, more backups, protection against deletion, and alarms to on-call.",
+          "stages": "staging, perf, prod",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "An app's package is built once and the same package, identified by its sha256, is promoted unchanged; promotion re-checks the checksum before applying.",
+          "evidence": {
+            "file": ".github/workflows/app-build.yml"
+          }
+        },
+        {
+          "rule": "Promotion moves one stage at a time in the order dev, sit, uat, staging, prod; dev cannot be promoted to, perf is never promoted to, and any other name is refused.",
+          "stages": "sit, uat, staging, prod",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "A prod promotion must carry a change ticket in the form CHG plus seven digits, or the promotion stops before the job runs.",
+          "stages": "prod",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "Each stage has its own root module and its own state, in the stage's own account, kept by the app repository under stages/<stage>/.",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "Every stage takes a stage input of dev, sit, uat, staging, perf or prod; from staging up an environment is held to production's rules: more copies, more backups, deletion protection and alarms to on-call.",
+          "stages": "staging, prod (and perf where it mirrors staging)",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "App teams use a module only at a released tag named after the module (for example http-api/v1.1.0), never at a branch; a major version change alters what the module takes or gives.",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "Every module must be formatted with terraform fmt and pass terraform init and validate; this runs on every push and pull request to the library.",
+          "stages": "not a stage; library check",
+          "evidence": {
+            "file": ".github/workflows/module-check.yml"
+          }
+        },
+        {
+          "rule": "The library offers nothing yet for an event stream, for signing in an app's own users, or for work on a schedule.",
+          "evidence": {
+            "file": "README.md"
+          }
+        }
+      ],
+      "commit": "5e63aa573473e988a2e2e40616ad32614a30e98b",
+      "inputs": {
+        "name": {
+          "line": "The app's name, lowercase letters, digits and hyphens. Every resource is named after it and the stage.",
+          "required": true
+        },
+        "tags": {
+          "line": "Tags added to every resource, beside the ones this module sets.",
+          "default": {},
+          "required": false
+        },
+        "stage": {
+          "line": "Which stage on the path to production this is: dev, sit, uat, staging, perf or prod.",
+          "required": true
+        },
+        "zone_id": {
+          "line": "The zone the name is in, one the platform team manages.",
+          "required": true
+        },
+        "domain_name": {
+          "line": "The full name to answer on.",
+          "required": true
+        },
+        "target_zone_id": {
+          "line": "The zone of the address the name points at.",
+          "required": true
+        },
+        "target_domain_name": {
+          "line": "The address the name points at.",
+          "required": true
+        }
+      },
+      "source": "modules/custom-domain",
+      "outputs": {
+        "url": {
+          "line": "The app's address at its own name."
+        },
+        "certificate_arn": {
+          "line": "The certificate, once it is validated."
+        }
+      },
+      "signals": [
+        "The app serves customers and needs its own name, such as a rates or account address, rather than a generated one",
+        "The configuration passes a full domain name, the id of a zone the platform team manages, and the address that name should point to",
+        "Not for a static website: that uses the content network's own certificate"
+      ],
+      "version": "1.0.0",
+      "delivers": null,
+      "guidance": "Use only for apps reached at a name the organization owns, anything public facing that customers type or bookmark; internal tools and anything below staging use the generated address instead, with no need to ask for one. The name must be in a zone the platform team manages; ask for the zone's id in the platform channel. A static-site uses the content network's own certificate and does not use this module. Only prod may use the bare product name; lower stages (dev, sit, uat, staging, perf) put the stage first, for example staging.rates.junipermutual.example. The module behaves the same at every stage; the stage only names and tags resources, with no extra protection applied in code despite the library's general staging-up rule. Use only for an app reached at a name the organization owns, anything public facing that customers type or bookmark. Internal tools and anything below staging use the address the platform generates; there is no need to ask for one (dev, sit, uat). For a static-site, the content network's certificate is the platform team's own and this module is not used. Only prod may use the bare product name. Lower stages put the stage first, for example staging.rates.junipermutual.example (dev, sit, uat, staging, perf put the stage first; prod uses the bare name). From staging up, an environment is held to production's rules: more copies, more backups, protection against deletion, and alarms to on-call (staging, perf, prod). An app's package is built once and the same package, identified by its sha256, is promoted unchanged; promotion re-checks the checksum before applying. Promotion moves one stage at a time in the order dev, sit, uat, staging, prod; dev cannot be promoted to, perf is never promoted to, and any other name is refused (sit, uat, staging, prod). A prod promotion must carry a change ticket in the form CHG plus seven digits, or the promotion stops before the job runs (prod). Each stage has its own root module and its own state, in the stage's own account, kept by the app repository under stages/<stage>/. Every stage takes a stage input of dev, sit, uat, staging, perf or prod; from staging up an environment is held to production's rules: more copies, more backups, deletion protection and alarms to on-call (staging, prod (and perf where it mirrors staging)). App teams use a module only at a released tag named after the module (for example http-api/v1.1.0), never at a branch; a major version change alters what the module takes or gives. Every module must be formatted with terraform fmt and pass terraform init and validate; this runs on every push and pull request to the library (not a stage; library check). The library offers nothing yet for an event stream, for signing in an app's own users, or for work on a schedule.",
+      "builds_with": "terraform",
+      "availability": "available"
+    },
+    {
+      "id": "document_table",
+      "tag": "document-table/v1.1.0",
+      "line": "A table of documents, each found by its key, that scales with use and is encrypted when stored.",
+      "role": "optional",
+      "runs": [],
+      "when": "Use it for an app that stores records by key rather than in related tables: sessions, profiles, or the state of a long-running job. An app whose code uses SQL needs a relational database instead.",
+      "rules": [
+        {
+          "rule": "From staging up, the table can be restored to any point in the last five weeks and is protected against deletion. Below staging (dev, sit, uat) it is neither.",
+          "stages": "staging, perf, prod (restore and deletion protection); dev, sit, uat (neither)",
+          "evidence": {
+            "file": "modules/document-table/README.md"
+          }
+        },
+        {
+          "rule": "Deletion protection and point-in-time recovery are switched on only for staging, perf and prod, and the environment is held to production's rules from staging up.",
+          "stages": "staging, perf, prod",
+          "evidence": {
+            "file": "modules/document-table/main.tf"
+          }
+        },
+        {
+          "rule": "The table is encrypted when stored, at every stage.",
+          "evidence": {
+            "file": "modules/document-table/main.tf"
+          }
+        },
+        {
+          "rule": "An app gets access to the table only through the policies this module offers (access_policy_arn for reads and writes, read_only_policy_arn for reads), passed in the app module's policy_arns input. Nothing outside the library writes a grant.",
+          "evidence": {
+            "file": "modules/document-table/main.tf"
+          }
+        },
+        {
+          "rule": "The app's module passes access_policy_arn in its policy_arns, and the key the app looks documents up by goes in its environment, as described in http-api's README.",
+          "evidence": {
+            "file": "modules/document-table/README.md"
+          }
+        },
+        {
+          "rule": "An app's package is built once and the same package, identified by its sha256, is promoted unchanged; promotion re-checks the checksum before applying.",
+          "evidence": {
+            "file": ".github/workflows/app-build.yml"
+          }
+        },
+        {
+          "rule": "Promotion moves one stage at a time in the order dev, sit, uat, staging, prod; dev cannot be promoted to, perf is never promoted to, and any other name is refused.",
+          "stages": "sit, uat, staging, prod",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "A prod promotion must carry a change ticket in the form CHG plus seven digits, or the promotion stops before the job runs.",
+          "stages": "prod",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "Each stage has its own root module and its own state, in the stage's own account, kept by the app repository under stages/<stage>/.",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "Every stage takes a stage input of dev, sit, uat, staging, perf or prod; from staging up an environment is held to production's rules: more copies, more backups, deletion protection and alarms to on-call.",
+          "stages": "staging, prod (and perf where it mirrors staging)",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "App teams use a module only at a released tag named after the module (for example http-api/v1.1.0), never at a branch; a major version change alters what the module takes or gives.",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "Data modules (document-table, file-bucket, work-queue, postgres) offer access_policy_arn and, for a database, password_secret_arn as outputs; app modules take them in policy_arns and secret_arns; a root module only passes outputs to inputs and never writes a policy.",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "Every module must be formatted with terraform fmt and pass terraform init and validate; this runs on every push and pull request to the library.",
+          "stages": "not a stage; library check",
+          "evidence": {
+            "file": ".github/workflows/module-check.yml"
+          }
+        },
+        {
+          "rule": "The library offers nothing yet for an event stream, for signing in an app's own users, or for work on a schedule.",
+          "evidence": {
+            "file": "README.md"
+          }
+        }
+      ],
+      "commit": "e1a1bca760c8d7ef5fe7198ccba2c865d4ccb554",
+      "inputs": {
+        "key": {
+          "line": "The attribute each document is found by.",
+          "default": "id",
+          "required": false
+        },
+        "name": {
+          "line": "The app's name, lowercase letters, digits and hyphens. Every resource is named after it and the stage.",
+          "required": true
+        },
+        "tags": {
+          "line": "Tags added to every resource, beside the ones this module sets.",
+          "default": {},
+          "required": false
+        },
+        "stage": {
+          "line": "Which stage on the path to production this is: dev, sit, uat, staging, perf or prod.",
+          "required": true
+        }
+      },
+      "offers": {
+        "access": "access_policy_arn",
+        "values": [
+          "table_name"
+        ],
+        "secrets": [],
+        "narrower": [
+          "read_only_policy_arn"
+        ]
+      },
+      "source": "modules/document-table",
+      "outputs": {
+        "table_arn": {
+          "line": "The table, to grant the app access."
+        },
+        "table_name": {
+          "line": "The table."
+        },
+        "access_policy_arn": {
+          "line": "Reads and writes the table: pass it in the app's policy_arns."
+        },
+        "read_only_policy_arn": {
+          "line": "Reads the table only: pass it in the app's policy_arns."
+        }
+      },
+      "signals": [
+        "App dependencies include a document database client"
+      ],
+      "version": "1.1.0",
+      "delivers": null,
+      "guidance": "From staging up (staging, perf, prod) the table can be restored to any point in the last five weeks and is protected against deletion; below staging (dev, sit, uat) it is neither. The table is encrypted when stored at every stage. An app gets access to the table only through the policies this module offers (access_policy_arn for reads and writes, read_only_policy_arn for reads), passed in the app module's policy_arns; nothing outside the library writes a grant. Pass access_policy_arn in the app module's policy_arns, and put what the app looks documents up by in its environment, as described in http-api's README. From staging up, the table can be restored to any point in the last five weeks and is protected against deletion. Below staging (dev, sit, uat) it is neither (staging, perf, prod (restore and deletion protection); dev, sit, uat (neither)). Deletion protection and point-in-time recovery are switched on only for staging, perf and prod, and the environment is held to production's rules from staging up (staging, perf, prod). An app gets access to the table only through the policies this module offers (access_policy_arn for reads and writes, read_only_policy_arn for reads), passed in the app module's policy_arns input. Nothing outside the library writes a grant. The app's module passes access_policy_arn in its policy_arns, and the key the app looks documents up by goes in its environment, as described in http-api's README. An app's package is built once and the same package, identified by its sha256, is promoted unchanged; promotion re-checks the checksum before applying. Promotion moves one stage at a time in the order dev, sit, uat, staging, prod; dev cannot be promoted to, perf is never promoted to, and any other name is refused (sit, uat, staging, prod). A prod promotion must carry a change ticket in the form CHG plus seven digits, or the promotion stops before the job runs (prod). Each stage has its own root module and its own state, in the stage's own account, kept by the app repository under stages/<stage>/. Every stage takes a stage input of dev, sit, uat, staging, perf or prod; from staging up an environment is held to production's rules: more copies, more backups, deletion protection and alarms to on-call (staging, prod (and perf where it mirrors staging)). App teams use a module only at a released tag named after the module (for example http-api/v1.1.0), never at a branch; a major version change alters what the module takes or gives. Data modules (document-table, file-bucket, work-queue, postgres) offer access_policy_arn and, for a database, password_secret_arn as outputs; app modules take them in policy_arns and secret_arns; a root module only passes outputs to inputs and never writes a policy. Every module must be formatted with terraform fmt and pass terraform init and validate; this runs on every push and pull request to the library (not a stage; library check). The library offers nothing yet for an event stream, for signing in an app's own users, or for work on a schedule.",
+      "builds_with": "terraform",
+      "availability": "available"
+    },
+    {
+      "id": "file_bucket",
+      "tag": "file-bucket/v1.1.0",
+      "line": "Private, encrypted file storage for uploads, exports and generated documents that the app writes and reads back.",
+      "role": "optional",
+      "runs": [],
+      "when": "Use it when the app keeps files it writes and reads back (uploads, exports, generated documents). Do not use it to serve files to the public: static-site is the only module that does that, and every bucket at Juniper Mutual is private.",
+      "rules": [
+        {
+          "rule": "Every bucket is private; this module takes no input that would make it public, and static-site is the only module that serves files to the public.",
+          "evidence": {
+            "file": "modules/file-bucket/README.md"
+          }
+        },
+        {
+          "rule": "From staging up, every change to a file is kept so an overwritten or deleted file can be brought back; below staging only the latest copy is kept.",
+          "stages": "staging, perf, prod (kept); dev, sit, uat (latest copy only)",
+          "evidence": {
+            "file": "modules/file-bucket/main.tf"
+          }
+        },
+        {
+          "rule": "Files are encrypted when stored, and public access is blocked on the bucket.",
+          "evidence": {
+            "file": "modules/file-bucket/main.tf"
+          }
+        },
+        {
+          "rule": "An app gets file access by passing access_policy_arn (reads, writes and deletes) or read_only_policy_arn (reads only) in the app module's policy_arns.",
+          "evidence": {
+            "file": "modules/file-bucket/README.md"
+          }
+        },
+        {
+          "rule": "An app's package is built once and the same package, identified by its sha256, is promoted unchanged; promotion re-checks the checksum before applying.",
+          "evidence": {
+            "file": ".github/workflows/app-build.yml"
+          }
+        },
+        {
+          "rule": "Promotion moves one stage at a time in the order dev, sit, uat, staging, prod; dev cannot be promoted to, perf is never promoted to, and any other name is refused.",
+          "stages": "sit, uat, staging, prod",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "A prod promotion must carry a change ticket in the form CHG plus seven digits, or the promotion stops before the job runs.",
+          "stages": "prod",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "Each stage has its own root module and its own state, in the stage's own account, kept by the app repository under stages/<stage>/.",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "Every stage takes a stage input of dev, sit, uat, staging, perf or prod; from staging up an environment is held to production's rules: more copies, more backups, deletion protection and alarms to on-call.",
+          "stages": "staging, prod (and perf where it mirrors staging)",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "App teams use a module only at a released tag named after the module (for example http-api/v1.1.0), never at a branch; a major version change alters what the module takes or gives.",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "Data modules (document-table, file-bucket, work-queue, postgres) offer access_policy_arn and, for a database, password_secret_arn as outputs; app modules take them in policy_arns and secret_arns; a root module only passes outputs to inputs and never writes a policy.",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "Every module must be formatted with terraform fmt and pass terraform init and validate; this runs on every push and pull request to the library.",
+          "stages": "not a stage; library check",
+          "evidence": {
+            "file": ".github/workflows/module-check.yml"
+          }
+        },
+        {
+          "rule": "The library offers nothing yet for an event stream, for signing in an app's own users, or for work on a schedule.",
+          "evidence": {
+            "file": "README.md"
+          }
+        }
+      ],
+      "commit": "e1a1bca760c8d7ef5fe7198ccba2c865d4ccb554",
+      "inputs": {
+        "name": {
+          "line": "The app's name, lowercase letters, digits and hyphens. Every resource is named after it and the stage.",
+          "required": true
+        },
+        "tags": {
+          "line": "Tags added to every resource, beside the ones this module sets.",
+          "default": {},
+          "required": false
+        },
+        "stage": {
+          "line": "Which stage on the path to production this is: dev, sit, uat, staging, perf or prod.",
+          "required": true
+        }
+      },
+      "offers": {
+        "access": "access_policy_arn",
+        "values": [
+          "bucket_name"
+        ],
+        "secrets": [],
+        "narrower": [
+          "read_only_policy_arn"
+        ]
+      },
+      "source": "modules/file-bucket",
+      "outputs": {
+        "bucket_arn": {
+          "line": "The bucket, to grant the app access."
+        },
+        "bucket_name": {
+          "line": "The bucket."
+        },
+        "access_policy_arn": {
+          "line": "Reads, writes and deletes the bucket's files: pass it in the app's policy_arns."
+        },
+        "read_only_policy_arn": {
+          "line": "Reads the bucket's files only: pass it in the app's policy_arns."
+        }
+      },
+      "signals": [
+        "App code saves uploaded or generated files and later reads them back",
+        "App config or environment expects a file store location or its lookup name",
+        "App needs to list, fetch, store or delete files that outlive a single request"
+      ],
+      "version": "1.1.0",
+      "delivers": null,
+      "guidance": "Every bucket is private; this module takes no input that would make it public, and static-site is the only module that serves files to the public. From staging up (staging, perf, prod), every change to a file is kept so an overwritten or deleted file can be brought back; below staging (dev, sit, uat) only the latest copy is kept. Files are encrypted when stored and public access is blocked at every stage. An app gets file access by passing access_policy_arn (reads, writes and deletes) or read_only_policy_arn (reads only) in the app module's policy_arns. From staging up, every change to a file is kept so an overwritten or deleted file can be brought back; below staging only the latest copy is kept (staging, perf, prod (kept); dev, sit, uat (latest copy only)). Files are encrypted when stored, and public access is blocked on the bucket. An app's package is built once and the same package, identified by its sha256, is promoted unchanged; promotion re-checks the checksum before applying. Promotion moves one stage at a time in the order dev, sit, uat, staging, prod; dev cannot be promoted to, perf is never promoted to, and any other name is refused (sit, uat, staging, prod). A prod promotion must carry a change ticket in the form CHG plus seven digits, or the promotion stops before the job runs (prod). Each stage has its own root module and its own state, in the stage's own account, kept by the app repository under stages/<stage>/. Every stage takes a stage input of dev, sit, uat, staging, perf or prod; from staging up an environment is held to production's rules: more copies, more backups, deletion protection and alarms to on-call (staging, prod (and perf where it mirrors staging)). App teams use a module only at a released tag named after the module (for example http-api/v1.1.0), never at a branch; a major version change alters what the module takes or gives. Data modules (document-table, file-bucket, work-queue, postgres) offer access_policy_arn and, for a database, password_secret_arn as outputs; app modules take them in policy_arns and secret_arns; a root module only passes outputs to inputs and never writes a policy. Every module must be formatted with terraform fmt and pass terraform init and validate; this runs on every push and pull request to the library (not a stage; library check). The library offers nothing yet for an event stream, for signing in an app's own users, or for work on a schedule.",
+      "builds_with": "terraform",
+      "availability": "available"
+    },
+    {
+      "id": "http_api",
+      "tag": "http-api/v1.2.0",
+      "line": "Runs your app's code each time a web request arrives, behind a secure web address, and costs nothing while nobody is calling it.",
+      "role": "core",
+      "runs": [],
+      "when": "For an app that answers HTTP requests and can start fresh for each one: a REST API, a webhook receiver, or a small service with a health route. If the app holds a connection open, reads a stream or queue in a loop, or warms something up at start, use container-service instead.",
+      "rules": [
+        {
+          "rule": "Use only for an app that can start fresh for each request. An app that holds a connection open, reads a stream or queue in a loop, or warms up at start must use container-service.",
+          "evidence": {
+            "file": "modules/http-api/README.md"
+          }
+        },
+        {
+          "rule": "Every function carries the platform's permissions boundary, passed as permissions_boundary_arn, published by the platform team in the platform channel.",
+          "evidence": {
+            "file": "modules/http-api/main.tf"
+          }
+        },
+        {
+          "rule": "Logs are kept for a week in dev, sit and uat, and for a year from staging up (staging, perf and prod).",
+          "stages": "dev, sit, uat, staging, perf, prod",
+          "evidence": {
+            "file": "modules/http-api/main.tf"
+          }
+        },
+        {
+          "rule": "The app's package is built once and promoted unchanged, identified by its checksum. Dev is built by the developer; sit and uat are promoted by the team; staging needs a platform team approval; prod needs a platform team approval and an approved change ticket.",
+          "stages": "dev, sit, uat, staging, prod",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "perf is not on the path to production: it is built from what is in staging for a load test, and nothing is promoted from it.",
+          "stages": "perf",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "Never write a policy for the app by hand. Grant access only by passing each data module's access_policy_arn in policy_arns; if a module does not offer what the app needs, ask in the platform channel.",
+          "evidence": {
+            "file": "modules/http-api/README.md"
+          }
+        },
+        {
+          "rule": "Secrets never go in environment. Put them in the secrets module and pass their ARNs in secret_arns, or a database's password_secret_arn.",
+          "evidence": {
+            "file": "modules/http-api/variables.tf"
+          }
+        },
+        {
+          "rule": "Use the module at a released tag named http-api/v<version>, never at a branch. A major version changes what the module takes or gives; read its CHANGELOG entry before moving an app to it.",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "The function's runtime is fixed by the module as Node.js 20; the app must run on it.",
+          "evidence": {
+            "file": "modules/http-api/main.tf"
+          }
+        },
+        {
+          "rule": "An app's package is built once and the same package, identified by its sha256, is promoted unchanged; promotion re-checks the checksum before applying.",
+          "evidence": {
+            "file": ".github/workflows/app-build.yml"
+          }
+        },
+        {
+          "rule": "Promotion moves one stage at a time in the order dev, sit, uat, staging, prod; dev cannot be promoted to, perf is never promoted to, and any other name is refused.",
+          "stages": "sit, uat, staging, prod",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "A prod promotion must carry a change ticket in the form CHG plus seven digits, or the promotion stops before the job runs.",
+          "stages": "prod",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "Each stage has its own root module and its own state, in the stage's own account, kept by the app repository under stages/<stage>/.",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "Every stage takes a stage input of dev, sit, uat, staging, perf or prod; from staging up an environment is held to production's rules: more copies, more backups, deletion protection and alarms to on-call.",
+          "stages": "staging, prod (and perf where it mirrors staging)",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "App teams use a module only at a released tag named after the module (for example http-api/v1.1.0), never at a branch; a major version change alters what the module takes or gives.",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "Data modules (document-table, file-bucket, work-queue, postgres) offer access_policy_arn and, for a database, password_secret_arn as outputs; app modules take them in policy_arns and secret_arns; a root module only passes outputs to inputs and never writes a policy.",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "Every module must be formatted with terraform fmt and pass terraform init and validate; this runs on every push and pull request to the library.",
+          "stages": "not a stage; library check",
+          "evidence": {
+            "file": ".github/workflows/module-check.yml"
+          }
+        },
+        {
+          "rule": "The library offers nothing yet for an event stream, for signing in an app's own users, or for work on a schedule.",
+          "evidence": {
+            "file": "README.md"
+          }
+        }
+      ],
+      "commit": "0aa63a084efb9d1650a7e7d591bf1b307ac58878",
+      "inputs": {
+        "name": {
+          "line": "The app's name, lowercase letters, digits and hyphens. Every resource is named after it and the stage.",
+          "required": true
+        },
+        "stage": {
+          "line": "Which stage on the path to production this is: dev, sit, uat, staging, perf or prod.",
+          "required": true
+        },
+        "tags": {
+          "line": "Tags added to every resource, beside the ones this module sets.",
+          "default": {},
+          "required": false
+        },
+        "package_path": {
+          "line": "The zipped app, built once by the pipeline and promoted unchanged.",
+          "required": true
+        },
+        "handler": {
+          "line": "The function the platform calls.",
+          "default": "index.handler",
+          "required": false
+        },
+        "environment": {
+          "line": "Settings the app reads from its environment, names to values. Never a secret: put those in the secrets module.",
+          "default": {},
+          "required": false
+        },
+        "permissions_boundary_arn": {
+          "line": "The platform's permissions limit, which every app function at Juniper Mutual must carry. The platform team publishes it in the platform channel.",
+          "required": true
+        },
+        "policy_arns": {
+          "line": "Permissions the app is given to read and write its data, passed in from each data module's access permission output. Never write these by hand.",
+          "default": [],
+          "required": false
+        },
+        "secret_arns": {
+          "line": "The secret references the app may read while it runs, from the secrets module or a database's password reference output.",
+          "default": [],
+          "required": false
+        },
+        "subnet_ids": {
+          "line": "The stage's private subnets, only when the app uses something in the private network, such as a database. Empty: the app runs outside the network.",
+          "default": [],
+          "required": false
+        },
+        "security_group_ids": {
+          "line": "The group the stage's apps connect from, which every database admits; given with subnet_ids.",
+          "default": [],
+          "required": false
+        }
+      },
+      "source": "modules/http-api",
+      "accepts": {
+        "policies": "policy_arns",
+        "secrets": "secret_arns",
+        "environment": "environment"
+      },
+      "outputs": {
+        "url": {
+          "line": "The API's address."
+        },
+        "role_name": {
+          "line": "The function's role, to grant it what it reads and writes."
+        }
+      },
+      "signals": [
+        "A web framework in the app's dependencies, or a call that starts a listener on a port",
+        "A health route or webhook endpoint that answers single requests",
+        "An exported function named handler that receives a request and returns a response",
+        "No long-running loop reading a stream or queue, and no connection kept open between requests",
+        "Settings the app reads from its environment, such as table or bucket names, with no secrets among them"
+      ],
+      "version": "1.2.0",
+      "delivers": {
+        "kind": "package",
+        "address": "url",
+        "handler": "handler",
+        "package": "package_path"
+      },
+      "guidance": "Use only for an app that can start fresh for each request; one that holds a connection open, reads a stream or queue in a loop, or warms up at start must use container-service instead. Every function carries the platform's permissions boundary, published by the platform team in the platform channel. Logs are kept for a week in dev, sit and uat, and for a year from staging up (staging, perf, prod). The app's package is built once and promoted unchanged, identified by its checksum: dev is built by the developer, sit and uat are promoted by the team, staging needs a platform team approval, prod needs a platform team approval and an approved change ticket. perf is not on the path to production: it is built from what is in staging for a load test, and nothing is promoted from it. Never write a policy for the app by hand; grant access only by passing each data module's access_policy_arn in policy_arns, and ask in the platform channel if a module does not offer what is needed. Secrets never go in environment; put them in the secrets module and pass their references in secret_arns, or use a database's password reference. Use the module at a released tag named http-api/v<version>, never at a branch; a major version changes what the module takes or gives, so read its changelog entry before moving an app to it. The function's runtime is fixed by the module as Node.js 20. Grant access only through policy_arns; the role reference output is for reference, not for attaching policies directly. Use only for an app that can start fresh for each request. An app that holds a connection open, reads a stream or queue in a loop, or warms up at start must use container-service. Every function carries the platform's permissions boundary, passed as permissions_boundary_arn, published by the platform team in the platform channel. Logs are kept for a week in dev, sit and uat, and for a year from staging up (staging, perf and prod) (dev, sit, uat, staging, perf, prod). Never write a policy for the app by hand. Grant access only by passing each data module's access_policy_arn in policy_arns; if a module does not offer what the app needs, ask in the platform channel. Secrets never go in environment. Put them in the secrets module and pass their ARNs in secret_arns, or a database's password_secret_arn. Use the module at a released tag named http-api/v<version>, never at a branch. A major version changes what the module takes or gives; read its CHANGELOG entry before moving an app to it. The function's runtime is fixed by the module as Node.js 20; the app must run on it. An app's package is built once and the same package, identified by its sha256, is promoted unchanged; promotion re-checks the checksum before applying. Promotion moves one stage at a time in the order dev, sit, uat, staging, prod; dev cannot be promoted to, perf is never promoted to, and any other name is refused (sit, uat, staging, prod). A prod promotion must carry a change ticket in the form CHG plus seven digits, or the promotion stops before the job runs (prod). Each stage has its own root module and its own state, in the stage's own account, kept by the app repository under stages/<stage>/. Every stage takes a stage input of dev, sit, uat, staging, perf or prod; from staging up an environment is held to production's rules: more copies, more backups, deletion protection and alarms to on-call (staging, prod (and perf where it mirrors staging)). App teams use a module only at a released tag named after the module (for example http-api/v1.1.0), never at a branch; a major version change alters what the module takes or gives. Data modules (document-table, file-bucket, work-queue, postgres) offer access_policy_arn and, for a database, password_secret_arn as outputs; app modules take them in policy_arns and secret_arns; a root module only passes outputs to inputs and never writes a policy. Every module must be formatted with terraform fmt and pass terraform init and validate; this runs on every push and pull request to the library (not a stage; library check). The library offers nothing yet for an event stream, for signing in an app's own users, or for work on a schedule.",
+      "builds_with": "terraform",
+      "availability": "available"
+    },
+    {
+      "id": "internal_entry",
+      "tag": "internal-entry/v1.0.0",
+      "line": "A private web address, reachable only from inside Juniper Mutual's network, that sends HTTPS calls to the app.",
+      "role": "core",
+      "runs": [],
+      "when": "For an app that must not be reachable from the public internet: back-office tools, services other apps call, or anything handling member data that has no business being public. Put it in front of a container-service.",
+      "rules": [
+        {
+          "rule": "The door is internal only: nothing on the internet can reach it, and it is reached only by the callers allowed in security_group_ids.",
+          "evidence": {
+            "file": "modules/internal-entry/main.tf",
+            "line": 11
+          }
+        },
+        {
+          "rule": "Every stage uses the stage's own private subnets and its own certificate.",
+          "evidence": {
+            "file": "modules/internal-entry/README.md"
+          }
+        },
+        {
+          "rule": "From staging up (staging, perf, prod) the door is protected against accidental deletion.",
+          "stages": "staging, perf, prod",
+          "evidence": {
+            "file": "modules/internal-entry/main.tf",
+            "line": 18
+          }
+        },
+        {
+          "rule": "The app is reached over HTTPS on port 443 only; the certificate is the stage's own.",
+          "evidence": {
+            "file": "modules/internal-entry/main.tf",
+            "line": 36
+          }
+        },
+        {
+          "rule": "The app's tasks are registered to the target group the module outputs; the app must listen on target_port (default 8080).",
+          "evidence": {
+            "file": "modules/internal-entry/outputs.tf"
+          }
+        },
+        {
+          "rule": "Health checks call the path /health, which is fixed in the module and not an input, so the app must answer /health with a healthy response.",
+          "evidence": {
+            "file": "modules/internal-entry/main.tf",
+            "line": 29
+          }
+        },
+        {
+          "rule": "An app's package is built once and the same package, identified by its sha256, is promoted unchanged; promotion re-checks the checksum before applying.",
+          "evidence": {
+            "file": ".github/workflows/app-build.yml"
+          }
+        },
+        {
+          "rule": "Promotion moves one stage at a time in the order dev, sit, uat, staging, prod; dev cannot be promoted to, perf is never promoted to, and any other name is refused.",
+          "stages": "sit, uat, staging, prod",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "A prod promotion must carry a change ticket in the form CHG plus seven digits, or the promotion stops before the job runs.",
+          "stages": "prod",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "Each stage has its own root module and its own state, in the stage's own account, kept by the app repository under stages/<stage>/.",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "Every stage takes a stage input of dev, sit, uat, staging, perf or prod; from staging up an environment is held to production's rules: more copies, more backups, deletion protection and alarms to on-call.",
+          "stages": "staging, prod (and perf where it mirrors staging)",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "App teams use a module only at a released tag named after the module (for example http-api/v1.1.0), never at a branch; a major version change alters what the module takes or gives.",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "Every module must be formatted with terraform fmt and pass terraform init and validate; this runs on every push and pull request to the library.",
+          "stages": "not a stage; library check",
+          "evidence": {
+            "file": ".github/workflows/module-check.yml"
+          }
+        },
+        {
+          "rule": "The library offers nothing yet for an event stream, for signing in an app's own users, or for work on a schedule.",
+          "evidence": {
+            "file": "README.md"
+          }
+        }
+      ],
+      "commit": "5e63aa573473e988a2e2e40616ad32614a30e98b",
+      "inputs": {
+        "name": {
+          "line": "The app's name. Lowercase letters, digits and hyphens, starting with a letter. Everything created is named after it and the stage.",
+          "required": true
+        },
+        "tags": {
+          "line": "Extra labels added to everything this creates, beside the platform's own.",
+          "default": {},
+          "required": false
+        },
+        "stage": {
+          "line": "Which stage this is: dev, sit, uat, staging, perf or prod.",
+          "required": true
+        },
+        "vpc_id": {
+          "line": "The network the stage runs in.",
+          "required": true
+        },
+        "subnet_ids": {
+          "line": "The stage's private network sections the door sits in.",
+          "required": true
+        },
+        "target_port": {
+          "line": "The port the app listens on. Defaults to 8080.",
+          "default": 8080,
+          "required": false
+        },
+        "certificate_arn": {
+          "line": "The stage's internal security certificate for HTTPS.",
+          "required": true
+        },
+        "security_group_ids": {
+          "line": "The access list: which callers may reach the app.",
+          "required": true
+        }
+      },
+      "source": "modules/internal-entry",
+      "outputs": {
+        "address": {
+          "line": "The internal address other apps call."
+        },
+        "target_group_arn": {
+          "line": "Register the service's tasks here."
+        }
+      },
+      "signals": [
+        "Service or container definition that listens on a port and answers HTTP requests",
+        "An app that serves a /health path",
+        "No public domain or public load balancer planned for the app",
+        "Other internal apps calling it by address"
+      ],
+      "version": "1.0.0",
+      "delivers": null,
+      "guidance": "The door is internal only: nothing on the internet can reach it, and it is reached only by the callers allowed through the access list, at every stage. Every stage uses the stage's own private subnets and its own certificate. From staging up (staging, perf, prod) the door is protected against accidental deletion. The app is reached over HTTPS on port 443 only, with the stage's own certificate. The app's tasks are registered to the target group the module outputs; the app must listen on target_port (default 8080). Health checks call the path /health, which is fixed in the module and not an input, so the app must answer /health with a healthy response. The door is internal only: nothing on the internet can reach it, and it is reached only by the callers allowed in security_group_ids. The app is reached over HTTPS on port 443 only; the certificate is the stage's own. An app's package is built once and the same package, identified by its sha256, is promoted unchanged; promotion re-checks the checksum before applying. Promotion moves one stage at a time in the order dev, sit, uat, staging, prod; dev cannot be promoted to, perf is never promoted to, and any other name is refused (sit, uat, staging, prod). A prod promotion must carry a change ticket in the form CHG plus seven digits, or the promotion stops before the job runs (prod). Each stage has its own root module and its own state, in the stage's own account, kept by the app repository under stages/<stage>/. Every stage takes a stage input of dev, sit, uat, staging, perf or prod; from staging up an environment is held to production's rules: more copies, more backups, deletion protection and alarms to on-call (staging, prod (and perf where it mirrors staging)). App teams use a module only at a released tag named after the module (for example http-api/v1.1.0), never at a branch; a major version change alters what the module takes or gives. Every module must be formatted with terraform fmt and pass terraform init and validate; this runs on every push and pull request to the library (not a stage; library check). The library offers nothing yet for an event stream, for signing in an app's own users, or for work on a schedule.",
+      "builds_with": "terraform",
+      "availability": "available"
+    },
+    {
+      "id": "logs_and_alarms",
+      "tag": "logs-and-alarms/v1.0.0",
+      "line": "Keeps your app's logs for a set time and raises an alarm when the app starts logging errors.",
+      "role": "core",
+      "runs": [],
+      "when": "For every app, at every stage. Every app at Juniper Mutual needs it, and nobody should have to ask for it.",
+      "rules": [
+        {
+          "rule": "Use it for every app, at every stage.",
+          "evidence": {
+            "file": "modules/logs-and-alarms/README.md"
+          }
+        },
+        {
+          "rule": "Logs are kept for a week below staging, and for a year from staging up.",
+          "stages": "dev, sit, uat keep 7 days; staging, perf, prod keep 365 days",
+          "evidence": {
+            "file": "modules/logs-and-alarms/main.tf"
+          }
+        },
+        {
+          "rule": "In dev, sit and uat, send alarms to your own team's channel topic, and nobody else. Nobody else should be woken by a test environment.",
+          "stages": "dev, sit, uat",
+          "evidence": {
+            "file": "modules/logs-and-alarms/README.md"
+          }
+        },
+        {
+          "rule": "From staging up, every app's alarms go to the on-call topic oncall-pager and nowhere else. An app that still alarms to a team channel at staging will be stopped at the change review before production.",
+          "stages": "staging, perf, prod",
+          "evidence": {
+            "file": "modules/logs-and-alarms/README.md"
+          }
+        },
+        {
+          "rule": "The module cannot check the alarm topic; the planner and app team must set it correctly for the stage.",
+          "evidence": {
+            "file": "modules/logs-and-alarms/variables.tf"
+          }
+        },
+        {
+          "rule": "An app's package is built once and the same package, identified by its sha256, is promoted unchanged; promotion re-checks the checksum before applying.",
+          "evidence": {
+            "file": ".github/workflows/app-build.yml"
+          }
+        },
+        {
+          "rule": "Promotion moves one stage at a time in the order dev, sit, uat, staging, prod; dev cannot be promoted to, perf is never promoted to, and any other name is refused.",
+          "stages": "sit, uat, staging, prod",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "A prod promotion must carry a change ticket in the form CHG plus seven digits, or the promotion stops before the job runs.",
+          "stages": "prod",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "Each stage has its own root module and its own state, in the stage's own account, kept by the app repository under stages/<stage>/.",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "Every stage takes a stage input of dev, sit, uat, staging, perf or prod; from staging up an environment is held to production's rules: more copies, more backups, deletion protection and alarms to on-call.",
+          "stages": "staging, prod (and perf where it mirrors staging)",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "App teams use a module only at a released tag named after the module (for example http-api/v1.1.0), never at a branch; a major version change alters what the module takes or gives.",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "Every module must be formatted with terraform fmt and pass terraform init and validate; this runs on every push and pull request to the library.",
+          "stages": "not a stage; library check",
+          "evidence": {
+            "file": ".github/workflows/module-check.yml"
+          }
+        },
+        {
+          "rule": "The library offers nothing yet for an event stream, for signing in an app's own users, or for work on a schedule.",
+          "evidence": {
+            "file": "README.md"
+          }
+        }
+      ],
+      "commit": "5e63aa573473e988a2e2e40616ad32614a30e98b",
+      "inputs": {
+        "name": {
+          "line": "The app's name, in lowercase letters, digits and hyphens. Every log store and alarm is named after it and the stage.",
+          "required": true
+        },
+        "tags": {
+          "line": "Extra labels added to everything this creates, beside the ones the platform sets.",
+          "default": {},
+          "required": false
+        },
+        "stage": {
+          "line": "Which stage this is: dev, sit, uat, staging, perf or prod.",
+          "required": true
+        },
+        "error_pattern": {
+          "line": "What an error line in the app's logs looks like. Defaults to ERROR.",
+          "default": "ERROR",
+          "required": false
+        },
+        "alarm_topic_arn": {
+          "line": "The alarm destination. In dev, sit and uat use your own team's channel. From staging up use the on-call topic oncall-pager, and nowhere else.",
+          "required": true
+        }
+      },
+      "source": "modules/logs-and-alarms",
+      "outputs": {
+        "log_group": {
+          "line": "Where the app's logs go."
+        },
+        "alarm_name": {
+          "line": "The alarm on the app's errors."
+        }
+      },
+      "signals": [
+        "Any app that writes to standard output or to log files and needs to be told when errors appear",
+        "An app with no error-logging or alerting setup of its own",
+        "A request to pick the alarm destination for an app's errors"
+      ],
+      "version": "1.0.0",
+      "delivers": null,
+      "guidance": "Use it for every app, at every stage. Logs are kept for a week below staging (dev, sit, uat), and for a year from staging up (staging, perf, prod). In dev, sit and uat, send alarms only to your own team's channel topic; nobody else should be woken by a test environment. From staging up, every app's alarms go to the on-call topic oncall-pager and nowhere else; an app that still alarms to a team channel at staging will be stopped at the change review before production. The module cannot check the alarm topic itself; the planner and app team must set it correctly for the stage. Logs are kept for a week below staging, and for a year from staging up (dev, sit, uat keep 7 days; staging, perf, prod keep 365 days). In dev, sit and uat, send alarms to your own team's channel topic, and nobody else. Nobody else should be woken by a test environment (dev, sit, uat). The module cannot check the alarm topic; the planner and app team must set it correctly for the stage. An app's package is built once and the same package, identified by its sha256, is promoted unchanged; promotion re-checks the checksum before applying. Promotion moves one stage at a time in the order dev, sit, uat, staging, prod; dev cannot be promoted to, perf is never promoted to, and any other name is refused (sit, uat, staging, prod). A prod promotion must carry a change ticket in the form CHG plus seven digits, or the promotion stops before the job runs (prod). Each stage has its own root module and its own state, in the stage's own account, kept by the app repository under stages/<stage>/. Every stage takes a stage input of dev, sit, uat, staging, perf or prod; from staging up an environment is held to production's rules: more copies, more backups, deletion protection and alarms to on-call (staging, prod (and perf where it mirrors staging)). App teams use a module only at a released tag named after the module (for example http-api/v1.1.0), never at a branch; a major version change alters what the module takes or gives. Every module must be formatted with terraform fmt and pass terraform init and validate; this runs on every push and pull request to the library (not a stage; library check). The library offers nothing yet for an event stream, for signing in an app's own users, or for work on a schedule.",
+      "builds_with": "terraform",
+      "availability": "available"
+    },
+    {
+      "id": "postgres",
+      "tag": "postgres/v1.2.0",
+      "line": "A single-instance relational database for one app, encrypted when stored, reachable only from the private network, which the app signs in to with its own identity and no password.",
+      "role": "optional",
+      "runs": [],
+      "when": "Use it only for development, sit and uat stages, where a small, cheap database with one day of backups is enough. From staging up, use the postgres-cluster module instead.",
+      "rules": [
+        {
+          "rule": "Below staging only: this module is for dev, sit and uat. It is one instance in one zone, with a day of backups and no protection against deletion.",
+          "stages": "dev, sit, uat",
+          "evidence": {
+            "file": "modules/postgres/README.md"
+          }
+        },
+        {
+          "rule": "From staging up, every relational database is a postgres-cluster. A plan for staging, perf or prod that names this module will be turned back in review.",
+          "stages": "staging, perf, prod",
+          "evidence": {
+            "file": "modules/postgres/README.md"
+          }
+        },
+        {
+          "rule": "The same everywhere it is allowed: one instance, one day of backups.",
+          "stages": "dev, sit, uat",
+          "evidence": {
+            "file": "modules/postgres/README.md"
+          }
+        },
+        {
+          "rule": "The master password is left unset: the platform makes and keeps it. A master password is only for restoring an old snapshot by hand. Never commit one.",
+          "evidence": {
+            "file": "modules/postgres/README.md"
+          }
+        },
+        {
+          "rule": "The database is encrypted when stored and its master password is managed by the platform unless one is supplied.",
+          "evidence": {
+            "file": "modules/postgres/main.tf"
+          }
+        },
+        {
+          "rule": "An app's package is built once and the same package, identified by its sha256, is promoted unchanged; promotion re-checks the checksum before applying.",
+          "evidence": {
+            "file": ".github/workflows/app-build.yml"
+          }
+        },
+        {
+          "rule": "Promotion moves one stage at a time in the order dev, sit, uat, staging, prod; dev cannot be promoted to, perf is never promoted to, and any other name is refused.",
+          "stages": "sit, uat, staging, prod",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "A prod promotion must carry a change ticket in the form CHG plus seven digits, or the promotion stops before the job runs.",
+          "stages": "prod",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "Each stage has its own root module and its own state, in the stage's own account, kept by the app repository under stages/<stage>/.",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "Every stage takes a stage input of dev, sit, uat, staging, perf or prod; from staging up an environment is held to production's rules: more copies, more backups, deletion protection and alarms to on-call.",
+          "stages": "staging, prod (and perf where it mirrors staging)",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "App teams use a module only at a released tag named after the module (for example http-api/v1.1.0), never at a branch; a major version change alters what the module takes or gives.",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "Data modules (document-table, file-bucket, work-queue, postgres) offer access_policy_arn and, for a database, password_secret_arn as outputs; app modules take them in policy_arns and secret_arns; a root module only passes outputs to inputs and never writes a policy.",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "postgres is for below staging; postgres-cluster is for staging up.",
+          "stages": "dev, sit, uat for postgres; staging, prod for postgres-cluster",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "Every module must be formatted with terraform fmt and pass terraform init and validate; this runs on every push and pull request to the library.",
+          "stages": "not a stage; library check",
+          "evidence": {
+            "file": ".github/workflows/module-check.yml"
+          }
+        },
+        {
+          "rule": "The library offers nothing yet for an event stream, for signing in an app's own users, or for work on a schedule.",
+          "evidence": {
+            "file": "README.md"
+          }
+        }
+      ],
+      "commit": "0aa63a084efb9d1650a7e7d591bf1b307ac58878",
+      "inputs": {
+        "name": {
+          "line": "The app's name, lowercase letters, digits and hyphens. Every resource is named after it and the stage.",
+          "required": true
+        },
+        "stage": {
+          "line": "Which stage on the path to production this is: dev, sit, uat, staging, perf or prod.",
+          "required": true
+        },
+        "tags": {
+          "line": "Tags added to every resource, beside the ones this module sets.",
+          "default": {},
+          "required": false
+        },
+        "subnet_group_name": {
+          "line": "The stage's database network group, in the private network.",
+          "required": true
+        },
+        "security_group_ids": {
+          "line": "Who may connect to the database.",
+          "required": true
+        },
+        "instance_class": {
+          "line": "The size of the database; the smallest has too little memory for signing in.",
+          "default": "db.t4g.micro",
+          "required": false
+        },
+        "master_password": {
+          "line": "Leave unset: the platform makes and keeps the password. Only for restoring an old snapshot by hand.",
+          "default": null,
+          "required": false
+        },
+        "permissions_boundary_arn": {
+          "line": "The platform's permissions boundary, which the one-time setup carries too.",
+          "default": null,
+          "required": false
+        }
+      },
+      "offers": {
+        "access": "access_policy_arn",
+        "narrower": [],
+        "secrets": [
+          "password_secret_arn"
+        ],
+        "values": [
+          "address",
+          "database_name",
+          "database_user",
+          "port"
+        ]
+      },
+      "source": "modules/postgres",
+      "outputs": {
+        "address": {
+          "line": "Where the app connects."
+        },
+        "port": {
+          "line": "The port the app connects on."
+        },
+        "database_name": {
+          "line": "The app's own database, made for it when the platform made the password."
+        },
+        "database_user": {
+          "line": "The user the app connects as, signing in with its own identity and no password."
+        },
+        "access_policy_arn": {
+          "line": "Signs in as the app's user: pass it in the app's policy_arns."
+        },
+        "password_secret_arn": {
+          "line": "Where the platform keeps the master password, when it made it. For restoring by hand, never for the app."
+        }
+      },
+      "signals": [
+        "An app that needs a relational database in dev, sit or uat",
+        "Configuration that names the postgres module for one of those stages",
+        "An app that connects to its database with its own identity, reading where to connect from its settings",
+        "A plan that names this module for staging, perf or prod, which will be turned back in review"
+      ],
+      "version": "1.2.0",
+      "delivers": null,
+      "guidance": "Below staging only: for dev, sit and uat. One instance in one zone, with a day of backups and no protection against deletion, the same everywhere it is allowed. From staging up, every relational database is a postgres-cluster; a plan for staging, perf or prod that names this module will be turned back in review. The master password is left unset so the platform makes and keeps it; set one only to restore an old snapshot by hand, and never commit one. Encrypted when stored at every stage. Below staging only: this module is for dev, sit and uat. It is one instance in one zone, with a day of backups and no protection against deletion (dev, sit, uat). The same everywhere it is allowed: one instance, one day of backups (dev, sit, uat). The master password is left unset: the platform makes and keeps it. A master password is only for restoring an old snapshot by hand. Never commit one. The database is encrypted when stored and its master password is managed by the platform unless one is supplied. An app's package is built once and the same package, identified by its sha256, is promoted unchanged; promotion re-checks the checksum before applying. Promotion moves one stage at a time in the order dev, sit, uat, staging, prod; dev cannot be promoted to, perf is never promoted to, and any other name is refused (sit, uat, staging, prod). A prod promotion must carry a change ticket in the form CHG plus seven digits, or the promotion stops before the job runs (prod). Each stage has its own root module and its own state, in the stage's own account, kept by the app repository under stages/<stage>/. Every stage takes a stage input of dev, sit, uat, staging, perf or prod; from staging up an environment is held to production's rules: more copies, more backups, deletion protection and alarms to on-call (staging, prod (and perf where it mirrors staging)). App teams use a module only at a released tag named after the module (for example http-api/v1.1.0), never at a branch; a major version change alters what the module takes or gives. Data modules (document-table, file-bucket, work-queue, postgres) offer access_policy_arn and, for a database, password_secret_arn as outputs; app modules take them in policy_arns and secret_arns; a root module only passes outputs to inputs and never writes a policy. postgres is for below staging; postgres-cluster is for staging up (dev, sit, uat for postgres; staging, prod for postgres-cluster). Every module must be formatted with terraform fmt and pass terraform init and validate; this runs on every push and pull request to the library (not a stage; library check). The library offers nothing yet for an event stream, for signing in an app's own users, or for work on a schedule.",
+      "builds_with": "terraform",
+      "availability": "available"
+    },
+    {
+      "id": "postgres_cluster",
+      "tag": "postgres-cluster/v1.0.0",
+      "line": "A PostgreSQL database cluster that keeps running if one availability zone (AZ) fails, encrypted when stored, reachable only from the private network, with its password made and kept by the platform.",
+      "role": "core",
+      "runs": [],
+      "when": "Use it for every relational database in staging, perf and prod. In dev, sit and uat, use the postgres module instead, which takes the same inputs at lower cost.",
+      "rules": [
+        {
+          "rule": "Use postgres-cluster for every relational database from staging up; below staging, use postgres, which takes the same inputs and costs far less.",
+          "stages": "dev, sit, uat use postgres; staging, perf, prod use postgres-cluster",
+          "evidence": {
+            "file": "modules/postgres-cluster/README.md"
+          }
+        },
+        {
+          "rule": "dev, sit and uat are allowed to use this module, but should use postgres; they get one instance and a week of backups.",
+          "stages": "dev, sit, uat",
+          "evidence": {
+            "file": "modules/postgres-cluster/README.md"
+          }
+        },
+        {
+          "rule": "From staging up: two instances in two zones, thirty-five days of backups, protected against deletion, and a final snapshot kept if the cluster is ever removed.",
+          "stages": "staging, perf, prod",
+          "evidence": {
+            "file": "modules/postgres-cluster/main.tf"
+          }
+        },
+        {
+          "rule": "The database is always encrypted when stored and its password is made and kept by the platform, never set by the app.",
+          "evidence": {
+            "file": "modules/postgres-cluster/main.tf"
+          }
+        },
+        {
+          "rule": "An app's package is built once and the same package, identified by its sha256, is promoted unchanged; promotion re-checks the checksum before applying.",
+          "evidence": {
+            "file": ".github/workflows/app-build.yml"
+          }
+        },
+        {
+          "rule": "Promotion moves one stage at a time in the order dev, sit, uat, staging, prod; dev cannot be promoted to, perf is never promoted to, and any other name is refused.",
+          "stages": "sit, uat, staging, prod",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "A prod promotion must carry a change ticket in the form CHG plus seven digits, or the promotion stops before the job runs.",
+          "stages": "prod",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "Each stage has its own root module and its own state, in the stage's own account, kept by the app repository under stages/<stage>/.",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "Every stage takes a stage input of dev, sit, uat, staging, perf or prod; from staging up an environment is held to production's rules: more copies, more backups, deletion protection and alarms to on-call.",
+          "stages": "staging, prod (and perf where it mirrors staging)",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "App teams use a module only at a released tag named after the module (for example http-api/v1.1.0), never at a branch; a major version change alters what the module takes or gives.",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "postgres is for below staging; postgres-cluster is for staging up.",
+          "stages": "dev, sit, uat for postgres; staging, prod for postgres-cluster",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "Every module must be formatted with terraform fmt and pass terraform init and validate; this runs on every push and pull request to the library.",
+          "stages": "not a stage; library check",
+          "evidence": {
+            "file": ".github/workflows/module-check.yml"
+          }
+        },
+        {
+          "rule": "The library offers nothing yet for an event stream, for signing in an app's own users, or for work on a schedule.",
+          "evidence": {
+            "file": "README.md"
+          }
+        }
+      ],
+      "commit": "5e63aa573473e988a2e2e40616ad32614a30e98b",
+      "inputs": {
+        "name": {
+          "line": "The app's name, lowercase letters, digits and hyphens. Every resource is named after it and the stage.",
+          "required": true
+        },
+        "tags": {
+          "line": "Tags added to every resource, beside the ones this module sets.",
+          "default": {},
+          "required": false
+        },
+        "stage": {
+          "line": "Which stage on the path to production this is: dev, sit, uat, staging, perf or prod.",
+          "required": true
+        },
+        "instance_class": {
+          "line": "The size of the database machines, set by a load test.",
+          "default": "db.r6g.large",
+          "required": false
+        },
+        "subnet_group_name": {
+          "line": "Which private network area the database sits in, set up for this stage by the platform.",
+          "required": true
+        },
+        "security_group_ids": {
+          "line": "Which apps and networks are allowed to connect to the database.",
+          "required": true
+        }
+      },
+      "offers": {
+        "access": null,
+        "values": [
+          "address",
+          "reader_address"
+        ],
+        "secrets": [
+          "password_secret_arn"
+        ],
+        "narrower": []
+      },
+      "source": "modules/postgres-cluster",
+      "outputs": {
+        "address": {
+          "line": "Where the app writes."
+        },
+        "reader_address": {
+          "line": "Where the app may read."
+        },
+        "password_secret_arn": {
+          "line": "Where the platform keeps the password."
+        }
+      },
+      "signals": [
+        "Config or code connects to a PostgreSQL database with a write address and an optional read address",
+        "App reads a database password from a secret reference rather than a plain setting",
+        "Plan names postgres-cluster for staging, perf or prod, or postgres for dev, sit or uat",
+        "App needs a database that survives losing one availability zone"
+      ],
+      "version": "1.0.0",
+      "delivers": null,
+      "guidance": "Use for every relational database from staging up (staging, perf, prod), always. Below staging, use postgres, which takes the same inputs and costs far less; dev, sit and uat are allowed to use this module but should use postgres instead, getting one instance and a week of backups if they do. From staging up: two instances in two zones, thirty-five days of backups, protected against deletion, and a final snapshot kept if the cluster is ever removed. The database is always encrypted when stored and its password is made and kept by the platform, never set by the app. Use postgres-cluster for every relational database from staging up; below staging, use postgres, which takes the same inputs and costs far less (dev, sit, uat use postgres; staging, perf, prod use postgres-cluster). dev, sit and uat are allowed to use this module, but should use postgres; they get one instance and a week of backups (dev, sit, uat). An app's package is built once and the same package, identified by its sha256, is promoted unchanged; promotion re-checks the checksum before applying. Promotion moves one stage at a time in the order dev, sit, uat, staging, prod; dev cannot be promoted to, perf is never promoted to, and any other name is refused (sit, uat, staging, prod). A prod promotion must carry a change ticket in the form CHG plus seven digits, or the promotion stops before the job runs (prod). Each stage has its own root module and its own state, in the stage's own account, kept by the app repository under stages/<stage>/. Every stage takes a stage input of dev, sit, uat, staging, perf or prod; from staging up an environment is held to production's rules: more copies, more backups, deletion protection and alarms to on-call (staging, prod (and perf where it mirrors staging)). App teams use a module only at a released tag named after the module (for example http-api/v1.1.0), never at a branch; a major version change alters what the module takes or gives. postgres is for below staging; postgres-cluster is for staging up (dev, sit, uat for postgres; staging, prod for postgres-cluster). Every module must be formatted with terraform fmt and pass terraform init and validate; this runs on every push and pull request to the library (not a stage; library check). The library offers nothing yet for an event stream, for signing in an app's own users, or for work on a schedule.",
+      "builds_with": "terraform",
+      "availability": "available"
+    },
+    {
+      "id": "secrets",
+      "tag": "secrets/v1.0.0",
+      "line": "Gives the app a named, encrypted-at-rest place to keep each secret it reads, with the values added by the team rather than through code.",
+      "role": "optional",
+      "runs": [],
+      "when": "Use it for an app that reads a key, a token or a password from its environment. Do not use it for a database's own password: the database modules make and keep that.",
+      "rules": [
+        {
+          "rule": "Secret values never pass through Terraform. The module creates only the empty secret containers, named by secret_names; the team puts the values in by hand or from its own vault.",
+          "evidence": {
+            "file": "modules/secrets/README.md"
+          }
+        },
+        {
+          "rule": "A database's own password is made and kept by the database modules, so it must not be added to this module.",
+          "evidence": {
+            "file": "modules/secrets/README.md"
+          }
+        },
+        {
+          "rule": "From staging up (staging, perf, prod), a deleted secret can be brought back for thirty days; below staging (dev, sit, uat) it is deleted at once.",
+          "stages": "staging, perf, prod (30-day recovery); dev, sit, uat (immediate deletion)",
+          "evidence": {
+            "file": "modules/secrets/main.tf"
+          }
+        },
+        {
+          "rule": "An app's package is built once and the same package, identified by its sha256, is promoted unchanged; promotion re-checks the checksum before applying.",
+          "evidence": {
+            "file": ".github/workflows/app-build.yml"
+          }
+        },
+        {
+          "rule": "Promotion moves one stage at a time in the order dev, sit, uat, staging, prod; dev cannot be promoted to, perf is never promoted to, and any other name is refused.",
+          "stages": "sit, uat, staging, prod",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "A prod promotion must carry a change ticket in the form CHG plus seven digits, or the promotion stops before the job runs.",
+          "stages": "prod",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "Each stage has its own root module and its own state, in the stage's own account, kept by the app repository under stages/<stage>/.",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "Every stage takes a stage input of dev, sit, uat, staging, perf or prod; from staging up an environment is held to production's rules: more copies, more backups, deletion protection and alarms to on-call.",
+          "stages": "staging, prod (and perf where it mirrors staging)",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "App teams use a module only at a released tag named after the module (for example http-api/v1.1.0), never at a branch; a major version change alters what the module takes or gives.",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "Every module must be formatted with terraform fmt and pass terraform init and validate; this runs on every push and pull request to the library.",
+          "stages": "not a stage; library check",
+          "evidence": {
+            "file": ".github/workflows/module-check.yml"
+          }
+        },
+        {
+          "rule": "The library offers nothing yet for an event stream, for signing in an app's own users, or for work on a schedule.",
+          "evidence": {
+            "file": "README.md"
+          }
+        }
+      ],
+      "commit": "5e63aa573473e988a2e2e40616ad32614a30e98b",
+      "inputs": {
+        "name": {
+          "line": "The app's name, lowercase letters, digits and hyphens. Every resource is named after it and the stage.",
+          "required": true
+        },
+        "tags": {
+          "line": "Tags added to every resource, beside the ones this module sets.",
+          "default": {},
+          "required": false
+        },
+        "stage": {
+          "line": "Which stage on the path to production this is: dev, sit, uat, staging, perf or prod.",
+          "required": true
+        },
+        "secret_names": {
+          "line": "The names of the secrets the app reads. Names only: the values are never written here.",
+          "required": true
+        }
+      },
+      "source": "modules/secrets",
+      "outputs": {
+        "secret_arns": {
+          "line": "Each secret, by name, to grant the app access."
+        }
+      },
+      "signals": [
+        "The app reads API keys, tokens or passwords from environment variables or a secret store at runtime",
+        "The app talks to a third-party or internal service that needs a credential",
+        "The app needs a credential that must not appear in code or in a plan"
+      ],
+      "version": "1.0.0",
+      "delivers": null,
+      "guidance": "Secret values never pass through the module's own setup code; it creates only the empty, named places for secrets, and the team puts the values in by hand or from its own vault. A database's own password is made and kept by the database modules, so it must not be added here. From staging up (staging, perf, prod), a deleted secret can be brought back for thirty days; below staging (dev, sit, uat) it is deleted at once. Secret values never pass through Terraform. The module creates only the empty secret containers, named by secret_names; the team puts the values in by hand or from its own vault. A database's own password is made and kept by the database modules, so it must not be added to this module. An app's package is built once and the same package, identified by its sha256, is promoted unchanged; promotion re-checks the checksum before applying. Promotion moves one stage at a time in the order dev, sit, uat, staging, prod; dev cannot be promoted to, perf is never promoted to, and any other name is refused (sit, uat, staging, prod). A prod promotion must carry a change ticket in the form CHG plus seven digits, or the promotion stops before the job runs (prod). Each stage has its own root module and its own state, in the stage's own account, kept by the app repository under stages/<stage>/. Every stage takes a stage input of dev, sit, uat, staging, perf or prod; from staging up an environment is held to production's rules: more copies, more backups, deletion protection and alarms to on-call (staging, prod (and perf where it mirrors staging)). App teams use a module only at a released tag named after the module (for example http-api/v1.1.0), never at a branch; a major version change alters what the module takes or gives. Every module must be formatted with terraform fmt and pass terraform init and validate; this runs on every push and pull request to the library (not a stage; library check). The library offers nothing yet for an event stream, for signing in an app's own users, or for work on a schedule.",
+      "builds_with": "terraform",
+      "availability": "available"
+    },
+    {
+      "id": "static_site",
+      "tag": "static-site/v1.0.0",
+      "line": "Hosts a website made only of files (pages, styles, images, scripts) and serves it to the public over HTTPS, with nothing running on a server.",
+      "role": "core",
+      "runs": [],
+      "when": "Use it for a site that is only files: a marketing page, documentation, or the built output of a front end whose data comes from an API elsewhere. If anything has to run when a request arrives, use http-api or container-service instead.",
+      "rules": [
+        {
+          "rule": "This is the only module allowed to serve files to the public. Every other bucket at Juniper Mutual is private and should use file-bucket.",
+          "evidence": {
+            "file": "modules/static-site/README.md"
+          }
+        },
+        {
+          "rule": "If anything has to run when a request arrives, this is the wrong module: use http-api or container-service.",
+          "evidence": {
+            "file": "modules/static-site/README.md"
+          }
+        },
+        {
+          "rule": "In dev, sit and uat the site is served from the cheapest set of edge locations (price class PriceClass_100). From staging up it is served from every location (PriceClass_All), as production is.",
+          "stages": "dev, sit, uat, staging, perf, prod",
+          "evidence": {
+            "file": "modules/static-site/main.tf"
+          }
+        },
+        {
+          "rule": "The site is served on the provider's default CloudFront address with its default certificate; the module sets no custom domain or certificate of its own.",
+          "evidence": {
+            "file": "modules/static-site/main.tf"
+          }
+        },
+        {
+          "rule": "Upload the site's files to the bucket named in the bucket_name output; the bucket is private and only the site's delivery network can read from it.",
+          "evidence": {
+            "file": "modules/static-site/main.tf"
+          }
+        },
+        {
+          "rule": "Stage names are dev, sit, uat, staging, perf or prod; perf is not on the promotion path and nothing is promoted from it.",
+          "stages": "perf",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "An app's package is built once and the same package, identified by its sha256, is promoted unchanged; promotion re-checks the checksum before applying.",
+          "evidence": {
+            "file": ".github/workflows/app-build.yml"
+          }
+        },
+        {
+          "rule": "Promotion moves one stage at a time in the order dev, sit, uat, staging, prod; dev cannot be promoted to, perf is never promoted to, and any other name is refused.",
+          "stages": "sit, uat, staging, prod",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "A prod promotion must carry a change ticket in the form CHG plus seven digits, or the promotion stops before the job runs.",
+          "stages": "prod",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "Each stage has its own root module and its own state, in the stage's own account, kept by the app repository under stages/<stage>/.",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "Every stage takes a stage input of dev, sit, uat, staging, perf or prod; from staging up an environment is held to production's rules: more copies, more backups, deletion protection and alarms to on-call.",
+          "stages": "staging, prod (and perf where it mirrors staging)",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "App teams use a module only at a released tag named after the module (for example http-api/v1.1.0), never at a branch; a major version change alters what the module takes or gives.",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "Every module must be formatted with terraform fmt and pass terraform init and validate; this runs on every push and pull request to the library.",
+          "stages": "not a stage; library check",
+          "evidence": {
+            "file": ".github/workflows/module-check.yml"
+          }
+        },
+        {
+          "rule": "The library offers nothing yet for an event stream, for signing in an app's own users, or for work on a schedule.",
+          "evidence": {
+            "file": "README.md"
+          }
+        }
+      ],
+      "commit": "5e63aa573473e988a2e2e40616ad32614a30e98b",
+      "inputs": {
+        "name": {
+          "line": "The app's name, lowercase letters, digits and hyphens. Every resource is named after it and the stage.",
+          "required": true
+        },
+        "tags": {
+          "line": "Tags added to every resource, beside the ones this module sets.",
+          "default": {},
+          "required": false
+        },
+        "stage": {
+          "line": "Which stage on the path to production this is: dev, sit, uat, staging, perf or prod.",
+          "required": true
+        },
+        "index_document": {
+          "line": "The page visitors land on.",
+          "default": "index.html",
+          "required": false
+        }
+      },
+      "source": "modules/static-site",
+      "outputs": {
+        "url": {
+          "line": "The site's address."
+        },
+        "bucket_name": {
+          "line": "Upload the site's files here."
+        }
+      },
+      "signals": [
+        "Build output that is only HTML, CSS, JavaScript and images, with no server code to run on each request",
+        "A front end that calls an API for its data",
+        "A static site generator's output folder (for example a build directory of .html files) that is uploaded to a bucket"
+      ],
+      "version": "1.0.0",
+      "delivers": {
+        "kind": "files",
+        "output": "bucket_name",
+        "address": "url"
+      },
+      "guidance": "This is the only module allowed to serve files to the public; every other bucket at Juniper Mutual is private and should use file-bucket. If anything has to run when a request arrives, use http-api or container-service instead. In dev, sit and uat the site is served from the cheapest set of edge locations; from staging up (staging, perf, prod) it is served from every location, as production is. The site is served on the content network's own default address and its own default certificate, with no custom domain or certificate set by this module. Upload the site's files to the bucket this module names; the bucket is private and only the site's delivery network can read from it. perf is not on the promotion path and nothing is promoted from it. If anything has to run when a request arrives, this is the wrong module: use http-api or container-service. In dev, sit and uat the site is served from the cheapest set of edge locations (price class PriceClass_100). From staging up it is served from every location (PriceClass_All), as production is (dev, sit, uat, staging, perf, prod). The site is served on the provider's default CloudFront address with its default certificate; the module sets no custom domain or certificate of its own. Upload the site's files to the bucket named in the bucket_name output; the bucket is private and only the site's delivery network can read from it. Stage names are dev, sit, uat, staging, perf or prod; perf is not on the promotion path and nothing is promoted from it (perf). An app's package is built once and the same package, identified by its sha256, is promoted unchanged; promotion re-checks the checksum before applying. Promotion moves one stage at a time in the order dev, sit, uat, staging, prod; dev cannot be promoted to, perf is never promoted to, and any other name is refused (sit, uat, staging, prod). A prod promotion must carry a change ticket in the form CHG plus seven digits, or the promotion stops before the job runs (prod). Each stage has its own root module and its own state, in the stage's own account, kept by the app repository under stages/<stage>/. Every stage takes a stage input of dev, sit, uat, staging, perf or prod; from staging up an environment is held to production's rules: more copies, more backups, deletion protection and alarms to on-call (staging, prod (and perf where it mirrors staging)). App teams use a module only at a released tag named after the module (for example http-api/v1.1.0), never at a branch; a major version change alters what the module takes or gives. Every module must be formatted with terraform fmt and pass terraform init and validate; this runs on every push and pull request to the library (not a stage; library check). The library offers nothing yet for an event stream, for signing in an app's own users, or for work on a schedule.",
+      "builds_with": "terraform",
+      "availability": "available"
+    },
+    {
+      "id": "work_queue",
+      "tag": "work-queue/v1.1.0",
+      "line": "A queue for handing work to something else to do later, plus a second queue that catches messages that keep failing, so work is kept and never retried forever.",
+      "role": "optional",
+      "runs": [],
+      "when": "For an app that hands work off to run later, or that does work it was handed by a queue. Look for a queue client in its dependencies or a worker that reads messages. A stream of events that many readers each see in order is not a queue, and the library has no module for one yet.",
+      "rules": [
+        {
+          "rule": "Messages wait four days in the work queue below staging (dev, sit, uat).",
+          "stages": "dev, sit, uat",
+          "evidence": {
+            "file": "modules/work-queue/main.tf",
+            "line": 36
+          }
+        },
+        {
+          "rule": "Messages wait two weeks in the work queue from staging up (staging, perf, prod).",
+          "stages": "staging, perf, prod",
+          "evidence": {
+            "file": "modules/work-queue/main.tf",
+            "line": 36
+          }
+        },
+        {
+          "rule": "From staging up, an environment is held to production's rules.",
+          "stages": "staging, perf, prod",
+          "evidence": {
+            "file": "modules/work-queue/main.tf",
+            "line": 3
+          }
+        },
+        {
+          "rule": "Messages that fail too often (after max_receives tries, default 5) go to the failed queue, which keeps them for two weeks at every stage.",
+          "evidence": {
+            "file": "modules/work-queue/main.tf",
+            "line": 24
+          }
+        },
+        {
+          "rule": "The app reaches the queue through the access policy: pass access_policy_arn in the app module's policy_arns and look the queue up by its environment setting. Use send_only_policy_arn when the app only sends.",
+          "evidence": {
+            "file": "modules/work-queue/README.md"
+          }
+        },
+        {
+          "rule": "An app's package is built once and the same package, identified by its sha256, is promoted unchanged; promotion re-checks the checksum before applying.",
+          "evidence": {
+            "file": ".github/workflows/app-build.yml"
+          }
+        },
+        {
+          "rule": "Promotion moves one stage at a time in the order dev, sit, uat, staging, prod; dev cannot be promoted to, perf is never promoted to, and any other name is refused.",
+          "stages": "sit, uat, staging, prod",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "A prod promotion must carry a change ticket in the form CHG plus seven digits, or the promotion stops before the job runs.",
+          "stages": "prod",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "Each stage has its own root module and its own state, in the stage's own account, kept by the app repository under stages/<stage>/.",
+          "evidence": {
+            "file": ".github/workflows/app-promote.yml"
+          }
+        },
+        {
+          "rule": "Every stage takes a stage input of dev, sit, uat, staging, perf or prod; from staging up an environment is held to production's rules: more copies, more backups, deletion protection and alarms to on-call.",
+          "stages": "staging, prod (and perf where it mirrors staging)",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "App teams use a module only at a released tag named after the module (for example http-api/v1.1.0), never at a branch; a major version change alters what the module takes or gives.",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "Data modules (document-table, file-bucket, work-queue, postgres) offer access_policy_arn and, for a database, password_secret_arn as outputs; app modules take them in policy_arns and secret_arns; a root module only passes outputs to inputs and never writes a policy.",
+          "evidence": {
+            "file": "README.md"
+          }
+        },
+        {
+          "rule": "Every module must be formatted with terraform fmt and pass terraform init and validate; this runs on every push and pull request to the library.",
+          "stages": "not a stage; library check",
+          "evidence": {
+            "file": ".github/workflows/module-check.yml"
+          }
+        },
+        {
+          "rule": "The library offers nothing yet for an event stream, for signing in an app's own users, or for work on a schedule.",
+          "evidence": {
+            "file": "README.md"
+          }
+        }
+      ],
+      "commit": "e1a1bca760c8d7ef5fe7198ccba2c865d4ccb554",
+      "inputs": {
+        "name": {
+          "line": "The app's name, lowercase letters, digits and hyphens. Every resource is named after it and the stage.",
+          "required": true
+        },
+        "tags": {
+          "line": "Tags added to every resource, beside the ones this module sets.",
+          "default": {},
+          "required": false
+        },
+        "stage": {
+          "line": "Which stage on the path to production this is: dev, sit, uat, staging, perf or prod.",
+          "required": true
+        },
+        "max_receives": {
+          "line": "How many tries before a message goes to the failed queue.",
+          "default": 5,
+          "required": false
+        }
+      },
+      "offers": {
+        "access": "access_policy_arn",
+        "values": [
+          "failed_queue_url",
+          "queue_url"
+        ],
+        "secrets": [],
+        "narrower": [
+          "send_only_policy_arn"
+        ]
+      },
+      "source": "modules/work-queue",
+      "outputs": {
+        "queue_url": {
+          "line": "Where the app sends and reads work."
+        },
+        "failed_queue_url": {
+          "line": "Where failed work waits to be looked at."
+        },
+        "access_policy_arn": {
+          "line": "Sends work and takes it off the queue: pass it in the app's policy_arns."
+        },
+        "send_only_policy_arn": {
+          "line": "Sends work only: pass it in the app's policy_arns."
+        }
+      },
+      "signals": [
+        "A queue client library in the app's dependencies",
+        "A worker or consumer loop that reads messages from a queue",
+        "Configuration holding a queue URL or queue name for the app",
+        "Code that sends a job or message to be processed later"
+      ],
+      "version": "1.1.0",
+      "delivers": null,
+      "guidance": "Messages wait four days in the work queue below staging (dev, sit, uat), and two weeks from staging up (staging, perf, prod); from staging up an environment is held to production's rules. Messages that fail too often (after max_receives tries, default 5) go to the failed queue, which keeps them for two weeks at every stage. The app reaches the queue through the access policy: pass access_policy_arn in the app module's policy_arns and look the queue up by its environment setting; use send_only_policy_arn when the app only sends. Messages wait two weeks in the work queue from staging up (staging, perf, prod) (staging, perf, prod). An app's package is built once and the same package, identified by its sha256, is promoted unchanged; promotion re-checks the checksum before applying. Promotion moves one stage at a time in the order dev, sit, uat, staging, prod; dev cannot be promoted to, perf is never promoted to, and any other name is refused (sit, uat, staging, prod). A prod promotion must carry a change ticket in the form CHG plus seven digits, or the promotion stops before the job runs (prod). Each stage has its own root module and its own state, in the stage's own account, kept by the app repository under stages/<stage>/. Every stage takes a stage input of dev, sit, uat, staging, perf or prod; from staging up an environment is held to production's rules: more copies, more backups, deletion protection and alarms to on-call (staging, prod (and perf where it mirrors staging)). App teams use a module only at a released tag named after the module (for example http-api/v1.1.0), never at a branch; a major version change alters what the module takes or gives. Data modules (document-table, file-bucket, work-queue, postgres) offer access_policy_arn and, for a database, password_secret_arn as outputs; app modules take them in policy_arns and secret_arns; a root module only passes outputs to inputs and never writes a policy. Every module must be formatted with terraform fmt and pass terraform init and validate; this runs on every push and pull request to the library (not a stage; library check). The library offers nothing yet for an event stream, for signing in an app's own users, or for work on a schedule.",
+      "builds_with": "terraform",
+      "availability": "available"
+    }
+  ],
+  "defaults": {
+    "outputs": [
+      "public_url",
+      "logs",
+      "metrics"
+    ],
+    "profile": "poc"
+  },
+  "patterns": {
+    "dev": {
+      "line": "A single zone and on demand, like a proof of concept, but nothing is thrown away: data is backed up and failed work is kept.",
+      "modules": {
+        "observability_basic": "Logs and basic metrics kept, so a run that fails is visible rather than silent."
+      }
+    },
+    "poc": {
+      "line": "A single zone, started on demand, nothing kept warm, and nothing to pay for while nothing is calling it. This is what the platform deploys today.",
+      "modules": {
+        "config_basic": "Settings handed to the app as it starts.",
+        "static_site_edge": "Files served straight to visitors over HTTPS.",
+        "http_api_serverless": "Starts when a request arrives and costs nothing while nothing is calling it.",
+        "observability_basic": "Logs and basic metrics, kept for as long as the plan asks."
+      }
+    },
+    "perf": {
+      "line": "Provisioned from the production plan: the same modules, the same patterns, on a separate network. Nothing here is guessed, and the numbers come from the load test rather than from this file.",
+      "modules": {
+        "observability_basic": "The same alarms as production, so a load test is measured the way the real thing is watched."
+      }
+    },
+    "prod": {
+      "line": "Data across more than one zone, capacity warm on the request path, a queue in front of anything that bursts, and alarms on errors and latency. Capacity is set by a load test.",
+      "modules": {
+        "config_basic": "Settings from the environment, and anything secret kept out of the plan.",
+        "static_site_edge": "Served from storage that keeps copies across more than one zone.",
+        "http_api_serverless": "Warm capacity on the request path, so the first request after a quiet spell is not the slow one.",
+        "observability_basic": "Alarms on errors and latency, going to whoever is on call."
+      }
+    }
+  },
+  "profiles": [
+    {
+      "id": "poc",
+      "line": "Trying something out. Cheap to run, quick to throw away, nothing kept warm."
+    },
+    {
+      "id": "dev",
+      "line": "A team using it every day. The same shape as a proof of concept, with backups kept and work that fails held onto."
+    },
+    {
+      "id": "perf",
+      "line": "Built to be measured. Provisioned from the production plan, on a network of its own, so a load test can say what the capacity is."
+    },
+    {
+      "id": "prod",
+      "line": "People depend on it. Data across more than one zone, capacity warm on the request path, a queue in front of anything that bursts, alarms on errors and latency."
+    }
+  ],
+  "discovery": {
+    "run": "dsc_785a77156d3c2e56",
+    "library": [
+      {
+        "repo": "GregKliewer/sealeye-sample-platform",
+        "commit": "0aa63a084efb9d1650a7e7d591bf1b307ac58878"
+      }
+    ],
+    "path_to_production": {
+      "aside": [
+        "perf: built from what is in staging for a load test; nothing is promoted from it. app-promote.yml rejects perf as a target, and no workflow here builds it."
+      ],
+      "gates": [
+        "staging: platform team approval, set on the GitHub environment named staging (.github/workflows/app-promote.yml).",
+        "prod: platform team approval, set on the GitHub environment named prod, plus a change ticket matching CHG followed by seven digits, checked by the check job before the promote job runs (.github/workflows/app-promote.yml).",
+        "sit and uat: no approval gate in the promotion workflow; promoted by the team."
+      ],
+      "stages": [
+        "dev (built by the developer)",
+        "sit (promoted by the team)",
+        "uat (promoted by the team)",
+        "staging (platform team approval)",
+        "prod (platform team approval and an approved change ticket)"
+      ]
+    }
+  },
+  "need_kinds": [
+    {
+      "key": "continuous_service",
+      "line": "a service that runs continuously",
+      "signals": [
+        "a loop that consumes rather than a request handler",
+        "a long lived client opened at startup and kept open",
+        "a health endpoint reporting whether it is still consuming",
+        "a start command that is not a request server"
+      ],
+      "profile_expects": {
+        "dev": "Runs continuously in a single zone, replaced when it stops being well.",
+        "prod": "Across more than one zone, behind a health check, replaced rather than repaired."
+      }
+    },
+    {
+      "key": "relational_database",
+      "line": "a relational database",
+      "signals": [
+        "a database client among the dependencies",
+        "a connection setting such as DATABASE_URL",
+        "SQL in the code, or a migrations folder"
+      ],
+      "profile_expects": {
+        "dev": "A single zone, with backups kept and restorable.",
+        "prod": "Across more than one zone, with a standby ready to take over and backups kept."
+      }
+    },
+    {
+      "key": "document_database",
+      "line": "a document database",
+      "signals": [
+        "a document database client among the dependencies (mongoose, mongodb, a DynamoDB or Firestore client)",
+        "a connection setting such as MONGODB_URL",
+        "schemas or models of documents and collections rather than tables"
+      ],
+      "profile_expects": {
+        "dev": "A single zone, with backups kept and restorable.",
+        "prod": "Across more than one zone, with copies ready to take over and backups kept."
+      }
+    },
+    {
+      "key": "event_stream",
+      "line": "a stream of events it publishes or reads",
+      "signals": [
+        "a stream or broker client among the dependencies",
+        "a setting naming brokers or a topic",
+        "a consumer loop, or a publish call"
+      ],
+      "profile_expects": {
+        "prod": "Readers keep their place, so a reader that falls behind catches up instead of losing events."
+      }
+    },
+    {
+      "key": "runtime_secrets",
+      "line": "secrets it reads while it runs",
+      "signals": [
+        "a setting whose name says key, token, secret or password",
+        "a signing or credential value read from the environment"
+      ],
+      "profile_expects": {
+        "prod": "Replaced on a schedule, and read while the app runs rather than baked into anything."
+      }
+    },
+    {
+      "key": "internal_only",
+      "line": "to be reachable from inside your organization only",
+      "signals": [
+        "configuration binding it to an internal address or network",
+        "a setting naming an internal host it must sit behind"
+      ],
+      "profile_expects": {
+        "perf": "A network of its own, so a load test cannot reach anything that people depend on.",
+        "prod": "Reachable from your organization only, with the public way in closed."
+      }
+    },
+    {
+      "key": "custom_domain",
+      "line": "a custom domain you already own",
+      "signals": [
+        "a domain the code or the configuration is pinned to",
+        "a certificate or host setting naming a domain"
+      ]
+    },
+    {
+      "key": "work_queue",
+      "line": "a queue between it and the work it hands off",
+      "signals": [
+        "a queue client among the dependencies",
+        "a setting naming a queue",
+        "a worker that reads work rather than serving requests"
+      ],
+      "profile_expects": {
+        "dev": "Work that fails repeatedly is kept rather than dropped.",
+        "prod": "A queue in front of anything that bursts, with failed work kept and alarmed on."
+      }
+    },
+    {
+      "key": "user_sign_in",
+      "line": "sign-in and tokens for its own users",
+      "signals": [
+        "an authentication library among the dependencies",
+        "a token or session setting read at startup",
+        "a sign-in or callback route"
+      ],
+      "profile_expects": {
+        "prod": "Short lived tokens, checked on every request."
+      }
+    },
+    {
+      "key": "scheduled_task",
+      "line": "something that runs on a schedule",
+      "signals": [
+        "a scheduler among the dependencies",
+        "a job entry point separate from the request handler",
+        "a setting naming a schedule"
+      ],
+      "profile_expects": {
+        "dev": "Runs on its schedule, and a run that fails is visible rather than silent.",
+        "prod": "Runs where it can be watched, and a run that fails raises an alarm."
+      }
+    },
+    {
+      "key": "file_storage",
+      "line": "somewhere to keep files it stores and reads back",
+      "signals": [
+        "an upload route",
+        "a storage client among the dependencies",
+        "a setting naming a bucket or a folder for files"
+      ],
+      "profile_expects": {
+        "prod": "Copies kept across more than one zone, and earlier versions kept."
+      }
+    },
+    {
+      "key": "cache",
+      "line": "a cache in front of something slower",
+      "signals": [
+        "a cache client among the dependencies",
+        "a setting naming a cache endpoint, or a maximum age"
+      ],
+      "profile_expects": {
+        "dev": "A single zone, and the app keeps working when the cache is empty.",
+        "prod": "Across more than one zone, and the app keeps serving when the cache is cold."
+      }
+    }
+  ],
+  "catalogVersion": "discovery-dsc_785a77156d3c2e56",
+  "legacy_profiles": {
+    "team": "dev",
+    "prodish": "prod"
+  }
+}

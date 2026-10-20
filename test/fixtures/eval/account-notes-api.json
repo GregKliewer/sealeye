@@ -1,0 +1,28 @@
+{
+  "answers": [
+    {
+      "when": ["database", "relational", "postgres", "where", "store", "stored", "keep", "table"],
+      "answer": "A relational database the platform provides. The app reads where to connect from DATABASE_HOST, DATABASE_PORT, DATABASE_NAME and DATABASE_USER and signs in with its own identity. We don't bring our own, and there's no password."
+    },
+    {
+      "when": ["setting", "environment", "api key", "anything else", "credentials", "region", "certificate"],
+      "answer": "Only the four database settings: DATABASE_HOST, DATABASE_PORT, DATABASE_NAME and DATABASE_USER. The certificate bundle is a file in the folder. Nothing else."
+    },
+    {
+      "when": ["reach", "internal", "public", "inside", "network", "private", "who uses", "who will use", "who calls"],
+      "answer": "The agent desktop calls it over HTTPS. It doesn't need to be private."
+    },
+    {
+      "when": ["stay", "running", "warm", "connection", "long-running", "start fresh"],
+      "answer": "No, it answers each request on its own and connects fresh each time. Nothing has to stay running between them."
+    },
+    {
+      "when": ["is that right", "right?", "looks like", "what does your app do", "when it runs", "does it", "serve", "listen"],
+      "answer": "Yes, that's right. It answers requests and keeps notes in a relational database."
+    }
+  ],
+  "expected": {
+    "status": "drafted",
+    "needs": ["relational_database"]
+  }
+}

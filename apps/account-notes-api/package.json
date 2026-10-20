@@ -1,0 +1,24 @@
+{
+  "name": "account-notes-api",
+  "version": "1.0.0",
+  "description": "Notes staff leave on an account, kept in a relational database",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git.northline.internal/contact-centre/account-notes-api"
+  },
+  "author": "Contact Centre, Northline Bank",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">= 18"
+  },
+  "dependencies": {
+    "@aws-sdk/rds-signer": "^3.700.0",
+    "express": "^5.1.0",
+    "pg": "^8.13.0"
+  }
+}
