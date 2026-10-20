@@ -1,0 +1,48 @@
+name: Carry seaLeye forward
+description: You would like to maintain seaLeye, fork it under a new name, or take on an area of it.
+title: "Carry it forward: "
+labels: ["maintainer"]
+body:
+  - type: markdown
+    attributes:
+      value: >
+        seaLeye is published under AGPL-3.0, and its author has stepped back from day to
+        day work on it. The code is yours to use and fork today. The seaLeye name, marks
+        and domains stay with the original (NOTICE), so a fork takes a name of its own.
+        Maintaining seaLeye itself, name included, is something the author is open to
+        handing over. This issue is how to start that conversation.
+  - type: dropdown
+    id: role
+    attributes:
+      label: What you have in mind
+      options:
+        - Maintain seaLeye itself, as it is named today
+        - Fork it under a new name, and say so
+        - Take on one area (the portal, discovery, the Terraform executor, docs)
+        - Not sure yet, and would like to talk
+    validations:
+      required: true
+  - type: textarea
+    id: who
+    attributes:
+      label: Who you are
+      description: >
+        Where you work on platform engineering or developer tooling, and a link or two
+        to work of yours (a repo, a write-up, a talk). An organization applies the same
+        way as a person.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: What you would do with it
+      description: >
+        The problem you have that seaLeye fits, and what you would build or change first.
+        ROADMAP.md and OPEN-QUESTIONS.md are a fair place to point at.
+    validations:
+      required: true
+  - type: textarea
+    id: time
+    attributes:
+      label: Time and timing
+      description: Roughly how much time you have for it, and when you could start.

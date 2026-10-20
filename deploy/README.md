@@ -386,6 +386,12 @@ records live in CloudFormation with everything else.
      --parameter-overrides DomainName=sealeye.org GitHubPages=true
    ```
 
+   A zone that pointed at the server before (`SiteAddress` set) cannot switch to GitHub
+   Pages in one update: CloudFormation creates the Pages records before it deletes the
+   server's, and Route 53 refuses a second A record for the domain and a CNAME beside
+   the A record for www. Clear the server records first, with the same command and
+   `SiteAddress= GitHubPages=false`, then run it as above (Oct 20, 2026).
+
 3. Read the four nameservers each new zone was given:
 
    ```bash

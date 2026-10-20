@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: seaLeye.org
+    url: https://sealeye.org
+    about: What seaLeye is, where it stands, and how to pick it up.
+  - name: Read before contributing
+    url: https://github.com/GregKliewer/sealeye/blob/main/CONTRIBUTING.md
+    about: How a change gets in, and the licence and name terms.
