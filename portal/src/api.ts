@@ -65,7 +65,7 @@ export interface CatalogSummary {
 export interface WordFix { module: string; field: string; label: string; text: string; words: string[] }
 export interface SelfTestCheck { id: string; title: string; passed: boolean; problems: string[]; fixes?: WordFix[]; unfixable?: { where: string; words: string[] }[] }
 export interface SelfTest {
-  version: number; passed: boolean; checks: SelfTestCheck[]; refused: { id: string; why: string }[]; built: string[]; notes: string[];
+  version: number; passed: boolean; checks: SelfTestCheck[]; refused: { id: string; why: string }[]; built: string[]; versions?: Record<string, string>; notes: string[];
 }
 
 export interface RequestedBy { user?: string; name?: string; host?: string | null; verified?: string; surface?: string; at?: string }
@@ -120,7 +120,7 @@ export interface DeploymentRecord extends DeploymentSummary {
 export interface Catalog {
   // Which catalog this is (planVersion 0.5): the starter, or one of the organization's.
   catalog?: { version: number | "starter"; source: "starter" | "organization"; approvedBy: string | null; approvedAt: string | null; live?: boolean };
-  modules: { id: string; line: string; shortLine: string | null; availability: string; role: string }[];
+  modules: { id: string; line: string; shortLine: string | null; availability: string; role: string; version?: string }[];
   needs: { kind: string; line: string }[];
 }
 
@@ -146,7 +146,7 @@ export interface AppSettings { app: string; team: string; settings: AppSetting[]
 export type PlatformWord = string | string[];
 export interface PlatformValue { name: string; value: PlatformWord; setBy: string | null; setAt: string }
 export interface PlatformWanted {
-  module: string; source: string | null; builds: boolean; why: string | null;
+  module: string; source: string | null; version?: string | null; builds: boolean; why: string | null;
   inputs: { input: string; required: boolean; line: string | null; filledBy: string | null }[];
 }
 export interface Platform {

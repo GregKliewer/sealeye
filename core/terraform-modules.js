@@ -143,7 +143,7 @@ export function platformWanted(catalog, names = []) {
         .map(([name, spec]) => ({ input: name, required: spec?.required === true, line: spec?.line || null, filledBy: platformNameFor(m.id, name, set) }));
       const { builds, why } = terraformBuilds(m, { names: [...set] });
       const open = Array.isArray(m.open) && m.open.length > 0;
-      return { module: m.id, source: m.source || null, inputs, builds: builds && !open, why: open ? "it rests on a question not yet answered" : why };
+      return { module: m.id, source: m.source || null, version: m.version || null, inputs, builds: builds && !open, why: open ? "it rests on a question not yet answered" : why };
     });
 }
 

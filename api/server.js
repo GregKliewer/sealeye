@@ -293,7 +293,9 @@ app.get("/catalog", (req, res) => {
       availability: m.availability,
       role: m.role,
       line: String(m.line || "").trim(),
-      shortLine: String(m.short_line || "").trim() || null
+      shortLine: String(m.short_line || "").trim() || null,
+      // The release the platform builds, where the library releases it.
+      ...(m.version ? { version: m.version } : {})
     })),
     needs: needKinds(catalog).map(n => ({ kind: n.key, line: String(n.line || "").trim() })),
     document: view

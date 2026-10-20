@@ -215,6 +215,7 @@ function WantedModule({ wanted, onSet }: { wanted: PlatformWanted; onSet: (name:
     <section className="rounded-md border border-rule" data-testid="wanted-module" aria-label={wanted.module}>
       <div className="flex flex-wrap items-center gap-3 px-4 py-3">
         <span className="font-mono font-bold">{wanted.module}</span>
+        {wanted.version ? <span className="font-mono text-xs" data-testid="wanted-version">version {wanted.version}</span> : null}
         {wanted.source ? <span className="font-mono text-xs text-dim">{wanted.source}</span> : null}
         <Badge tone={wanted.builds ? "phosphor" : "amber"} className="ml-auto" data-testid="wanted-builds">{wanted.builds ? "The platform builds it" : "Not built yet"}</Badge>
       </div>

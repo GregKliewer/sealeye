@@ -27,6 +27,7 @@ export function CatalogPage() {
             <CardContent>
               <div className="flex items-start gap-3">
                 <div className="font-mono font-bold">{m.id}</div>
+                {m.version ? <span className="font-mono text-xs text-dim" data-testid="module-version">version {m.version}</span> : null}
                 <Badge tone="phosphor" className="ml-auto">Available</Badge>
               </div>
               <p className="mt-2 text-sm text-dim">{m.line}</p>

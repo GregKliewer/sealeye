@@ -22,7 +22,7 @@ import { forbiddenWords, shownWord } from "../core/developer-words.js";
 import { commandLine } from "../core/operations.js";
 import {
   approvedWords, avoidWords, stillSaysWords, catalogStatusWords, catalogSummaryWords, FIX_OFFER, fixableByEditing, fixedWords, fixPlaceWords,
-  madeLiveWords, nextCatalogStep, notFixedByEditing, selfTestSummary, wordFixesOf
+  builtWords, madeLiveWords, nextCatalogStep, notFixedByEditing, selfTestSummary, withVersion, wordFixesOf
 } from "../core/discovery-words.js";
 
 const userError = message => Object.assign(new Error(message), { userFacing: true });
@@ -40,10 +40,15 @@ export function printSelfTest(result, say) {
     console.log(check.passed ? c.ok(check.title) : c.fail(check.title));
     for (const p of check.problems) console.log(c.prompt(`    ${p}`));
   }
+  const built = builtWords(result);
+  if (built) {
+    console.log("");
+    console.log(c.fg(built));
+  }
   if (result.refused?.length) {
     console.log("");
     console.log(c.fg("Never built from this catalog:"));
-    for (const r of result.refused) console.log(step(`${r.id}: ${r.why}`));
+    for (const r of result.refused) console.log(step(`${withVersion(r.id, result.versions?.[r.id])}: ${r.why}`));
   }
   for (const note of result.notes || []) say(note);
   console.log("");

@@ -201,3 +201,16 @@ test("a module an app uses is tried as a developer's plan would use it, beside a
   assert.deepEqual(result.built.sort(), ["document_table", "http_api"]);
   assert.match(result.refused.find(r => r.id === "postgres").why, /^an app reaches it over the private network/);
 });
+
+test("a catalog says which release of each module it builds, on both surfaces' words", async () => {
+  const { builtWords, withVersion } = await import("../core/discovery-words.js");
+  const mod = (source, version) => ({ source, id: source.split("/").pop().replace(/-/g, "_"), inputs: { name: { required: true } }, outputs: {}, runs: [], release: version ? { version, tag: `${source.split("/").pop()}/v${version}`, commit: "c".repeat(40) } : null,
+    ...(source.endsWith("site") ? { delivers: { kind: "files", output: "bucket_name" }, outputs: { bucket_name: { line: "Upload the site's files here." } } } : {}) });
+  const modules = [mod("modules/static-site", "1.0.0"), mod("modules/queue", "1.2.0")];
+  const doc = draftCatalog({ run: { id: "dis_v", repos: [{ repo: "acme/library", commit: "abc1234" }] }, modules, entries: modules.map(m => ({ source: m.source, line: `A plain line about ${m.id}.`, role: "optional" })), questions: [] });
+  const result = selfTest({ document: doc, version: 9 });
+  assert.deepEqual(result.versions, { static_site: "1.0.0", queue: "1.2.0" });
+  assert.equal(builtWords(result), "Built from this catalog: static_site 1.0.0.");
+  assert.equal(withVersion("queue", result.versions.queue), "queue 1.2.0");
+  assert.equal(withVersion("site", null), "site", "a library that releases nothing has no version to say");
+});

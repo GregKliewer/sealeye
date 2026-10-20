@@ -52,6 +52,7 @@ import { commandFor, wordsFor } from "../../core/operations.js";
 import { discover } from "../discover.js";
 import { catalogs } from "../catalogs.js";
 import { platform } from "../platform.js";
+import { withVersion } from "../../core/discovery-words.js";
 
 // Statuses that are history rather than something you can still open: one was torn
 // down, the other was never built because the platform said so.
@@ -1130,7 +1131,7 @@ async function main() {
     say(catalogSentence(catalog.catalog));
     console.log("");
     console.log(c.fg("What the platform builds"));
-    for (const m of catalog.modules) console.log(`  ${c.accent(m.id)}  ${c.dim(m.shortLine || m.line)}`);
+    for (const m of catalog.modules) console.log(`  ${c.accent(withVersion(m.id, m.version))}  ${c.dim(m.shortLine || m.line)}`);
     console.log("");
     console.log(c.fg("What apps can need that it does not build yet"));
     for (const n of catalog.needs) console.log(`  ${c.dim("·")} ${n.line}`);

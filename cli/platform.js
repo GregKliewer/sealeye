@@ -15,6 +15,7 @@
 import { c, step } from "./brand.js";
 import { getPlatform, removePlatformValue, setPlatformValue } from "./client.js";
 import { commandLine } from "../core/operations.js";
+import { withVersion } from "../core/discovery-words.js";
 
 const userError = message => Object.assign(new Error(message), { userFacing: true });
 
@@ -29,7 +30,8 @@ export function printPlatform(body, say) {
   console.log("");
   say(`What each module in catalog ${body.catalog?.version} still needs from the platform:`);
   for (const w of body.wanted) {
-    console.log(`  ${w.builds ? c.ok(w.module) : c.prompt(w.module)}${w.builds ? c.dim("  built") : c.dim(`  not built: ${w.why}`)}`);
+    const named = withVersion(w.module, w.version);
+    console.log(`  ${w.builds ? c.ok(named) : c.prompt(named)}${w.builds ? c.dim("  built") : c.dim(`  not built: ${w.why}`)}`);
     for (const i of w.inputs) {
       const fill = i.filledBy ? c.dim(`from ${i.filledBy}`) : i.required ? c.prompt("no value") : c.dim("no value, optional");
       console.log(`      ${i.input}  ${fill}`);
