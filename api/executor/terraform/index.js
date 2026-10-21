@@ -24,7 +24,22 @@ import { emptyBucket, fetchArtifact, refreshSite, syncSite } from "../cfn.js";
 import { cleanStage, entryPointOfFolder, sha256File, stage, stagePaths } from "../package.js";
 import { renderReport } from "../report.js";
 import { moduleCode } from "./library.js";
-import { connectionInputs, inputsFor, lockedProviders, outputsWanted, rootModule, stateKeyFor, writeRoot } from "./root.js";
+import { connectionInputs, inputsFor, lockedProviders, outputsWanted, rootModule, shapedFor, stateKeyFor, writeRoot } from "./root.js";
+import { moduleInputs } from "../../discovery/terraform.js";
+
+/**
+ * A catalog entry with each input's declared shape read from the code that runs, so a
+ * catalog discovered before shapes were recorded still gives a list input a list.
+ */
+function withCodeTypes(entry, moduleDir) {
+  let read = {};
+  try { read = moduleInputs(moduleDir); } catch { return entry; }
+  const inputs = Object.fromEntries(Object.entries(entry.inputs || {}).map(([name, spec]) => [name, read[name]?.type ? { ...spec, type: read[name].type } : spec]));
+  return { ...entry, inputs };
+}
+
+/** Each input's value in the shape its module declares (shapedFor), however it was kept. */
+const shapedAll = (entry, given) => Object.fromEntries(Object.entries(given || {}).map(([k, v]) => [k, shapedFor(entry.inputs?.[k], v)]));
 import {
   AWS_PROVIDER_VERSION, TOFU_VERSION, appliedResources, builtParts, changeSummary, driftDetail, driftedResources, firstError,
   homeFor, lockHeld, runTofu, terraformNotReady, terraformProfile
@@ -121,25 +136,28 @@ async function prepare(record, catalog, { entry, planModule, parts = [], inputs 
   for (const part of parts) {
     const was = builtParts.get(part.entry.id);
     const partCode = await moduleCode(pinnedTo(was), pinnedEntry(part.entry, was), { reader });
+    const partEntry = withCodeTypes(part.entry, path.join(partCode.libraryDir, partCode.source));
     const folder = partCode.library.commit === code.library.commit ? "library" : `library-${partCode.library.commit.slice(0, 12)}`;
     if (folder !== "library") libraries[folder] = partCode.libraryDir;
     let given = was?.inputValues;
     let sources = was?.inputs || [];
     let ignored = was?.ignoredInputs || [];
-    if (!given) ({ inputs: given, sources, ignored } = inputsFor({ entry: part.entry, planModule: part.planModule, name: record.resourceName, tags, platform }));
+    if (!given) ({ inputs: given, sources, ignored } = inputsFor({ entry: partEntry, planModule: part.planModule, name: record.resourceName, tags, platform }));
+    given = shapedAll(partEntry, given);
     readyParts.push({
       key: part.entry.id, entry: part.entry, planModule: part.planModule, moduleSource: `./${folder}/${partCode.source}`,
       inputs: given, sources, ignored, library: partCode.library, source: partCode.source, moduleDir: path.join(partCode.libraryDir, partCode.source)
     });
   }
   const connected = connectionInputs(entry, readyParts);
+  const appEntry = withCodeTypes(entry, path.join(code.libraryDir, code.source));
 
   let given = inputs;
   let sources = record.terraform?.inputs || [];
   let ignored = record.terraform?.ignoredInputs || [];
   if (!given) {
     ({ inputs: given, sources, ignored } = inputsFor({
-      entry, planModule, name: record.resourceName, tags, platform, code: { package: codePackage }, connected: new Set(Object.keys(connected.inputs)), parts: readyParts
+      entry: appEntry, planModule, name: record.resourceName, tags, platform, code: { package: codePackage }, connected: new Set(Object.keys(connected.inputs)), parts: readyParts
     }));
     given = { ...given, ...connected.inputs };
     sources = [...sources, ...connected.sources];
@@ -149,6 +167,7 @@ async function prepare(record, catalog, { entry, planModule, parts = [], inputs 
     fs.writeFileSync(file, EMPTY_ZIP);
     given = { ...given, [entry.delivers.package]: file };
   }
+  given = shapedAll(appEntry, given);
   const state = { bucket, key: record.terraform?.stateKey || stateKeyFor({ org: record.orgId || "default", environment: record.stackName }) };
   const root = rootModule({ moduleSource: `./library/${code.source}`, inputs: given, outputs: outputsWanted(entry), state, tags, parts: readyParts });
   const rootSha256 = writeRoot(dir, { root, libraryDir: code.libraryDir, libraries });

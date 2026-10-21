@@ -468,3 +468,25 @@ test("the Terraform role changes only the security groups seaLeye's environments
   assert.doesNotMatch(setup, /rds-db:connect/);
 });
 
+
+test("a platform value reaches an input in the shape the module declares it", async () => {
+  const { shapedFor } = await import("../api/executor/terraform/root.js");
+  const { moduleInputs } = await import("../api/discovery/terraform.js");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-types-"));
+  fs.writeFileSync(path.join(dir, "variables.tf"), `variable "security_group_ids" {\n  type    = list(string)\n  default = []\n}\nvariable "subnet_group_name" {\n  type = string\n}\nvariable "tags" {\n  type    = map(string)\n  default = {}\n}\nvariable "anything" {}\n`);
+  const read = moduleInputs(dir);
+  assert.equal(read.security_group_ids.type, "list");
+  assert.equal(read.subnet_group_name.type, "string");
+  assert.equal(read.tags.type, "map");
+  assert.equal("type" in read.anything, false);
+  // Oct 21, 2026: the apps group, one word, reached http-api's list(string) as a string.
+  assert.deepEqual(shapedFor(read.security_group_ids, "sg-apps"), ["sg-apps"]);
+  assert.deepEqual(shapedFor(read.security_group_ids, ["sg-a", "sg-b"]), ["sg-a", "sg-b"]);
+  assert.equal(shapedFor(read.subnet_group_name, ["dbs"]), "dbs");
+  assert.equal(shapedFor(read.anything, "x"), "x");
+  const joining = api({ inputs: { ...api().inputs, subnet_ids: { required: false, type: "list" }, security_group_ids: { required: false, type: "list" } } });
+  const db = { id: "postgres", delivers: null, inputs: { subnet_group_name: { required: true } }, offers: { access: "access_policy_arn", secrets: [], values: [] } };
+  const given = inputsFor({ entry: joining, planModule: { id: "http_api" }, name: "n", tags: {}, platform: { permissions_boundary_arn: "b", subnet_ids: ["s-a", "s-b"], security_group_ids: "sg-apps" }, code: { package: "p" }, parts: [{ key: "postgres", entry: db }] });
+  assert.deepEqual(given.inputs.security_group_ids, ["sg-apps"]);
+  assert.equal(given.inputs.permissions_boundary_arn, "b");
+});

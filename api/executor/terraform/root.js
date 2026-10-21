@@ -35,6 +35,18 @@ const refersOut = v => typeof v === "string" ? /[$%]\{/.test(v)
   : Array.isArray(v) ? v.some(refersOut)
   : v && typeof v === "object" ? Object.entries(v).some(([k, x]) => refersOut(k) || refersOut(x)) : false;
 
+/**
+ * A platform value in the shape the module declares its input: one word is kept as a
+ * word, and a module that takes a list gets a list of one (Oct 21, 2026: the apps
+ * security group, one word, reached http-api's list(string) as a string, and OpenTofu
+ * refused it). A list of one reaches an input that takes a word as that word.
+ */
+export function shapedFor(spec, value) {
+  if (spec?.type === "list" && typeof value === "string") return [value];
+  if (spec?.type && spec.type !== "list" && spec.type !== "map" && Array.isArray(value) && value.length === 1) return value[0];
+  return value;
+}
+
 /** Where each environment's state is kept, in the platform's bucket. */
 export function stateKeyFor({ org = "default", environment }) {
   return `tofu-state/${safeName(org) || "default"}/${environment}.tfstate`;
@@ -74,7 +86,7 @@ export function inputsFor({ entry, planModule, name, tags, platform = {}, code =
     give(d.handler, ADAPTER_HANDLER, "seaLeye");
   }
   const network = parts.some(p => inNetwork(p.entry));
-  for (const [input, { from, value }] of Object.entries(platformInputs(entry, platform, { network }))) give(input, value, "platform value", from);
+  for (const [input, { from, value }] of Object.entries(platformInputs(entry, platform, { network }))) give(input, shapedFor(declared[input], value), "platform value", from);
   if (network) {
     const lacking = NETWORK_INPUTS.filter(i => !(i in inputs));
     if (lacking.length) throw new Error("your app uses something inside the platform's private network, and the platform has no way set up yet for your app to join that network, so nothing was built. Ask your platform team.");
