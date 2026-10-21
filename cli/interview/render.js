@@ -134,7 +134,10 @@ function cardContent(plan, catalog) {
       key: `module:${m.id}`,
       id: m.id,
       // A module the app uses says where the app finds it (planVersion 0.6).
-      text: `${shortLine(entryFor(m.id).line)}${m.connect && Object.keys(m.connect).length ? `, which your app finds through ${Object.values(m.connect).join(" and ")}` : ""}`,
+      // The module's sentence ends where the settings it reaches the app through begin.
+      text: m.connect && Object.keys(m.connect).length
+        ? `${shortLine(entryFor(m.id).line).replace(/[.!?]+$/, "")}, which your app finds through ${Object.values(m.connect).join(" and ")}.`
+        : shortLine(entryFor(m.id).line),
       signature: stableJson({ inputs: m.inputs || {}, ...(m.connect ? { connect: m.connect } : {}) })
     }));
 

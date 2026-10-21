@@ -265,3 +265,15 @@ test("against a catalog the platform builds nothing from, a plan names no module
   const something = { ...nothing, modules: [{ id: "static_site_edge", availability: "available", builds_with: "cloudformation", line: "A site." }] };
   assert.equal(checkAgainst({ ...base, needs: [need] }, something).valid, false);
 });
+
+test("the card ends a connected module's sentence before the settings the app finds it through", async () => {
+  const { decisionCard } = await import("../cli/interview/render.js");
+  const catalog = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, "fixtures", "juniper-catalog-9.json"), "utf8"));
+  const plan = {
+    planVersion: "0.6", catalog: 9, app: { name: "account-notes-api", type: "api" }, profile: "dev", outputs: ["logs"],
+    modules: [{ id: "http_api", enabled: true }, { id: "postgres", enabled: true, connect: { address: "DATABASE_HOST", port: "DATABASE_PORT" } }]
+  };
+  const card = decisionCard(plan, { catalog, width: 400 }).replace(/\s+/g, " ");
+  assert.match(card, /, which your app finds through DATABASE_HOST and DATABASE_PORT\./);
+  assert.doesNotMatch(card, /\., which/, "no full stop before the settings (Oct 21, 2026)");
+});
