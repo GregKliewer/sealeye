@@ -4206,3 +4206,33 @@ sealeye-sample-platform #4 and #5 (`postgres` and `http-api` at 1.2) and here.
   plans against `test/fixtures/juniper-catalog-8-with-database.json`, catalog 8's words
   with the 1.2 modules as discovery's code reads them, until the catalog discovered
   after those releases is live and replaces it.
+- **What an independent review found, and fixed before the pull request.** A reviewer
+  who had not seen the work read it cold, and found two ways round what this entry says:
+  - *A plan could still hand the app the master password*: name it in the app's
+    `secret_arns`, an optional input a plan may give, while the boundary every function
+    shares let it be read. Now a plan never sets the inputs a module that runs an app is
+    wired and networked through (its `accepts` and `NETWORK_INPUTS`), whether or not it
+    uses anything; never a value OpenTofu would resolve (`${...}`, `%{...}`); and never an
+    input the module marks sensitive (discovery records `sensitive`) or names a password,
+    secret, token or credentials, which would be kept in plain text where the
+    environment is recorded (`inputsFor`). And the setup function carries a boundary of
+    its own, `SetupBoundary`, the only one that may read a kept master password; the
+    Terraform role creates its role only with that one on it, set as the platform value
+    `postgres.permissions_boundary_arn`.
+  - *The Terraform role could change any security group in the account*, the pilot
+    server's among them, and could rewrite a platform group's name tag to slip past the
+    deny. Now it makes a group only with the environment's tag (`sealeye:environment`,
+    the provider's default tags), tags one only as it is made, changes or deletes one
+    only while it carries that tag, and is denied every change to a group one of the
+    platform's own stacks made (`aws:cloudformation:stack-name`, which nobody can edit).
+  - Two quieter ones: a part in the network takes its own groups and subnets only by its
+    own name, `<module>.<input>` (`platformValueFor`), since the plain one is the apps
+    group and a database given it would admit nothing; and only the plain network values
+    let a part be built, since another part's own value (a cache's groups) would have let
+    the catalog say a database is built while every plan using it is refused.
+  - And in the library (`postgres` 1.2.2, `http-api` 1.2.1): the setup waits for its
+    group's rules, its group waits for the platform to let go of the function's network
+    interface before it is deleted, a change below staging applies at once, no user or
+    database is named when no setup ran, and `secret_arns` no longer suggests a
+    database's password. Checked and kept: `nonsensitive(var.master_password == null)`
+    plans the setup once, or not at all, with OpenTofu 1.12.6.

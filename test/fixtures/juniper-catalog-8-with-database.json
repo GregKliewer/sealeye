@@ -1003,7 +1003,7 @@
           "required": false
         },
         "secret_arns": {
-          "line": "The secret references the app may read while it runs, from the secrets module or a database's password reference output.",
+          "line": "Secrets the app may read while it runs, from the secrets module. Never a database's master password: an app signs in to its database with its own identity.",
           "default": [],
           "required": false
         },

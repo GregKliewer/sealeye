@@ -27,10 +27,19 @@ function certificates () {
 
 // A fresh connection for each request: the sign-in token is good for a quarter of an
 // hour, and the app does not stay running between requests.
+// The notes table is made once each time the app starts, not on every request.
+let ready = null
+
 async function connect () {
   const signer = new Signer({ hostname: database.host, port: database.port, username: database.user })
   const client = new Client({ ...database, password: await signer.getAuthToken(), ssl: { ca: certificates(), rejectUnauthorized: true } })
   await client.connect()
+  ready ||= prepare(client).catch(err => { ready = null; throw err })
+  await ready
+  return client
+}
+
+async function prepare (client) {
   await client.query(`create table if not exists notes (
     id bigserial primary key,
     account text not null,
@@ -39,7 +48,6 @@ async function connect () {
     written_at timestamptz not null default now()
   )`)
   await client.query('create index if not exists notes_account_written on notes (account, written_at desc)')
-  return client
 }
 
 async function withDatabase (res, next, work) {
