@@ -692,6 +692,17 @@ only one that may read a kept master password. Note its output for step 4:
 out SetupBoundaryArn
 ```
 
+**3b. Once per account, the databases' service-linked role.** AWS makes it the first time
+a database is created, and the Terraform role may not create IAM roles of that kind
+(the first build, Oct 21, 2026: "Verify that you have permission to create service
+linked role"). With your own credentials:
+
+```bash
+aws iam create-service-linked-role --aws-service-name rds.amazonaws.com
+```
+
+"has been taken in this account" means it is there already.
+
 **4. Juniper's platform values**, with Juniper's organization-wide token, from the
 foundation's outputs (`aws cloudformation describe-stacks --region ca-central-1
 --stack-name platform-sealeye-foundation --query "Stacks[0].Outputs" --output table`):
