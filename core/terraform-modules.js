@@ -46,14 +46,30 @@ export function joinsNetwork(entry) {
 
 /**
  * Which of the network inputs the platform has no value for: for one module that runs an
- * app, when its id is given (the plain name, or that module's own); or for any such
- * module, when a part's id is given instead (the plain name, or any module's own but
- * the part's, whose security groups are its own input).
+ * app, when its id is given (the plain name, or that module's own); or, with no id, for
+ * any module that runs an app: the plain name only, since a module's own value may be
+ * another part's (a cache's own security groups), which no app joins the network with.
+ * So a part is never said to be built while every plan using it would be refused; the
+ * other way round it is refused, and the self-test says why.
  */
-export function networkValuesMissing(names, { app = null, part = null } = {}) {
+export function networkValuesMissing(names, { app = null } = {}) {
   const set = names instanceof Set ? names : new Set(names || []);
   if (app) return NETWORK_INPUTS.filter(i => !platformNameFor(app, i, set));
-  return NETWORK_INPUTS.filter(i => ![...set].some(n => n === i || (n.endsWith(`.${i}`) && n !== `${part}.${i}`)));
+  return NETWORK_INPUTS.filter(i => !set.has(i));
+}
+
+/**
+ * The platform value that fills a module's input, or null. As platformNameFor, except
+ * that a part in the private network takes its network inputs (its own security groups,
+ * its own subnets) only from its own value, `<module>.<input>`: the plain one is what
+ * apps join the network with, and a database given the apps group would admit nothing.
+ */
+export function platformValueFor(entry, input, names) {
+  if (inNetwork(entry) && NETWORK_INPUTS.includes(input)) {
+    const set = names instanceof Set ? names : new Set(names || []);
+    return set.has(`${entry.id}.${input}`) ? `${entry.id}.${input}` : null;
+  }
+  return platformNameFor(entry?.id, input, names);
 }
 
 /** The stage a developer's environment is built as (principle 9). */
@@ -126,12 +142,12 @@ export function terraformBuilds(entry, platform = {}) {
     // grant that; a module offering only a password would hand the app a secret it
     // should never hold.
     if (!entry.offers?.access) return no("an app reaches it over the private network and signs in with its own identity, which this module does not offer (no policy granting access, only a secret)");
-    const missing = networkValuesMissing(names, { part: entry.id });
+    const missing = networkValuesMissing(names);
     if (missing.length) return no(`an app reaches it over the private network, and the platform has no ${missing.join(" and ")} value for the module that runs the app to join that network with`, missing);
   }
   const own = new Set([...SEALEYE_INPUTS, ...codeInputs(entry)]);
   const missing = Object.entries(entry.inputs || {})
-    .filter(([name, spec]) => spec && spec.required === true && !own.has(name) && !platformNameFor(entry.id, name, names))
+    .filter(([name, spec]) => spec && spec.required === true && !own.has(name) && !platformValueFor(entry, name, names))
     .map(([name]) => name)
     .sort();
   if (missing.length) {
@@ -172,7 +188,7 @@ export function platformWanted(catalog, names = []) {
       const own = new Set([...SEALEYE_INPUTS, ...codeInputs(m)]);
       const inputs = Object.entries(m.inputs || {})
         .filter(([name]) => !own.has(name))
-        .map(([name, spec]) => ({ input: name, required: spec?.required === true, line: spec?.line || null, filledBy: platformNameFor(m.id, name, set) }));
+        .map(([name, spec]) => ({ input: name, required: spec?.required === true, line: spec?.line || null, filledBy: platformValueFor(m, name, set) }));
       const { builds, why } = terraformBuilds(m, { names: [...set] });
       const open = Array.isArray(m.open) && m.open.length > 0;
       return { module: m.id, source: m.source || null, version: m.version || null, inputs, builds: builds && !open, why: open ? "it rests on a question not yet answered" : why };
@@ -197,7 +213,7 @@ export function platformInputs(entry, values = {}, { network = false } = {}) {
   for (const input of Object.keys(entry?.inputs || {})) {
     if (own.has(input)) continue;
     if (entry?.delivers && !network && NETWORK_INPUTS.includes(input)) continue;
-    const from = platformNameFor(entry.id, input, names);
+    const from = platformValueFor(entry, input, names);
     if (from) out[input] = { from, value: values[from] };
   }
   return out;

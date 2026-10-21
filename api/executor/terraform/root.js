@@ -27,6 +27,14 @@ const plainValue = v =>
   (Array.isArray(v) && v.every(x => ["string", "number", "boolean"].includes(typeof x))) ||
   (v && typeof v === "object" && !Array.isArray(v) && Object.values(v).every(x => ["string", "number", "boolean"].includes(typeof x)));
 
+// An input that takes a secret by its name: never the plan's to give.
+const SECRET_INPUT = /(?:^|_)(?:password|passwd|secret|token|private_key|credentials?)(?:_|$)/i;
+
+/** Whether a value, or anything in it, is a reference OpenTofu would resolve: `${...}` or `%{...}`. */
+const refersOut = v => typeof v === "string" ? /[$%]\{/.test(v)
+  : Array.isArray(v) ? v.some(refersOut)
+  : v && typeof v === "object" ? Object.entries(v).some(([k, x]) => refersOut(k) || refersOut(x)) : false;
+
 /** Where each environment's state is kept, in the platform's bucket. */
 export function stateKeyFor({ org = "default", environment }) {
   return `tofu-state/${safeName(org) || "default"}/${environment}.tfstate`;
@@ -69,21 +77,26 @@ export function inputsFor({ entry, planModule, name, tags, platform = {}, code =
   for (const [input, { from, value }] of Object.entries(platformInputs(entry, platform, { network }))) give(input, value, "platform value", from);
   if (network) {
     const lacking = NETWORK_INPUTS.filter(i => !(i in inputs));
-    const inside = parts.filter(p => inNetwork(p.entry)).map(p => p.entry.id).join(", ");
-    if (lacking.length) throw new Error(`the platform has no value for ${lacking.join(" and ")}, which ${entry.id} needs to join the private network and reach ${inside}, so nothing was built. Ask your platform team.`);
+    if (lacking.length) throw new Error("your app uses something inside the platform's private network, and the platform has no way set up yet for your app to join that network, so nothing was built. Ask your platform team.");
   }
 
   // What the plan asks for itself: an optional input the module takes, with a plain
   // value. seaLeye's own inputs and the platform's are never the plan's to set, so a
   // plan that names one is built with seaLeye's or the platform's (`ignored`).
-  // An input the modules the app uses fill (connectionInputs) is never the plan's either.
+  // Nor are the inputs a module that runs an app is wired and networked through (what it
+  // may read and write, the secrets it reads, the network it joins): only code fills
+  // those, from what the modules the app uses offer, whether or not the plan uses any.
+  // Nor a value the module marks sensitive, or names a password or secret: a value given
+  // there would be kept in plain text where the environment is recorded.
   const filled = new Set([...Object.keys(inputs), ...connected]);
   const own = new Set([...SEALEYE_INPUTS, ...codeInputs(entry)]);
+  const wiring = entry.delivers ? new Set([entry.accepts?.policies, entry.accepts?.secrets, ...NETWORK_INPUTS].filter(Boolean)) : new Set();
   const ignored = [];
   for (const [input, value] of Object.entries(planModule?.inputs || {})) {
-    if (filled.has(input) || own.has(input)) { ignored.push(input); continue; }
+    if (filled.has(input) || own.has(input) || wiring.has(input)) { ignored.push(input); continue; }
     if (!(input in declared)) throw new Error(`the plan gives ${planModule.id} an input called ${input}, which the module does not take`);
-    if (declared[input]?.required) { ignored.push(input); continue; }
+    if (declared[input]?.required || declared[input]?.sensitive || SECRET_INPUT.test(input)) { ignored.push(input); continue; }
+    if (refersOut(value)) throw new Error(`the plan gives ${planModule.id} a value for ${input} that points at another part of the environment, which only the platform may connect`);
     if (input === "environment" && value && typeof value === "object" && Object.keys(value).length) {
       throw new Error("the plan gives the app settings, and settings do not reach an app built from your organization's modules yet: a value passed in would be kept in plain text where the environment is recorded");
     }

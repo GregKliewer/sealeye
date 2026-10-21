@@ -127,11 +127,14 @@ export function loadCases(dir = FIXTURES, { set = "starter", org = null } = {}) 
 export async function seedPlatformValues({ org, document }) {
   await openPlatform();
   const names = [];
-  for (const { inputs } of platformWanted(document, Object.keys(platformValues(org, DEVELOPER_STAGE)))) {
+  const entries = new Map((document?.modules || []).map(m => [m?.id, m]));
+  for (const { module, inputs } of platformWanted(document, Object.keys(platformValues(org, DEVELOPER_STAGE)))) {
     for (const { input, required, filledBy } of inputs) {
-      if (!required || filledBy || names.includes(input)) continue;
-      await setPlatformValue({ org, stage: DEVELOPER_STAGE, name: input, value: `eval-placeholder-${input.replace(/_/g, "-")}`, by: "eval@sealeye" });
-      names.push(input);
+      // A part in the private network takes its own groups and subnets only by its own name.
+      const name = inNetwork(entries.get(module)) && NETWORK_INPUTS.includes(input) ? `${module}.${input}` : input;
+      if (!required || filledBy || names.includes(name)) continue;
+      await setPlatformValue({ org, stage: DEVELOPER_STAGE, name, value: `eval-placeholder-${input.replace(/_/g, "-")}`, by: "eval@sealeye" });
+      names.push(name);
     }
   }
   // An app that uses a module in the private network joins it with the network values,

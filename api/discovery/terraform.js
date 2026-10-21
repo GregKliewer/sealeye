@@ -110,7 +110,7 @@ function plainDefault(body) {
 /**
  * Each input of a module: its variables, from every .tf file in its own folder.
  *
- * @returns {Record<string, { required: boolean, default?: any, line?: string }>}
+ * @returns {Record<string, { required: boolean, default?: any, line?: string, sensitive?: true }>}
  */
 export function moduleInputs(moduleDir) {
   const inputs = {};
@@ -125,6 +125,8 @@ export function moduleInputs(moduleDir) {
       }
       const description = body.match(/^\s*description\s*=\s*"((?:[^"\\]|\\.)*)"/m);
       if (description) input.line = JSON.parse(`"${description[1]}"`);
+      // A value the module marks sensitive is never one a plan may give (inputsFor).
+      if (/^\s*sensitive\s*=\s*true\b/m.test(body)) input.sensitive = true;
       inputs[name] = input;
     }
   }
