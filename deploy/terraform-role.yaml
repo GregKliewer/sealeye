@@ -329,7 +329,6 @@ Resources:
                   - rds:CreateDBInstance
                   - rds:DeleteDBInstance
                   - rds:ModifyDBInstance
-                  - rds:DescribeDBInstances
                   - rds:AddTagsToResource
                   - rds:RemoveTagsFromResource
                   - rds:ListTagsForResource
@@ -338,9 +337,11 @@ Resources:
                   - !Sub "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:subgrp:platform-sealeye-databases"
                   - !Sub "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:pg:default*"
                   - !Sub "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:og:default*"
+              # The provider waits for a database by listing them (db:*, not one name):
+              # the first build, Oct 21, 2026, made the database and then could not see it.
               - Sid: DatabasesRead
                 Effect: Allow
-                Action: [rds:DescribeDBSubnetGroups, rds:DescribeDBParameterGroups, rds:DescribeOptionGroups, rds:DescribeDBEngineVersions, rds:DescribeOrderableDBInstanceOptions]
+                Action: [rds:DescribeDBInstances, rds:DescribeDBSubnetGroups, rds:DescribeDBParameterGroups, rds:DescribeOptionGroups, rds:DescribeDBEngineVersions, rds:DescribeOrderableDBInstanceOptions]
                 Resource: "*"
               # Making a database whose master password the platform keeps: RDS describes
               # the default keys (aws/rds for the disk, aws/secretsmanager for the
