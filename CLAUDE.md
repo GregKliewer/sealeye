@@ -503,7 +503,10 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   Every value on a page comes from an API call; colours and type from
   `brand/BRAND-ONLINE.md` (`src/index.css`).
 - Developers install with `curl -fsSL https://sealeye.run/install | sh`: the package
-  release.sh packs, limited by package.json "files" to the command and what it reads.
+  release.sh packs, limited by package.json "files" to the command and what it reads,
+  with the tested lock file as `npm-shrinkwrap.json`; the installer unpacks it into
+  `~/.sealeye/command/<version>`, runs `npm ci` there, and links that folder onto the
+  PATH, so a library released since cannot break the command.
   `test/package-contents.test.js` keeps the API and the interview prompt out of it.
   A pull request that changes what the package holds (`cli/`, `core/`, the prompt files
   it carries) raises the version in package.json; release.sh stops if the command

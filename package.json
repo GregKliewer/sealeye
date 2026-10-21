@@ -1,6 +1,6 @@
 {
   "name": "sealeye",
-  "version": "2.46.0",
+  "version": "2.46.1",
   "private": true,
   "description": "seaLeye.run: bring your app, get a plan you can read, and on yes a real environment.",
   "license": "AGPL-3.0-only",
@@ -17,6 +17,7 @@
   "files": [
     "cli/",
     "core/",
+    "npm-shrinkwrap.json",
     "prompts/banner.txt",
     "prompts/module-catalog.yaml",
     "prompts/plan-template.md",

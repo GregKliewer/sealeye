@@ -50,6 +50,11 @@ fi
 # Mac still on the command from before deploy --again). So a changed command needs a new
 # version in package.json, and this stops until it has one.
 VERSION="$(node -p 'require("./package.json").version')"
+# The package carries the lock file GitHub tested with, as npm-shrinkwrap.json, which the
+# installer installs from (sites/run/install.sh). Made for each pack and removed after,
+# so the repository keeps one lock file.
+cp package-lock.json npm-shrinkwrap.json
+trap 'rm -f npm-shrinkwrap.json' EXIT
 CHECK="$(mktemp -d)"
 mkdir -p "$CHECK/new" "$CHECK/live" "$CHECK/here"
 npm pack --silent --pack-destination "$CHECK/new" >/dev/null
@@ -91,7 +96,7 @@ fi
 
 echo "Building the sites, the portal and the package sealeye.run installs"
 SITES="$(mktemp -d)"
-trap 'rm -rf "$SITES"' EXIT
+trap 'rm -rf "$SITES"; rm -f npm-shrinkwrap.json' EXIT
 cp -R sites/. "$SITES/"
 # seaLeye.online is the portal, built from portal/ (Vite), static files only.
 ( cd portal && npm ci --no-audit --no-fund --loglevel=error && npm run build >/dev/null )
