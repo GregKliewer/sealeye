@@ -245,10 +245,14 @@ Resources:
                 Resource:
                   - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sealeye-*-dev-api"
                   - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sealeye-*-dev-db-setup"
+              # The provider runs it at a version, $LATEST, which Lambda names as a resource
+              # of its own (the first build, Oct 21, 2026).
               - Sid: SetupFunctionRuns
                 Effect: Allow
                 Action: lambda:InvokeFunction
-                Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sealeye-*-dev-db-setup"
+                Resource:
+                  - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sealeye-*-dev-db-setup"
+                  - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sealeye-*-dev-db-setup:*"
               # Putting a function in the private network: what the platform checks of the
               # network when it is asked to.
               - Sid: NetworkRead
