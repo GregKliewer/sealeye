@@ -683,9 +683,14 @@ It costs about $7 a month while it stands; `deploy/server.sh park` deletes it an
 
 **3. The Terraform deploy role again**, the same command as step 2 of "The Terraform
 executor": the role may now make a database, the setup function and its role, and the
-security group that function connects from, and the boundary lets a function join the
-network, sign in to its database and, for the setup function, read the kept master
-password.
+security group that function connects from (and change only groups an environment
+made, never the platform's). The boundary lets a function join the network and sign in
+to its database; a second boundary, `SetupBoundaryArn`, is the setup function's, the
+only one that may read a kept master password. Note its output for step 4:
+
+```bash
+out SetupBoundaryArn
+```
 
 **4. Juniper's platform values**, with Juniper's organization-wide token, from the
 foundation's outputs (`aws cloudformation describe-stacks --region ca-central-1
@@ -696,9 +701,13 @@ sealeye platform set subnet_ids <SubnetIds, the two words>
 sealeye platform set security_group_ids <AppsSecurityGroup>
 sealeye platform set postgres.subnet_group_name <DatabaseSubnetGroup>
 sealeye platform set postgres.security_group_ids <DatabasesSecurityGroup>
+sealeye platform set postgres.permissions_boundary_arn <SetupBoundaryArn from step 3>
 ```
 
-`permissions_boundary_arn`, set before, fills the database module's optional input too.
+The database's groups go under its own name: the plain `security_group_ids` is the apps
+group, which never fills a database's. Without `postgres.permissions_boundary_arn` the
+plain `permissions_boundary_arn` would fill it, and the role would refuse to make the
+setup function's role with an app's boundary on it.
 
 **5. Discover the library again**, then fix, approve and make live, as in step 4 of "The
 Terraform executor". The new catalog reads `postgres` and `http-api` at 1.2: `sealeye
