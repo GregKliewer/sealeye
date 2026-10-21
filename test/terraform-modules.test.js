@@ -490,3 +490,12 @@ test("a platform value reaches an input in the shape the module declares it", as
   assert.deepEqual(given.inputs.security_group_ids, ["sg-apps"]);
   assert.equal(given.inputs.permissions_boundary_arn, "b");
 });
+
+test("a database's latest restorable time is the cloud's own, and any other change to it still shows", async () => {
+  const { driftDetail } = await import("../api/executor/terraform/tofu.js");
+  const db = (before, after) => ({ resource_drift: [{ address: "module.postgres.aws_db_instance.db", type: "aws_db_instance", mode: "managed", change: { actions: ["update"], before, after } }] });
+  // The first database build, Oct 21, 2026.
+  assert.deepEqual(driftDetail(db({ latest_restorable_time: "2026-10-21T22:35:00Z", instance_class: "db.t4g.small" }, { latest_restorable_time: "2026-10-21T22:45:00Z", instance_class: "db.t4g.small" })), []);
+  assert.deepEqual(driftDetail(db({ latest_restorable_time: "a", instance_class: "db.t4g.small" }, { latest_restorable_time: "b", instance_class: "db.t4g.large" })), [{ address: "module.postgres.aws_db_instance.db", action: "update", attributes: ["instance_class"] }]);
+});
+

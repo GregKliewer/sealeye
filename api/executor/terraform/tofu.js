@@ -182,6 +182,8 @@ export function driftedResources(messages = []) {
  *   that policy (the first connected build, Oct 20, 2026: a table's access policy, made
  *   and then attached to the app's role by the same environment, read back as attached
  *   once). An attachment nothing in the environment made still shows.
+ * - a database's `latest_restorable_time`, the latest point it can be restored to, which
+ *   its backups move on every few minutes (the first database build, Oct 21, 2026).
  * A part with nothing left is not a change.
  */
 export function driftDetail(plan) {
@@ -203,6 +205,7 @@ export function driftDetail(plan) {
   const ownAttachments = a => Number(a?.attachment_count) === (attachments.get(a?.arn) || 0);
   const cloudSets = (type, before, after, key) =>
     (type === "aws_apigatewayv2_stage" && key === "deployment_id" && after?.auto_deploy === true) ||
+    (type === "aws_db_instance" && key === "latest_restorable_time") ||
     (type === "aws_iam_policy" && key === "attachment_count" && ownAttachments(after)) ||
     (type === "aws_iam_role" && key === "managed_policy_arns" && ownPolicies(before, after)) ||
     (type === "aws_s3_bucket" && key === "policy" && empty(before?.policy) && sameJson(after?.policy, bucketPolicies.get(after?.bucket || after?.id)));
