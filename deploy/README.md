@@ -711,15 +711,13 @@ setup function's role with an app's boundary on it.
 
 **5. Discover the library again**, then fix, approve and make live, as in step 4 of "The
 Terraform executor". The new catalog reads `postgres` and `http-api` at 1.2: `sealeye
-platform` should say `postgres` is built. Then fetch its document for the eval,
-replacing the stand-in fixture:
+platform` should say `postgres` is built. The eval plans against catalog 9 (`test/fixtures/juniper-catalog-9.json`); after a
+later discovery, fetch its document the same way and point `JUNIPER_CATALOG` in
+`scripts/eval-interview.js` at it:
 
 ```bash
 curl -s -H "Authorization: Bearer $JT" https://api.sealeye.online/catalogs/<n> | jq .document > test/fixtures/juniper-catalog-<n>.json
 ```
-
-and point `JUNIPER_CATALOG` in `scripts/eval-interview.js` at it (a pull request of its
-own; `test/fixtures/juniper-catalog-8-with-database.json` can go then).
 
 **6. The certificate bundle in the sample app.** `apps/account-notes-api` checks the
 database's certificate against `platform-ca.crt` beside its code, AWS's global bundle.
