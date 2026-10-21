@@ -145,7 +145,7 @@ const readFolder = dir => async () => readLibraryFolder(dir, { repo: "acme/platf
 test("plain code finds the modules and their inputs, leaving examples out", () => {
   const dir = library();
   assert.deepEqual(listModules(dir), ["modules/cache", "modules/db", "modules/db-cluster"]);
-  assert.deepEqual(moduleInputs(path.join(dir, "modules/db")), { name: { required: true, line: "The app's name." }, size: { required: false, default: "small" } });
+  assert.deepEqual(moduleInputs(path.join(dir, "modules/db")), { name: { required: true, line: "The app's name.", type: "string" }, size: { required: false, default: "small", type: "string" } });
   assert.equal(idFor("modules/db-cluster"), "db_cluster");
 });
 
@@ -193,7 +193,7 @@ test("a run reads every module in parallel, raises questions as they come, and w
   assert.equal(catalogsOf("acme").find(c => c.version === run.catalog.version).status, "draft");
   const byId = Object.fromEntries(draft.modules.map(m => [m.id, m]));
   assert.deepEqual(Object.keys(byId), ["cache", "db", "db_cluster"]);
-  assert.deepEqual(byId.db.inputs, { name: { required: true, line: "The app's name." }, size: { required: false, default: "small" } });
+  assert.deepEqual(byId.db.inputs, { name: { required: true, line: "The app's name.", type: "string" }, size: { required: false, default: "small", type: "string" } });
   assert.equal(byId.db.builds_with, "terraform");
   assert.equal(byId.cache.availability, "deprecated");
   // What code read of each module reaches its entry: none of these takes an app, and
