@@ -4204,5 +4204,5 @@ sealeye-sample-platform #4 and #5 (`postgres` and `http-api` at 1.2) and here.
   is a secret file by name (`core/secrets.js`) and would travel empty. Its eval case in
   the Juniper set expects the database connected under those four settings; the set
   plans against `test/fixtures/juniper-catalog-8-with-database.json`, catalog 8's words
-  with the 1.2.0 modules as discovery's code reads them, until the catalog discovered
+  with the 1.2 modules as discovery's code reads them, until the catalog discovered
   after those releases is live and replaces it.

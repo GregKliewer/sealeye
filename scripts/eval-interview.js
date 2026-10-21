@@ -54,7 +54,7 @@ export const DATASET = "sealeye-interview";
 const FIXTURES = path.join(repoRoot, "test", "fixtures", "eval");
 const JUNIPER_FIXTURES = path.join(repoRoot, "test", "fixtures", "eval-juniper");
 // Catalog 8's words, with postgres and http-api as discovery's code reads the library's
-// 1.2.0 releases of them (the app signs in to its database with its own identity).
+// 1.2 releases of them (the app signs in to its database with its own identity).
 // Replace it with the catalog discovered after those releases once one is live.
 const JUNIPER_CATALOG = path.join(repoRoot, "test", "fixtures", "juniper-catalog-8-with-database.json");
 

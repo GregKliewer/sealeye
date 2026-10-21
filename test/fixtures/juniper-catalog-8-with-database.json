@@ -1351,7 +1351,7 @@
     },
     {
       "id": "postgres",
-      "tag": "postgres/v1.2.0",
+      "tag": "postgres/v1.2.1",
       "line": "A single-instance relational database for one app, encrypted when stored, reachable only from the private network, which the app signs in to with its own identity and no password.",
       "role": "optional",
       "runs": [],
@@ -1456,7 +1456,7 @@
           }
         }
       ],
-      "commit": "0aa63a084efb9d1650a7e7d591bf1b307ac58878",
+      "commit": "ba5115102289d61210350a4b27bc18282d3b9a83",
       "inputs": {
         "name": {
           "line": "The app's name, lowercase letters, digits and hyphens. Every resource is named after it and the stage.",
@@ -1481,7 +1481,7 @@
         },
         "instance_class": {
           "line": "The size of the database; the smallest has too little memory for signing in.",
-          "default": "db.t4g.micro",
+          "default": "db.t4g.small",
           "required": false
         },
         "master_password": {
@@ -1535,7 +1535,7 @@
         "An app that connects to its database with its own identity, reading where to connect from its settings",
         "A plan that names this module for staging, perf or prod, which will be turned back in review"
       ],
-      "version": "1.2.0",
+      "version": "1.2.1",
       "delivers": null,
       "guidance": "Below staging only: for dev, sit and uat. One instance in one zone, with a day of backups and no protection against deletion, the same everywhere it is allowed. From staging up, every relational database is a postgres-cluster; a plan for staging, perf or prod that names this module will be turned back in review. The master password is left unset so the platform makes and keeps it; set one only to restore an old snapshot by hand, and never commit one. Encrypted when stored at every stage. Below staging only: this module is for dev, sit and uat. It is one instance in one zone, with a day of backups and no protection against deletion (dev, sit, uat). The same everywhere it is allowed: one instance, one day of backups (dev, sit, uat). The master password is left unset: the platform makes and keeps it. A master password is only for restoring an old snapshot by hand. Never commit one. The database is encrypted when stored and its master password is managed by the platform unless one is supplied. An app's package is built once and the same package, identified by its sha256, is promoted unchanged; promotion re-checks the checksum before applying. Promotion moves one stage at a time in the order dev, sit, uat, staging, prod; dev cannot be promoted to, perf is never promoted to, and any other name is refused (sit, uat, staging, prod). A prod promotion must carry a change ticket in the form CHG plus seven digits, or the promotion stops before the job runs (prod). Each stage has its own root module and its own state, in the stage's own account, kept by the app repository under stages/<stage>/. Every stage takes a stage input of dev, sit, uat, staging, perf or prod; from staging up an environment is held to production's rules: more copies, more backups, deletion protection and alarms to on-call (staging, prod (and perf where it mirrors staging)). App teams use a module only at a released tag named after the module (for example http-api/v1.1.0), never at a branch; a major version change alters what the module takes or gives. Data modules (document-table, file-bucket, work-queue, postgres) offer access_policy_arn and, for a database, password_secret_arn as outputs; app modules take them in policy_arns and secret_arns; a root module only passes outputs to inputs and never writes a policy. postgres is for below staging; postgres-cluster is for staging up (dev, sit, uat for postgres; staging, prod for postgres-cluster). Every module must be formatted with terraform fmt and pass terraform init and validate; this runs on every push and pull request to the library (not a stage; library check). The library offers nothing yet for an event stream, for signing in an app's own users, or for work on a schedule.",
       "builds_with": "terraform",
@@ -2188,7 +2188,7 @@
     "library": [
       {
         "repo": "GregKliewer/sealeye-sample-platform",
-        "commit": "0aa63a084efb9d1650a7e7d591bf1b307ac58878"
+        "commit": "ba5115102289d61210350a4b27bc18282d3b9a83"
       }
     ],
     "path_to_production": {

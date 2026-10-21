@@ -484,7 +484,7 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   nothing. It runs two sets (`--set starter` or `--set juniper` for one): the
   starter's, and Juniper Mutual's, planned against a snapshot of its live catalog
   (`test/fixtures/juniper-catalog-8-with-database.json`, catalog 8 with the library's
-  1.2.0 `postgres` and `http-api` as discovery's code reads them, until the catalog
+  1.2 `postgres` and `http-api` as discovery's code reads them, until the catalog
   discovered after those releases is live; cases in `test/fixtures/eval-juniper/`),
   the eval's organization given a placeholder platform value for every required input
   Juniper's modules want (`seedPlatformValues`), so the real executor builds there what
