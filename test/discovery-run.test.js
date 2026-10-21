@@ -774,7 +774,7 @@ test("an input's line still unplain after the fix-up is left out, the input kept
   const { discoveryId } = await service.start({ caller, repos: [{ owner: "acme", repo: "platform" }] });
   await service.settled(discoveryId);
   const db = catalogAt("acme", service.get(discoveryId).catalog.version).modules.find(m => m.id === "db");
-  assert.deepEqual(db.inputs.name, { required: true });
+  assert.deepEqual(db.inputs.name, { required: true, type: "string" }, "kept by its name and shape, with no line");
   assert.ok(model.calls.some(c => c.opening.includes('modules/db: input name uses "VPC"; write "Virtual Private Cloud (VPC)" in its place (now: "The name of the app\'s VPC."); write input_lines.name')), "the fix-up showed the words to replace, and what to write");
 });
 
