@@ -4236,3 +4236,27 @@ sealeye-sample-platform #4 and #5 (`postgres` and `http-api` at 1.2) and here.
     database is named when no setup ran, and `secret_arns` no longer suggests a
     database's password. Checked and kept: `nonsensitive(var.master_password == null)`
     plans the setup once, or not at all, with OpenTofu 1.12.6.
+
+## The command installs the libraries its release was tested with
+
+Wed Oct 21, 2026, from 2.46.0's release: `sealeye list` on Greg's Mac stopped at once
+("The requested module '@opentelemetry/api' does not provide an export named
+'SeverityNumber'"). `npm install -g` of the package ignores its lock file and takes the
+newest version each range allows, and `@langfuse/otel` 5.14.0 (Oct 14) now pulls an
+exporter that needs `@opentelemetry/api` 1.10, released the day before, while the
+install kept 1.9.1. Every test passed, because the tests install from the lock file
+(5.13.1). Any release could have broken this way; only the timing made it this one.
+
+- **The package carries the tested lock file.** `deploy/release.sh` copies
+  `package-lock.json` in as `npm-shrinkwrap.json` for each pack and removes it after, so
+  the repository keeps one lock file (`package.json` "files" names it, or `npm pack`
+  leaves it out).
+- **The installer installs from it.** A global install ignores a shrinkwrap too, so
+  `sites/run/install.sh` unpacks the package into `~/.sealeye/command/<version>`, runs
+  `npm ci --omit=dev` there, moves it in whole, puts that folder on the PATH with
+  `npm install -g <folder>`, and removes earlier versions' folders. A package with no
+  shrinkwrap is refused, saying so.
+- **A test runs the real installer** on a package packed the way the release packs it,
+  starts the command, and checks the libraries it installed are the lock file's
+  (`test/package-contents.test.js`). It installs from the npm registry, as a developer's
+  machine does.
