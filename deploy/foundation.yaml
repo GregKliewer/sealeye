@@ -1,18 +1,17 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >-
-  The network the made-up organization's modules are built into (PHASE4-PLAN Step 9;
-  Greg, Oct 17, 2026, decision 2): what Juniper Mutual's platform team would have
-  already, so its modules can be given the values only a platform gives. Deploy as
-  platform-sealeye-foundation in the account its environments live in, then set each
-  output as one of the organization's platform values (deploy/README.md, "The Terraform
-  executor"). A Virtual Private Cloud (VPC) with two private subnets in two data
-  centres, subnet groups for databases and caches, security groups for each, a topic
-  for alarms, and the free private endpoints for tables and buckets, so an app inside the
-  network still reaches its table (Q23; Greg, Oct 20, 2026: private endpoints, never a
-  NAT gateway). No NAT gateway and no paid endpoint, so it costs nothing while nothing
-  is built in it; the paid endpoints are platform-sealeye-endpoints (endpoints.yaml),
-  which park removes. A module that needs to reach the internet from inside it (a
-  container pulling its image) waits until a way out is added.
+  The network the made-up organization's modules are built into (PHASE4-PLAN Step 9):
+  what Juniper Mutual's platform team would have already. Deploy as
+  platform-sealeye-foundation, then set each output as one of the organization's
+  platform values (deploy/README.md). Two private subnets in two data centres, subnet
+  groups and security groups for databases and caches, a topic for alarms, and the
+  free private endpoints for tables and buckets. No NAT gateway and no paid endpoint, so
+  it costs nothing while nothing is built in it; the paid endpoints are
+  platform-sealeye-endpoints (endpoints.yaml), which park removes.
+
+# Q23 (Greg, Oct 20, 2026): private endpoints, never a NAT gateway, so an app inside the
+# network still reaches its table and bucket. A module that needs the internet from
+# inside it (a container pulling its image) waits until a way out is added.
 
 Parameters:
   CidrBlock:
