@@ -4280,3 +4280,24 @@ catalog discovered before this still builds; a word reaches an input that takes 
 as a list of one, and a list of one reaches one that takes a word as that word
 (`shapedFor` in `api/executor/terraform/root.js`). Inputs kept on an earlier record, which
 a tear-down reuses, are shaped the same way. No platform value needs setting again.
+
+## The first database, built
+
+Wed Oct 21, 2026, `apps/account-notes-api` on the pilot (`dep_c1dd2a0f222d`), the sixth
+deploy: the app wrote a note to its database and read it back by account and by its
+words, signing in with its own identity over a checked connection from inside the
+private network, with no NAT gateway and no password in the app. What the five before it
+turned up, each fixed and in its pull request: a platform value of one word given to a
+list input (#134, `shapedFor`); the account's service-linked role for databases, made
+once by hand (#137, deploy/README.md step 3b); the role describing the default keys and
+the setup boundary decrypting through the secrets service (#138); the role listing
+databases, which the provider waits with (#139); and running the setup function at a
+version (#140).
+
+- **The third claim checked against AWS's documentation, settled on the pilot.** The
+  setup function's log reached the platform from inside the network, with no logs
+  endpoint: one stream in `/aws/lambda/...-dev-db-setup`. All three hold.
+- **What the cloud sets itself gains a case:** a database's `latest_restorable_time`,
+  which its backups move on every few minutes, read as "one change outside seaLeye.run"
+  in the first evidence (`driftDetail` in `api/executor/terraform/tofu.js`). Any other
+  change to a database still shows.
