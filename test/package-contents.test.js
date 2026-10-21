@@ -19,7 +19,8 @@ const packed = () => {
 test("the installed package is the command, core, and the files they read", () => {
   const files = packed();
   for (const f of files) {
-    assert.match(f, /^(cli\/|core\/|prompts\/|templates\/|package\.json$|README\.md$|LICENSE$|NOTICE$)/, `${f} should not be in the package`);
+    // npm-shrinkwrap.json is there when release.sh packs it: the tested lock file.
+    assert.match(f, /^(cli\/|core\/|prompts\/|templates\/|package\.json$|npm-shrinkwrap\.json$|README\.md$|LICENSE$|NOTICE$)/, `${f} should not be in the package`);
   }
   for (const needed of ["cli/bin/sealeye", "core/config.js", "prompts/banner.txt", "prompts/module-catalog.yaml",
     "prompts/plan-template.md", "prompts/refusal.md", "templates/http_api_serverless.yaml"]) {
@@ -89,3 +90,11 @@ test("the installer installs the libraries the release was tested with, and the 
   }
   fs.rmSync(scratch, { recursive: true, force: true });
 });
+
+// Oct 21, 2026: a release that built its image on the Mac copied the shrinkwrap
+// release.sh had just made into the image, where nothing reads it.
+test("the API's image never carries the command's shrinkwrap", () => {
+  const ignored = fs.readFileSync(path.join(root, ".dockerignore"), "utf8").split("\n").map(l => l.trim());
+  assert.ok(ignored.includes("npm-shrinkwrap.json"));
+});
+
