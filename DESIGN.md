@@ -4267,3 +4267,16 @@ Juniper set of the eval now plans against it (`test/fixtures/juniper-catalog-9.j
 the stand-in `juniper-catalog-8-with-database.json` is gone. Discovery recorded the
 master password input as sensitive.
 
+
+## A platform value takes the shape its module declares
+
+Wed Oct 21, 2026, from the first database build (`dep_a24448f7f567`): OpenTofu refused
+it before anything was made, "list of string required, but have string", for
+`http-api`'s `security_group_ids`. A platform value of one word is kept as a word, and
+the apps security group is one; `subnet_ids` worked only because it holds two. Discovery
+now records each input's declared shape (`type`: a list, a map, or a plain value), and
+the executor reads the shapes again from the module code it is about to run, so a
+catalog discovered before this still builds; a word reaches an input that takes a list
+as a list of one, and a list of one reaches one that takes a word as that word
+(`shapedFor` in `api/executor/terraform/root.js`). Inputs kept on an earlier record, which
+a tear-down reuses, are shaped the same way. No platform value needs setting again.

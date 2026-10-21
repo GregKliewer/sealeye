@@ -107,10 +107,19 @@ function plainDefault(body) {
   return undefined;
 }
 
+/** A variable's declared type, as its shape: a list (list, set, tuple), a map (map, object), or a plain value. */
+function typeOf(body) {
+  const m = body.match(/^\s*type\s*=\s*([a-z]+)/m);
+  if (!m) return null;
+  if (["list", "set", "tuple"].includes(m[1])) return "list";
+  if (["map", "object"].includes(m[1])) return "map";
+  return ["string", "number", "bool"].includes(m[1]) ? m[1] : null;
+}
+
 /**
  * Each input of a module: its variables, from every .tf file in its own folder.
  *
- * @returns {Record<string, { required: boolean, default?: any, line?: string, sensitive?: true }>}
+ * @returns {Record<string, { required: boolean, default?: any, line?: string, sensitive?: true, type?: "list" | "map" | "string" | "number" | "bool" }>}
  */
 export function moduleInputs(moduleDir) {
   const inputs = {};
@@ -125,6 +134,10 @@ export function moduleInputs(moduleDir) {
       }
       const description = body.match(/^\s*description\s*=\s*"((?:[^"\\]|\\.)*)"/m);
       if (description) input.line = JSON.parse(`"${description[1]}"`);
+      // The shape the module takes it in, so a platform value of one word reaches an
+      // input that takes a list as a list of one (inputsFor).
+      const type = typeOf(body);
+      if (type) input.type = type;
       // A value the module marks sensitive is never one a plan may give (inputsFor).
       if (/^\s*sensitive\s*=\s*true\b/m.test(body)) input.sensitive = true;
       inputs[name] = input;
