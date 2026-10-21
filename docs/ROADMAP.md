@@ -219,7 +219,8 @@ gateway's own span in that trace moved to Phase 4. Routes come with Step 8.*
   supports it.
 - A second backend: Terraform, since that is what most platform libraries are. Built
   Oct 17, 2026 for a plan of one module, with OpenTofu (PHASE4-PLAN Step 9); versions and
-  connecting modules next.
+  connecting modules Oct 17 to 20 (a table, a bucket, a queue, then a database in the
+  private network, which the app signs in to with its own identity).
 - A gap report (added Oct 13, 2026): what developers asked for that the catalog cannot
   build, taken from the needs ledger, with how often and by which teams. Read-only, from
   what discovery and the ledger already hold. Gaps come from demand first; a generic
@@ -231,7 +232,7 @@ gateway's own span in that trace moved to Phase 4. Routes come with Step 8.*
 - How discovery is tested without a customer (decided Oct 13, 2026), cheapest first:
   - seaLeye's own four building blocks in `templates/`, whose right catalog entries are
     already known. The smoke test.
-  - A made-up organization in its own private repository: 10 to 15 Terraform modules and
+  - A made-up organization in its own repository: 10 to 15 Terraform modules and
     a few pipeline files, with an answer key. It plants the hard cases on purpose: two
     modules that overlap (discovery must ask), a deprecated module (must be
     refused), a usage rule only in a README, a fake key (the scanner must stop it before

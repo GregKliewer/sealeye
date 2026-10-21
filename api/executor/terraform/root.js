@@ -15,7 +15,7 @@ import path from "node:path";
 
 import { region } from "../../../core/config.js";
 import { safeName } from "../../../core/names.js";
-import { DEVELOPER_STAGE, SEALEYE_INPUTS, codeInputs, platformInputs } from "../../../core/terraform-modules.js";
+import { DEVELOPER_STAGE, NETWORK_INPUTS, SEALEYE_INPUTS, codeInputs, inNetwork, platformInputs } from "../../../core/terraform-modules.js";
 import { AWS_PROVIDER_VERSION, IMAGE_LOCK_FILE } from "./tofu.js";
 
 /** The function the adapter seaLeye puts into an app's package exports (templates/sealeye-handler.mjs). */
@@ -26,6 +26,14 @@ const plainValue = v =>
   ["string", "number", "boolean"].includes(typeof v) ||
   (Array.isArray(v) && v.every(x => ["string", "number", "boolean"].includes(typeof x))) ||
   (v && typeof v === "object" && !Array.isArray(v) && Object.values(v).every(x => ["string", "number", "boolean"].includes(typeof x)));
+
+// An input that takes a secret by its name: never the plan's to give.
+const SECRET_INPUT = /(?:^|_)(?:password|passwd|secret|token|private_key|credentials?)(?:_|$)/i;
+
+/** Whether a value, or anything in it, is a reference OpenTofu would resolve: `${...}` or `%{...}`. */
+const refersOut = v => typeof v === "string" ? /[$%]\{/.test(v)
+  : Array.isArray(v) ? v.some(refersOut)
+  : v && typeof v === "object" ? Object.entries(v).some(([k, x]) => refersOut(k) || refersOut(x)) : false;
 
 /** Where each environment's state is kept, in the platform's bucket. */
 export function stateKeyFor({ org = "default", environment }) {
@@ -42,10 +50,12 @@ export function stateKeyFor({ org = "default", environment }) {
  * @param {Record<string,string>} p.tags
  * @param {Record<string, string | string[]>} p.platform  the organization's values at dev
  * @param {{ package?: string }} [p.code]  the packaged app, for a module that takes one
+ * @param {{ key: string, entry: object }[]} [p.parts]  the modules the app uses: when one is in
+ *        the private network, the app's module joins it with the platform's network values
  * @returns {{ inputs: Record<string, any>, sources: { name: string, source: string, from?: string }[], ignored: string[] }}
  * @throws Error naming what the plan asks that cannot be given
  */
-export function inputsFor({ entry, planModule, name, tags, platform = {}, code = {}, connected = new Set() }) {
+export function inputsFor({ entry, planModule, name, tags, platform = {}, code = {}, connected = new Set(), parts = [] }) {
   const declared = entry.inputs || {};
   const inputs = {};
   const sources = [];
@@ -63,19 +73,30 @@ export function inputsFor({ entry, planModule, name, tags, platform = {}, code =
     give(d.package, code.package, "your app's code");
     give(d.handler, ADAPTER_HANDLER, "seaLeye");
   }
-  for (const [input, { from, value }] of Object.entries(platformInputs(entry, platform))) give(input, value, "platform value", from);
+  const network = parts.some(p => inNetwork(p.entry));
+  for (const [input, { from, value }] of Object.entries(platformInputs(entry, platform, { network }))) give(input, value, "platform value", from);
+  if (network) {
+    const lacking = NETWORK_INPUTS.filter(i => !(i in inputs));
+    if (lacking.length) throw new Error("your app uses something inside the platform's private network, and the platform has no way set up yet for your app to join that network, so nothing was built. Ask your platform team.");
+  }
 
   // What the plan asks for itself: an optional input the module takes, with a plain
   // value. seaLeye's own inputs and the platform's are never the plan's to set, so a
   // plan that names one is built with seaLeye's or the platform's (`ignored`).
-  // An input the modules the app uses fill (connectionInputs) is never the plan's either.
+  // Nor are the inputs a module that runs an app is wired and networked through (what it
+  // may read and write, the secrets it reads, the network it joins): only code fills
+  // those, from what the modules the app uses offer, whether or not the plan uses any.
+  // Nor a value the module marks sensitive, or names a password or secret: a value given
+  // there would be kept in plain text where the environment is recorded.
   const filled = new Set([...Object.keys(inputs), ...connected]);
   const own = new Set([...SEALEYE_INPUTS, ...codeInputs(entry)]);
+  const wiring = entry.delivers ? new Set([entry.accepts?.policies, entry.accepts?.secrets, ...NETWORK_INPUTS].filter(Boolean)) : new Set();
   const ignored = [];
   for (const [input, value] of Object.entries(planModule?.inputs || {})) {
-    if (filled.has(input) || own.has(input)) { ignored.push(input); continue; }
+    if (filled.has(input) || own.has(input) || wiring.has(input)) { ignored.push(input); continue; }
     if (!(input in declared)) throw new Error(`the plan gives ${planModule.id} an input called ${input}, which the module does not take`);
-    if (declared[input]?.required) { ignored.push(input); continue; }
+    if (declared[input]?.required || declared[input]?.sensitive || SECRET_INPUT.test(input)) { ignored.push(input); continue; }
+    if (refersOut(value)) throw new Error(`the plan gives ${planModule.id} a value for ${input} that points at another part of the environment, which only the platform may connect`);
     if (input === "environment" && value && typeof value === "object" && Object.keys(value).length) {
       throw new Error("the plan gives the app settings, and settings do not reach an app built from your organization's modules yet: a value passed in would be kept in plain text where the environment is recorded");
     }
@@ -93,7 +114,9 @@ export function inputsFor({ entry, planModule, name, tags, platform = {}, code =
  * connected through what the library offers"): each one's access policy in the inputs
  * that take policies, each secret in the one that takes secrets, and each value the plan
  * names a setting for in the app's settings, as references OpenTofu resolves. Nothing
- * here makes a resource: the library's modules made every policy.
+ * here makes a resource: the library's modules made every policy. A module that grants
+ * access keeps its secret: an app signs in to a database with its own identity, and
+ * never reads the master password (Greg, Oct 20, 2026).
  *
  * @param {object} appEntry
  * @param {{ key: string, entry: object, planModule: object }[]} parts
@@ -108,7 +131,7 @@ export function connectionInputs(appEntry, parts) {
   for (const { key, entry, planModule } of parts) {
     const o = entry.offers || {};
     if (o.access) policies.push(`\${module.${key}.${o.access}}`);
-    for (const secret of o.secrets || []) secrets.push(`\${module.${key}.${secret}}`);
+    if (!o.access) for (const secret of o.secrets || []) secrets.push(`\${module.${key}.${secret}}`);
     for (const [value, setting] of Object.entries(planModule.connect || {})) {
       environment[setting] = `\${module.${key}.${value}}`;
       settings[setting] = `${entry.id}.${value}`;
@@ -117,7 +140,7 @@ export function connectionInputs(appEntry, parts) {
   const inputs = {};
   const sources = [];
   if (policies.length && takes.policies) { inputs[takes.policies] = policies; sources.push({ name: takes.policies, source: "the modules your app uses", from: parts.filter(p => p.entry.offers?.access).map(p => p.entry.id).join(", ") }); }
-  if (secrets.length && takes.secrets) { inputs[takes.secrets] = secrets; sources.push({ name: takes.secrets, source: "the modules your app uses", from: parts.filter(p => p.entry.offers?.secrets?.length).map(p => p.entry.id).join(", ") }); }
+  if (secrets.length && takes.secrets) { inputs[takes.secrets] = secrets; sources.push({ name: takes.secrets, source: "the modules your app uses", from: parts.filter(p => p.entry.offers?.secrets?.length && !p.entry.offers.access).map(p => p.entry.id).join(", ") }); }
   if (Object.keys(environment).length && takes.environment) { inputs[takes.environment] = environment; sources.push({ name: takes.environment, source: "the modules your app uses", from: Object.keys(environment).sort().join(", ") }); }
   return { inputs, sources, settings };
 }

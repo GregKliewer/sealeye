@@ -76,7 +76,7 @@ function entryFor(module, written, finding, questions, library) {
   const inputLines = { ...(finding?.input_lines || {}), ...(written?.input_lines || {}) };
   const inputs = Object.fromEntries(Object.entries(module.inputs).map(([name, v]) => {
     const line = plain(inputLines[name] || v.line);
-    return [name, { required: v.required, ...("default" in v ? { default: v.default } : {}), ...(line ? { line } : {}) }];
+    return [name, { required: v.required, ...("default" in v ? { default: v.default } : {}), ...(line ? { line } : {}), ...(v.sensitive ? { sensitive: true } : {}) }];
   }));
   const rules = rulesFor(module, finding, library);
   const guidance = guidanceFor(written, finding, rules);

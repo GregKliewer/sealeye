@@ -397,8 +397,15 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
 
 - Two backends: CloudFormation for the starter's four, and OpenTofu for an
   organization's own Terraform modules: one module that runs the app a plan, with the
-  modules it uses (a table, a bucket, a queue) connected to it through what the library
-  offers, never a resource of seaLeye's own. A database waits on the network (Q23). No
+  modules it uses (a table, a bucket, a queue, a database) connected to it through what
+  the library offers, never a resource of seaLeye's own. A module an app uses that lives
+  in the private network (it takes `subnet_group_name` or `subnet_ids`, `inNetwork` in
+  `core/terraform-modules.js`) is built only when it offers an access policy, since
+  inside the network the app signs in with its own identity, and the app's module joins
+  that network (`subnet_ids`, `security_group_ids`, from the platform's values) only
+  when its plan has such a module; a module that grants access keeps its secret, so an
+  app never reads a master password. The network's paid endpoints are
+  `platform-sealeye-endpoints` (`deploy/endpoints.yaml`), which `park` deletes. No
   GitHub Actions or CodePipeline yet.
 - Region ca-central-1 (`SEALEYE_REGION` is an explicit opt-out). Runtime nodejs20.x.
   No CloudFront from seaLeye's own templates; an organization's module may use it.
@@ -476,7 +483,9 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   LangFuse dataset run; it needs ANTHROPIC_API_KEY and LangFuse keys, and deploys
   nothing. It runs two sets (`--set starter` or `--set juniper` for one): the
   starter's, and Juniper Mutual's, planned against a snapshot of its live catalog
-  (`test/fixtures/juniper-catalog-8.json`, cases in `test/fixtures/eval-juniper/`),
+  (`test/fixtures/juniper-catalog-8-with-database.json`, catalog 8 with the library's
+  1.2 `postgres` and `http-api` as discovery's code reads them, until the catalog
+  discovered after those releases is live; cases in `test/fixtures/eval-juniper/`),
   the eval's organization given a placeholder platform value for every required input
   Juniper's modules want (`seedPlatformValues`), so the real executor builds there what
   it builds on the server. A fixture may also say what the app's plan connects

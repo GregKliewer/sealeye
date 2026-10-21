@@ -18,7 +18,8 @@ in to the seaLeye account as someone who can create IAM roles.
 | `ci-role.yaml` | The role GitHub takes to store the image it builds. Stack `platform-sealeye-ci`. |
 | `backup.sh`, `restore-check.sh` | The server's half of those jobs. |
 | `terraform-role.yaml` | The `sealeye-deploy-terraform-*` role an organization's own modules are built through, and their functions' boundary. Stack `platform-sealeye-terraform-role`. |
-| `foundation.yaml` | The network the made-up organization's modules are built into. Stack `platform-sealeye-foundation`. |
+| `foundation.yaml` | The network the made-up organization's modules are built into, with its free endpoints. Stack `platform-sealeye-foundation`. |
+| `endpoints.yaml` | The network's paid endpoints, which park deletes. Stack `platform-sealeye-endpoints`. |
 | `pin-tofu.sh` | Writes OpenTofu's and the AWS provider's checksums into the Dockerfile. Run on your Mac after either version changes. |
 
 Platform stacks are named `platform-sealeye-*`, never `sealeye-*`, so the deploy role,
@@ -657,6 +658,90 @@ platform` says `document_table`, `file_bucket` and `work_queue` are built, and w
 reads a table's name from its environment: `sealeye run` should enable `http_api` and
 `document_table`, naming the setting; then the URL, `sealeye evidence` (its parts and
 settings) and `sealeye teardown`, which says the table and everything in it go too.
+
+## Once: the database
+
+DESIGN.md, "An app reaches a database in the private network" (Greg, Oct 20, 2026):
+private endpoints, never a NAT gateway, and the app signs in with its own identity. In
+order, after this pull request is merged and released:
+
+**1. The foundation again**, the same command as step 3 of "The Terraform executor". It
+gains a route table for its private subnets, the free endpoints for tables and buckets,
+and the exports the paid endpoints read. The subnets move from the network's main route
+table to the new one; nothing is replaced.
+
+**2. The paid endpoints**, one secrets endpoint in one data centre, which the database
+module's one-time setup reads the master password through, once:
+
+```bash
+aws cloudformation deploy --region ca-central-1 --template-file deploy/endpoints.yaml \
+  --stack-name platform-sealeye-endpoints
+```
+
+It costs about $7 a month while it stands; `deploy/server.sh park` deletes it and
+`unpark` makes it again, so nothing bills between bursts of work.
+
+**3. The Terraform deploy role again**, the same command as step 2 of "The Terraform
+executor": the role may now make a database, the setup function and its role, and the
+security group that function connects from (and change only groups an environment
+made, never the platform's). The boundary lets a function join the network and sign in
+to its database; a second boundary, `SetupBoundaryArn`, is the setup function's, the
+only one that may read a kept master password. Note its output for step 4:
+
+```bash
+out SetupBoundaryArn
+```
+
+**4. Juniper's platform values**, with Juniper's organization-wide token, from the
+foundation's outputs (`aws cloudformation describe-stacks --region ca-central-1
+--stack-name platform-sealeye-foundation --query "Stacks[0].Outputs" --output table`):
+
+```bash
+sealeye platform set subnet_ids <SubnetIds, the two words>
+sealeye platform set security_group_ids <AppsSecurityGroup>
+sealeye platform set postgres.subnet_group_name <DatabaseSubnetGroup>
+sealeye platform set postgres.security_group_ids <DatabasesSecurityGroup>
+sealeye platform set postgres.permissions_boundary_arn <SetupBoundaryArn from step 3>
+```
+
+The database's groups go under its own name: the plain `security_group_ids` is the apps
+group, which never fills a database's. Without `postgres.permissions_boundary_arn` the
+plain `permissions_boundary_arn` would fill it, and the role would refuse to make the
+setup function's role with an app's boundary on it.
+
+**5. Discover the library again**, then fix, approve and make live, as in step 4 of "The
+Terraform executor". The new catalog reads `postgres` and `http-api` at 1.2: `sealeye
+platform` should say `postgres` is built. Then fetch its document for the eval,
+replacing the stand-in fixture:
+
+```bash
+curl -s -H "Authorization: Bearer $JT" https://api.sealeye.online/catalogs/<n> | jq .document > test/fixtures/juniper-catalog-<n>.json
+```
+
+and point `JUNIPER_CATALOG` in `scripts/eval-interview.js` at it (a pull request of its
+own; `test/fixtures/juniper-catalog-8-with-database.json` can go then).
+
+**6. The certificate bundle in the sample app.** `apps/account-notes-api` checks the
+database's certificate against `platform-ca.crt` beside its code, AWS's global bundle.
+Once, from the repo root, then commit the file:
+
+```bash
+curl -fsSL https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem -o apps/account-notes-api/platform-ca.crt
+```
+
+**7. The first database.** With a Juniper developer's token, in `apps/account-notes-api`:
+`sealeye run` should enable `http_api` with `postgres` connected under `DATABASE_HOST`,
+`DATABASE_PORT`, `DATABASE_NAME` and `DATABASE_USER`. Yes. A database takes about ten
+minutes to make, and the setup function runs once at the end of it; the function's log
+group (`/aws/lambda/sealeye-...-dev-db-setup`) shows what it made. Then over the URL:
+`POST /accounts/ACC-1001/notes` with `{"author":"pat","body":"Asked about the overdraft"}`,
+`GET /accounts/ACC-1001/notes`, `GET /notes?q=overdraft`; `sealeye evidence`; and
+`sealeye teardown`, which says the database and everything in it go too, and takes
+several minutes.
+
+What the first build still lacks (a permission the role is missing, a value the cloud
+sets itself that drift reads as a change) is found from what the pilot says, the way
+the first table build was.
 ## Parking between bursts of work
 
 When you will be away from the pilot for a while, park it. Parked, it costs about $6 a

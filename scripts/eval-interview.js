@@ -16,7 +16,7 @@
 // Two sets (PHASE4-PLAN Step 8): the starter's, each app planned against seaLeye's own
 // modules, and Juniper Mutual's, each app planned against the catalog discovery wrote
 // for the made-up organization (a snapshot of its live catalog,
-// test/fixtures/juniper-catalog-8.json). The eval's organization is given a placeholder
+// test/fixtures/juniper-catalog-8-with-database.json). The eval's organization is given a placeholder
 // platform value for every input Juniper's modules want (`seedPlatformValues`), and the
 // real executor decides what is built, as it does on the server: a module that waits on
 // something only seaLeye can change, or that runs no app, is not. `--set starter` or
@@ -33,7 +33,7 @@ import YAML from "yaml";
 import { DEFAULT_MODEL, loadSystemPrompt, resolveApiKey } from "../api/interview/model.js";
 import { addCatalog, approveCatalog, liveCatalog, makeLive, openCatalogs } from "../api/catalogs.js";
 import { openPlatform, platformValues, setPlatformValue } from "../api/platform.js";
-import { DEVELOPER_STAGE, platformWanted } from "../core/terraform-modules.js";
+import { DEVELOPER_STAGE, NETWORK_INPUTS, inNetwork, platformWanted } from "../core/terraform-modules.js";
 import { CONFIG_FILE, LEGACY_CONFIG_FILE } from "../core/names.js";
 import { runInterview } from "../api/interview/service.js";
 import { loadEnv, loadUserConfig, repoRoot, setting } from "../core/config.js";
@@ -53,7 +53,10 @@ import {
 export const DATASET = "sealeye-interview";
 const FIXTURES = path.join(repoRoot, "test", "fixtures", "eval");
 const JUNIPER_FIXTURES = path.join(repoRoot, "test", "fixtures", "eval-juniper");
-const JUNIPER_CATALOG = path.join(repoRoot, "test", "fixtures", "juniper-catalog-8.json");
+// Catalog 8's words, with postgres and http-api as discovery's code reads the library's
+// 1.2 releases of them (the app signs in to its database with its own identity).
+// Replace it with the catalog discovered after those releases once one is live.
+const JUNIPER_CATALOG = path.join(repoRoot, "test", "fixtures", "juniper-catalog-8-with-database.json");
 
 /**
  * The sets the eval runs: each its cases, and the organization whose live catalog they
@@ -124,10 +127,22 @@ export function loadCases(dir = FIXTURES, { set = "starter", org = null } = {}) 
 export async function seedPlatformValues({ org, document }) {
   await openPlatform();
   const names = [];
-  for (const { inputs } of platformWanted(document, Object.keys(platformValues(org, DEVELOPER_STAGE)))) {
+  const entries = new Map((document?.modules || []).map(m => [m?.id, m]));
+  for (const { module, inputs } of platformWanted(document, Object.keys(platformValues(org, DEVELOPER_STAGE)))) {
     for (const { input, required, filledBy } of inputs) {
-      if (!required || filledBy || names.includes(input)) continue;
-      await setPlatformValue({ org, stage: DEVELOPER_STAGE, name: input, value: `eval-placeholder-${input.replace(/_/g, "-")}`, by: "eval@sealeye" });
+      // A part in the private network takes its own groups and subnets only by its own name.
+      const name = inNetwork(entries.get(module)) && NETWORK_INPUTS.includes(input) ? `${module}.${input}` : input;
+      if (!required || filledBy || names.includes(name)) continue;
+      await setPlatformValue({ org, stage: DEVELOPER_STAGE, name, value: `eval-placeholder-${input.replace(/_/g, "-")}`, by: "eval@sealeye" });
+      names.push(name);
+    }
+  }
+  // An app that uses a module in the private network joins it with the network values,
+  // which no module requires on its own.
+  if ((document?.modules || []).some(inNetwork)) {
+    for (const input of NETWORK_INPUTS) {
+      if (names.includes(input) || Object.keys(platformValues(org, DEVELOPER_STAGE)).includes(input)) continue;
+      await setPlatformValue({ org, stage: DEVELOPER_STAGE, name: input, value: [`eval-placeholder-${input.replace(/_/g, "-")}`], by: "eval@sealeye" });
       names.push(input);
     }
   }

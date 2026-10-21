@@ -139,7 +139,7 @@ async function prepare(record, catalog, { entry, planModule, parts = [], inputs 
   let ignored = record.terraform?.ignoredInputs || [];
   if (!given) {
     ({ inputs: given, sources, ignored } = inputsFor({
-      entry, planModule, name: record.resourceName, tags, platform, code: { package: codePackage }, connected: new Set(Object.keys(connected.inputs))
+      entry, planModule, name: record.resourceName, tags, platform, code: { package: codePackage }, connected: new Set(Object.keys(connected.inputs)), parts: readyParts
     }));
     given = { ...given, ...connected.inputs };
     sources = [...sources, ...connected.sources];

@@ -190,16 +190,30 @@ test("a module an app uses is tried as a developer's plan would use it, beside a
       accepts: { policies: "policy_arns", environment: "environment" }
     }),
     mod("modules/document-table", { offers: { access: "access_policy_arn", narrower: [], secrets: [], values: ["table_name"] } }),
-    // A database the app reaches over the private network: what it waits on is said
-    // before the values the platform team could set (Q23).
-    mod("modules/postgres", { inputs: { name: input(), stage: input(), subnet_group_name: input() }, offers: { access: null, narrower: [], secrets: ["password_secret_arn"], values: ["address"] } })
+    // A database the app reaches over the private network: built only once the platform
+    // has the values the app's module joins that network with (Q23).
+    mod("modules/postgres", { inputs: { name: input(), stage: input(), subnet_group_name: input() }, offers: { access: "access_policy_arn", narrower: [], secrets: ["password_secret_arn"], values: ["address", "database_user"] } })
   ];
   const entries = modules.map(m => ({ source: m.source, line: `A plain line about ${m.id}.`, role: "optional" }));
   const doc = draftCatalog({ run: { id: "dis_parts", repos: [{ repo: "acme/library", commit: "abc1234" }] }, modules, entries, questions: [] });
+  doc.platform = { names: ["subnet_group_name"] };
   const result = selfTest({ document: doc, version: 8 });
   assert.deepEqual(failed(result), {}, "catalog 8: a table named alone was refused, as it must be");
   assert.deepEqual(result.built.sort(), ["document_table", "http_api"]);
-  assert.match(result.refused.find(r => r.id === "postgres").why, /^an app reaches it over the private network/);
+  assert.match(result.refused.find(r => r.id === "postgres").why, /^an app reaches it over the private network, and the platform has no subnet_ids and security_group_ids value/);
+
+  // With the network values set, the database is built only if the module that runs the
+  // app can join the network: this http-api cannot, and the self-test says so.
+  doc.platform = { names: ["subnet_group_name", "subnet_ids", "security_group_ids"] };
+  const cannotJoin = selfTest({ document: doc, version: 8 });
+  assert.match(failed(cannotJoin).accepted?.join(" ") || "", /postgres is in the private network, and http_api cannot join it/);
+  modules[0].inputs.subnet_ids = input(false);
+  modules[0].inputs.security_group_ids = input(false);
+  const joined = draftCatalog({ run: { id: "dis_parts", repos: [{ repo: "acme/library", commit: "abc1234" }] }, modules, entries, questions: [] });
+  joined.platform = doc.platform;
+  const connected = selfTest({ document: joined, version: 8 });
+  assert.deepEqual(failed(connected), {});
+  assert.deepEqual(connected.built.sort(), ["document_table", "http_api", "postgres"]);
 });
 
 test("a catalog says which release of each module it builds, on both surfaces' words", async () => {

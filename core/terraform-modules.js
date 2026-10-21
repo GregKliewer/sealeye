@@ -18,6 +18,60 @@
 /** The inputs seaLeye fills itself, for every module it builds. */
 export const SEALEYE_INPUTS = Object.freeze(["name", "stage", "tags"]);
 
+/**
+ * The inputs a module that runs an app joins the organization's private network through
+ * (DESIGN.md, "An app reaches a database in the private network"). They are filled from
+ * the platform's values only when the plan uses a module that lives in that network: an
+ * app that uses none stays outside it, where it starts faster and needs nothing from it.
+ */
+export const NETWORK_INPUTS = Object.freeze(["subnet_ids", "security_group_ids"]);
+
+// What puts a module an app uses in the private network: it takes the stage's subnets,
+// or a subnet group of them (a database, a cache).
+const NETWORK_PART_INPUTS = Object.freeze(["subnet_group_name", "subnet_ids"]);
+
+/** Whether a module an app uses lives in the private network, so the app's module must join it. */
+export function inNetwork(entry) {
+  if (!entry || entry.delivers) return false;
+  const takes = entry.inputs || {};
+  return NETWORK_PART_INPUTS.some(i => i in takes);
+}
+
+/** Whether a module that runs an app can join the private network: it takes both network inputs. */
+export function joinsNetwork(entry) {
+  if (!entry?.delivers) return false;
+  const takes = entry.inputs || {};
+  return NETWORK_INPUTS.every(i => i in takes);
+}
+
+/**
+ * Which of the network inputs the platform has no value for: for one module that runs an
+ * app, when its id is given (the plain name, or that module's own); or, with no id, for
+ * any module that runs an app: the plain name only, since a module's own value may be
+ * another part's (a cache's own security groups), which no app joins the network with.
+ * So a part is never said to be built while every plan using it would be refused; the
+ * other way round it is refused, and the self-test says why.
+ */
+export function networkValuesMissing(names, { app = null } = {}) {
+  const set = names instanceof Set ? names : new Set(names || []);
+  if (app) return NETWORK_INPUTS.filter(i => !platformNameFor(app, i, set));
+  return NETWORK_INPUTS.filter(i => !set.has(i));
+}
+
+/**
+ * The platform value that fills a module's input, or null. As platformNameFor, except
+ * that a part in the private network takes its network inputs (its own security groups,
+ * its own subnets) only from its own value, `<module>.<input>`: the plain one is what
+ * apps join the network with, and a database given the apps group would admit nothing.
+ */
+export function platformValueFor(entry, input, names) {
+  if (inNetwork(entry) && NETWORK_INPUTS.includes(input)) {
+    const set = names instanceof Set ? names : new Set(names || []);
+    return set.has(`${entry.id}.${input}`) ? `${entry.id}.${input}` : null;
+  }
+  return platformNameFor(entry?.id, input, names);
+}
+
 /** The stage a developer's environment is built as (principle 9). */
 export const DEVELOPER_STAGE = "dev";
 
@@ -80,15 +134,20 @@ export function terraformBuilds(entry, platform = {}) {
   if (delivers?.kind === "package" && codeInputs(entry).length !== 2) return no("it does not say which input takes the app and which the function to call");
   if (delivers?.kind === "files" && !(typeof delivers.output === "string" && delivers.output)) return no("it does not say where a site's files go");
 
-  // What waits on something only seaLeye can change says so first, before any value the
-  // platform team could set: setting them would build nothing yet.
-  const later = part ? notConnectedYet(entry) : null;
-  if (later) return no(later);
-
   const names = new Set(Array.isArray(platform?.names) ? platform.names : []);
+  // A module in the private network is reached only by an app's module that joins it,
+  // with the stage's subnets and the apps security group from the platform's values.
+  if (part && inNetwork(entry)) {
+    // Inside the network the app signs in with its own identity, so the module has to
+    // grant that; a module offering only a password would hand the app a secret it
+    // should never hold.
+    if (!entry.offers?.access) return no("an app reaches it over the private network and signs in with its own identity, which this module does not offer (no policy granting access, only a secret)");
+    const missing = networkValuesMissing(names);
+    if (missing.length) return no(`an app reaches it over the private network, and the platform has no ${missing.join(" and ")} value for the module that runs the app to join that network with`, missing);
+  }
   const own = new Set([...SEALEYE_INPUTS, ...codeInputs(entry)]);
   const missing = Object.entries(entry.inputs || {})
-    .filter(([name, spec]) => spec && spec.required === true && !own.has(name) && !platformNameFor(entry.id, name, names))
+    .filter(([name, spec]) => spec && spec.required === true && !own.has(name) && !platformValueFor(entry, name, names))
     .map(([name]) => name)
     .sort();
   if (missing.length) {
@@ -105,17 +164,6 @@ export function terraformBuilds(entry, platform = {}) {
 export function isPart(entry) {
   const o = entry?.offers;
   return Boolean(o && (o.access || (Array.isArray(o.secrets) && o.secrets.length)));
-}
-
-/**
- * Why a module an app uses is not connected yet, or null. A database is reached over the
- * private network, and the platform does not put an app's module in that network yet
- * (docs/OPEN-QUESTIONS.md, Q23).
- */
-export function notConnectedYet(entry) {
-  if (!isPart(entry)) return null;
-  if (!entry.offers.access) return "an app reaches it over the private network, and the platform does not connect an app to that network yet";
-  return null;
 }
 
 /** What a module that runs an app takes of the modules it uses, or null when nothing. */
@@ -140,7 +188,7 @@ export function platformWanted(catalog, names = []) {
       const own = new Set([...SEALEYE_INPUTS, ...codeInputs(m)]);
       const inputs = Object.entries(m.inputs || {})
         .filter(([name]) => !own.has(name))
-        .map(([name, spec]) => ({ input: name, required: spec?.required === true, line: spec?.line || null, filledBy: platformNameFor(m.id, name, set) }));
+        .map(([name, spec]) => ({ input: name, required: spec?.required === true, line: spec?.line || null, filledBy: platformValueFor(m, name, set) }));
       const { builds, why } = terraformBuilds(m, { names: [...set] });
       const open = Array.isArray(m.open) && m.open.length > 0;
       return { module: m.id, source: m.source || null, version: m.version || null, inputs, builds: builds && !open, why: open ? "it rests on a question not yet answered" : why };
@@ -150,18 +198,22 @@ export function platformWanted(catalog, names = []) {
 /**
  * The inputs a module is given from the organization's platform values, by input, and the
  * name each comes from. Required or not: a value set for an optional input fills it too.
+ * The network inputs of a module that runs an app are the exception: they are filled
+ * only when the plan has a module in the private network (`network`).
  *
  * @param {object} entry
  * @param {Record<string, string | string[]>} values  name -> value, at the stage
+ * @param {{ network?: boolean }} [options]
  * @returns {Record<string, { from: string, value: string | string[] }>}
  */
-export function platformInputs(entry, values = {}) {
+export function platformInputs(entry, values = {}, { network = false } = {}) {
   const names = Object.keys(values);
   const own = new Set([...SEALEYE_INPUTS, ...codeInputs(entry)]);
   const out = {};
   for (const input of Object.keys(entry?.inputs || {})) {
     if (own.has(input)) continue;
-    const from = platformNameFor(entry.id, input, names);
+    if (entry?.delivers && !network && NETWORK_INPUTS.includes(input)) continue;
+    const from = platformValueFor(entry, input, names);
     if (from) out[input] = { from, value: values[from] };
   }
   return out;
@@ -199,11 +251,24 @@ export function connectionProblems(plan, catalog) {
   const takes = acceptsOf(app);
   const settings = new Map(Object.keys(apps[0].m.inputs?.environment || {}).map(k => [k, `/modules/${apps[0].i}/inputs/environment`]));
 
+  const names = new Set(Array.isArray(catalog?.platform?.names) ? catalog.platform.names : []);
+
   for (const { m, i } of parts) {
-    const offers = entries.get(m.id).offers;
+    const entry = entries.get(m.id);
+    const offers = entry.offers;
     const where = `/modules/${i}`;
     if (offers.access && !takes?.policies) say(where, `${app.id} cannot be given what the app needs to use ${m.id}: it takes no policies`);
-    if (offers.secrets?.length && !takes?.secrets) say(where, `${app.id} cannot be given ${m.id}'s secret: it takes no secrets`);
+    // A secret is handed to the app only by a module that offers no access of its own:
+    // one that grants access (a database the app signs in to) keeps its secret.
+    if (offers.secrets?.length && !offers.access && !takes?.secrets) say(where, `${app.id} cannot be given ${m.id}'s secret: it takes no secrets`);
+    if (inNetwork(entry)) {
+      if (!joinsNetwork(app)) {
+        say(where, `${m.id} is in the private network, and ${app.id} cannot join it: it takes no ${NETWORK_INPUTS.join(" and ")}`);
+      } else {
+        const missing = networkValuesMissing(names, { app: app.id });
+        if (missing.length) say(where, `the platform has no ${missing.join(" and ")} value for ${app.id} to join the private network with, which using ${m.id} needs`);
+      }
+    }
     const connect = m.connect || {};
     const values = offers.values || [];
     if (values.length && !Object.keys(connect).length) {

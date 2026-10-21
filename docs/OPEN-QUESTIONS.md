@@ -43,29 +43,6 @@ catalog; the plan the developer approved stays the plan that is promoted. It cha
 the plan contract, so it is a DESIGN.md decision when it is made. Blocks Phase 5
 (`sealeye promote`), not Phase 4: until then, plans are for dev.
 
-### Q23. How does an app reach a database in the private network?
-
-Raised Oct 17, 2026, connecting modules (PHASE4-PLAN Step 9; Greg chose to build the
-database with the table, bucket and queue, W3b). A table, a bucket and a queue are
-reached over AWS's own addresses; a database is in the foundation network's private
-subnets, so the app's function has to be in that network too: `http-api` takes subnets
-and a security group (the foundation's apps group), and its role may join the network.
-The private network has no way out, so an app inside it reaches nothing else, the
-database's password included, unless the network is given one.
-
-**Options:**
-- **Private endpoints** in the foundation network: free for tables and buckets, about
-  $15 a month for the password service; nothing leaves the network.
-- **A gateway to the internet** (NAT): about $35 a month; anything is reachable.
-
-And the password: the app reads it with an SDK, or seaLeye's adapter reads it at start
-(signing its own request, as it does for settings) and hands the app `DATABASE_PASSWORD`
-beside the address.
-
-**Leaning:** private endpoints, and the adapter reads the password. Until then a module
-an app reaches over the private network is not built ("not connected yet"), and an app
-that needs a database is drafted. Blocks the database in Step 9's second pull request.
-
 ## Later
 
 ### Q7. Windows
