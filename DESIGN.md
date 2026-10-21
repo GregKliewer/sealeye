@@ -4260,3 +4260,10 @@ install kept 1.9.1. Every test passed, because the tests install from the lock f
   starts the command, and checks the libraries it installed are the lock file's
   (`test/package-contents.test.js`). It installs from the npm registry, as a developer's
   machine does.
+
+Oct 21, 2026: catalog 9, discovered after `postgres` 1.2.2 and `http-api` 1.2.1, went
+live on the pilot, its self-test passing with Juniper's platform values, and the
+Juniper set of the eval now plans against it (`test/fixtures/juniper-catalog-9.json`);
+the stand-in `juniper-catalog-8-with-database.json` is gone. Discovery recorded the
+master password input as sensitive.
+
