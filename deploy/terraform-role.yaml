@@ -95,6 +95,14 @@ Resources:
           - Effect: Allow
             Action: [secretsmanager:GetSecretValue, secretsmanager:DescribeSecret]
             Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:rds!db-*"
+          # The password is encrypted with the account's default key for secrets, which
+          # the setup function uses only through the secrets service.
+          - Effect: Allow
+            Action: kms:Decrypt
+            Resource: "*"
+            Condition:
+              StringEquals:
+                kms:ViaService: !Sub "secretsmanager.${AWS::Region}.amazonaws.com"
 
   TerraformRole:
     Type: AWS::IAM::Role
@@ -333,6 +341,17 @@ Resources:
               - Sid: DatabasesRead
                 Effect: Allow
                 Action: [rds:DescribeDBSubnetGroups, rds:DescribeDBParameterGroups, rds:DescribeOptionGroups, rds:DescribeDBEngineVersions, rds:DescribeOrderableDBInstanceOptions]
+                Resource: "*"
+              # Making a database whose master password the platform keeps: RDS describes
+              # the default keys (aws/rds for the disk, aws/secretsmanager for the
+              # password) as the caller, so the role may read a key's description,
+              # which holds no secret and grants no use of the key (RDS user guide,
+              # "Permissions required for Secrets Manager integration"; the first
+              # build, Oct 21, 2026: "The specified KMS key [null] ... isn't
+              # accessible").
+              - Sid: KeysDescribed
+                Effect: Allow
+                Action: kms:DescribeKey
                 Resource: "*"
               - Sid: MasterPasswords
                 Effect: Allow
