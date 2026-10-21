@@ -13,7 +13,7 @@ Resources:
   EndpointsGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: The network's endpoints, reached from inside the network only
+      GroupDescription: Endpoints of the network, reached from inside the network only
       VpcId: !ImportValue platform-sealeye-foundation-VpcId
       SecurityGroupIngress:
         - { IpProtocol: tcp, FromPort: 443, ToPort: 443, CidrIp: !ImportValue platform-sealeye-foundation-CidrBlock }
