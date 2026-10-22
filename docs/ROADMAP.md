@@ -10,8 +10,8 @@ OPEN-QUESTIONS.md.
 2 (done Oct 12, 2026, all but Step 6, the second-person test); its last section, "Owed
 after this plan", still stands. `docs/PHASE3-PLAN.md` built Phase 3 (Oct 14, 2026).
 `docs/PHASE4-PLAN.md` built Phase 4 (Oct 22, 2026); its "Owed after this plan" still
-stands. Phase 5 has no plan yet: writing it is the next job. The second-person test is
-still open.
+stands. `docs/PHASE5-PLAN.md` plans Phase 5 (written Oct 22, 2026; its decisions wait
+on Greg). The second-person test is still open.
 
 **Renumbered Oct 13, 2026.** Phase 3 (governed backbone) and Phase 6 (seaLeye for agents)
 are new; the old Phases 3, 4 and 5 are now 4, 5 and 7. DESIGN.md entries and the two
