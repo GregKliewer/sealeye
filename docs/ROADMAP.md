@@ -198,7 +198,8 @@ gateway's own span in that trace moved to Phase 4. Routes come with Step 8.*
   organization (`juniper`), discovery's traces, merged questions and the eval graded
   twice, built Oct 16, 2026. The rough-edges step, with Q21's rule for platform words,
   built Oct 16, 2026. Step 8, the interview eval planning against Juniper Mutual's
-  live catalog, built Oct 16, 2026.
+  live catalog, built Oct 16, 2026. Step 10, the gap report, with discovery saying which
+  needs each module meets, built Oct 22, 2026.
 - LangFuse self-hosted in ca-central-1 (answers Q13; moved here from Phase 3 on Oct 13,
   2026), before the first run on an organization's real code (Greg, Oct 14, 2026:
   Phase 4's own runs read seaLeye's templates, a made-up organization and public
@@ -340,6 +341,7 @@ and does nothing real. A blank is not started.
 | Onboard and ingest | `sealeye admin ingest` | | | | 4 |
 | Promote | `sealeye promote` | | | | 5 |
 | Approve an agent's plan | | | | | 6 (a queue in the portal) |
+| Gap report (organization-wide token only) | `sealeye gaps` | `GET /gaps` | built | built (Gaps) | 4 |
 | Raise a gap ticket | `sealeye needs --request` | | prints text only | | 5 |
 
 Built names live in `core/operations.js`, which both surfaces read. Command names not yet built are proposals; settle each one in DESIGN.md before

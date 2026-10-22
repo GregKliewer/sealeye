@@ -948,3 +948,24 @@ test("an environment built from the organization's own modules shows only what i
   await expect(page.getByTestId("teardown-wait")).toHaveText("Its connections into the private network take up to 20 minutes to remove.");
   await page.getByRole("button", { name: "Keep it" }).click();
 });
+
+// The gap report (PHASE4-PLAN Step 10): a platform engineer's page, as `sealeye gaps` is.
+test("Gaps lists what developers asked for that the catalog cannot build, for an organization-wide token only", async ({ page }) => {
+  await signInOrgWide(page);
+  await page.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: "Gaps" }).click();
+  await expect(page.getByRole("heading", { name: "Gaps" })).toBeVisible();
+  await expect(page.getByText("What developers asked for that the starter catalog cannot build")).toBeVisible();
+  await expect(page.getByTestId("command-hint")).toContainText("sealeye gaps");
+  const gaps = page.getByTestId("gap");
+  const database = gaps.filter({ hasText: "a relational database" });
+  await expect(database.getByTestId("gap-asked")).toContainText("1 app on 1 team (default)");
+  await expect(database.getByTestId("gap-library")).toHaveText("Nothing in your library meets this.");
+  await expect(gaps.filter({ hasText: "a search index over its records" }).getByTestId("gap-library")).toContainText("written in the developer's own words");
+});
+
+test("a team's token sees no Gaps page, and is sent home from its address", async ({ page }) => {
+  await signIn(page);
+  await expect(page.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: "Gaps" })).toHaveCount(0);
+  await page.goto("/gaps");
+  await expect(page).toHaveURL(/\/$/);
+});

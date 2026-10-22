@@ -23,6 +23,7 @@ import {
   getCosts,
   listInterviews,
   getNeeds,
+  getGaps,
   answerInterview,
   abandonInterview,
   whoAmI,
@@ -46,6 +47,7 @@ import { runDoctor } from "../doctor.js";
 import { writeInterviewFiles, decisionCard } from "../interview/render.js";
 import { catalogSentence, plainValidationErrors } from "../../core/plan-words.js";
 import { evidenceSummary } from "../../core/evidence-summary.js";
+import { askedWords, gapsHeading, libraryWords, metWords, noGapsWords, rankWords } from "../../core/gap-words.js";
 import { noReportWords, planOrigin, teardownDataWords, teardownWaitWords } from "../../core/plan-report-words.js";
 import { RETENTION_CHOICES, retentionOf, withRetention } from "../../core/retention.js";
 import { commandFor, commandLine, wordsFor } from "../../core/operations.js";
@@ -147,6 +149,7 @@ Usage:
   ${product.command} pause [app | deploymentId] [--json] [--api <url>]
   ${product.command} resume [app | deploymentId] [--json] [--api <url>]
   ${product.command} needs [--json] [--request <kind>] [--api <url>]
+  ${product.command} gaps [--json] [--api <url>]
   ${product.command} online [app | deploymentId] [--print] [--json] [--api <url>]
   ${product.command} doctor [--json] [--api <url>]
   ${product.command} catalog [--json] [--api <url>]
@@ -1058,6 +1061,33 @@ async function main() {
 
     printNeedsTable(ledger);
     say(`${product.command} needs --request <kind> writes a module request the platform team can paste into a ticket.`);
+    return;
+  }
+
+  // The gap report (PHASE4-PLAN Step 10): what developers asked for that the live
+  // catalog cannot build, by how often and which teams, and what the library has for
+  // each. An organization-wide token's only; the API says so to anyone else.
+  if (command === "gaps") {
+    say("Reading what developers asked for that the platform cannot build");
+    const report = await refusedInWords(() => getGaps({ apiBaseUrl }));
+    if (!report) return;
+    if (jsonOut) return console.log(JSON.stringify(report, null, 2));
+    console.log("");
+    console.log(c.fg(gapsHeading(report)));
+    if (!report.gaps.length) say(noGapsWords(report));
+    for (const g of report.gaps) {
+      console.log("");
+      console.log(`${c.accent(`${String(g.rank).padStart(2)}.`)} ${c.fg(g.line)}${g.listed ? c.dim(`  (${g.kind})`) : ""}`);
+      console.log(`    ${askedWords(g)}`);
+      console.log(`    ${c.dim(libraryWords(g))}`);
+      const why = rankWords(g);
+      if (why) console.log(`    ${c.dim(why)}`);
+    }
+    if (report.met.length) {
+      console.log("");
+      console.log(c.fg("Asked for, and built now"));
+      for (const m of report.met) console.log(`  ${c.fg(m.line)}: ${c.dim(metWords(m))}`);
+    }
     return;
   }
 

@@ -22,6 +22,7 @@ import { resumeInFlight } from "./executor/resume.js";
 import { unsupportedNeeds } from "../core/catalog.js";
 import { assembleEvidence, renderEvidence } from "./executor/evidence.js";
 import { rollupNeeds } from "./needs.js";
+import { gapReport } from "./gaps.js";
 import { environmentLogGroup, readLogs } from "./logs.js";
 import { busyRefusal, changeUnderWay } from "./busy.js";
 import { replacements } from "./replaced.js";
@@ -1123,6 +1124,19 @@ app.get("/needs", (req, res) => {
   } catch (err) {
     return res.status(500).json({ error: { code: "NEEDS_FAILED", message: err.message } });
   }
+});
+
+// GET /gaps: the gap report (PHASE4-PLAN Step 10; DESIGN.md, "The gap report"), what
+// developers asked for that the live catalog cannot build. The platform team's: an
+// organization-wide token's only (Greg, Oct 22, 2026).
+app.get("/gaps", (req, res) => {
+  if (!mayDiscover(req.caller)) {
+    return res.status(403).json({ error: { code: "ORG_WIDE_ONLY", message: "The gap report is for your platform team: it needs an organization-wide token." } });
+  }
+  const org = callerOrg(req);
+  const live = liveCatalog(org);
+  const report = gapReport(orgDeployments(req), { catalog: withPlatform(org, live.document), version: live.version, source: live.source });
+  return res.status(200).json({ organization: organizationInWords({ org, organizationName: orgName() }), ...report });
 });
 
 // DELETE /deployments/{deploymentId} — tears the environment down in the background.

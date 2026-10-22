@@ -240,6 +240,19 @@ export interface OpenInterview { interviewId: string; app: string; status: "runn
 const settingsPath = (app: string, team: string, name?: string) =>
   `/apps/${encodeURIComponent(app)}/settings${name ? `/${encodeURIComponent(name)}` : ""}?team=${encodeURIComponent(team)}`;
 
+// The gap report (PHASE4-PLAN Step 10): what developers asked for that the live catalog
+// cannot build, by how often and which teams. An organization-wide token's only.
+export interface GapApp { name: string; team: string; deploymentId: string | null; when: string | null }
+export interface Gap {
+  kind: string; listed: boolean; line: string; count: number; rank: number; tieBrokenBy: "teams" | "checklist" | null;
+  teams: { team: string; apps: string[] }[]; apps: GapApp[]; firstSeen: string | null; lastSeen: string | null;
+  library: { status: "nothing" | "not_built" | "unlisted" | "unknown"; modules: { id: string; why: string }[] };
+}
+export interface Gaps {
+  organization: string; catalog: { version: number | string; source: string; mapped: boolean }; generatedAt: string; apps: number;
+  gaps: Gap[]; met: { kind: string; line: string; count: number; modules: string[]; apps: GapApp[] }[];
+}
+
 export const api = {
   signIn: (token: string) => request<Person & { expiresAt: string }>("/sessions", { method: "POST", body: { token } }),
   signOut: () => request<{ signedOut: boolean }>("/sessions", { method: "DELETE" }),
@@ -327,6 +340,7 @@ export const api = {
   needs: () => request<NeedsLedger>("/needs"),
   // The organization's platform values, as `sealeye platform` reads and sets them.
   platform: (stage: string) => request<Platform>(`/platform?stage=${encodeURIComponent(stage)}`),
+  gaps: () => request<Gaps>("/gaps"),
   setPlatformValue: (name: string, value: PlatformWord, stage: string) =>
     request<{ value: PlatformValue & { stage: string; organization?: string } }>(`/platform/values/${encodeURIComponent(name)}`, { method: "PUT", body: { value, stage } }).then(r => r.value),
   removePlatformValue: (name: string, stage: string) =>

@@ -303,8 +303,9 @@ for the private network, and sweeps what it leaves"; Greg, Oct 22, option A).
 
 Greg, Oct 22, 2026: discovery says which needs each module meets, so every draft is
 judged against the live catalog; the report is an organization-wide token's only; ties
-go to the gap more teams asked for, then a fixed checklist. The first half built Oct 22
-(DESIGN.md, "Discovery records which needs each module meets").
+go to the gap more teams asked for, then a fixed checklist. Built Oct 22, 2026, in two
+pull requests (DESIGN.md, "Discovery records which needs each module meets" and "The gap
+report").
 
 ### Step 11. Write it down
 

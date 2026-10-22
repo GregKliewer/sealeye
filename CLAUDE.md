@@ -33,7 +33,7 @@ cli/        the sealeye command: bin/sealeye, client.js (talks to the API), inte
             store-offer.js (moving .env values into the store),
             brand.js (the only place terminal colours live)
 api/        the API: server.js, store.js, db.js, migrations/, catalogs.js (each organization's
-            catalog, or the starter), self-test.js (what a catalog passes before it is
+            catalog, or the starter), gaps.js (the gap report), self-test.js (what a catalog passes before it is
             approved and made live), catalog-use.js (the environments a catalog would
             stop building), needs.js, mappings.js, validate.js,
             secret-scan.js and gitleaks.toml (the API's scan of what arrives),
@@ -60,7 +60,8 @@ core/       what cli/ and api/ must agree on: schema.js (the plan contract), cat
             command and sent with the interview's plan for the portal),
             plan-words.js, evidence-summary.js and plan-report-words.js (words the
             command and the portal both say), platform-lines.js (the lines the platform
-            writes into an app's logs, read for the developer), retention.js (how long logs are kept), setting-names.js,
+            writes into an app's logs, read for the developer), gap-words.js (what the
+            gap report says, and its tie-breaking checklist), retention.js (how long logs are kept), setting-names.js,
             environments.js (what an environment's key is: one row in `sealeye
             list`, one page in the portal, the page `sealeye online <app>` opens),
             operations.js (every operation's command, aliases and portal label),
@@ -69,7 +70,7 @@ core/       what cli/ and api/ must agree on: schema.js (the plan contract), cat
             names, and sizes and counts, that a developer never reads), catalog-edits.js
             (which words of a draft's entry a person may change, and keeping them).
             secrets.js, scan.js, upload-rules.js, plan-words.js, evidence-summary.js,
-            plan-report-words.js, platform-lines.js, retention.js, setting-names.js, environments.js,
+            plan-report-words.js, platform-lines.js, gap-words.js, retention.js, setting-names.js, environments.js,
             operations.js, discovery-words.js, developer-words.js and catalog-edits.js run in a browser,
             so the portal imports them too
 prompts/    system prompt and the starter's passages for it (interview-starter.yaml), plan
@@ -236,7 +237,7 @@ POST /plans/validate, POST /deployments ({ plan, appPath, zip?, settings? }, or
 GET /deployments/events (server-sent events: the id of each deployment the caller can see
 whenever what GET /deployments shows of it changes; five minutes a stream), GET /deployments/{id}, GET /deployments/{id}/plan (the plan as approved and the report), GET /deployments/{id}/evidence, GET /deployments/{id}/logs (masked; a line the platform wrote carries `platform: { kind, words }`, the developer's reading of it, `core/platform-lines.js`), GET /deployments/{id}/performance (readings), GET /deployments/{id}/paused and POST
 /deployments/{id}/pause and /resume (APIs only), DELETE /deployments/{id},
-GET /needs, GET /health, GET /interviews (your own still open), POST /interviews ({ app, zip, findings? },
+GET /needs, GET /gaps (the gap report: what developers asked for that the live catalog cannot build, judged by which needs its modules meet; an organization-wide token's only), GET /health, GET /interviews (your own still open), POST /interviews ({ app, zip, findings? },
 answered with the interview and its findings), POST
 /interviews/{id}/answers ({ answer }), GET /interviews/{id}/events (server-sent events),
 DELETE /interviews/{id}, GET /whoami, GET /team (people with tokens, never a token), GET /costs (by tag), GET /catalog (the organization's live catalog, or the starter, and which; ?version= the one a plan names; `document` is it as clients draw a plan from it, only what the platform builds), GET /apps/{app}/settings, PUT
@@ -450,8 +451,8 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   code the platform has), Catalog (modules and the needs ledger), Costs, Team, Health,
   and Discovery (Edit words on its draft, and its Catalogs card: the self-test, Edit
   words on any other draft, Fix what blocks approval, Approve,
-  Make live), and Platform (the organization's platform values), shown only
-  to an organization-wide token. Control shows only what an environment offers. Costs and the Settings card are shown only to an
+  Make live), Platform (the organization's platform values) and Gaps (the
+  gap report), shown only to an organization-wide token. Control shows only what an environment offers. Costs and the Settings card are shown only to an
   organization whose settings and costs are kept (`hasSettingsAndCosts` in
   `core/token.js`); the header names the token's own organization. Integrations is
   drawn in the archived mock-up only (Phase 5); the portal shows nothing it cannot do.

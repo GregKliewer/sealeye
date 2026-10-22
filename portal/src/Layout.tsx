@@ -20,6 +20,8 @@ const NAV = [
   { to: "/discovery", label: label("discover"), end: false, orgWide: true },
   // The organization's platform values (PHASE4-PLAN Step 9): a platform engineer's too.
   { to: "/platform", label: label("platform"), end: false, orgWide: true },
+  // What developers asked for that the platform cannot build (PHASE4-PLAN Step 10).
+  { to: "/gaps", label: label("gaps"), end: false, orgWide: true },
   { to: "/health", label: label("doctor"), end: false }
 ];
 
