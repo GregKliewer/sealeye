@@ -90,7 +90,12 @@ export function evidenceSummary(ev, product = { name: "seaLeye", command: "seale
     const art = /^none:/.test(String(b.artifactKey)) ? "no artifact" : `artifact ${b.artifactKey}`;
     const parts = Array.isArray(b.resources) ? plural(b.resources.length, "part") + " made or changed" : "parts not recorded";
     const took = typeof r.durationSeconds === "number" ? `, ${humanDuration(r.durationSeconds)}` : "";
-    row("Built", `${b.module?.source || "the organization's module"}${b.module?.version ? ` ${b.module.version}` : ""}${commit ? ` at ${commit.slice(0, 12)}` : ""}, ${art}, ${parts}${took}`);
+    // The modules the app uses are built in the same change, so the line names them too
+    // (owed since Oct 20, 2026: the file listed them, the line did not).
+    const used = Array.isArray(b.parts) && b.parts.length
+      ? `, with ${b.parts.map(p => `${p.source || p.id}${p.version ? ` ${p.version}` : ""}`).join(" and ")}`
+      : "";
+    row("Built", `${b.module?.source || "the organization's module"}${b.module?.version ? ` ${b.module.version}` : ""}${commit ? ` at ${commit.slice(0, 12)}` : ""}${used}, ${art}, ${parts}${took}`);
   } else {
     // Which module's template this stack is built from. The file on disk may be the
     // dist copy with the plan's setting names written into it, so the name comes from
