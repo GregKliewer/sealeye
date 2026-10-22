@@ -12,7 +12,7 @@ import { PlanCard } from "./PlanCard";
 import { RETENTION_CHOICES, retentionOf, withRetention } from "../../../core/retention.js";
 import { useLoad, useSession } from "../session";
 import { useChanges } from "../changes";
-import { addressOf, ago, changedAt, doing, elapsed, groupEnvironments, IN_FLIGHT, lockedWhile, statusOf, underWay, when, who } from "../model";
+import { addressOf, ago, changedAt, doing, elapsed, goingAway, groupEnvironments, IN_FLIGHT, lockedWhile, statusOf, underWay, when, who } from "../model";
 import { PageTitle, Problem } from "../Layout";
 import { Address } from "../Address";
 import { Cmd, CommandHint } from "../Command";
@@ -172,7 +172,7 @@ export function Control() {
                 <TearDown app={env.app} deploymentId={(env.deploys.find(d => d.stackName) || latest).deploymentId} record={env.deploys.find(d => d.stackName) || latest} locked={Boolean(locked)} onDone={deployments.reload} />
                 <CommandHint op="teardown" target={env.app} />
               </>) : (
-                <p className="text-dim">{latest.status === "drafted" ? "Nothing was built for a drafted plan, so there is nothing to tear down." : "There is nothing standing to tear down."}</p>
+                <p className="text-dim">{latest.status === "drafted" ? "Nothing was built for a drafted plan, so there is nothing to tear down." : goingAway(env) ? "It is being torn down now." : "There is nothing standing to tear down."}</p>
               )}
             </div> : null}
           </CardContent>
