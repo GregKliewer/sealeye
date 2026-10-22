@@ -1,7 +1,39 @@
 /* seaLeye.org site styles.
    The project's home, written as a plain README: one column of serif text, one link
    colour, mono for code. No brand chrome on purpose: this page is about the project
-   being given away, not sold (DESIGN.md, "seaLeye.org is the project's home"). */
+   being given away, not sold (DESIGN.md, "seaLeye.org is the project's home").
+   The fonts are served from fonts/ with the page, so reading it asks nothing of any
+   other site (DESIGN.md, "seaLeye.org serves its own fonts, and its version is read").
+   Both are under the SIL Open Font License; fonts/OFL-*.txt. Latin only. */
+
+@font-face {
+  font-family: "Source Serif 4";
+  font-style: normal;
+  font-weight: 200 900;
+  font-display: swap;
+  src: url(fonts/source-serif-4-latin-opsz-normal.woff2) format("woff2");
+}
+@font-face {
+  font-family: "Source Serif 4";
+  font-style: italic;
+  font-weight: 200 900;
+  font-display: swap;
+  src: url(fonts/source-serif-4-latin-opsz-italic.woff2) format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(fonts/ibm-plex-mono-latin-400-normal.woff2) format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2");
+}
 
 :root {
   --ground: #ffffff;

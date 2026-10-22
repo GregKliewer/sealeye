@@ -85,8 +85,11 @@ deploy/     the pilot server: Dockerfile's start script, its CloudFormation (ser
 portal/     seaLeye.online: React, TypeScript, Vite, Tailwind, shadcn-style components in
             src/components/ui. Its own package.json. Calls the API at /api and nothing
             else. tests/ holds the Playwright tests and the test API they run against
-sites/      the pages Caddy serves beside the portal: run/ (seaLeye.run, its installer).
-            release.sh adds the package, the version, and the built portal
+sites/      run/ (seaLeye.run, its installer), served by Caddy beside the portal;
+            release.sh adds the package, the version, and the built portal. org/
+            (sealeye.org, the project's home), published by GitHub Pages
+            (.github/workflows/pages.yml) through scripts/org-site.js, which stamps
+            package.json's version; its fonts are its own, in org/fonts/
 apps/       sample apps for trying seaLeye. plans/ holds test plans.
 test/       npm test. No AWS, no model calls.
 archive/    the October 2026 demo: marketing sites, transcripts, day notes. Read-only.

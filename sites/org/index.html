@@ -12,9 +12,7 @@
 <meta property="og:type" content="website">
 <meta name="color-scheme" content="light dark">
 <link rel="icon" href="sealeye-mark.svg" type="image/svg+xml">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="preload" href="fonts/source-serif-4-latin-opsz-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -33,15 +31,16 @@
 </header>
 
 <dl class="facts">
-<dt>Version</dt><dd>2.22.0, October 2026</dd>
+<dt>Version</dt><dd data-version>2.48.1, October 2026</dd>
 <dt>License</dt><dd>AGPL-3.0, free to use, change and run yourself</dd>
-<dt>Runs on</dt><dd>Node.js 20, AWS (CloudFormation, ca-central-1 by default)</dd>
-<dt>Status</dt><dd>Working pilot. The author is stepping back; a maintainer is welcome.</dd>
+<dt>Runs on</dt><dd>Node.js 20, AWS (ca-central-1 by default): CloudFormation for the starter modules, OpenTofu for an organization's own Terraform modules</dd>
+<dt>Status</dt><dd>Working pilot, Phases 0 to 4 of the <a href="https://github.com/GregKliewer/sealeye/blob/main/docs/ROADMAP.md">roadmap</a> built. The author is stepping back; a maintainer is welcome.</dd>
 </dl>
 
 <h2>What it is</h2>
 <p>Large organizations have built good platforms: libraries of infrastructure their security and audit teams have already approved. Developers still wait weeks for an environment, because someone from the platform team has to build each one by hand.</p>
 <p>seaLeye is the front door to that platform. A developer runs one command in their app's folder, or opens the web portal. seaLeye reads the app, asks at most four questions in plain language, and writes a plan a person can read. On yes, it builds the environment from parts the platform team already trusts and hands back an address.</p>
+<p>seaLeye learns that platform by reading the platform team's own library of Terraform modules: what each one is for, the rules for using it, and what it must refuse. It asks a platform engineer about anything it can't settle alone, and the catalog it writes has to pass a self-test before any developer plans from it.</p>
 <p>If the app needs something the platform can't build, seaLeye says so, shows the code that shows the need, and builds nothing. Each refusal tells the platform team what to build next.</p>
 
 <h2>Try it in five minutes</h2>
@@ -50,7 +49,7 @@
 cd sealeye
 npm install
 npm test</pre>
-<p>Running it for real takes an AWS account you're signed in to and an Anthropic API key. The <a href="https://github.com/GregKliewer/sealeye#readme">README</a> walks through it. A hosted pilot is also running for now at <a href="https://sealeye.online">seaLeye.online</a>; <a href="https://github.com/GregKliewer/sealeye/issues">open an issue</a> to ask for a token.</p>
+<p>Running it for real takes an AWS account you're signed in to and an Anthropic API key. The <a href="https://github.com/GregKliewer/sealeye#readme">README</a> walks through it. To watch it learn a platform, point it at <a href="https://github.com/GregKliewer/sealeye-sample-platform">sealeye-sample-platform</a>, a made-up organization's library, with an answer key, that every change to discovery is tested against. A hosted pilot is also running for now at <a href="https://sealeye.online">seaLeye.online</a>; <a href="https://github.com/GregKliewer/sealeye/issues">open an issue</a> to ask for a token.</p>
 
 <h2>What works, and what doesn't yet</h2>
 <div class="status">
@@ -58,21 +57,27 @@ npm test</pre>
 <h3>Works</h3>
 <ul>
 <li>The interview, the plan and the refusal</li>
+<li>Learning an organization's own platform from its Terraform library, with a platform engineer's answers</li>
+<li>A self-test every catalog passes before it goes live</li>
+<li>Building from the organization's own modules, connected to each other, a database in the private network included</li>
+<li>A gap report: what developers asked for that the platform can't build yet, and how often</li>
 <li>Deploy, deploy again, pause, tear down</li>
 <li>Settings in the organization's own store</li>
-<li>Logs, performance, costs and evidence</li>
+<li>Logs in plain words, the app's beside its front door's and its database's; performance, costs and evidence</li>
+<li>Every model call through one gateway, with a spending cap on each run</li>
+<li>A secret scanner, so a key written into the code never reaches the model</li>
 <li>A command and a web portal that do the same things</li>
-<li>Four buildable modules on AWS, with CloudFormation underneath</li>
+<li>A starter of four modules on AWS, for an organization with no library yet</li>
 </ul>
 </div>
 <div class="not-yet">
 <h3>Not yet</h3>
 <ul>
-<li>A complete platform library of infrastructure-as-code and pipeline automation</li>
+<li>An organization's real code: tracing hosted in Canada, and a separate account per customer for learning its platform, come first</li>
+<li>No path to production yet (Phase 5)</li>
 <li>No sign-in: one token per person</li>
 <li>One API process on one small server</li>
-<li>No path to production yet (Phase 5)</li>
-<li>Learning an organization's own platform (Phase 4)</li>
+<li>A complete platform library of infrastructure-as-code and pipeline automation</li>
 </ul>
 </div>
 </div>

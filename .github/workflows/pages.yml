@@ -1,14 +1,16 @@
 # seaLeye.org, the project's home, is served by GitHub Pages from sites/org/, so it
 # stays up whether or not the pilot server does (DESIGN.md, "seaLeye.org is the
-# project's home"). A push to main that changes sites/org/ publishes it; nothing else
-# here touches AWS. Repository Settings > Pages > Source must be "GitHub Actions", and
-# the custom domain sealeye.org (sites/org/CNAME says the same).
+# project's home"). A push to main that changes sites/org/ or package.json publishes
+# it, with the version read from package.json (scripts/org-site.js), so a release
+# republishes the page and its version is never typed in. Nothing here touches AWS.
+# Repository Settings > Pages > Source must be "GitHub Actions", and the custom domain
+# sealeye.org (sites/org/CNAME says the same).
 name: pages
 
 on:
   push:
     branches: [main]
-    paths: ["sites/org/**", ".github/workflows/pages.yml"]
+    paths: ["sites/org/**", "package.json", "scripts/org-site.js", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 permissions:
@@ -29,9 +31,15 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # the month a version was set in is read from package.json's history
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node scripts/org-site.js _site
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: sites/org
+          path: _site
       - id: deployment
         uses: actions/deploy-pages@v4

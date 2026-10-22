@@ -4720,3 +4720,28 @@ database's errors and refused sign-ins, without changing what it logs.
 - **A catalog discovered before these releases** records none of these outputs, so an
   environment shows only its app's lines until the library is discovered again.
 
+
+## seaLeye.org serves its own fonts, and its version is read
+
+Decided Thu Oct 22, 2026, at the end of Phase 4, when the project's home still said
+2.22.0 and "Learning an organization's own platform (Phase 4)" under Not yet. Adds to
+"seaLeye.org is the project's home".
+
+- **The version on the page is read, never typed** (principle 7). `scripts/org-site.js`
+  copies `sites/org/` and writes package.json's version, with the month package.json
+  last changed, into the facts block's `<dd data-version>` line; `pages.yml` publishes
+  what it builds. The page went stale because the workflow ran only when `sites/org/`
+  changed and no release touched it, so it now runs when `package.json` changes too:
+  every release republishes the page. The version in the repo's copy is only what it
+  was last written with.
+- **The page loads nothing from another site.** Its footer says no tracking and no
+  cookies; loading its fonts from Google sent each reader's address there. Source Serif
+  4 (variable, with optical sizes, normal and italic) and IBM Plex Mono (400 and 500)
+  are served from `sites/org/fonts/`, Latin only, as woff2 from the Fontsource
+  packages, with their SIL Open Font License files beside them.
+  `test/org-site.test.js` keeps the page to its own site and checks every font it
+  names is there.
+- **What the page says follows the roadmap, by hand.** Its Works and Not yet lists are
+  updated when a phase is built, in the same pull request as the roadmap's line; the
+  first of Not yet is what an evaluator most needs: that seaLeye is not yet for an
+  organization's real code until what PHASE4-PLAN owes is built.
