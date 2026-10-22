@@ -4301,3 +4301,49 @@ version (#140).
   which its backups move on every few minutes, read as "one change outside seaLeye.run"
   in the first evidence (`driftDetail` in `api/executor/terraform/tofu.js`). Any other
   change to a database still shows.
+
+## A tear-down waits for the private network, and sweeps what it leaves
+
+Thu Oct 22, 2026, from the first database's tear-down (Oct 21, `dep_c1dd2a0f222d`), which
+failed, and the second, which ran for most of twenty minutes. The platform makes a
+network interface for each function in the private network, and removes it in its own
+time, up to twenty minutes after the function is gone, using the function's own role.
+The library's module deletes that role seconds after the function, so an interface the
+platform did not get to stays detached for good: the module's setup security group
+cannot be deleted while one of its interfaces exists, and the provider waits for it (the
+library gives that group forty minutes) and then deletes the interface itself, which is
+what #143 let the Terraform role do. The app function's interface lives in the apps
+group, which is the platform's and never deleted, so nothing removed that one. Greg ran
+the clean-up by hand before parking.
+
+Greg chose, Oct 22, option A of three: keep the wait, make it honest, and leave nothing
+behind. The alternatives were the provider's `replace_security_groups_on_destroy` on both
+functions, which frees the setup group at once but orphans every interface on the
+network's default group, widens the role (`ec2:ModifyNetworkInterfaceAttribute`) and
+needs a new catalog for the new releases, and is kept for when a twenty-minute tear-down
+bothers a real developer; and the role outliving the function, which the providers the
+executor allows cannot express.
+
+- **The record says the app joined the network** (`terraform.network`, set by the build
+  when a module the app uses lives there, `inNetwork`), and the listing carries it.
+- **Both surfaces say the wait before the question.** `teardownWaitWords` in
+  `core/plan-report-words.js`: "Its connections into the private network take up to 20
+  minutes to remove", after the lines saying what holds data, in the command and in the
+  portal's dialog. While it runs, the record's step is "Removing everything your
+  environment is made of, and its connections into the private network, which can take
+  up to 20 minutes", which both surfaces show as they do every step.
+- **The executor sweeps the interfaces the network left** (`sweepInterfaces` in
+  `api/executor/terraform/index.js`): after `destroy`, and before a build of an
+  environment that joins the network, it lists the interfaces named for this
+  environment's functions (the platform names each "AWS Lambda VPC ENI-<function>-...",
+  and every function's name starts with the module's) that are detached, and deletes
+  them through the Terraform role, which may delete a detached interface and nothing in
+  use. One still in use is never listed, so a sweep cannot touch a function that is
+  running, this environment's or another's. The record keeps what was swept
+  (`terraform.swept`), or why nothing could be; a sweep that cannot run never fails the
+  environment. An interface the platform has not yet let go of when the sweep runs is
+  caught by the environment's next build; one from an environment never built again is
+  not, which the pilot's parking will have to check until a server job sweeps them all.
+- **Why not wait in the executor for the platform to let go:** the role is already gone
+  by then, so waiting changes nothing; and twenty minutes of the platform's own time is
+  the library's to shorten, not seaLeye's to hide.

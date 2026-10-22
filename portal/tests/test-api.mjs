@@ -87,8 +87,9 @@ fs.writeFileSync(path.join(home, "deployments.json"), JSON.stringify([
     environment: "sealeye-lookup-beneficiary-lookup-1a2b3c", stackName: "sealeye-lookup-beneficiary-lookup-1a2b3c",
     plan: apiPlan("beneficiary-lookup"), artifactKey: "sealeye-lookup-beneficiary-lookup-1a2b3c/dep_lllllllllll1.zip", outputs: { ApiUrl: "https://lookup321.execute-api.ca-central-1.amazonaws.com/" },
     requestedBy: by("Bo Lindqvist", "bo@example.com"), startedAt: ago(5 * 3600_000), finishedAt: ago(5 * 3600_000 - 120_000),
-    // With a table it uses, built beside it (planVersion 0.6).
-    terraform: { module: { id: "http_api", source: "modules/http-api" }, parts: [{ id: "document_table", source: "modules/document-table", line: "A table of documents your app finds by key." }], settings: { BENEFICIARIES_TABLE: "document_table.table_name" } } },
+    // With a table and a database it uses, built beside it (planVersion 0.6); the
+    // database puts the app in the private network, which a tear-down waits on.
+    terraform: { module: { id: "http_api", source: "modules/http-api" }, parts: [{ id: "document_table", source: "modules/document-table", line: "A table of documents your app finds by key." }, { id: "postgres", source: "modules/postgres", line: "A relational database your app signs in to with its own identity." }], network: true, settings: { BENEFICIARIES_TABLE: "document_table.table_name", DATABASE_HOST: "postgres.address" } } },
   { ...base, orgId: "other-org", deploymentId: "dep_fffffffffff1", app: { name: "not-yours" }, kind: "api", status: "succeeded", stackName: "sealeye-not-yours",
     plan: { profile: "dev" }, outputs: {}, requestedBy: by("Other Org", "x@other.example"), startedAt: ago(3600_000) }
 ]));

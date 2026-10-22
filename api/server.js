@@ -857,8 +857,12 @@ app.get("/deployments", (req, res) => {
     // the organization's own modules offers less, for now (PHASE4-PLAN Step 9).
     operations: environmentOperations(dep.backend),
     // What a tear-down of it deletes that holds the app's data, in the catalog's words
-    // (core/plan-report-words.js): the modules the app uses, built beside it.
-    ...(dep.terraform?.parts?.length ? { terraform: { parts: dep.terraform.parts.map(({ id, line }) => ({ id, line: line || null })) } } : {}),
+    // (core/plan-report-words.js): the modules the app uses, built beside it; and
+    // whether it joined the private network, which a tear-down waits on.
+    ...(dep.terraform?.parts?.length || dep.terraform?.network ? { terraform: {
+      ...(dep.terraform?.parts?.length ? { parts: dep.terraform.parts.map(({ id, line }) => ({ id, line: line || null })) } : {}),
+      ...(dep.terraform?.network ? { network: true } : {})
+    } } : {}),
     profile: dep.plan?.profile || null,
     requestedBy: dep.requestedBy || null,
     surface: dep.surface || "cli",

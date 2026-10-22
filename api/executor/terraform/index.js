@@ -15,17 +15,51 @@ import { requireSetting, sealeyeHome } from "../../../core/config.js";
 import { firstSentence, moduleEntry } from "../../../core/catalog.js";
 import { moduleName } from "../../../core/names.js";
 import { settingNamesFor } from "../../../core/setting-names.js";
-import { connectionProblems, isPart, terraformBuilds } from "../../../core/terraform-modules.js";
+import { connectionProblems, inNetwork, isPart, terraformBuilds } from "../../../core/terraform-modules.js";
 import { putDeployment } from "../../store.js";
 import { changesIn, versionBuilt, versionMove } from "./versions.js";
 import { valuesAt } from "../../platform.js";
 import { closeSiblings, settersFor } from "../index.js";
-import { emptyBucket, fetchArtifact, refreshSite, syncSite } from "../cfn.js";
+import { deleteInterface, emptyBucket, fetchArtifact, leftoverInterfaces, refreshSite, syncSite } from "../cfn.js";
 import { cleanStage, entryPointOfFolder, sha256File, stage, stagePaths } from "../package.js";
 import { renderReport } from "../report.js";
 import { moduleCode } from "./library.js";
 import { connectionInputs, inputsFor, lockedProviders, outputsWanted, rootModule, shapedFor, stateKeyFor, writeRoot } from "./root.js";
 import { moduleInputs } from "../../discovery/terraform.js";
+
+/** Whether a plan's modules put the app in the private network: one of the parts lives there. */
+const joinsNetwork = parts => (parts || []).some(p => inNetwork(p.entry));
+
+/** What a tear-down says while it removes an environment that joined the private network. */
+export const NETWORK_TEARDOWN_STEP = "Removing everything your environment is made of, and its connections into the private network, which can take up to 20 minutes";
+
+/**
+ * Sweep the network interfaces an environment's functions in the private network left
+ * behind (DESIGN.md, "A tear-down waits for the private network, and sweeps what it
+ * leaves"). The platform removes a function's interface with the function's own role,
+ * up to 20 minutes after the function is gone, and the library's module deletes that
+ * role at once, so an interface the platform did not get to stays detached. Run after
+ * a tear-down and before a build, through the Terraform role, which may delete a
+ * detached interface and nothing in use. A sweep that cannot run never fails the
+ * environment: the record says what was swept, or why nothing could be.
+ */
+async function sweepInterfaces(record) {
+  const name = record.resourceName;
+  if (!name) return;
+  const profile = terraformProfile();
+  const found = await leftoverInterfaces(name, { profile });
+  if (!found.ok) {
+    record.terraform.swept = { at: now(), error: found.error };
+    return;
+  }
+  const swept = [];
+  const kept = [];
+  for (const i of found.interfaces) {
+    const r = await deleteInterface(i.id, { profile });
+    if (r.ok) swept.push(i.id); else kept.push({ id: i.id, error: r.error });
+  }
+  record.terraform.swept = { at: now(), interfaces: swept, ...(kept.length ? { notDeleted: kept } : {}) };
+}
 
 /**
  * A catalog entry with each input's declared shape read from the code that runs, so a
@@ -280,6 +314,8 @@ export async function startTerraformDeployment(record, plan, appPath, catalog, o
         })),
         settings: ready.settings
       } : {}),
+      // Whether the app joined the private network, which a tear-down waits on.
+      ...(joinsNetwork(parts) ? { network: true } : {}),
       phase: null
     };
     // A newer release than the environment had: which, and what its changelog says
@@ -287,6 +323,9 @@ export async function startTerraformDeployment(record, plan, appPath, catalog, o
     const move = versionMove(versionBuilt(record.environment || record.stackName, { except: record.deploymentId }), { source: ready.source, version: ready.library.version });
     if (move) record.terraform.module.versionChange = { from: move.from, to: move.to, changes: changesIn(ready.moduleDir, move) };
     putDeployment(record);
+
+    // What an earlier tear-down of this environment may have left in the private network.
+    if (joinsNetwork(parts)) await sweepInterfaces(record);
 
     set("running", { step: "Getting your organization's module ready to build" });
     record.terraform.phase = "init";
@@ -399,10 +438,17 @@ export async function startTerraformDestroy(record, catalog, options = {}) {
       if (!emptied.ok && !/NoSuchBucket/.test(emptied.stderr)) return fail(`could not empty the storage your app kept its files in: ${emptied.stderr.trim() || `exit ${emptied.code}`}`);
     }
 
-    set("destroying", { step: "Removing everything your environment is made of" });
+    // An environment in the private network waits for the platform to let go of its
+    // functions' interfaces (up to 20 minutes), and says so.
+    const network = record.terraform.network === true || joinsNetwork(parts);
+    set("destroying", { step: network ? NETWORK_TEARDOWN_STEP : "Removing everything your environment is made of" });
     const destroyed = await runTofu(["destroy", "-auto-approve", "-input=false", "-no-color", "-json", "-lock-timeout=60s"], { cwd: ready.dir, home: ready.home });
     if (!destroyed.ok) return fail(lockHeld(destroyed) ? LOCKED : firstError(destroyed));
     record.terraform.destroyed = changeSummary(destroyed.messages);
+    if (network) {
+      set("destroying", { step: "Removing what the private network left behind" });
+      await sweepInterfaces(record);
+    }
 
     // Gone only when the state says nothing is left.
     const listed = await runTofu(["state", "list", "-no-color"], { cwd: ready.dir, home: ready.home });

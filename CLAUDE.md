@@ -318,7 +318,12 @@ Keep existing endpoints and commands working; add, do not break.
   (`tofuEnv`) and acting through the Terraform deploy role (SEALEYE_TERRAFORM_PROFILE).
   Status is OpenTofu's exit and the outputs read back; a site's files are synced after,
   through the same role. A restart during a build fails it, keeping the state's lock
-  for `deploy/server.sh tofu-unlock`. The module's `name` is `moduleName` in
+  for `deploy/server.sh tofu-unlock`. An environment that joined the private network
+  (`terraform.network`) says on both surfaces, before the question, that its
+  tear-down can take up to 20 minutes (`teardownWaitWords`), and the executor sweeps
+  the detached network interfaces the platform leaves behind, named for the
+  environment's functions, after a tear-down and before a build (`sweepInterfaces`;
+  DESIGN.md, "A tear-down waits for the private network, and sweeps what it leaves"). The module's `name` is `moduleName` in
   `core/names.js` (at most 31 characters), its stage always dev; settings never travel
   to it. `npm test` uses a stand-in `tofu` (SEALEYE_TOFU); `.github/workflows/tofu.yml`
   runs the real one (`scripts/tofu-check.js`).

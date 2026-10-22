@@ -46,7 +46,7 @@ import { runDoctor } from "../doctor.js";
 import { writeInterviewFiles, decisionCard } from "../interview/render.js";
 import { catalogSentence, plainValidationErrors } from "../../core/plan-words.js";
 import { evidenceSummary } from "../../core/evidence-summary.js";
-import { noReportWords, planOrigin, teardownDataWords } from "../../core/plan-report-words.js";
+import { noReportWords, planOrigin, teardownDataWords, teardownWaitWords } from "../../core/plan-report-words.js";
 import { RETENTION_CHOICES, retentionOf, withRetention } from "../../core/retention.js";
 import { commandFor, wordsFor } from "../../core/operations.js";
 import { discover } from "../discover.js";
@@ -1360,10 +1360,14 @@ async function main() {
     // answer can take it into account. The record says what; a record that could not be
     // read names nothing, and the tear-down is still asked about.
     let holdsData = [];
+    let waits = null;
     try {
-      holdsData = teardownDataWords(await getDeployment({ apiBaseUrl, deploymentId }));
+      const record = await getDeployment({ apiBaseUrl, deploymentId });
+      holdsData = teardownDataWords(record);
+      waits = teardownWaitWords(record);
     } catch {}
     for (const line of holdsData) console.log(c.prompt(line));
+    if (waits) console.log(c.prompt(waits));
 
     // A name not typed is asked about first. A name typed is asked about too when the
     // environment holds data, since what it holds is only known once the record is read

@@ -14,6 +14,7 @@ const ANA = token("a");
 const base = { orgId: "default", teamId: "default", outputs: {}, kind: "api", settings: [], surface: "cli", status: "succeeded", startedAt: new Date().toISOString() };
 const plan = name => ({ planVersion: "0.6", catalog: 3, app: { name, type: "api" }, profile: "dev", modules: [{ id: "http_api", enabled: true }, { id: "document_table", enabled: true, connect: { table_name: "ORDERS_TABLE" } }], outputs: ["public_url"] });
 const table = { id: "document_table", source: "modules/document-table", line: "A table of documents, each found by its key." };
+const database = { id: "postgres", source: "modules/postgres", line: "A relational database the app signs in to with its own identity." };
 
 let api;
 before(async () => {
@@ -21,6 +22,7 @@ before(async () => {
     tokens: [{ token: ANA, id: "ana", name: "Ana", team: "default" }],
     records: [
       { ...base, deploymentId: "dep_orders000001", app: { name: "orders-api" }, backend: "terraform", stackName: null, resourceName: "sealeye-default-orders-api-aaaaaa", plan: plan("orders-api"), terraform: { parts: [table], settings: { ORDERS_TABLE: "document_table.table_name" } } },
+      { ...base, deploymentId: "dep_notes0000001", app: { name: "notes-api" }, backend: "terraform", stackName: null, resourceName: "sealeye-default-notes-api-aaaaaa", plan: plan("notes-api"), terraform: { parts: [database], network: true, settings: { DATABASE_HOST: "postgres.address" } } },
       { ...base, deploymentId: "dep_plain0000001", app: { name: "plain-api" }, backend: "cloudformation", stackName: "sealeye-default-plain-api-aaaaaa", resourceName: "sealeye-default-plain-api-aaaaaa", plan: { planVersion: "0.4", app: { name: "plain-api", type: "api" }, profile: "dev", modules: [{ id: "http_api_serverless", inputs: { runtime: "nodejs", entry_point: "index.js", trigger: "http" } }], outputs: ["public_url"] } }
     ],
     aws: `
@@ -68,6 +70,16 @@ test("with the name typed, an environment that holds data is still asked about, 
   assert.ok(words >= 0 && question > words, `the words come before the question:\n${out}`);
   assert.match(out, /Nothing was torn down\./);
   assert.equal((await record("dep_orders000001")).status, "succeeded", "n leaves the environment as it was");
+});
+
+test("an environment in the private network is told, before the question, that its tear-down can take up to 20 minutes", async () => {
+  const { out, typed } = await inTerminal(["teardown", "notes-api"], [["Tear down notes-api, and everything it holds? [y/N]", "n\n"]]);
+  assert.equal(typed, 1, out);
+  const data = out.indexOf("This also deletes a relational database the app signs in to with its own identity, and everything in it.");
+  const waits = out.indexOf("Its connections into the private network take up to 20 minutes to remove.");
+  const question = out.indexOf("Tear down notes-api, and everything it holds?");
+  assert.ok(data >= 0 && waits > data && question > waits, `data, then the wait, then the question:\n${out}`);
+  assert.equal((await record("dep_notes0000001")).status, "succeeded");
 });
 
 test("with the name typed and nothing that holds data, the tear-down goes ahead without a question", async () => {
