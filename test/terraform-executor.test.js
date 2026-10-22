@@ -501,6 +501,8 @@ test("an app and the table it uses are built as one environment, connected throu
   assert.match(teardownDataWords(listed)[0], /^This also deletes .+, and everything in it\.$/);
   const ev = await h.call(`/deployments/${done.deploymentId}/evidence`, { token: DEV });
   assert.match(ev.body.markdown, /- Connected: `document_table`, the folder `modules\/document-table` at commit/);
+  const { evidenceSummary } = await import("../core/evidence-summary.js");
+  assert.match(evidenceSummary(ev.body.evidence).rows.find(r => r.label === "Built").text, /^modules\/http-api at [0-9a-f]{12}, with modules\/document-table, artifact /, "the line names the modules the app uses too");
   assert.match(ev.body.markdown, /`ORDERS_TABLE` is `document_table\.table_name` \(names only\)/);
   // The setting the table reaches the app under is masked by name in its logs, as the
   // starter's settings are, since its value is the platform's own.

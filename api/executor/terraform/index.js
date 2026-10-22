@@ -20,7 +20,9 @@ import { putDeployment } from "../../store.js";
 import { changesIn, versionBuilt, versionMove } from "./versions.js";
 import { valuesAt } from "../../platform.js";
 import { closeSiblings, settersFor } from "../index.js";
-import { deleteInterface, emptyBucket, fetchArtifact, leftoverInterfaces, refreshSite, syncSite } from "../cfn.js";
+import { deleteInterface, emptyBucket, fetchArtifact, leftoverInterfaces, recentLogs, refreshSite, syncSite } from "../cfn.js";
+import { kindOf, redactedLine, scanText } from "../../../core/scan.js";
+import { platformLine } from "../../../core/platform-lines.js";
 import { cleanStage, entryPointOfFolder, sha256File, stage, stagePaths } from "../package.js";
 import { renderReport } from "../report.js";
 import { moduleCode } from "./library.js";
@@ -75,11 +77,46 @@ function withCodeTypes(entry, moduleDir) {
 /** Each input's value in the shape its module declares (shapedFor), however it was kept. */
 const shapedAll = (entry, given) => Object.fromEntries(Object.entries(given || {}).map(([k, v]) => [k, shapedFor(entry.inputs?.[k], v)]));
 import {
-  AWS_PROVIDER_VERSION, TOFU_VERSION, appliedResources, builtParts, changeSummary, driftDetail, driftedResources, firstError,
+  AWS_PROVIDER_VERSION, TOFU_VERSION, appliedResources, builtParts, changeSummary, driftDetail, driftedResources, firstError, invokedFunction,
   homeFor, lockHeld, runTofu, terraformNotReady, terraformProfile
 } from "./tofu.js";
 
 const now = () => new Date().toISOString();
+
+/** How many of a setup step's last lines a failure reason carries. */
+export const SETUP_LINES = 5;
+
+/**
+ * When an apply failed at a step the module invokes itself (the database's one-time
+ * setup function), that step's last lines, for the failure reason (DESIGN.md, "A failed
+ * setup step says its last lines"): its log stays the platform team's, so this is the one
+ * place a developer reads it. Only a function named for this environment's own module
+ * (`<name>-...`), read through the Terraform role since the apply began; a line that looks
+ * like it holds a secret is replaced, as anywhere a file's lines travel; the platform's
+ * own lines are said in its words (`platformLine`). Null when there is nothing to add,
+ * or the log cannot be read: the reason stands without it.
+ */
+export async function setupLastLines(result, { name, since, read = recentLogs, profile = terraformProfile() } = {}) {
+  const fn = invokedFunction(result);
+  if (!fn || !name || !fn.startsWith(`${name}-`)) return null;
+  const sinceMs = Date.parse(since || "") - 60_000;
+  const got = await read(`/aws/lambda/${fn}`, { sinceMs: Number.isFinite(sinceMs) ? sinceMs : Date.now() - 3_600_000, maxItems: 200, profile }).catch(() => ({ ok: false }));
+  if (!got?.ok || !got.events?.length) return null;
+  const said = got.events
+    .map(e => String(e.message || "").replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    // A request handed over or finished says nothing a failure needs.
+    .filter(line => !["request-start", "request-end", "cold-start"].includes(platformLine(line)?.kind))
+    .map(line => {
+      const found = scanText("setup.log", line);
+      if (found.length) return redactedLine(kindOf(found[0].rule));
+      const platform = platformLine(line);
+      return platform ? `${platform.words} (${line})` : line;
+    })
+    .slice(-SETUP_LINES)
+    .map(line => (line.length > 400 ? `${line.slice(0, 400)}...` : line));
+  return said.length ? `The setup step's last lines: ${said.map(l => `"${l}"`).join("; ")}.` : null;
+}
 
 /** Where an environment's root module is written for one deployment, removed after. */
 export const workDirFor = deploymentId => path.join(sealeyeHome(), "tofu", deploymentId);
@@ -359,7 +396,11 @@ export async function startTerraformDeployment(record, plan, appPath, catalog, o
     record.terraform.phase = null;
     record.terraform.applied = changeSummary(applied.messages);
     record.terraform.resources = appliedResources(applied.messages);
-    if (!applied.ok) throw new Error(lockHeld(applied) ? LOCKED : firstError(applied));
+    if (!applied.ok) {
+      if (lockHeld(applied)) throw new Error(LOCKED);
+      const lines = await setupLastLines(applied, { name: record.resourceName, since: record.terraform.applyStartedAt });
+      throw new Error(lines ? `${firstError(applied)} ${lines}` : firstError(applied));
+    }
 
     step("Reading back your environment's address");
     const read = await readOutputs(ready.dir, ready.home);
