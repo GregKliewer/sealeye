@@ -1011,3 +1011,14 @@ test("a team's token sees no Gaps page, and is sent home from its address", asyn
   await page.goto("/gaps");
   await expect(page).toHaveURL(/\/$/);
 });
+
+test("a page following a change keeps one Logs card, however long it is watched", async ({ page }) => {
+  // The Logs and Evidence cards once shared a key, and every tick of the elapsed clock
+  // left another Logs card behind.
+  await signIn(page);
+  await page.getByTestId("environment-row").filter({ hasText: "inventory-api" }).getByRole("link", { name: "inventory-api" }).click();
+  await expect(page.getByTestId("under-way")).toBeVisible();
+  await page.waitForTimeout(3500);
+  await expect(page.getByTestId("logs")).toHaveCount(1);
+  await expect(page.getByTestId("evidence")).toHaveCount(1);
+});
