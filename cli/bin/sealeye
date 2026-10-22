@@ -869,8 +869,14 @@ async function main() {
     console.log("");
     if (result.note) say(result.note);
     else if (!result.lines.length) say(`Nothing in the last ${SINCE_WORDS[since] || since}.`);
-    // Oldest at the top, as a terminal reads: the API gives newest first.
-    for (const line of [...result.lines].reverse()) console.log(`${c.dim(localClock(line.at))}  ${line.message}`);
+    // Oldest at the top, as a terminal reads: the API gives newest first. A line the
+    // platform wrote is said in the developer's words first, with the platform's own
+    // text kept beside it (core/platform-lines.js).
+    for (const line of [...result.lines].reverse()) {
+      console.log(line.platform
+        ? `${c.dim(localClock(line.at))}  ${c.fg(line.platform.words)}  ${c.dim(`·  ${line.message}`)}`
+        : `${c.dim(localClock(line.at))}  ${line.message}`);
+    }
     if (result.more) say(`Only the most recent lines are shown. ${product.command} logs ${target} --since 15m narrows it.`);
     return;
   }

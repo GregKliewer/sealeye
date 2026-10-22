@@ -415,7 +415,7 @@ function LogsCard({ app, deploymentId }: { app: string; deploymentId: string }) 
       <CardContent className="space-y-3 text-sm">
         {!logs ? (
           <>
-            <p className="text-dim">What your app wrote, newest first, as <Cmd op="logs" target={app} /> shows it. Anything that looks like a secret, and the value of any setting in the store, is taken out before it reaches this page; a value printed on its own, with no name beside it, cannot be told from other text.</p>
+            <p className="text-dim">What your app wrote, newest first, as <Cmd op="logs" target={app} /> shows it, with what the platform saw of each request in plain words beside its own line. Anything that looks like a secret, and the value of any setting in the store, is taken out before it reaches this page; a value printed on its own, with no name beside it, cannot be told from other text.</p>
             <Button onClick={() => read()} disabled={busy}>{busy ? "Reading your app's logs" : "Show logs"}</Button>
           </>
         ) : (
@@ -425,7 +425,15 @@ function LogsCard({ app, deploymentId }: { app: string; deploymentId: string }) 
             {logs.lines.length ? (
               <ol className="max-h-[32rem] overflow-auto rounded-md border border-rule bg-ground p-3 font-mono text-xs" data-testid="log-lines">
                 {logs.lines.map((l, i) => (
-                  <li key={i} className="flex gap-3 py-0.5"><span className="shrink-0 text-dim">{new Date(l.at).toLocaleTimeString()}</span><span className="whitespace-pre-wrap break-all">{l.message}</span></li>
+                  <li key={i} className="flex gap-3 py-0.5" data-platform={l.platform ? l.platform.kind : undefined}>
+                    <span className="shrink-0 text-dim">{new Date(l.at).toLocaleTimeString()}</span>
+                    {l.platform ? (
+                      // What the platform saw, in the developer's words, with the platform's own line beside it.
+                      <span className="whitespace-pre-wrap break-all"><span className="text-ink" data-testid="platform-words">{l.platform.words}</span><span className="text-dim">  ·  {l.message}</span></span>
+                    ) : (
+                      <span className="whitespace-pre-wrap break-all">{l.message}</span>
+                    )}
+                  </li>
                 ))}
               </ol>
             ) : null}
