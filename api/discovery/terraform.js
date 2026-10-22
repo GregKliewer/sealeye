@@ -66,6 +66,33 @@ export function moduleHash(libraryDir, source) {
   return hash.digest("hex").slice(0, 16);
 }
 
+/**
+ * A hash of what every reader may read beyond its own module: the library's README.md
+ * and its pipeline under .github/ (`mayRead` in readers.js). When it changes, the rules
+ * every module is read against may have changed, so every module is read again
+ * (DESIGN.md, "Discovery reads again only what changed").
+ */
+export function libraryHash(libraryDir) {
+  const hash = crypto.createHash("sha256");
+  const add = (rel, file) => {
+    hash.update(`${rel}\0`);
+    hash.update(fs.readFileSync(file));
+    hash.update("\0");
+  };
+  const readme = path.join(libraryDir, "README.md");
+  if (fs.existsSync(readme) && fs.statSync(readme).isFile()) add("README.md", readme);
+  const walk = (dir, rel) => {
+    if (!fs.existsSync(dir)) return;
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : 1))) {
+      const childRel = `${rel}/${entry.name}`;
+      if (entry.isDirectory()) walk(path.join(dir, entry.name), childRel);
+      else if (entry.isFile()) add(childRel, path.join(dir, entry.name));
+    }
+  };
+  walk(path.join(libraryDir, ".github"), ".github");
+  return hash.digest("hex").slice(0, 16);
+}
+
 /** The body of each top-level `variable "name" { ... }` block, braces balanced. */
 function variableBlocks(text) {
   const blocks = [];

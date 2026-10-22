@@ -28,6 +28,14 @@ const run = {
   ],
   spend: { supervisor: { cost: 0.12 } }, catalogVersion: 1, createdAt: at, finishedAt: at
 };
+// A later run that found nothing changed since run 1's catalog: no questions or draft of
+// its own, so both surfaces answer and show run 1's.
+const later = new Date(Date.now() + 60_000).toISOString();
+const unchanged = {
+  id: "dsc_0000000000000002", org: "default", orgName: "Acme", status: "finished", startedBy: "lee@example.com", surface: "cli",
+  repos: run.repos, modules: run.modules.map(m => ({ ...m, status: "kept" })), spend: {}, catalogVersion: null,
+  unchangedSince: 1, questionsIn: run.id, createdAt: later, finishedAt: later
+};
 const question = (id, text, answer = null) => ({
   id, seq: 1, discovery: run.id, org: "default", kind: "other", question: text, options: ["Yes", "No"], guess: "No",
   touches: ["modules/db"], evidence: [{ file: "modules/db/README.md", shows: "says so" }], answer, createdAt: at
@@ -43,7 +51,7 @@ before(async () => {
     aws: "",
     env: { SEALEYE_LIBRARY_REPOS: "" },
     files: {
-      "discoveries.json": { runs: [run], questions: [question("q_open", "Is db for dev only?"), question("q_done", "Is db encrypted?", "Yes")] },
+      "discoveries.json": { runs: [run, unchanged], questions: [question("q_open", "Is db for dev only?"), question("q_done", "Is db encrypted?", "Yes")] },
       "catalogs.json": [{ org: "default", version: 1, status: "draft", createdBy: "lee@example.com", createdAt: at, approvedBy: null, approvedAt: null,
         document: { catalogVersion: "d", modules: [{ id: "db", source: "modules/db", availability: "available", builds_with: "terraform", line: "A database." }], need_kinds: starterCatalog().need_kinds, profiles: starterCatalog().profiles } }]
     }
@@ -58,7 +66,7 @@ const sealeye = (args, tok) => promisify(execFile)(process.execPath, [path.join(
 
 test("sealeye discover status: the latest run, what was read, and what is open", async () => {
   const { stdout } = await sealeye(["discover", "status"], LEE);
-  assert.match(stdout, /dsc_0000000000000001  Finished, draft catalog 1/);
+  assert.match(stdout, /The latest run: Nothing had changed since catalog 1, so no draft was written\. Its questions are on this one:\n.*dsc_0000000000000001  Finished, draft catalog 1/);
   assert.match(stdout, /library acme\/platform at 5e63aa5/);
   assert.match(stdout, /1 of 2 modules read; not read: modules\/cache/);
   assert.match(stdout, /2 questions, 1 open; spent US\$0\.12/);
@@ -194,4 +202,37 @@ test("both surfaces say the same things about a run", () => {
   for (const line of [discoveryEventLine({ type: "draft", catalog: { version: 1 }, open: 3 }), discoveryEventLine({ type: "not_read", source: "modules/x", why: "y" })]) {
     assert.doesNotMatch(line, /[–—]/, "no dashes in what anyone reads");
   }
+});
+
+// Step 6c: a run reads only what changed since the live catalog, unless asked to read every
+// module again, which both surfaces offer and the API takes as { full: true }.
+test("sealeye discover --all asks for every module to be read again; without it, nothing is asked", async () => {
+  const http = await import("node:http");
+  const bodies = [];
+  const server = http.createServer((req, res) => {
+    let body = "";
+    req.on("data", d => (body += d));
+    req.on("end", () => {
+      if (req.method === "POST" && req.url === "/discoveries") bodies.push(JSON.parse(body || "{}"));
+      res.writeHead(req.url === "/discoveries" && req.method === "POST" ? 409 : 200, { "content-type": "application/json" });
+      res.end(JSON.stringify(req.url === "/whoami" ? { org: "default", team: "platform", scope: "org", email: "lee@example.com", name: "Lee" } : { error: { code: "NO_LIBRARY", message: "No platform library is named for discovery yet." } }));
+    });
+  });
+  await new Promise(r => server.listen(0, r));
+  const at = `http://127.0.0.1:${server.address().port}`;
+  const env = { ...process.env, HOME: api.home, SEALEYE_HOME: api.home, SEALEYE_TOKEN: LEE, SEALEYE_API: at, NO_COLOR: "1" };
+  const run = args => promisify(execFile)(process.execPath, [path.join(root, "cli/bin/sealeye"), "discover", ...args, "--api", at], { cwd: api.home, env }).catch(e => e);
+  try {
+    await run(["--all"]);
+    await run([]);
+  } finally {
+    server.close();
+  }
+  assert.deepEqual(bodies, [{ full: true }, {}]);
+  const { comparedWords, READ_ALL } = await import("../core/discovery-words.js");
+  assert.equal(READ_ALL, "Read every module again");
+  assert.equal(comparedWords({ full: true }), "Read every module again, as asked.");
+  assert.equal(comparedWords({ unchangedSince: 12 }), "Nothing had changed since catalog 12, so no draft was written.");
+  assert.equal(comparedWords({ comparedWith: { catalog: 12, kept: 13, written: 1, gone: ["modules/old"] } }), "Compared with catalog 12: 13 modules unchanged and kept, 1 entry written; no longer in the library: modules/old.");
+  assert.equal(comparedWords({}), null);
 });

@@ -174,10 +174,11 @@ gateway's own span in that trace moved to Phase 4. Routes come with Step 8.*
 
 **Goal:** seaLeye builds from the organization's own modules, not only its four.
 
-**Built Oct 22, 2026** (PHASE4-PLAN Steps 1 to 11, but 6c), proven on the pilot with the
+**Built Oct 22, 2026** (PHASE4-PLAN Steps 1 to 11), proven on the pilot with the
 made-up Juniper Mutual: discovery, the self-test and making a catalog live, planning from
 it, the Terraform executor with connected modules and a database in the private network,
-the gap report. **Not built:** reading only changed modules again (Step 6c); LangFuse
+the gap report, and reading again only what changed since the live catalog (Step 6c).
+**Not built:** LangFuse
 self-hosted in Canada and discovery in a paid account per customer, both owed before the
 first customer's real code (PHASE4-PLAN, "Owed after this plan").
 

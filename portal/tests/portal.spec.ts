@@ -709,6 +709,36 @@ test("starting a run with no library named says so in words", async ({ page }) =
   await expect(page.getByRole("alert")).toContainText("No platform library is named for discovery yet");
 });
 
+// Step 6c: a run reads only what changed since the live catalog, unless asked to read
+// every module again, as `sealeye discover --all` does.
+test("Read every module again asks the API for a full run, and the command hint says --all", async ({ page }) => {
+  await signInOrgWide(page);
+  await page.goto("/discovery");
+  const hint = page.getByTestId("command-hint").filter({ hasText: "sealeye discover" }).first();
+  await expect(hint).not.toContainText("--all");
+  await page.getByTestId("read-all").check();
+  await expect(hint).toContainText("sealeye discover --all");
+  const posted = page.waitForRequest(r => r.url().endsWith("/discoveries") && r.method() === "POST");
+  await page.getByTestId("start-discovery").click();
+  expect((await posted).postDataJSON()).toEqual({ full: true });
+});
+
+// A run that found nothing changed has no questions or draft of its own: the page shows
+// the run behind the live catalog, which holds them, and says why.
+test("after a run that found nothing changed, the page shows the run that holds the questions", async ({ page }) => {
+  await signInOrgWide(page);
+  await page.route(/\/api\/discoveries$/, async route => {
+    if (route.request().method() !== "GET") return route.continue();
+    const res = await route.fetch();
+    const { discoveries: runs } = await res.json();
+    const newest = { ...runs[0], discoveryId: "dsc_00000000000000ff", catalog: null, unchangedSince: 1, questionsIn: runs[0].discoveryId, createdAt: new Date().toISOString() };
+    await route.fulfill({ response: res, json: { discoveries: [newest, ...runs] } });
+  });
+  await page.goto("/discovery");
+  await expect(page.getByTestId("run-unchanged")).toHaveText("The latest run: Nothing had changed since catalog 1, so no draft was written. Its questions and its draft are on the run below.");
+  await expect(page.getByText("Does cache-valkey replace cache-redis for new apps?").first()).toBeVisible();
+});
+
 // Editing a draft's words before approving it, as `sealeye catalog edit` does (Greg, Oct 16).
 test("Edit words: a draft entry's line changed on the page, the self-test run again, the entry marked edited", async ({ page }) => {
   await signInOrgWide(page);

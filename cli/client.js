@@ -374,7 +374,7 @@ async function discoveryCall(apiBaseUrl, route, options) {
   }
 }
 
-export const startDiscovery = ({ apiBaseUrl }) => discoveryCall(apiBaseUrl, "/discoveries", asJson({}));
+export const startDiscovery = ({ apiBaseUrl, full = false }) => discoveryCall(apiBaseUrl, "/discoveries", asJson(full ? { full: true } : {}));
 
 // An organization's catalogs, the self-test, approving and making live (PHASE4-PLAN Step 7).
 export const listCatalogs = ({ apiBaseUrl }) => discoveryCall(apiBaseUrl, "/catalogs", { method: "GET" });

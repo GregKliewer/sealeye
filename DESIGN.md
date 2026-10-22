@@ -4532,3 +4532,61 @@ each, so the platform team knows what to build next and why.
   app's code, and the app needs a service that runs continuously). A met need lists
   each app with what it still waits on (`stillWaiting`), and only an app that waits on
   nothing else is told `sealeye run` will finish it.
+
+## Discovery reads again only what changed
+
+Thu Oct 22, 2026, PHASE4-PLAN Step 6c (Greg, Oct 22: readers and entries, compared with
+the live catalog's run). Today's measured runs on Juniper Mutual put about 85% of a run's
+cost in the supervisor writing entries and about 15% in the readers, so keeping
+unchanged modules' findings alone would save little; keeping their entries saves most of
+it.
+
+- **Compared with the run behind the live catalog**, for the same library, the same
+  README and pipeline, and the same way of reading (`readerVersion`: a hash of the
+  discovery prompts, so a change to how seaLeye reads reads everything again): what the
+  platform team approved, so a draft never approved never becomes the base of the next.
+  With no such run, a run is a full one, as before.
+- **A module is unchanged when its folder's hash is** (`moduleHash`, which a run already
+  kept), and every module nested inside it is unchanged too (its reader may read them),
+  its earlier reader finished, and the live catalog has its entry. It keeps that
+  finding (its reader does not run) and that entry: the words, the guidance, which needs
+  it meets and whatever a person wrote of it, as approved (`keepEntries` in
+  `api/discovery/draft.js`). What code reads of it (its outputs, what it delivers, runs,
+  offers and accepts, its release or that it has none) is taken from this run, and a
+  field code no longer finds goes; which of this run's questions it rests on is worked
+  out again. A module keeps the id the live catalog gave it, so a plan that names it
+  still does when a new module would take its id.
+- **A person's words survive a rewrite**: an entry written again keeps what a person
+  wrote of it in the live catalog (`keepEdits`), as a late answer's rewrite always has.
+- **The README and pipeline decide whether anything can be kept** (`libraryHash`): every
+  reader may read them, so when they change, the rules every module is read against may
+  have changed, and every module is read again, as is the library's own reader.
+- **What spans modules is written whole** (`toWrite` in `api/discovery/service.js`): the
+  supervisor still sees every finding, and writes the entries of the modules that
+  changed and of unchanged ones they touch: one a changed module's finding or entry
+  names, one whose finding or entry names a changed module, or one that met a need a
+  changed module met (two databases). A module added or gone writes every entry, since
+  what spans the catalog may have changed with it.
+- **Questions about kept modules are carried over**, with their answers, so nobody is
+  asked again what they answered (`carried: true` on the question): one every module it
+  touches was kept, and an answered one touching any kept module, its answer read again
+  when the entries are written. A question about the whole catalog is carried too, since
+  the README and pipeline it came from are unchanged. One that spans a changed module
+  and goes unanswered is the supervisor's to ask again. An answer to a carried question
+  re-writes the entries it touches on the new run, as any late answer does.
+- **Nothing changed, no draft**: a run that finds every module unchanged, none gone, and
+  what code reads of each (its release above all) as the live catalog has it, writes
+  nothing and says so, naming the catalog that still describes the library. Its
+  questions are the run behind that catalog's (`questionsIn`), so `sealeye discover
+  answers` and `status`, and the Discovery page, show that run, saying why.
+- **Asked to, a run reads everything**: `POST /discoveries { full: true }`, `sealeye
+  discover --all`, the Discovery page's "Read every module again". Each run says what it
+  was compared with (`comparedWith`, `comparedWords` in `core/discovery-words.js`) on
+  both surfaces.
+- **The eval is unchanged**: its organization never has a live catalog, so every graded
+  run is a full one, comparable with every run before.
+- **Reviewed before it shipped** (as every discovery change is): an independent review
+  found that a nested module's change, a release moved without a code change, a base run
+  whose library reader failed, an answer left unused, and a question that spans changed
+  and kept modules each went wrong; each is fixed above and tested in
+  `test/discovery-run.test.js`.

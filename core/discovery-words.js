@@ -6,6 +6,7 @@
 //
 // Runs in a browser: the portal imports it. No node: modules, no packages.
 import { shownWord } from "./developer-words.js";
+import { commandLine } from "./operations.js";
 
 /** The choice that opens a box for an answer of the engineer's own. */
 export const SOMETHING_ELSE = "Something else";
@@ -15,6 +16,7 @@ export const LATER = "Answer later";
 export const ANSWER_LIMIT = 600;
 
 const short = commit => (typeof commit === "string" ? commit.slice(0, 7) : "");
+
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
 /**
@@ -33,6 +35,10 @@ export function discoveryEventLine(event) {
       return event.source === "." ? "Read the library's README and pipeline" : `Read ${event.source}`;
     case "not_read":
       return event.source === "." ? `Could not read the library's README and pipeline: ${event.why}` : `Could not read ${event.source}: ${event.why}`;
+    case "kept":
+      return `Unchanged since catalog ${event.catalog?.version}, so kept as it is there: ${(event.sources || []).join(", ")}${event.carried ? `, with ${plural(event.carried, "question", "questions")} about them carried over` : ""}`;
+    case "unchanged":
+      return `Nothing in the library has changed since catalog ${event.catalog?.version}, so no draft was written. To read every module again anyway: \`${commandLine("discover", null, ["--all"])}\`, or ${READ_ALL} on the Discovery page.`;
     case "writing":
       return "Writing the draft catalog";
     case "draft":
@@ -52,6 +58,7 @@ export function discoveryEventLine(event) {
     case "answer_not_used":
       return `An answer could not be written in yet: ${event.why}. It is kept, and is used the next time the entries are written.`;
     case "finished":
+      if (!event.catalog) return event.unchangedSince ? `Finished: catalog ${event.unchangedSince} still describes the library` : "Finished";
       return `Finished: draft catalog ${event.catalog?.version}${event.open ? `, with ${plural(event.open, "question", "questions")} still open` : ", with every question answered"}`;
     case "stopped":
     case "failed":
@@ -65,7 +72,7 @@ export function discoveryEventLine(event) {
 export function discoveryStateWords(run) {
   if (!run) return "No run yet";
   if (run.status === "running") return "Running";
-  if (run.status === "finished") return run.catalog ? `Finished, draft catalog ${run.catalog.version}` : "Finished";
+  if (run.status === "finished") return run.catalog ? `Finished, draft catalog ${run.catalog.version}` : run.unchangedSince ? `Finished, nothing changed since catalog ${run.unchangedSince}` : "Finished";
   if (run.status === "stopped") return run.reason === "restarted" ? "Stopped when the platform restarted" : run.reason === "spending_limit" ? "Stopped at its spending limit" : "Stopped";
   return "Did not finish";
 }
@@ -87,6 +94,8 @@ export function nextProgress(p, event) {
     next.reading = next.reading.filter(s => s !== event.source);
     if (event.source !== ".") next.read += 1;
   }
+  // Modules kept from the live catalog count as done the moment the run says so.
+  if (type === "kept") next.read += (event.sources || []).length;
   if (type === "writing") next.writing = true;
   if (["draft", "finished", "stopped", "failed"].includes(type)) next.writing = false;
   if (type === "draft") next.drafted = true;
@@ -129,7 +138,18 @@ export function progressSummary(p, waiting = 0) {
 }
 
 /** Modules whose readers are done, from a run as the API gives it. */
-export const modulesDone = run => (run?.modules || []).filter(m => m.status === "read" || m.status === "not_read").length;
+export const modulesDone = run => (run?.modules || []).filter(m => m.status === "read" || m.status === "not_read" || m.status === "kept").length;
+
+/** The portal's words for asking a run to read every module again (`--all`). */
+export const READ_ALL = "Read every module again";
+
+/** What a run was compared with, in a line, or null when it read everything. */
+export function comparedWords(run) {
+  if (run?.unchangedSince) return `Nothing had changed since catalog ${run.unchangedSince}, so no draft was written.`;
+  const c = run?.comparedWith;
+  if (!c) return run?.full ? "Read every module again, as asked." : null;
+  return `Compared with catalog ${c.catalog}: ${plural(c.kept, "module", "modules")} unchanged and kept, ${plural(c.written, "entry", "entries")} written${c.gone?.length ? `; no longer in the library: ${c.gone.join(", ")}` : ""}.`;
+}
 
 /**
  * Where an answered question's answer stands, from the question and its run as the API

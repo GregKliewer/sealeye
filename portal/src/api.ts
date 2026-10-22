@@ -43,6 +43,8 @@ export interface DiscoverySummary {
   startedBy: string | null; surface: string; repos: { repo: string; commit: string | null }[];
   modules: { source: string; id: string; status: string }[]; catalog: { version: number } | null; spent: number;
   createdAt: string; finishedAt: string | null;
+  // What it was compared with (only changed modules read again), or that nothing changed.
+  full?: boolean; comparedWith?: { catalog: number; kept: number; written: number; gone: string[] }; unchangedSince?: number; questionsIn?: string | null;
 }
 // `rewriting`: an answer is being written into the draft now; `answerProblem`: why the
 // last one could not be. The run says so because its stream has ended by then.
@@ -311,7 +313,7 @@ export const api = {
   discoveries: () => request<{ discoveries: DiscoverySummary[] }>("/discoveries").then(r => r.discoveries),
   discovery: (id: string) => request<DiscoveryRun>(`/discoveries/${encodeURIComponent(id)}`),
   discoveryDraft: (id: string) => request<{ version: number; document: DraftCatalog }>(`/discoveries/${encodeURIComponent(id)}/catalog`),
-  startDiscovery: () => request<DiscoverySummary>("/discoveries", { method: "POST", body: {} }),
+  startDiscovery: (full = false) => request<DiscoverySummary>("/discoveries", { method: "POST", body: full ? { full: true } : {} }),
   catalogs: () => request<{ live: { version: number | "starter"; source: string }; catalogs: CatalogSummary[] }>("/catalogs"),
   catalogSelfTest: (version: number) => request<{ selfTest: SelfTest }>(`/catalogs/${version}/self-test`).then(r => r.selfTest),
   approveCatalog: (version: number) => request<{ selfTest: SelfTest }>(`/catalogs/${version}/approve`, { method: "POST", body: {} }),
@@ -324,7 +326,7 @@ export const api = {
   /** Every event so far, then each as it comes, until the run ends. */
   discoveryEvents: (id: string, onEvent: (e: DiscoveryEvent) => void, onEnd: () => void) => {
     const source = new EventSource(`/api/discoveries/${encodeURIComponent(id)}/events`);
-    const types = ["started", "library", "modules", "reading", "read", "not_read", "question", "answered", "writing", "draft", "answers_used", "answer_not_used", "finished", "stopped", "failed"];
+    const types = ["started", "library", "modules", "reading", "read", "not_read", "kept", "unchanged", "question", "answered", "writing", "draft", "answers_used", "answer_not_used", "finished", "stopped", "failed"];
     for (const type of types) {
       source.addEventListener(type, ev => {
         onEvent(JSON.parse((ev as MessageEvent).data) as DiscoveryEvent);

@@ -181,6 +181,11 @@ by a restart stopped not resumed, and questions as choices with the guess first.
 to come: 6b, `sealeye discover` and the Discovery page; 6c, only what changed is read
 again. The caps were set from Greg's measured runs (D6).
 
+Part c built Thu Oct 22, 2026 (DESIGN.md, "Discovery reads again only what changed";
+Greg: readers and entries both, compared with the live catalog's run): a module whose
+code is unchanged keeps its finding and its approved entry, the README and pipeline
+unchanged; `sealeye discover --all` and "Read every module again" read everything.
+
 Part b built Thu Oct 15, 2026 (DESIGN.md, "Discovery on both surfaces"): `sealeye
 discover` asks each question as it arrives, `discover answers` and `discover status`
 for later; the Discovery page, shown only to an organization-wide token, does the same.
@@ -317,7 +322,8 @@ Done Oct 22, 2026: ARCHITECTURE.md brought up to 2.46.9 (the system in a paragra
 gap report and the self-test among the API's parts, the discovery flow through to the
 interview and the gap report, reading an organization's environment back in the
 security model, the decision index and the known limits); ROADMAP Phase 4 marked built
-but for 6c and what is owed before the first customer; BUILD-OUT's table and Phase 4
+but for what is owed before the first customer (6c was built the same day, after it:
+DESIGN.md, "Discovery reads again only what changed"); BUILD-OUT's table and Phase 4
 pictures marked built. Each decision went into DESIGN.md as it was made, and CLAUDE.md
 with the code that made it true.
 

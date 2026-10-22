@@ -18,7 +18,7 @@ import { boxed, createScreen, fitText, pick, stopped, typeLine } from "./discove
 import { commandLine } from "../core/operations.js";
 import {
   activityWords, ANSWER_LIMIT, choicesFor, discoveryEventLine, discoveryStateWords, elapsedWords, isOpen, LATER,
-  modulesDone, nextProgress, progressSummary, SOMETHING_ELSE
+  modulesDone, nextProgress, progressSummary, SOMETHING_ELSE, comparedWords
 } from "../core/discovery-words.js";
 
 export { pick } from "./discover-screen.js";
@@ -173,15 +173,24 @@ async function answerOpen({ apiBaseUrl, run, say, json }) {
 async function runFor({ apiBaseUrl, id }) {
   if (id) return getDiscovery({ apiBaseUrl, id });
   const [latest] = await listDiscoveries({ apiBaseUrl });
-  return latest ? getDiscovery({ apiBaseUrl, id: latest.discoveryId }) : null;
+  if (!latest) return null;
+  // A run that found nothing changed has no questions of its own: the run behind the
+  // live catalog holds them, so that is the one to answer and show.
+  if (latest.unchangedSince && latest.questionsIn) {
+    const held = await getDiscovery({ apiBaseUrl, id: latest.questionsIn }).catch(() => null);
+    if (held) return { ...held, latestWords: comparedWords(latest) };
+  }
+  return getDiscovery({ apiBaseUrl, id: latest.discoveryId });
 }
 
 function printRun(run, say) {
   const library = (run.repos || []).map(r => `${r.repo}${r.commit ? ` at ${r.commit.slice(0, 7)}` : ""}`).join(", ");
+  if (run.latestWords) console.log(step(`The latest run: ${run.latestWords} Its questions are on this one:`));
   console.log(`${c.accent(run.discoveryId)}  ${discoveryStateWords(run)}`);
   if (library) console.log(step(`library ${library}`));
   const notRead = (run.modules || []).filter(m => m.status === "not_read").map(m => m.source);
   if (run.modules?.length) console.log(step(`${modulesDone(run) - notRead.length} of ${run.modules.length} modules read${notRead.length ? `; not read: ${notRead.join(", ")}` : ""}`));
+  if (comparedWords(run)) console.log(step(comparedWords(run)));
   if (run.message && run.status !== "finished") console.log(step(run.message));
   const open = (run.questions || []).filter(isOpen);
   console.log(step(`${(run.questions || []).length} questions, ${open.length} open; spent US$${Number(run.spent || 0).toFixed(2)}`));
@@ -203,7 +212,7 @@ export async function discover(options) {
   }
 }
 
-async function discoverCommand({ apiBaseUrl, args, say, json = false }) {
+async function discoverCommand({ apiBaseUrl, args, say, json = false, all = false }) {
   const [sub, id] = args;
 
   if (sub === "status") {
@@ -228,8 +237,10 @@ async function discoverCommand({ apiBaseUrl, args, say, json = false }) {
   // one goes at a time.
   let run;
   try {
-    run = await startDiscovery({ apiBaseUrl });
-    say("Started a discovery run over your platform library. It reads, then writes a draft catalog; nothing goes live.");
+    run = await startDiscovery({ apiBaseUrl, full: all });
+    say(all
+      ? "Started a discovery run over your platform library, reading every module again. It reads, then writes a draft catalog; nothing goes live."
+      : "Started a discovery run over your platform library. Modules unchanged since your live catalog are kept as they are; the rest are read. It then writes a draft catalog; nothing goes live.");
   } catch (err) {
     if (err.code !== "RUN_GOING") throw err;
     const going = (await listDiscoveries({ apiBaseUrl })).find(r => r.status === "running");
@@ -401,8 +412,11 @@ async function finish({ apiBaseUrl, run, end, say, print, offering = false }) {
     const open = now ? (now.questions || []).filter(isOpen).length : end.open;
     const notRead = (now?.modules || []).filter(m => m.status === "not_read").length;
     print("");
-    if (now?.modules?.length) print(step(`${now.modules.length - notRead} of ${now.modules.length} modules read`));
+    if (now?.modules?.length && !now.unchangedSince) print(step(`${now.modules.length - notRead} of ${now.modules.length} modules read or kept`));
+    const compared = comparedWords(now);
+    if (compared) print(step(compared));
     print(c.ok(discoveryEventLine({ ...end, open })));
+    if (now?.unchangedSince) return { open: 0, run: now };
     if (now?.answerProblem && (now.questions || []).some(q => !isOpen(q) && !q.usedAt)) print(c.fail(`An answer is not written into the draft yet: ${now.answerProblem}. It is kept.`));
     if (open && !offering) say(`${open === 1 ? "One question is" : `${open} questions are`} still open, kept for you: sealeye discover answers, or the Discovery page on seaLeye.online.`);
     say(`Nothing goes live until it passes its self-test and a platform engineer approves it and makes it live: ${commandLine("catalog-approve")}.`);
