@@ -4496,6 +4496,12 @@ model's, graded against the answer key.
   `internal_entry` does): it stays so until a real platform team needs to correct one.
 - The prompt changed, so `npm run eval:discovery -- --run` is run before and after
   (Greg's Mac, with a model key).
+- **A module meets a need only when it gives it** (Oct 22, 2026, from catalog 12): the
+  key is right, since `container_service` is reachable from nowhere on its own, and the
+  eval's two runs had it right; catalog 12's run did not. The supervisor's rule now says
+  a module that only leaves room for another to give a need does not meet it, with that
+  case as its example. A change to the prompts makes the next run read every module
+  (`readerVersion`), as it should.
 
 ## The gap report
 
