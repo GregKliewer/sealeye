@@ -4490,7 +4490,9 @@ model's, graded against the answer key.
   before this grades the same as it did; its own score is `needs_mapped`.
 - **Not a person's to edit yet.** `sealeye catalog edit` changes words only; a wrong
   `meets` is fixed by answering a question and discovering again. A wrong one costs a
-  wrong line in the gap report, never a build.
+  wrong line in the gap report, never a build. Greg, Oct 22, after catalog 12 said `container_service`
+  meets "to be reachable from inside your organization only" (the key says only
+  `internal_entry` does): it stays so until a real platform team needs to correct one.
 - The prompt changed, so `npm run eval:discovery -- --run` is run before and after
   (Greg's Mac, with a model key).
 
