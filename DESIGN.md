@@ -4688,7 +4688,14 @@ database's errors and refused sign-ins, without changing what it logs.
   before it reached the app, could not pass on, or gave up waiting for; a sign-in the
   database refused and why, a missing table or database, a permission, a deadlock, no
   room for another connection, a query it could not read. The database's routine lines
-  are left alone. Every line passes through the same masking as the app's. The front
+  are left alone. Every line passes through the same masking as the app's.
+- **Only a database's errors and refused sign-ins are shown** (`databaseLineShown`;
+  the first pilot read, Oct 22, 2026, as Greg chose). The read showed its start-up,
+  its checkpoints, its configuration and, in the refused sign-ins' place, the
+  platform's own record of every sign-in it checked, several lines of a web request
+  each. None of those is the developer's: a database's line is shown only when the
+  phrasebook reads it (a refused sign-in, a failed query, a connection ended) or it is
+  a warning or the redacted detail beside an error. The front
   door's own reason for a failure is never in the words, since it names the cloud's
   products; it stays in the line beside them.
 - **What the app sent its database is never shown** (`maskDatabaseLine`; the review,

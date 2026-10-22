@@ -7,7 +7,7 @@
 // and a line naming one of the app's stored settings has that value taken out as well
 // (DESIGN.md, "Logs pass through the masking traces do"). Read only: nothing changes.
 import { maskSecretText } from "../core/tracing.js";
-import { fromWords, maskDatabaseLine, readLine } from "../core/platform-lines.js";
+import { databaseLineShown, fromWords, maskDatabaseLine, readLine } from "../core/platform-lines.js";
 import { recentLogs, listStoredSettings } from "./executor/cfn.js";
 import { storeFolder } from "./executor/settings.js";
 import { resourceNameOf } from "./executor/compose.js";
@@ -131,7 +131,9 @@ export async function readLogs(record, { window = "1h", now = Date.now(), siblin
       if (!unread.includes(source.words)) unread.push(source.words);
       continue;
     }
-    events.push(...read.events.map(e => ({ ...e, from: source.from, kind: source.kind })));
+    // A database's lines are its errors and refused sign-ins, never its own housekeeping.
+    const shown = source.kind === "database" ? read.events.filter(e => databaseLineShown(e.message)) : read.events;
+    events.push(...shown.map(e => ({ ...e, from: source.from, kind: source.kind })));
     more = more || read.more;
   }
   if (!events.length && appWroteNothing && !unread.length) {
