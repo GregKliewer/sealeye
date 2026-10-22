@@ -64,9 +64,7 @@ export async function readLogs(record, { window = "1h", now = Date.now(), siblin
   // Terraform role. One whose module says nothing has nothing to read.
   const terraform = record.backend === "terraform";
   const terraformGroup = terraform ? environmentLogGroup(record, siblings) : null;
-  if (terraform && !terraformGroup) {
-    return refusal(409, "NO_LOGS", "The module your organization built this environment from does not say where your app's logs are kept, so the platform cannot read them. Ask your platform team.");
-  }
+  if (terraform && !terraformGroup) return refusal(409, "NO_LOGS", noTerraformLogsWords(record));
   const fn = resourceNameOf(record);
   if (!record.stackName || (!terraform && !fn)) {
     return refusal(409, "NO_LOGS", "Nothing was built for this deployment, so there are no logs to read.");
@@ -143,4 +141,22 @@ export function environmentLogGroup(record, siblings = []) {
     .filter(d => d && d.deploymentId !== record.deploymentId && d.backend === "terraform" && (d.stackName || d.environment) === key && d.outputs?.LogGroup)
     .sort((a, b) => String(b.startedAt || "").localeCompare(String(a.startedAt || "")));
   return same[0]?.outputs?.LogGroup || null;
+}
+
+/**
+ * Why a Terraform environment has no logs to read, in words that are true of this
+ * record: the outputs, and so the group, are read back when a build ends, so a build
+ * under way has none yet; a build that failed before the app ran wrote nothing; a group
+ * the module named that is not the environment's own was not believed; and a module
+ * that output no group has said nothing.
+ */
+export function noTerraformLogsWords(record) {
+  const building = ["queued", "packaging", "running"].includes(record?.status);
+  if (building) return "Your environment is still being built. Its logs can be read once it is up.";
+  const notKept = record?.terraform?.logsNotKept;
+  if (notKept && /not this environment's own/.test(notKept)) {
+    return "The module your organization built this environment from named a place for your app's logs that is not this environment's own, so the platform did not believe it and read nothing. Ask your platform team.";
+  }
+  if (record?.status === "failed") return "This build did not get as far as a running app, so there is nothing of it to read.";
+  return "The module your organization built this environment from does not say where your app's logs are kept, so the platform cannot read them. Ask your platform team.";
 }

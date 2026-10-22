@@ -4417,3 +4417,10 @@ module makes its own, and nothing told seaLeye where.
 - **A catalog discovered before this** records no `delivers.logs`, so an environment
   built from it offers no logs until the catalog is discovered again at a release that
   outputs the group. On the pilot that is catalog 10, with http-api 1.2.3.
+- **The refusal says what is true of the record** (Oct 22, the first read on the pilot:
+  Greg ran `sealeye logs` while the build was still running and was told the module
+  "does not say where", which was false). The outputs, and so the group, are read back
+  when a build ends, so a build under way says its logs can be read once it is up; a
+  build that failed before the app ran says there is nothing of it to read; a group the
+  module named that was not believed says so; and only a module that output no group is
+  said to say nothing (`noTerraformLogsWords` in `api/logs.js`).

@@ -73,6 +73,8 @@ switch (args[0]) {
     say({ type: "change_summary", changes: { add: 9, change: 0, remove: 0, operation: "plan" } });
     fs.writeFileSync("tfplan", "plan"); process.exit(0);
   case "apply":
+    // A build held under way while a test looks at it (wait-apply in the log folder).
+    while (fs.existsSync(path.join(log, "wait-apply"))) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
     say({ type: "apply_complete", hook: { resource: { addr: "module.app.aws_lambda_function.fn" }, action: "create" } });
     say({ type: "change_summary", changes: { add: 9, change: 0, remove: 0, operation: "apply" } });
     process.exit(0);
@@ -598,6 +600,7 @@ test("a module that names a group that is not the environment's own is not belie
     const r = await h.call(`/deployments/${done.deploymentId}/logs`, { token: DEV });
     assert.equal(r.status, 409);
     assert.equal(r.body.error.code, "NO_LOGS");
+    assert.match(r.body.error.message, /named a place for your app's logs that is not this environment's own, so the platform did not believe it/);
     assert.doesNotMatch(fs.readFileSync(path.join(logDir, "aws-profile.log"), "utf8"), /filter-log-events/, "nothing was read");
     assert.match(done.report, /does not say where, so seaLeye cannot read it back to you/);
     // The setup function's group is the platform team's, whatever a module outputs.
@@ -609,4 +612,30 @@ test("a module that names a group that is not the environment's own is not belie
   } finally {
     fs.rmSync(path.join(logDir, "log-group-elsewhere"), { force: true });
   }
+});
+
+test("a Terraform environment's refusal to read logs says what is true of the record", async () => {
+  const { noTerraformLogsWords } = await import("../api/logs.js");
+  assert.equal(noTerraformLogsWords({ status: "running" }), "Your environment is still being built. Its logs can be read once it is up.");
+  assert.equal(noTerraformLogsWords({ status: "packaging" }), "Your environment is still being built. Its logs can be read once it is up.");
+  assert.match(noTerraformLogsWords({ status: "failed" }), /did not get as far as a running app/);
+  assert.match(noTerraformLogsWords({ status: "failed", terraform: { logsNotKept: "the module named a group that is not this environment's own" } }), /did not believe it/);
+  assert.match(noTerraformLogsWords({ status: "succeeded" }), /does not say where your app's logs are kept/);
+  // And through the API, a build under way (the stand-in's apply waits on a file).
+  fs.writeFileSync(path.join(logDir, "wait-apply"), "");
+  const zip = await appZip({ "package.json": JSON.stringify({ name: "slow", main: "index.js" }), "index.js": "1" });
+  const res = await h.call("/deployments", { token: DEV, method: "POST", body: { backend: "cloudformation", plan: planFor("slow", "api", [{ id: "http_api" }]), zip, appPath: "slow" } });
+  assert.equal(res.status, 201, JSON.stringify(res.body));
+  try {
+    const building = await waitFor(res.body.deploymentId, DEV, s => s === "running");
+    assert.equal(building.status, "running");
+    const r = await h.call(`/deployments/${building.deploymentId}/logs`, { token: DEV });
+    assert.equal(r.status, 409);
+    assert.match(r.body.error.message, /still being built/);
+  } finally {
+    fs.rmSync(path.join(logDir, "wait-apply"), { force: true });
+  }
+  const done = await waitFor(res.body.deploymentId, DEV);
+  assert.equal(done.status, "succeeded", done.failureReason);
+  assert.equal((await h.call(`/deployments/${done.deploymentId}/logs`, { token: DEV })).status, 200, "and read once it is up");
 });
