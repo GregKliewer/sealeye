@@ -21,9 +21,6 @@ For each module you are asked to write:
   may meet the same need (one below staging, one from staging up). A deprecated module
   still says what it meets: seaLeye knows it is not offered. Leave a need out when the
   module only helps with it, or when nothing in the findings says the module does it.
-  A module meets a need when an app that uses it gets what the need says, not when it
-  only leaves room for another module to give it: a service that nothing can reach does
-  not meet being reachable from inside the organization; the entry in front of it does.
 
 Words a developer reads (`line`, `when`, `signals`, input lines) are plain: what it gives
 their app, never how the cloud provider builds it. They follow one rule:
