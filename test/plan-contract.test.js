@@ -277,3 +277,14 @@ test("the card ends a connected module's sentence before the settings the app fi
   assert.match(card, /, which your app finds through DATABASE_HOST and DATABASE_PORT\./);
   assert.doesNotMatch(card, /\., which/, "no full stop before the settings (Oct 21, 2026)");
 });
+
+test("a draft the platform can build none of has no heading standing over nothing", async () => {
+  const { decisionCard } = await import("../cli/interview/render.js");
+  const plan = {
+    planVersion: "0.5", catalog: "starter", app: { name: "events-worker", type: "worker" }, profile: "dev", outputs: ["logs"], modules: [],
+    needs: [{ kind: "work_queue", evidence: [{ file: "src/worker.js", shows: "reads work from a queue" }] }]
+  };
+  const card = decisionCard(plan, { catalog: starterCatalog(), width: 100 });
+  assert.doesNotMatch(card, /We will build/);
+  assert.match(card, /Your app also needs, and no module in your catalog supports yet:/);
+});
