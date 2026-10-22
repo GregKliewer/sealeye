@@ -276,7 +276,7 @@ function expectedOutput({ plan, catalog }) {
     lines.push("Public URL: generated when the deployment finishes, HTTPS included. Shareable immediately.");
   }
   // Only what the environment then offers: one built from the organization's own module
-  // keeps its logs where that module puts them, and seaLeye does not read them back.
+  // offers logs only when that module says where it keeps them (delivers.logs).
   if ((outputs.includes("logs") || outputs.includes("log_stream")) && planOffers(plan, catalog, "logs")) {
     lines.push(`Logs: everything your app prints, from the first request, with no setup. ${logsHowWords(plan.app?.name)}`);
   }

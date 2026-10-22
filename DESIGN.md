@@ -4371,3 +4371,49 @@ too (the second comes in its own pull request, "What the platform saw" after it)
   em dashes went with it.
 - **A Terraform environment keeps the report's honest line** ("reading it through seaLeye
   is not available ... yet") until the next pull request reads them.
+
+## A Terraform environment's logs are read where its module says they are
+
+Thu Oct 22, 2026, the second half of the logs work (Greg: "if we can do both, we
+should"). An environment built from the organization's own modules answered 409 to
+`sealeye logs`, and its report said reading them was not available yet. The starter's
+templates make the log group themselves, so seaLeye knows its name; an organization's
+module makes its own, and nothing told seaLeye where.
+
+- **The module says where.** A module that runs an app's code and outputs `log_group`
+  (or `log_group_name`) has said where the app's logs are kept: discovery records it as
+  `delivers.logs` (`deliversOf` in `api/discovery/terraform.js`; the sample library's
+  `http-api` outputs it from 1.2.3, a release Greg tags). A site's module never does; a
+  site has no app logs.
+- **The record keeps it, when it is the environment's own.** The root asks for that
+  output, and the build keeps its value as `outputs.LogGroup` (`clientOutputs`), the
+  same place the starter's environments keep theirs, so `sealeye status`, the report and
+  `readLogs` need no second path. It is kept only when it names a group of this
+  environment's own (`/aws/lambda/<the module's name>-...`, `ownLogGroup`) and not the
+  database setup function's: a module that names another environment's group, or the
+  platform's, is not believed, and the record says why (`terraform.logsNotKept`). So
+  the role is bounded by the platform's naming and the API by the environment's own.
+  While a record is being built, or after one fails, the environment's group is read
+  from its newest record that has one (`environmentLogGroup`), so a live
+  environment's logs stay readable through a rebuild.
+- **Read through the Terraform role, masked as the starter's logs are.** `readLogs`
+  reads a Terraform environment's group with the Terraform profile, through the same
+  masking, with the names of the settings its parts reach the app under
+  (`terraform.settings`) masked by name as the starter's settings are; the store, which
+  such an app never reads, is not asked. The role gains one action, `logs:FilterLogEvents`, on groups named
+  `/aws/lambda/sealeye-*`, and the API asks only for the group on the record (Greg,
+  Oct 22, option 1: the role bounded by the platform's own naming, the API by what the
+  module declared). It may read none of the platform's own groups, and nothing it did
+  not build.
+- **Offered only when it is there.** `environmentOperations("terraform", { logs })` adds
+  `logs` to what an environment offers when the record has a group, so the portal's
+  Logs card and the command appear only then; a catalog entry whose module declares
+  `delivers.logs` offers it too, so the card promises logs for it (`operationsOf` in
+  `core/catalog.js`). A module that says nothing gets 409 NO_LOGS in words ("the module
+  ... does not say where your app's logs are kept"), and its report says the same.
+- **The setup function's logs stay the platform team's** (Greg, Oct 22, option 2):
+  not readable through `sealeye logs`. When a build fails at that step, its last lines
+  belong in the failure reason, which is owed.
+- **A catalog discovered before this** records no `delivers.logs`, so an environment
+  built from it offers no logs until the catalog is discovered again at a release that
+  outputs the group. On the pilot that is catalog 10, with http-api 1.2.3.

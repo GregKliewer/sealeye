@@ -22,7 +22,7 @@ import { resumeInFlight } from "./executor/resume.js";
 import { unsupportedNeeds } from "../core/catalog.js";
 import { assembleEvidence, renderEvidence } from "./executor/evidence.js";
 import { rollupNeeds } from "./needs.js";
-import { readLogs } from "./logs.js";
+import { environmentLogGroup, readLogs } from "./logs.js";
 import { busyRefusal, changeUnderWay } from "./busy.js";
 import { replacements } from "./replaced.js";
 import { changePaused, pausedState } from "./pause.js";
@@ -838,7 +838,8 @@ async function deployNew(req, res) {
 app.get("/deployments", (req, res) => {
   const visible = visibleDeployments(req);
   const seen = new Set(visible.map(d => d.deploymentId));
-  const replaced = replacements(listDeployments());
+  const all = listDeployments();
+  const replaced = replacements(all);
   const deployments = visible.map(dep => ({
     deploymentId: dep.deploymentId,
     app: dep.app,
@@ -855,7 +856,7 @@ app.get("/deployments", (req, res) => {
     kind: dep.kind || null,
     // What this environment offers, by operation id (core/operations.js): one built from
     // the organization's own modules offers less, for now (PHASE4-PLAN Step 9).
-    operations: environmentOperations(dep.backend),
+    operations: environmentOperations(dep.backend, { logs: Boolean(environmentLogGroup(dep, all)) }),
     // What a tear-down of it deletes that holds the app's data, in the catalog's words
     // (core/plan-report-words.js): the modules the app uses, built beside it; and
     // whether it joined the private network, which a tear-down waits on.
@@ -999,7 +1000,7 @@ app.get("/deployments/:deploymentId", (req, res) => {
   // The plan's files are served at /plan, not here: this route is polled every few
   // seconds while a change is watched.
   const { planFiles: _files, ...withFiles } = dep;
-  const shown = { ...withFiles, operations: environmentOperations(dep.backend) };
+  const shown = { ...withFiles, operations: environmentOperations(dep.backend, { logs: Boolean(environmentLogGroup(dep, listDeployments())) }) };
   if (!replacedBy) return res.status(200).json(shown);
   return res.status(200).json({ ...shown, replaced: true, replacedBy: canSee(req, getDeployment(replacedBy)) ? replacedBy : null });
 });
@@ -1055,9 +1056,8 @@ function runsAnotherTeams(req, res, dep) {
 app.get("/deployments/:deploymentId/logs", async (req, res) => {
   const dep = getDeployment(req.params.deploymentId);
   if (!canSee(req, dep)) return res.status(404).json({ error: { code: "NOT_FOUND", message: "deploymentId not found" } });
-  if (builtByTerraform(dep)) return notForThisEnvironment(res, "Reading logs");
   if (runsAnotherTeams(req, res, dep)) return;
-  const { status, body } = await readLogs(dep, { window: typeof req.query.since === "string" ? req.query.since : "1h" });
+  const { status, body } = await readLogs(dep, { window: typeof req.query.since === "string" ? req.query.since : "1h", siblings: listDeployments() });
   return res.status(status).json(body);
 });
 

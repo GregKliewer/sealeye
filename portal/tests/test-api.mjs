@@ -85,7 +85,8 @@ fs.writeFileSync(path.join(home, "deployments.json"), JSON.stringify([
   // again, state, history, plan and report, evidence and tear down, and nothing else yet.
   { ...base, backend: "terraform", teamId: "lookup", deploymentId: "dep_lllllllllll1", app: { name: "beneficiary-lookup" }, kind: "api", status: "succeeded",
     environment: "sealeye-lookup-beneficiary-lookup-1a2b3c", stackName: "sealeye-lookup-beneficiary-lookup-1a2b3c",
-    plan: apiPlan("beneficiary-lookup"), artifactKey: "sealeye-lookup-beneficiary-lookup-1a2b3c/dep_lllllllllll1.zip", outputs: { ApiUrl: "https://lookup321.execute-api.ca-central-1.amazonaws.com/" },
+    // Its module says where the app's logs are kept (LogGroup), so Logs is offered.
+    plan: apiPlan("beneficiary-lookup"), artifactKey: "sealeye-lookup-beneficiary-lookup-1a2b3c/dep_lllllllllll1.zip", outputs: { ApiUrl: "https://lookup321.execute-api.ca-central-1.amazonaws.com/", LogGroup: "/aws/lambda/sealeye-beneficiary-look-1a2b3c-dev-api" },
     requestedBy: by("Bo Lindqvist", "bo@example.com"), startedAt: ago(5 * 3600_000), finishedAt: ago(5 * 3600_000 - 120_000),
     // With a table and a database it uses, built beside it (planVersion 0.6); the
     // database puts the app in the private network, which a tear-down waits on.

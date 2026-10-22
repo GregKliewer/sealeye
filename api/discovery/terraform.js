@@ -239,6 +239,9 @@ const FILES_OUTPUT = /^(?:bucket|bucket_name|site_bucket|files_bucket|site_bucke
 const FILES_LINE = /\b(?:upload|files?\b)/i;
 // The output that is the app's address.
 const ADDRESS_OUTPUT = /^(?:url|address|site_url|api_url|endpoint)$/;
+// The output that says where the app's logs are kept, for a module that runs an app's
+// code (DESIGN.md, "A Terraform environment's logs are read where its module says they are").
+const LOGS_OUTPUT = /^log_group(?:_name)?$/;
 
 /**
  * How a module takes an app, from its inputs and outputs, or null when it takes none:
@@ -250,9 +253,10 @@ const ADDRESS_OUTPUT = /^(?:url|address|site_url|api_url|endpoint)$/;
  */
 export function deliversOf(inputs = {}, outputs = {}) {
   const address = Object.keys(outputs).find(n => ADDRESS_OUTPUT.test(n));
+  const logs = Object.keys(outputs).find(n => LOGS_OUTPUT.test(n));
   const pkg = Object.keys(inputs).find(n => PACKAGE_INPUT.test(n));
   const handler = Object.keys(inputs).find(n => HANDLER_INPUT.test(n));
-  if (pkg && handler) return { kind: "package", package: pkg, handler, ...(address ? { address } : {}) };
+  if (pkg && handler) return { kind: "package", package: pkg, handler, ...(address ? { address } : {}), ...(logs ? { logs } : {}) };
   const files = Object.entries(outputs).find(([n, o]) => FILES_OUTPUT.test(n) && FILES_LINE.test(o?.line || ""));
   if (files) return { kind: "files", output: files[0], ...(address ? { address } : {}) };
   return null;

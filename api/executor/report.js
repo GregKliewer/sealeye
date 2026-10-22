@@ -122,10 +122,10 @@ function yourUrl(record) {
 function logs(record) {
   const logGroup = record.outputs?.LogGroup;
   const lines = ["## Logs", ""];
-  if (record.backend === "terraform") {
+  if (record.backend === "terraform" && !logGroup) {
     lines.push(record.kind === "static"
       ? "A static site has no application logs: nothing of yours is running."
-      : "What your app prints is kept by your organization's platform. Reading it through seaLeye is not available for an environment built from your organization's modules yet; ask your platform team.");
+      : "What your app prints is kept by your organization's platform, and the module this environment was built from does not say where, so seaLeye cannot read it back to you. Ask your platform team.");
     return lines.join("\n");
   }
 

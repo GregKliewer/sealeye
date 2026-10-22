@@ -229,13 +229,25 @@ async function readOutputs(dir, home) {
 }
 
 /** The outputs clients read, in the names they already know: the address, the bucket. */
-export function clientOutputs(entry, raw = {}) {
+export function clientOutputs(entry, raw = {}, { name = null } = {}) {
   const d = entry?.delivers || {};
   const out = {};
   const address = d.address ? raw[d.address] : null;
   if (typeof address === "string" && address) out[d.kind === "files" ? "WebsiteUrl" : "ApiUrl"] = address;
   if (d.kind === "files" && typeof raw[d.output] === "string") out.BucketName = raw[d.output];
+  // Where the app's logs are kept, when the module says: `sealeye logs` reads there,
+  // and only there. A group is kept only when it is this environment's own (named for
+  // the module's name, which every function of the environment starts with) and not the
+  // database setup function's, which stays the platform team's (DESIGN.md, "A Terraform
+  // environment's logs are read where its module says they are").
+  if (d.kind === "package" && d.logs && ownLogGroup(raw[d.logs], name)) out.LogGroup = raw[d.logs];
   return out;
+}
+
+/** Whether a log group a module output is the environment's own app group. */
+export function ownLogGroup(group, name) {
+  if (typeof group !== "string" || !name) return false;
+  return group.startsWith(`/aws/lambda/${name}-`) && !group.endsWith("-db-setup");
 }
 
 const removeWork = record => {
@@ -353,7 +365,10 @@ export async function startTerraformDeployment(record, plan, appPath, catalog, o
     const read = await readOutputs(ready.dir, ready.home);
     if (!read.ok) throw new Error(`your environment was built, and the platform could not read back its address (${read.error})`);
     record.moduleOutputs = read.outputs;
-    record.outputs = clientOutputs(entry, read.outputs);
+    record.outputs = clientOutputs(entry, read.outputs, { name: record.resourceName });
+    if (entry.delivers?.logs && !record.outputs.LogGroup) {
+      record.terraform.logsNotKept = typeof read.outputs[entry.delivers.logs] === "string" ? "the module named a group that is not this environment's own" : "the module gave no group";
+    }
 
     if (record.kind === "static") {
       const bucket = record.outputs.BucketName;

@@ -242,15 +242,15 @@ export async function artifactExists(bucket, key) {
  * `maxItems`. Read only.
  * @returns {Promise<{ok: true, events: {timestamp: number, message: string}[]} | {ok: false, missing?: boolean, error?: string}>}
  */
-export async function recentLogs(logGroup, { sinceMs, untilMs = null, maxItems = 2000 } = {}) {
-  const r = await tryAws([
+export async function recentLogs(logGroup, { sinceMs, untilMs = null, maxItems = 2000, profile = null } = {}) {
+  const r = await runAws([
     "logs", "filter-log-events", "--log-group-name", logGroup,
     "--start-time", String(Math.floor(sinceMs)),
     ...(untilMs ? ["--end-time", String(Math.floor(untilMs))] : []),
     "--max-items", String(maxItems),
     "--query", "events[].{timestamp: timestamp, message: message}",
     "--region", region(), "--output", "json"
-  ]);
+  ], { profile }).catch(err => ({ ok: false, code: -1, stdout: "", stderr: err.message }));
   if (!r.ok) {
     if (/ResourceNotFoundException/.test(r.stderr)) return { ok: false, missing: true };
     return { ok: false, error: firstLine(r.stderr) };

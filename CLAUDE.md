@@ -272,8 +272,11 @@ offers (`operations`, `environmentOperations` in `core/operations.js`). A deploy
 plan's catalog says `builds_with: terraform` is built by the Terraform executor, whatever
 `backend` the request names; one that executor cannot build is refused with 409
 CANNOT_BUILD, and an environment built one way is not built the other until it is torn
-down (409 ENVIRONMENT_BUILT_ANOTHER_WAY). Logs, pause, resume and performance answer 409
-NOT_FOR_THIS_ENVIRONMENT for a Terraform environment. A deploy whose code looks like it holds a
+down (409 ENVIRONMENT_BUILT_ANOTHER_WAY). Pause, resume and performance answer 409
+NOT_FOR_THIS_ENVIRONMENT for a Terraform environment; its logs are read from the group
+its module output (`delivers.logs`, kept as `outputs.LogGroup`) through the Terraform
+role, and 409 NO_LOGS when the module said nothing (DESIGN.md, "A Terraform
+environment's logs are read where its module says they are"). A deploy whose code looks like it holds a
 secret is refused with 422 SECRETS_FOUND (file, line and rule, nothing kept); when the
 scan itself cannot finish, an interview or a deploy is refused with 503 SCAN_FAILED.
 Keep existing endpoints and commands working; add, do not break.

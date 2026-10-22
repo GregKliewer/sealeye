@@ -917,7 +917,8 @@ test("an environment built from the organization's own modules shows only what i
   await page.getByRole("link", { name: "beneficiary-lookup", exact: true }).click();
   await expect(page.getByRole("heading", { name: "beneficiary-lookup" })).toBeVisible();
   await expect(page.getByTestId("status")).toHaveText("Live");
-  // What it offers: deploy again, tear down, plan and report, evidence.
+  // What it offers: deploy again, tear down, plan and report, evidence, and logs, since
+  // its module said where they are kept.
   await expect(page.getByTestId("deploy-again")).toBeVisible();
   await expect(page.getByTestId("teardown")).toBeVisible();
   await expect(page.getByTestId("evidence")).toBeVisible();
@@ -925,7 +926,10 @@ test("an environment built from the organization's own modules shows only what i
   // And nothing it does not.
   await expect(page.getByTestId("pause")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Pause", exact: true })).toHaveCount(0);
-  await expect(page.getByTestId("logs")).toHaveCount(0);
+  const logs = page.getByTestId("logs");
+  await expect(logs).toBeVisible();
+  await logs.getByRole("button", { name: "Show logs" }).click();
+  await expect(logs.getByTestId("log-lines").locator("li")).toHaveCount(2);
   await expect(page.getByTestId("performance")).toHaveCount(0);
   await expect(page.getByTestId("configure")).toHaveCount(0);
   await expect(page.getByTestId("settings")).toHaveCount(0);
