@@ -59,7 +59,8 @@ core/       what cli/ and api/ must agree on: schema.js (the plan contract), cat
             plan-files.js (DEPLOYMENT_PLAN.md and sealeye.yaml, written by the
             command and sent with the interview's plan for the portal),
             plan-words.js, evidence-summary.js and plan-report-words.js (words the
-            command and the portal both say), retention.js (how long logs are kept), setting-names.js,
+            command and the portal both say), platform-lines.js (the lines the platform
+            writes into an app's logs, read for the developer), retention.js (how long logs are kept), setting-names.js,
             environments.js (what an environment's key is: one row in `sealeye
             list`, one page in the portal, the page `sealeye online <app>` opens),
             operations.js (every operation's command, aliases and portal label),
@@ -68,7 +69,7 @@ core/       what cli/ and api/ must agree on: schema.js (the plan contract), cat
             names, and sizes and counts, that a developer never reads), catalog-edits.js
             (which words of a draft's entry a person may change, and keeping them).
             secrets.js, scan.js, upload-rules.js, plan-words.js, evidence-summary.js,
-            plan-report-words.js, retention.js, setting-names.js, environments.js,
+            plan-report-words.js, platform-lines.js, retention.js, setting-names.js, environments.js,
             operations.js, discovery-words.js, developer-words.js and catalog-edits.js run in a browser,
             so the portal imports them too
 prompts/    system prompt and the starter's passages for it (interview-starter.yaml), plan
@@ -233,7 +234,7 @@ own copy (`catalogForPlan` in `cli/client.js`).
 POST /plans/validate, POST /deployments ({ plan, appPath, zip?, settings? }, or
 { fromDeployment, plan? } to deploy code the platform already has again), GET /deployments,
 GET /deployments/events (server-sent events: the id of each deployment the caller can see
-whenever what GET /deployments shows of it changes; five minutes a stream), GET /deployments/{id}, GET /deployments/{id}/plan (the plan as approved and the report), GET /deployments/{id}/evidence, GET /deployments/{id}/logs (masked), GET /deployments/{id}/performance (readings), GET /deployments/{id}/paused and POST
+whenever what GET /deployments shows of it changes; five minutes a stream), GET /deployments/{id}, GET /deployments/{id}/plan (the plan as approved and the report), GET /deployments/{id}/evidence, GET /deployments/{id}/logs (masked; a line the platform wrote carries `platform: { kind, words }`, the developer's reading of it, `core/platform-lines.js`), GET /deployments/{id}/performance (readings), GET /deployments/{id}/paused and POST
 /deployments/{id}/pause and /resume (APIs only), DELETE /deployments/{id},
 GET /needs, GET /health, GET /interviews (your own still open), POST /interviews ({ app, zip, findings? },
 answered with the interview and its findings), POST

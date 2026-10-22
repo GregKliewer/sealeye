@@ -34,7 +34,9 @@ if (args[1] === "filter-log-events") {
   out([
     { timestamp: t - 3000, message: "starting with GREETING=hello-from-the-store\\n" },
     { timestamp: t - 2000, message: "called with Authorization: Bearer abcdefghijklmnopqrstuvwxyz and sk-ant-api03-supersecretvalue" },
-    { timestamp: t - 1000, message: "token sl_${"z".repeat(43)} and API_KEY=plain-text-key" }
+    { timestamp: t - 1000, message: "token sl_${"z".repeat(43)} and API_KEY=plain-text-key" },
+    // What the platform itself wrote, in its own words, beside the app's.
+    { timestamp: t - 500, message: "REPORT RequestId: 62454822-d102-425d-9aa1-fd18c63f8ce5\tDuration: 3000.00 ms\tBilled Duration: 3000 ms\tMemory Size: 128 MB\tMax Memory Used: 97 MB\tStatus: timeout" }
   ].filter(e => e.timestamp >= from && e.timestamp < to));
 }
 `
@@ -47,10 +49,10 @@ test("an app's lines come newest first, with secrets and stored setting values t
   const { status, body } = await api.call("/deployments/dep_api00000001/logs?since=15m", { token: ANA });
   assert.equal(status, 200, JSON.stringify(body));
   assert.equal(body.since, "15m");
-  assert.equal(body.lines.length, 3);
-  assert.match(body.lines[0].message, /^token \[value redacted\] and API_KEY=\[value redacted\]$/);
-  assert.match(body.lines[1].message, /Bearer \[value redacted\] and \[value redacted\]$/);
-  assert.equal(body.lines[2].message, "starting with GREETING=[value redacted]");
+  assert.equal(body.lines.length, 4);
+  assert.match(body.lines[1].message, /^token \[value redacted\] and API_KEY=\[value redacted\]$/);
+  assert.match(body.lines[2].message, /Bearer \[value redacted\] and \[value redacted\]$/);
+  assert.equal(body.lines[3].message, "starting with GREETING=[value redacted]");
   const all = JSON.stringify(body);
   for (const secret of ["hello-from-the-store", "abcdefghijklmnop", "supersecret", "plain-text-key", "zzzzzzzzzz"]) assert.ok(!all.includes(secret), secret);
 
@@ -85,7 +87,7 @@ test("sealeye logs prints them oldest first, by app name", async () => {
     cwd: api.home, env: { ...process.env, HOME: api.home, SEALEYE_HOME: api.home, SEALEYE_TOKEN: ANA, NO_COLOR: "1" }
   });
   const lines = stdout.split("\n").filter(l => /^\d\d:\d\d:\d\d {2}/.test(l));
-  assert.equal(lines.length, 3);
+  assert.equal(lines.length, 4);
   assert.match(lines[0], /starting with GREETING=\[value redacted\]/);
   assert.ok(!stdout.includes("hello-from-the-store"));
 });
@@ -127,4 +129,35 @@ test("with no name, the command uses the app this folder's sealeye.yaml plans", 
 
   // status takes the app's name too.
   assert.match((await run("status", "orders-api", "--json")).stdout, /"deploymentId": "dep_api00000001"/);
+});
+
+test("a line the platform wrote is read for the developer, with the platform's own text kept beside it", async () => {
+  const { platformLine, allPlatformWords } = await import("../core/platform-lines.js");
+  const { forbiddenWords } = await import("../core/developer-words.js");
+  for (const words of allPlatformWords()) assert.deepEqual(forbiddenWords(words), [], words);
+  assert.equal(platformLine("account-notes-api listening on port 8080"), null, "the app's own line is left alone");
+  assert.deepEqual(platformLine("INIT_START Runtime Version: nodejs:20.v101\tRuntime Version ARN: arn:aws:lambda:ca-central-1::runtime:1867"), { kind: "cold-start", words: "The platform started a fresh copy of your app" });
+  assert.deepEqual(platformLine("REPORT RequestId: 7ed6\tDuration: 74.18 ms\tBilled Duration: 548 ms\tMemory Size: 256 MB\tMax Memory Used: 102 MB\tInit Duration: 473.30 ms"), { kind: "request-cold", words: "Started cold and ready in 473 ms; this request then took 74 ms" });
+  assert.deepEqual(platformLine("REPORT RequestId: 6245\tDuration: 3000.00 ms\tBilled Duration: 3000 ms\tMemory Size: 128 MB\tMax Memory Used: 97 MB\tStatus: timeout"), { kind: "timeout", words: "Ran out of time after 3 seconds, the limit the platform gives each request" });
+  assert.deepEqual(platformLine("2026-10-22T12:02:44.000Z 6245 Task timed out after 3.00 seconds").kind, "timeout");
+  assert.equal(platformLine("REPORT RequestId: y\tDuration: 1200.00 ms\tBilled Duration: 1200 ms\tMemory Size: 128 MB\tMax Memory Used: 128 MB\tStatus: error\tError Type: Runtime.OutOfMemory").kind, "out-of-memory");
+  assert.equal(platformLine("INIT_REPORT Init Duration: 10000.00 ms\tPhase: init\tStatus: timeout").kind, "start-timeout");
+  assert.equal(platformLine("RequestId: z Error: Runtime exited with error: signal: killed Runtime.ExitError").kind, "out-of-memory");
+  assert.equal(platformLine("START RequestId: 7ed6 Version: $LATEST").kind, "request-start");
+
+  // Through the API: the words beside the line, and the app's own lines untouched.
+  const { status, body } = await api.call("/deployments/dep_api00000001/logs?since=15m", { token: ANA });
+  assert.equal(status, 200, JSON.stringify(body));
+  const report = body.lines.find(l => l.message.startsWith("REPORT "));
+  assert.deepEqual(report.platform, { kind: "timeout", words: "Ran out of time after 3 seconds, the limit the platform gives each request" });
+  assert.match(report.message, /Status: timeout/, "the platform's own line is kept");
+  assert.equal(body.lines.find(l => l.message.startsWith("starting with")).platform, undefined);
+
+  // The command: the words first, the platform's own text after them.
+  const { stdout } = await promisify(execFile)(process.execPath, [path.join(root, "cli/bin/sealeye"), "logs", "orders-api", "--since", "15m", "--api", api.api], {
+    cwd: api.home, env: { ...process.env, HOME: api.home, SEALEYE_HOME: api.home, SEALEYE_TOKEN: ANA, NO_COLOR: "1" }
+  });
+  const shown = stdout.split("\n").find(l => /Ran out of time/.test(l));
+  assert.ok(shown, stdout);
+  assert.match(shown, /^\d\d:\d\d:\d\d {2}Ran out of time after 3 seconds, the limit the platform gives each request {2}·  REPORT RequestId: .*Status: timeout$/);
 });

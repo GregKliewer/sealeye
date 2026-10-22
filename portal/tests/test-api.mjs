@@ -103,7 +103,7 @@ fs.mkdirSync(bin);
 // Two log lines from the last few minutes, inside whatever range is asked for.
 fs.writeFileSync(path.join(bin, "logs.cjs"), `const args = process.argv.slice(2), opt = n => args[args.indexOf(n) + 1];
 const from = Number(opt("--start-time")), to = args.includes("--end-time") ? Number(opt("--end-time")) : Infinity, now = Date.now();
-const lines = [{ timestamp: now - 120000, message: "listening on 8080" }, { timestamp: now - 60000, message: "GET /orders with Bearer abcdefghijklmnopqrstuvwxyz0123" }];
+const lines = [{ timestamp: now - 120000, message: "listening on 8080" }, { timestamp: now - 60000, message: "GET /orders with Bearer abcdefghijklmnopqrstuvwxyz0123" }, { timestamp: now - 30000, message: "REPORT RequestId: 6245\\tDuration: 3000.00 ms\\tBilled Duration: 3000 ms\\tMemory Size: 128 MB\\tMax Memory Used: 97 MB\\tStatus: timeout" }];
 process.stdout.write(JSON.stringify(lines.filter(l => l.timestamp >= from && l.timestamp < to)));
 `);
 

@@ -477,8 +477,12 @@ test("Logs shows what the app wrote, newest first, with secrets taken out", asyn
   await card.getByRole("button", { name: "15 minutes" }).click();
   await card.getByRole("button", { name: "Show logs" }).click();
   const lines = card.getByTestId("log-lines").locator("li");
-  await expect(lines).toHaveCount(2);
-  await expect(lines.first()).toContainText("GET /orders with Bearer [value redacted]");
+  await expect(lines).toHaveCount(3);
+  // What the platform saw, in the developer's words, with the platform's own line beside it.
+  await expect(lines.first().getByTestId("platform-words")).toHaveText("Ran out of time after 3 seconds, the limit the platform gives each request");
+  await expect(lines.first()).toContainText("Status: timeout");
+  await expect(lines.nth(1)).toContainText("GET /orders with Bearer [value redacted]");
+  await expect(lines.nth(1).getByTestId("platform-words")).toHaveCount(0);
   await expect(lines.last()).toContainText("listening on 8080");
   expect(await page.content()).not.toContain("abcdefghijklmnop");
 });
@@ -929,7 +933,7 @@ test("an environment built from the organization's own modules shows only what i
   const logs = page.getByTestId("logs");
   await expect(logs).toBeVisible();
   await logs.getByRole("button", { name: "Show logs" }).click();
-  await expect(logs.getByTestId("log-lines").locator("li")).toHaveCount(2);
+  await expect(logs.getByTestId("log-lines").locator("li")).toHaveCount(3);
   await expect(page.getByTestId("performance")).toHaveCount(0);
   await expect(page.getByTestId("configure")).toHaveCount(0);
   await expect(page.getByTestId("settings")).toHaveCount(0);

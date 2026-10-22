@@ -7,6 +7,7 @@
 // and a line naming one of the app's stored settings has that value taken out as well
 // (DESIGN.md, "Logs pass through the masking traces do"). Read only: nothing changes.
 import { maskSecretText } from "../core/tracing.js";
+import { platformLine } from "../core/platform-lines.js";
 import { recentLogs, listStoredSettings } from "./executor/cfn.js";
 import { storeFolder } from "./executor/settings.js";
 import { resourceNameOf } from "./executor/compose.js";
@@ -118,7 +119,13 @@ export async function readLogs(record, { window = "1h", now = Date.now(), siblin
       since: window,
       more,
       ...(note ? { note } : {}),
-      lines: events.slice(-MAX_LINES).reverse().map(e => ({ at: new Date(e.timestamp).toISOString(), message: mask(e.message).replace(/\s+$/, "") }))
+      // Each line masked, and the platform's own lines read for the developer
+      // (core/platform-lines.js): the words beside the line, never instead of it.
+      lines: events.slice(-MAX_LINES).reverse().map(e => {
+        const message = mask(e.message).replace(/\s+$/, "");
+        const platform = platformLine(message);
+        return { at: new Date(e.timestamp).toISOString(), message, ...(platform ? { platform } : {}) };
+      })
     }
   };
 }

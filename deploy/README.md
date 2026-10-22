@@ -764,9 +764,11 @@ executor": it may now read (`logs:FilterLogEvents`, nothing else) the log groups
 for seaLeye's environments, `/aws/lambda/sealeye-*`, and the API asks only for the group
 on the environment's record.
 
-**2. Discover the library again**, then approve and make live, as in step 4 of "The
-Terraform executor". The catalog records the output; one discovered before cannot offer
-logs, whatever the library now outputs.
+**2. Release first, then discover the library again** (the release in "Every release"
+below), then approve and make live, as in step 4 of "The Terraform executor". It is the
+server that reads the library, so a catalog discovered before the release does not
+record the output, whatever the library outputs (catalog 10 on the pilot, Oct 22, 2026,
+which a second discovery replaced); one discovered before cannot offer logs.
 
 **3. Check it.** With a Juniper developer's token, build an app again (`sealeye run` or
 `sealeye deploy --again` in its folder; a running environment keeps its old record until

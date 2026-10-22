@@ -4424,3 +4424,35 @@ module makes its own, and nothing told seaLeye where.
   build that failed before the app ran says there is nothing of it to read; a group the
   module named that was not believed says so; and only a module that output no group is
   said to say nothing (`noTerraformLogsWords` in `api/logs.js`).
+
+## What the platform saw, in the developer's words
+
+Thu Oct 22, 2026 (Greg: "each line starts with a developer-side translation, but also
+includes after that the more literal info returned from the platform itself"). The
+morning's debugging showed what an app's own output leaves out: the first database
+environment answered "Internal Server Error", its log held no error at all, and the
+story was in the platform's own line, `REPORT ... Duration: 3000.00 ms ... Status:
+timeout`, which a developer has no way to read as "the limit the platform gives each
+request ran out". Five of the six lines `sealeye logs` showed of the first read on
+catalog 10 were the platform's, in its own words.
+
+- **A fixed phrasebook in `core/platform-lines.js`, never a model** (Greg, as
+  recommended): `platformLine(message)` recognizes the lines the platform writes into
+  an app's logs and says each as what it means for the app and whose choice it was: a
+  fresh copy started (a cold start), a request handed over and finished, how long it
+  took, ran out of time "after N seconds, the limit the platform gives each request",
+  stopped for using more memory than the platform gives it, did not start in time,
+  crashed while starting, exited on its own, threw an error it did not catch. Both
+  surfaces say the same words, and a test pins them and checks every phrase against the
+  word rule. The app's own lines are left alone.
+- **The words beside the line, never instead of it.** `GET /logs` adds `platform:
+  { kind, words }` to a line the platform wrote and keeps `message` as it was, after
+  masking. The command prints the words, then the platform's own text dimmed after a
+  dot; the portal's Logs card the same. Nothing is hidden and nothing has to be decoded.
+- **Times are said, sizes are not.** A request's duration and a cold start's are
+  readings, like the performance card's; a memory size is a capacity number
+  (principle 8), so an out-of-memory line says what happened and not the number.
+- **Not yet here:** the front door's own errors (a request refused, throttled or timed
+  out at the door, which never reaches the app), since the library's module keeps no
+  access log of the door; and a part's logs (a database refusing a sign-in). Both are
+  owed to this entry.

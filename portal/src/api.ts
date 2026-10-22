@@ -210,7 +210,7 @@ export interface InterviewEvent {
 }
 
 // GET /deployments/{id}/logs: an environment's recent lines, newest first, masked.
-export interface Logs { app: string | null; since: string; more: boolean; note?: string; lines: { at: string; message: string }[] }
+export interface Logs { app: string | null; since: string; more: boolean; note?: string; lines: { at: string; message: string; platform?: { kind: string; words: string } }[] }
 
 // GET /team: the people on your team, from the tokens in use. Never a token.
 export interface Team {
