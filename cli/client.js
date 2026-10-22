@@ -174,6 +174,11 @@ export async function getNeeds({ apiBaseUrl }) {
   return platformFetch(apiBaseUrl, "/needs", { method: "GET" });
 }
 
+/** The gap report (GET /gaps): an organization-wide token's only. */
+export async function getGaps({ apiBaseUrl }) {
+  return platformFetch(apiBaseUrl, "/gaps", { method: "GET" });
+}
+
 /**
  * Validate a plan by calling the seaLeye API.
  */

@@ -4493,3 +4493,34 @@ model's, graded against the answer key.
   wrong line in the gap report, never a build.
 - The prompt changed, so `npm run eval:discovery -- --run` is run before and after
   (Greg's Mac, with a model key).
+
+## The gap report
+
+Thu Oct 22, 2026, PHASE4-PLAN Step 10 (Greg, Oct 22: discovery says which needs each
+module meets; an organization-wide token's only; ties to more teams, then a checklist).
+The needs ledger says what drafted plans wait on; the gap report says which of those the
+live catalog cannot build, how often and by which teams, and what the library has for
+each, so the platform team knows what to build next and why.
+
+- **Judged against the live catalog.** Every drafted plan's needs (the ledger's: an app
+  once, however many times it drafted) are checked against the live catalog's modules
+  and the platform's values: a need is met when an offered module the platform builds
+  says it meets it (`meets`, "Discovery records which needs each module meets"). A met
+  need is not a gap; it is listed apart with the apps that can be planned again. A gap
+  says what the library has: nothing; a module the platform cannot build yet, each with
+  why (deprecated, resting on a question, or what it still needs, in
+  `terraformBuilds`'s words); a need in the developer's own words, which nothing can meet
+  until it is on the list; or, for a catalog discovered before `meets`, not known.
+- **Demand first** (`gapReport` in `api/gaps.js`): by how many apps, then how many teams,
+  then `GAP_CHECKLIST` in `core/gap-words.js`, seaLeye's own order of what an app most
+  often needs before it can be trusted with real work (its secrets and its data, who may
+  use it, the work it hands off, then how it runs and is reached). Each gap says when a
+  tie put it ahead (`tieBrokenBy`), so the order is never unexplained.
+- **The starter's modules meet no need**, since every need is by definition beyond them:
+  against the starter every need is a gap with nothing in the library.
+- **The platform team's**, on both surfaces: `GET /gaps` answers 403 ORG_WIDE_ONLY to a
+  team's token; `sealeye gaps` (`--json`) and the Gaps page, shown beside Discovery and
+  Platform, say it in `core/gap-words.js`'s words. They name modules and what the
+  platform lacks, which a developer's words never do; the need's own line stays plain.
+- **Read-only.** It talks to nothing; it reads the ledger, the live catalog and the
+  platform's values as they are when asked.
