@@ -104,6 +104,67 @@ Resources:
               StringEquals:
                 kms:ViaService: !Sub "secretsmanager.${AWS::Region}.amazonaws.com"
 
+  # The role's logs permissions, apart from its inline policy, which IAM holds to
+  # 10,240 characters for a role (the front door's and the database's logs, Oct 22,
+  # 2026, would have taken it past). Attached to the role below.
+  TerraformLogs:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub "sealeye-deploy-terraform-logs-${RoleSuffix}"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: Logs
+            Effect: Allow
+            Action:
+              - logs:CreateLogGroup
+              - logs:DeleteLogGroup
+              - logs:PutRetentionPolicy
+              - logs:DeleteRetentionPolicy
+              - logs:TagResource
+              - logs:UntagResource
+              - logs:ListTagsForResource
+              - logs:TagLogGroup
+              - logs:UntagLogGroup
+              - logs:ListTagsLogGroup
+            Resource:
+              - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/sealeye-*"
+              - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/sealeye-*:*"
+              # http-api's front door record, and postgres's own log and refused
+              # sign-ins (DESIGN.md, "The front door's and the database's lines,
+              # beside the app's").
+              - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/apigateway/sealeye-*"
+              - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/apigateway/sealeye-*:*"
+              - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/rds/instance/sealeye-*"
+              - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/rds/instance/sealeye-*:*"
+          # A front door that keeps a record of requests: API Gateway delivers it
+          # through the log service's deliveries, which the caller sets up, and
+          # these name no resource (API Gateway developer guide, "Configure logging
+          # for HTTP APIs", Permissions to activate logging).
+          - Sid: AccessLogDelivery
+            Effect: Allow
+            Action: [logs:CreateLogDelivery, logs:GetLogDelivery, logs:UpdateLogDelivery, logs:DeleteLogDelivery, logs:ListLogDeliveries, logs:PutResourcePolicy, logs:DescribeResourcePolicies]
+            Resource: "*"
+          - Sid: DescribeLogs
+            Effect: Allow
+            Action: logs:DescribeLogGroups
+            Resource: "*"
+          # Reading an app's logs back to its developer (`sealeye logs`), from the
+          # group the organization's module said it keeps them in: the API asks only
+          # for the group on the environment's record, and may read none but an
+          # environment's own (DESIGN.md, "A Terraform environment's logs are read
+          # where its module says they are", Greg, Oct 22, 2026).
+          - Sid: ReadAppLogs
+            Effect: Allow
+            Action: logs:FilterLogEvents
+            Resource:
+              - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/sealeye-*"
+              - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/sealeye-*:*"
+              - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/apigateway/sealeye-*"
+              - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/apigateway/sealeye-*:*"
+              - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/rds/instance/sealeye-*"
+              - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/rds/instance/sealeye-*:*"
+
   TerraformRole:
     Type: AWS::IAM::Role
     Properties:
@@ -116,6 +177,8 @@ Resources:
           - Effect: Allow
             Principal: { AWS: !Ref ServerRoleArn }
             Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref TerraformLogs
       Policies:
         - PolicyName: sealeye-deploy-terraform
           PolicyDocument:
@@ -259,37 +322,6 @@ Resources:
                 Effect: Allow
                 Action: [ec2:DescribeSecurityGroups, ec2:DescribeSecurityGroupRules, ec2:DescribeSubnets, ec2:DescribeVpcs, ec2:GetSecurityGroupsForVpc, ec2:DescribeNetworkInterfaces, ec2:DescribeTags]
                 Resource: "*"
-              - Sid: Logs
-                Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:DeleteLogGroup
-                  - logs:PutRetentionPolicy
-                  - logs:DeleteRetentionPolicy
-                  - logs:TagResource
-                  - logs:UntagResource
-                  - logs:ListTagsForResource
-                  - logs:TagLogGroup
-                  - logs:UntagLogGroup
-                  - logs:ListTagsLogGroup
-                Resource:
-                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/sealeye-*"
-                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/sealeye-*:*"
-              - Sid: DescribeLogs
-                Effect: Allow
-                Action: logs:DescribeLogGroups
-                Resource: "*"
-              # Reading an app's logs back to its developer (`sealeye logs`), from the
-              # group the organization's module said it keeps them in: the API asks only
-              # for the group on the environment's record, and may read none but an
-              # environment's own (DESIGN.md, "A Terraform environment's logs are read
-              # where its module says they are", Greg, Oct 22, 2026).
-              - Sid: ReadAppLogs
-                Effect: Allow
-                Action: logs:FilterLogEvents
-                Resource:
-                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/sealeye-*"
-                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/sealeye-*:*"
               # http-api: its HTTPS address. API Gateway names nothing in an ARN, as the
               # CloudFormation role's statement says too.
               # Every part of it is tagged as it is made (the provider's default tags), and

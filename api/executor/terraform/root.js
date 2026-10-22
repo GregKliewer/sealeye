@@ -15,7 +15,7 @@ import path from "node:path";
 
 import { region } from "../../../core/config.js";
 import { safeName } from "../../../core/names.js";
-import { DEVELOPER_STAGE, NETWORK_INPUTS, SEALEYE_INPUTS, codeInputs, inNetwork, platformInputs } from "../../../core/terraform-modules.js";
+import { DEVELOPER_STAGE, NETWORK_INPUTS, SEALEYE_INPUTS, codeInputs, doorLogsOutput, inNetwork, partLogsOutputs, platformInputs } from "../../../core/terraform-modules.js";
 import { AWS_PROVIDER_VERSION, IMAGE_LOCK_FILE } from "./tofu.js";
 
 /** The function the adapter seaLeye puts into an app's package exports (templates/sealeye-handler.mjs). */
@@ -183,7 +183,9 @@ export function rootModule({ moduleSource, inputs, outputs, state, tags, parts =
     // for emptying a bucket before a tear-down. Never a policy or a secret.
     output: {
       ...Object.fromEntries(outputs.map(o => [o, { value: `\${module.app.${o}}` }])),
-      ...Object.fromEntries(parts.flatMap(p => (p.entry?.offers?.values || []).map(v => [`${p.key}__${v}`, { value: `\${module.${p.key}.${v}}` }])))
+      ...Object.fromEntries(parts.flatMap(p => (p.entry?.offers?.values || []).map(v => [`${p.key}__${v}`, { value: `\${module.${p.key}.${v}}` }]))),
+      // And where each keeps its own logs, for reading them back beside the app's.
+      ...Object.fromEntries(parts.flatMap(p => partLogsOutputs(p.entry).map(o => [`${p.key}__${o}`, { value: `\${module.${p.key}.${o}}` }])))
     }
   };
 }
@@ -191,7 +193,7 @@ export function rootModule({ moduleSource, inputs, outputs, state, tags, parts =
 /** The outputs worth reading back: the app's address, and where a site's files go. */
 export function outputsWanted(entry) {
   const d = entry.delivers || {};
-  return [...new Set([d.address, d.kind === "files" ? d.output : null, d.kind === "package" ? d.logs : null].filter(Boolean))].filter(o => o in (entry.outputs || {}));
+  return [...new Set([d.address, d.kind === "files" ? d.output : null, d.kind === "package" ? d.logs : null, doorLogsOutput(entry)].filter(Boolean))].filter(o => o in (entry.outputs || {}));
 }
 
 /**

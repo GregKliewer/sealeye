@@ -212,7 +212,9 @@ export interface InterviewEvent {
 }
 
 // GET /deployments/{id}/logs: an environment's recent lines, newest first, masked.
-export interface Logs { app: string | null; since: string; more: boolean; note?: string; lines: { at: string; message: string; platform?: { kind: string; words: string } }[] }
+// With the front door's and a module's own lines beside the app's, `sources` names each
+// place and every line says which it came from.
+export interface Logs { app: string | null; since: string; more: boolean; note?: string; sources?: { from: string; words: string }[]; lines: { at: string; message: string; from?: string; platform?: { kind: string; words: string } }[] }
 
 // GET /team: the people on your team, from the tokens in use. Never a token.
 export interface Team {
@@ -301,7 +303,7 @@ export const api = {
   paused: (id: string) => request<{ app: string | null; paused: boolean }>(`/deployments/${encodeURIComponent(id)}/paused`),
   setPaused: (id: string, paused: boolean) =>
     request<{ app: string | null; paused: boolean }>(`/deployments/${encodeURIComponent(id)}/${paused ? "pause" : "resume"}`, { method: "POST" }),
-  logs: (id: string, since: string) => request<Logs>(`/deployments/${encodeURIComponent(id)}/logs?since=${encodeURIComponent(since)}`),
+  logs: (id: string, since: string, from: string | null = null) => request<Logs>(`/deployments/${encodeURIComponent(id)}/logs?since=${encodeURIComponent(since)}${from ? `&from=${encodeURIComponent(from)}` : ""}`),
   evidence: (id: string) => request<Evidence>(`/deployments/${encodeURIComponent(id)}/evidence`),
   plan: (id: string) => request<DeploymentPlan>(`/deployments/${encodeURIComponent(id)}/plan`),
   team: () => request<Team>("/team"),

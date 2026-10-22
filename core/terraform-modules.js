@@ -284,3 +284,37 @@ export function connectionProblems(plan, catalog) {
   }
   return problems;
 }
+
+// Where an environment's other lines are kept, beside the app's own (DESIGN.md, "The
+// front door's and the database's lines, beside the app's"): read by code from what a
+// module outputs, never from what a model wrote. The app's own group is `delivers.logs`.
+
+/** The output the module that runs an app names its front door's record of requests by. */
+export const DOOR_LOGS_OUTPUT = "access_log_group";
+
+/** The outputs a module an app uses names its own logs by: `log_group`, `sign_in_log_group`. */
+export const PART_LOGS_OUTPUT = /^(?:[a-z0-9_]+_)?log_group$/;
+
+/** Which output of an app's module says where its front door's record is, or null. */
+export function doorLogsOutput(entry) {
+  return entry?.delivers?.kind === "package" && entry.outputs && DOOR_LOGS_OUTPUT in entry.outputs ? DOOR_LOGS_OUTPUT : null;
+}
+
+/** Which outputs of a module an app uses say where its own logs are, sorted. */
+export function partLogsOutputs(entry) {
+  if (!entry || entry.delivers || !entry.outputs) return [];
+  return Object.keys(entry.outputs).filter(n => PART_LOGS_OUTPUT.test(n)).sort();
+}
+
+/**
+ * Where a group of an environment's own may be, for the front door and the modules it
+ * uses: named for the environment's module name, under the services the platform's role
+ * may read there. The app's own group is `/aws/lambda/<name>-...` (`ownLogGroup`).
+ */
+export const OTHER_LOG_PREFIXES = Object.freeze(["/aws/apigateway/", "/aws/rds/instance/"]);
+
+/** Whether a group a module output is one of the environment's own, beside the app's. */
+export function ownOtherLogGroup(group, name) {
+  if (typeof group !== "string" || !name) return false;
+  return OTHER_LOG_PREFIXES.some(p => group.startsWith(`${p}${name}-`));
+}

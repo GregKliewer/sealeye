@@ -235,7 +235,7 @@ own copy (`catalogForPlan` in `cli/client.js`).
 POST /plans/validate, POST /deployments ({ plan, appPath, zip?, settings? }, or
 { fromDeployment, plan? } to deploy code the platform already has again), GET /deployments,
 GET /deployments/events (server-sent events: the id of each deployment the caller can see
-whenever what GET /deployments shows of it changes; five minutes a stream), GET /deployments/{id}, GET /deployments/{id}/plan (the plan as approved and the report), GET /deployments/{id}/evidence, GET /deployments/{id}/logs (masked; a line the platform wrote carries `platform: { kind, words }`, the developer's reading of it, `core/platform-lines.js`), GET /deployments/{id}/performance (readings), GET /deployments/{id}/paused and POST
+whenever what GET /deployments shows of it changes; five minutes a stream), GET /deployments/{id}, GET /deployments/{id}/plan (the plan as approved and the report), GET /deployments/{id}/evidence, GET /deployments/{id}/logs (masked; a line the platform wrote carries `platform: { kind, words }`, the developer's reading of it, `core/platform-lines.js`; with the front door's and a module's own lines beside the app's, `sources` and each line's `from`, and `?from=` reads one place), GET /deployments/{id}/performance (readings), GET /deployments/{id}/paused and POST
 /deployments/{id}/pause and /resume (APIs only), DELETE /deployments/{id},
 GET /needs, GET /gaps (the gap report: what developers asked for that the live catalog cannot build, judged by which needs its modules meet; an organization-wide token's only), GET /health, GET /interviews (your own still open), POST /interviews ({ app, zip, findings? },
 answered with the interview and its findings), POST

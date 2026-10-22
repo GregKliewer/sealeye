@@ -776,7 +776,7 @@ The decisions that shaped the architecture, by DESIGN.md heading.
 | Spending | A run's cap is close, not exact; What a run costs, and a cap of a dollar; The cap on every run; The gateway's budget: $20 a period; The outer limit, and a record of calls kept 90 days |
 | Learning the platform | Phase 4's decisions, and one reopened; The catalog is data, and every organization starts with the starter; A plan names its catalog (planVersion 0.5); The interview reads the organization's catalog; A module's name is found as code when it is an ordinary word; The made-up organization: Juniper Mutual; Discovery records which needs each module meets; The gap report; Discovery reads again only what changed |
 | Building from the organization's modules | A Terraform executor builds an organization's own modules; Each module is built at the version its library released; Modules are connected through what the library offers; An app reaches a database in the private network; A tear-down waits for the private network, and sweeps what it leaves |
-| What a developer sees of the platform | Logs are found by the command, never by a path; A Terraform environment's logs are read where its module says they are; What the platform saw, in the developer's words |
+| What a developer sees of the platform | Logs are found by the command, never by a path; A Terraform environment's logs are read where its module says they are; What the platform saw, in the developer's words; The front door's and the database's lines, beside the app's; A failed setup step says its last lines |
 | The model gateway | Phase 3's decisions, as recommended; agentgateway, read and run (Step 4); The model gateway on the server; A token on every model call; Inference from Canada: disclosed, on the US profile |
 
 ## 12. Known limits and where they go next
@@ -789,7 +789,6 @@ The decisions that shaped the architecture, by DESIGN.md heading.
 | An organization's environment is built at the dev stage, from one module that runs the app and the modules it uses, with no settings of its own | Developers deploy to dev; settings would be kept in plain text in state | Phase 5 for later stages; ROADMAP Phase 1 item 10 for settings |
 | A module that only runs beside something else (a service that runs continuously, an internal front door) is not built | The executor builds what takes an app's code or offers it access | Each in its own step, as a gap report asks for them |
 | Which needs a module meets is the model's judgment, fixed only by discovering again | A wrong one costs a wrong line in the gap report, never a build (Greg, Oct 22) | When a platform team needs to correct one by hand |
-| The front door's own errors, and a part's logs, are not in `sealeye logs` | The app's logs and the platform's own lines are | Owed to "What the platform saw": an access log of the library's front door, then the parts' logs |
 | ca-central-1, Node 20, no CloudFront from seaLeye's own templates | The pilot's scope | Phase 7 |
 | Traces in LangFuse Cloud (US) | Sample apps only; off for any pilot on real code | Phase 4: self-hosted in ca-central-1, before discovery reads an organization's code |
 | No promotion past dev | Developers deploy to dev | Phase 5 |

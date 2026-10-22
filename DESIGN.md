@@ -4455,7 +4455,8 @@ catalog 10 were the platform's, in its own words.
 - **Not yet here:** the front door's own errors (a request refused, throttled or timed
   out at the door, which never reaches the app), since the library's module keeps no
   access log of the door; and a part's logs (a database refusing a sign-in). Both are
-  owed to this entry.
+  owed to this entry. Built Oct 22, 2026: "The front door's and the database's lines,
+  beside the app's".
 
 ## Discovery records which needs each module meets
 
@@ -4590,3 +4591,56 @@ it.
   whose library reader failed, an answer left unused, and a question that spans changed
   and kept modules each went wrong; each is fixed above and tested in
   `test/discovery-run.test.js`.
+
+## The front door's and the database's lines, beside the app's
+
+Thu Oct 22, 2026, owed to "What the platform saw, in the developer's words". Greg chose,
+of the options: one stream, labelled; every request the front door handles; and the
+database's errors and refused sign-ins, without changing what it logs.
+
+- **The library keeps them** (`http-api` 1.3.0, `postgres` 1.3.0, releases Greg tags).
+  The front door writes one JSON line a request (method, path, status, time, what the
+  app answered, and why the door turned a request away), with no caller's address, to
+  `/aws/apigateway/<name>-<stage>-api`, and outputs `access_log_group`. The database
+  publishes its own log (by default: failed sign-ins, fatal errors, deadlocks and
+  failed queries) and its record of refused sign-ins with an app's own identity
+  (`iam-db-auth-error`), each to a group the module makes first, so it is kept as long
+  as the stage keeps logs and goes with the database; it outputs `log_group` and
+  `sign_in_log_group`. Checked against AWS's docs: the API Gateway developer guide,
+  "Configure logging for HTTP APIs" (the caller's log-delivery permissions); the RDS
+  user guide, "RDS for PostgreSQL database log files" (the default log level, the group
+  `/aws/rds/instance/<id>/postgresql`) and "Troubleshooting for IAM DB authentication"
+  (the `iam-db-auth-error` type and its lines).
+- **Code reads where, from what the modules output** (`doorLogsOutput`,
+  `partLogsOutputs`, `ownOtherLogGroup` in `core/terraform-modules.js`): the app's
+  module's `access_log_group`, and a used module's outputs named `log_group` or
+  `<something>_log_group`. No new catalog field: the entry's `outputs` already say. A
+  group is believed only when it is named for this environment's module name under the
+  services the role may read there (`/aws/apigateway/`, `/aws/rds/instance/`), as the
+  app's own is; the record keeps them as `terraform.logs`, each with where it came from
+  (`otherLogs` in `api/executor/terraform/index.js`). A log group is never a value the
+  app looks up, so a plan never connects one to a setting (`connectsOf`).
+- **One stream, each line saying where it came from.** `GET /deployments/{id}/logs`
+  reads every place, merges them in time order, and gives each line `from` ("app",
+  "door", or the module's id) and the body `sources` with each place's words ("your
+  app", "the front door", the module's id); `?from=` reads one place, and a place the
+  environment does not have is refused in words (400 UNKNOWN_FROM). A place that cannot
+  be read is named in the note and the rest are shown. An environment with no other
+  place reads exactly as before. The command prints the place in a column before each
+  line and says `--from app|door|<module>`; the portal's Logs card shows it beside each
+  line, with buttons to choose a place.
+- **Each place has its own phrasebook** (`doorLine`, `databaseLine`, `readLine` in
+  `core/platform-lines.js`), words beside the line, never instead of it, checked against
+  the word rule: a request the door answered, turned away (too many at once), refused
+  before it reached the app, could not pass on, or gave up waiting for; a sign-in the
+  database refused and why, a missing table or database, a permission, a deadlock, no
+  room for another connection, a query it could not read. The database's routine lines
+  are left alone. Every line passes through the same masking as the app's.
+- **The role reads only these** (`deploy/terraform-role.yaml`): it may make, keep and
+  read groups named `/aws/apigateway/sealeye-*` and `/aws/rds/instance/sealeye-*`, and
+  set up the front door's log delivery, whose actions name no resource. Its log
+  statements moved to a managed policy of their own (`TerraformLogs`), since the
+  role's inline policy would have passed IAM's limit for a role's inline policies.
+- **A catalog discovered before these releases** records none of these outputs, so an
+  environment shows only its app's lines until the library is discovered again.
+

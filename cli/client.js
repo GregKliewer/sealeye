@@ -130,8 +130,8 @@ export async function deployAgain({ apiBaseUrl, fromDeployment, plan, file }) {
 }
 
 /** An environment's recent log lines, newest first, masked (PHASE2-PLAN Step 16). */
-export async function getLogs({ apiBaseUrl, deploymentId, since = "1h" }) {
-  return platformFetch(apiBaseUrl, `/deployments/${encodeURIComponent(deploymentId)}/logs?since=${encodeURIComponent(since)}`, { method: "GET" });
+export async function getLogs({ apiBaseUrl, deploymentId, since = "1h", from = null }) {
+  return platformFetch(apiBaseUrl, `/deployments/${encodeURIComponent(deploymentId)}/logs?since=${encodeURIComponent(since)}${from ? `&from=${encodeURIComponent(from)}` : ""}`, { method: "GET" });
 }
 
 /** Your interviews still open, on either surface. */
