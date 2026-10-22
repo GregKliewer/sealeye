@@ -44,7 +44,8 @@ There are two surfaces and one product:
   plan"): LangFuse self-hosted in Canada, a new paid account per customer for
   discovery, the Bedrock route, a catalog too large for the prompt, and public
   libraries at scale.
-- **Next:** the path to production (Phase 5), starting with its plan, then seaLeye for
+- **Next:** the path to production (Phase 5), planned in
+  [PHASE5-PLAN.md](PHASE5-PLAN.md), its decisions waiting on Greg, then seaLeye for
   agents (Phase 6). The second-person test (someone other than Greg, on their own
   machine) is still open. [PHASE4-PLAN.md](PHASE4-PLAN.md) is the plan most recently
   built; [BUILD-OUT.md](BUILD-OUT.md) draws each phase.
@@ -73,6 +74,7 @@ There are two surfaces and one product:
 | [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md) | Decisions not yet made | What is undecided, the options, the leaning, what it blocks | When a question is asked or answered |
 | [PHASE3-PLAN.md](PHASE3-PLAN.md) | Plan (finishing) | Phase 3: built apart from routing, which waits on Bedrock access | With the work |
 | [PHASE4-PLAN.md](PHASE4-PLAN.md) | Plan (built Oct 22, 2026, but what is owed before the first customer) | Phase 4: the catalog as data, the discovery swarm, a Terraform executor, the gap report; its decisions for Greg | With the work |
+| [PHASE5-PLAN.md](PHASE5-PLAN.md) | Plan (written Oct 22, 2026; decisions waiting on Greg) | Phase 5: a module per stage in the catalog (Q20), promotion's check and request on both surfaces, approvals (a stand-in, then ServiceNow), integrations, gap advice and tickets, notifications; its decisions for Greg | With the work |
 | [PHASE2-PLAN.md](PHASE2-PLAN.md) | Plan (done) | How the team release, the secret store and day-two parity were built; its "Owed" list still stands | Not any more |
 | [PHASE1-PLAN.md](PHASE1-PLAN.md) | Plan (done) | How Phase 1 was built | Not any more |
 | [WELCOME.md](WELCOME.md) | Guide | A new developer's first twenty minutes | When the first run changes |
