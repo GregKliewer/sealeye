@@ -415,10 +415,14 @@ export function decisionCard(plan, {
 
   const groups = [
     { heading: "Your app:", rows: renderRows(app, room, markWidth) },
-    {
-      heading: before ? "We will change this environment:" : "We will build your dev environment with:",
-      rows: renderRows(middle, room, markWidth)
-    },
+    // A draft the platform can build none of has nothing to list here: the heading goes
+    // too, as on the portal, rather than standing over nothing (Oct 22, 2026).
+    ...(middle.length
+      ? [{
+          heading: before ? "We will change this environment:" : "We will build your dev environment with:",
+          rows: renderRows(middle, room, markWidth)
+        }]
+      : []),
     // What no module supports comes straight after what will be built, because the
     // developer is being asked to approve both halves of the same answer.
     ...(needs.length

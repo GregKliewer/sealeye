@@ -4236,6 +4236,14 @@ sealeye-sample-platform #4 and #5 (`postgres` and `http-api` at 1.2) and here.
     database is named when no setup ran, and `secret_arns` no longer suggests a
     database's password. Checked and kept: `nonsensitive(var.master_password == null)`
     plans the setup once, or not at all, with OpenTofu 1.12.6.
+- **`postgres-cluster` signs the app in the same way** (Oct 22, 2026; library
+  `postgres-cluster` 1.1.0, a release Greg tags): the same setup step, byte for byte,
+  the right to sign in on the cluster's own resource id, and the same outputs plus
+  `reader_address`. It is for staging up, so seaLeye, which builds dev, does not build
+  it yet: the pilot has no `postgres_cluster.security_group_ids` value, and the
+  Terraform role and the setup boundary name database instances (`db:sealeye-*-dev`,
+  `rds!db-*`), not clusters (`cluster:`, `rds!cluster-*`). Widening them is its own
+  change, with an independent review, when a stage past dev is built.
 
 ## The command installs the libraries its release was tested with
 
@@ -4413,7 +4421,8 @@ module makes its own, and nothing told seaLeye where.
   ... does not say where your app's logs are kept"), and its report says the same.
 - **The setup function's logs stay the platform team's** (Greg, Oct 22, option 2):
   not readable through `sealeye logs`. When a build fails at that step, its last lines
-  belong in the failure reason, which is owed.
+  belong in the failure reason (built Oct 22, 2026: "A failed setup step says its last
+  lines").
 - **A catalog discovered before this** records no `delivers.logs`, so an environment
   built from it offers no logs until the catalog is discovered again at a release that
   outputs the group. On the pilot that is catalog 10, with http-api 1.2.3.
@@ -4496,6 +4505,16 @@ model's, graded against the answer key.
   `internal_entry` does): it stays so until a real platform team needs to correct one.
 - The prompt changed, so `npm run eval:discovery -- --run` is run before and after
   (Greg's Mac, with a model key).
+- **A rule for `meets` was tried and taken back** (Oct 22, 2026, after catalog 12 said
+  `container_service` meets "to be reachable from inside your organization only", which
+  the key gives only to `internal_entry`). A sentence telling the supervisor a module
+  meets a need only when it gives it, with that case as its example, was run before and
+  after: one module wrong in the two runs before (`http-api` meeting a continuously
+  running service), three in the two after (`http-api` meeting runtime secrets and a
+  continuously running service, `static-site` meeting file storage and a custom
+  domain), and `container_service` right in all four. Greg, as recommended: reverted;
+  a wrong `meets` stays a known variance of the model's, costing a line in the gap
+  report and never a build, until enough runs can tell a better wording from noise.
 
 ## The gap report
 
@@ -4591,6 +4610,29 @@ it.
   whose library reader failed, an answer left unused, and a question that spans changed
   and kept modules each went wrong; each is fixed above and tested in
   `test/discovery-run.test.js`.
+
+## A failed setup step says its last lines
+
+Thu Oct 22, 2026, owed to "A Terraform environment's logs are read where its module says
+they are" (Greg, option 2: the setup function's logs stay the platform team's). A
+database's one-time setup step runs inside the private network, and when it fails, the
+provider's error carries only what the function returned, not what it was doing.
+
+- **Read only when the apply failed at a step the module invokes itself**
+  (`invokedFunction` in `api/executor/terraform/tofu.js`: the error's address names an
+  invocation, and the provider's words name the function), and only a function named for
+  this environment's own module (`<name>-...`), so the Terraform role's reach, bounded by
+  the platform's naming, is bounded again by the environment's.
+- **Its last lines, at most five, since the apply began** (`setupLastLines` in
+  `api/executor/terraform/index.js`), read through the Terraform role the way an app's
+  logs are, and added to the failure reason after OpenTofu's own error: "The setup
+  step's last lines: ...". The platform's bookkeeping (a request handed over or
+  finished, a fresh copy started) is left out; its other lines are said in the
+  phrasebook's words with its own text beside them (`platformLine`).
+- **Never a value that looks like a secret**: each line is scanned with the shared rules
+  (`scanText`) and replaced by the line that says why, as an interview's file is. The
+  setup step reads the database's master password, so this is not hypothetical.
+- **A log that cannot be read adds nothing**: the reason stands as OpenTofu gave it.
 
 ## The front door's and the database's lines, beside the app's
 

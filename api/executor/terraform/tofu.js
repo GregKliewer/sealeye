@@ -138,6 +138,25 @@ export function firstError(result) {
 }
 
 /**
+ * The function a failed apply invoked, when what failed was a module invoking one of its
+ * own (the library's database setup step, `aws_lambda_invocation`), or null. Read from
+ * OpenTofu's error diagnostics: the address names the invocation, and the provider's
+ * words name the function ("Lambda function (<name>) returned error", or "invoking
+ * Lambda Function (<name>)"), as a name or an ARN.
+ */
+export function invokedFunction(result) {
+  for (const m of result?.messages || []) {
+    const d = m?.type === "diagnostic" && m.diagnostic?.severity === "error" ? m.diagnostic : null;
+    if (!d) continue;
+    const text = `${d.summary || ""} ${d.detail || ""}`;
+    if (!/aws_lambda_invocation/.test(d.address || "") && !/lambda function/i.test(text)) continue;
+    const named = text.match(/lambda function \(([^)\s]+)\)/i)?.[1];
+    if (named) return named.split(":function:").pop().split(":")[0];
+  }
+  return null;
+}
+
+/**
  * What a plan or an apply changed, from OpenTofu's own count of it (`change_summary`):
  * { add, change, remove }, or null when it gave none.
  */
