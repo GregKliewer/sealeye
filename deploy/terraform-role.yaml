@@ -403,6 +403,17 @@ Resources:
                 Condition:
                   "Null":
                     aws:ResourceTag/sealeye:environment: "false"
+              # A function in the private network leaves its network interfaces behind,
+              # detached, for a while after it is deleted, and the provider deletes them
+              # before it deletes the group they use (the first database's tear-down, Oct
+              # 21, 2026: "deleting ENIs using Security Group ... not authorized to
+              # perform: ec2:DeleteNetworkInterface"). EC2 deletes only a detached
+              # interface; the role cannot detach one (no ec2:DetachNetworkInterface), so
+              # nothing in use, the pilot server's own among them, can be removed this way.
+              - Sid: LeftoverInterfaces
+                Effect: Allow
+                Action: ec2:DeleteNetworkInterface
+                Resource: !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:network-interface/*"
               # A rule is named by its own id beside its group's; the group's tag above
               # is what decides.
               - Sid: SetupGroupRules
