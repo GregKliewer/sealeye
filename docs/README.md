@@ -64,7 +64,7 @@ There are two surfaces and one product:
 | [DESIGN.md](../DESIGN.md) | Decisions | Each decision, dated, with its reason | Every decision a later reader would have to guess |
 | [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md) | Decisions not yet made | What is undecided, the options, the leaning, what it blocks | When a question is asked or answered |
 | [PHASE3-PLAN.md](PHASE3-PLAN.md) | Plan (finishing) | Phase 3: built apart from routing, which waits on Bedrock access | With the work |
-| [PHASE4-PLAN.md](PHASE4-PLAN.md) | Plan (built Oct 22, 2026, but Step 6c and what is owed before the first customer) | Phase 4: the catalog as data, the discovery swarm, a Terraform executor, the gap report; its decisions for Greg | With the work |
+| [PHASE4-PLAN.md](PHASE4-PLAN.md) | Plan (built Oct 22, 2026, but what is owed before the first customer) | Phase 4: the catalog as data, the discovery swarm, a Terraform executor, the gap report; its decisions for Greg | With the work |
 | [PHASE2-PLAN.md](PHASE2-PLAN.md) | Plan (done) | How the team release, the secret store and day-two parity were built; its "Owed" list still stands | Not any more |
 | [PHASE1-PLAN.md](PHASE1-PLAN.md) | Plan (done) | How Phase 1 was built | Not any more |
 | [WELCOME.md](WELCOME.md) | Guide | A new developer's first twenty minutes | When the first run changes |

@@ -709,6 +709,20 @@ test("starting a run with no library named says so in words", async ({ page }) =
   await expect(page.getByRole("alert")).toContainText("No platform library is named for discovery yet");
 });
 
+// Step 6c: a run reads only what changed since the live catalog, unless asked to read
+// every module again, as `sealeye discover --all` does.
+test("Read every module again asks the API for a full run, and the command hint says --all", async ({ page }) => {
+  await signInOrgWide(page);
+  await page.goto("/discovery");
+  const hint = page.getByTestId("command-hint").filter({ hasText: "sealeye discover" }).first();
+  await expect(hint).not.toContainText("--all");
+  await page.getByTestId("read-all").check();
+  await expect(hint).toContainText("sealeye discover --all");
+  const posted = page.waitForRequest(r => r.url().endsWith("/discoveries") && r.method() === "POST");
+  await page.getByTestId("start-discovery").click();
+  expect((await posted).postDataJSON()).toEqual({ full: true });
+});
+
 // Editing a draft's words before approving it, as `sealeye catalog edit` does (Greg, Oct 16).
 test("Edit words: a draft entry's line changed on the page, the self-test run again, the entry marked edited", async ({ page }) => {
   await signInOrgWide(page);

@@ -157,7 +157,7 @@ Usage:
   ${product.command} catalog edit <number> <module> [<field> [words | --clear]] [--json] [--api <url>]
   ${product.command} catalog fix [<number>] [--json] [--api <url>]
   ${product.command} catalog approve|live <number> [--json] [--api <url>]
-  ${product.command} discover [answers|status] [<run>] [--json] [--api <url>]
+  ${product.command} discover [answers|status] [<run>] [--all] [--json] [--api <url>]
   ${product.command} platform [set <name> <word>... [--list] | unset <name>] [--stage <stage>] [--json] [--api <url>]
   ${product.command} login [--api <url>]
   ${product.command} whoami [--json] [--api <url>]
@@ -1136,7 +1136,7 @@ async function main() {
   // an organization-wide token; the API refuses anyone else in its own words.
   if (command === "discover") {
     await sayOrganization();
-    return discover({ apiBaseUrl, args: process.argv.slice(3).filter(a => !a.startsWith("--") && a !== getArg("--api")), say, json: jsonOut });
+    return discover({ apiBaseUrl, args: process.argv.slice(3).filter(a => !a.startsWith("--") && a !== getArg("--api")), say, json: jsonOut, all: process.argv.includes("--all") });
   }
 
   // The organization's platform values (PHASE4-PLAN Step 9): what only its platform team

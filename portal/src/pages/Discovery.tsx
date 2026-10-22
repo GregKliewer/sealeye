@@ -16,7 +16,7 @@ import { CommandHint } from "../Command";
 import { commandLine, label } from "../../../core/operations.js";
 import { editableFieldsOf, EDIT_LIMIT } from "../../../core/catalog-edits.js";
 import { forbiddenWords } from "../../../core/developer-words.js";
-import { choicesFor, discoveryEventLine, discoveryStateWords, isOpen, activityWords, answerStateWords, elapsedWords, modulesDone, nextProgress, progressSummary, SOMETHING_ELSE, ANSWER_LIMIT, approvedWords, catalogStatusWords, catalogSummaryWords, madeLiveWords, nextCatalogStep, RESTS_ON_QUESTION, selfTestSummary, avoidWords, stillSaysWords, FIX_OFFER, fixableByEditing, fixedWords, fixPlaceWords, notFixedByEditing, wordFixesOf, builtWords, withVersion } from "../../../core/discovery-words.js";
+import { comparedWords, READ_ALL, choicesFor, discoveryEventLine, discoveryStateWords, isOpen, activityWords, answerStateWords, elapsedWords, modulesDone, nextProgress, progressSummary, SOMETHING_ELSE, ANSWER_LIMIT, approvedWords, catalogStatusWords, catalogSummaryWords, madeLiveWords, nextCatalogStep, RESTS_ON_QUESTION, selfTestSummary, avoidWords, stillSaysWords, FIX_OFFER, fixableByEditing, fixedWords, fixPlaceWords, notFixedByEditing, wordFixesOf, builtWords, withVersion } from "../../../core/discovery-words.js";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -103,11 +103,14 @@ function Discovery() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latestId, running]);
 
+  // Every module read again, whatever changed: `sealeye discover --all`.
+  const [readAll, setReadAll] = useState(false);
+
   async function start() {
     setStarting(true);
     setProblem(null);
     try {
-      await api.startDiscovery();
+      await api.startDiscovery(readAll);
       runs.reload();
     } catch (err) {
       setProblem(err instanceof ApiError ? err.message : String(err));
@@ -127,7 +130,11 @@ function Discovery() {
         sub="Read your platform library into a draft catalog, and answer its questions as they come, or later: the run never waits on you. A catalog goes live only after its self-test, once approved and made live below."
         action={<div className="text-right">
           <Button onClick={start} disabled={starting || running} data-testid="start-discovery">{running ? "A run is going" : "Start a run"}</Button>
-          <CommandHint op="discover" className="mt-2 justify-end" />
+          <label className="mt-2 flex items-center justify-end gap-2 text-sm text-dim">
+            <input type="checkbox" checked={readAll} onChange={e => setReadAll(e.target.checked)} disabled={starting || running} data-testid="read-all" />
+            {READ_ALL}
+          </label>
+          <CommandHint op="discover" flags={readAll ? ["--all"] : []} className="mt-2 justify-end" />
         </div>} />
       {runs.error ? <Problem message={runs.error} /> : null}
       {problem ? <Problem message={problem} /> : null}
@@ -143,8 +150,9 @@ function Discovery() {
             </div>
             <p className="mt-2 text-sm text-dim">
               {run.repos.map(r => `${r.repo}${r.commit ? ` at ${r.commit.slice(0, 7)}` : ""}`).join(", ")}
-              {!running && run.modules.length ? `; ${modulesDone(run) - run.modules.filter(m => m.status === "not_read").length} of ${run.modules.length} modules read` : ""}
+              {!running && run.modules.length && !run.unchangedSince ? `; ${modulesDone(run) - run.modules.filter(m => m.status === "not_read").length} of ${run.modules.length} modules read or kept` : ""}
             </p>
+            {comparedWords(run) ? <p className="mt-1 text-sm text-dim" data-testid="run-compared">{comparedWords(run)}</p> : null}
             {running ? (
               <div className="mt-3" data-testid="run-progress">
                 <div className="flex items-center gap-2 text-sm">

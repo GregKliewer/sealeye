@@ -812,3 +812,96 @@ test("a person's edit to a draft's words is kept when a late answer re-writes th
   assert.match(db.guidance, /Below staging only \(db below staging/, "while the rest of the entry took the answer");
   assert.equal(db.edited.line.by, "lee@acme.test");
 });
+
+// Step 6c (Greg, Oct 22, 2026): a run compared with the live catalog's reads again only the
+// modules that changed, writes again only their entries and those they touch, and keeps
+// the rest as approved; nothing changed is no draft; --all reads everything.
+test("only what changed since the live catalog is read and written again; the rest is kept as approved", async () => {
+  const { approveCatalog, makeLive } = await import("../api/catalogs.js");
+  const { modulesDone, comparedWords, discoveryEventLine } = await import("../core/discovery-words.js");
+  const who = { ...caller, org: "acme-again" };
+  const dir = library();
+  const run = async (model, options = {}) => {
+    const service = createDiscoveryService({ client: model.client, readLibrary: readFolder(dir) });
+    const events = [];
+    const { discoveryId } = await service.start({ caller: who, repos: [{ owner: "acme", repo: "platform" }], ...options });
+    service.subscribe(discoveryId, 0, e => e && events.push(e));
+    await service.settled(discoveryId);
+    return { service, id: discoveryId, record: service.record(discoveryId), summary: service.get(discoveryId), events };
+  };
+  // A reader makes two calls (it reads, then hands in): each module once.
+  const workers = model => [...new Set(model.calls.filter(c => c.tools.includes("submit_finding")).map(c => c.opening.match(/Your module is (\S+)\./)[1]))].sort();
+  const wrote = model => model.calls.filter(c => c.tools.includes("write_catalog")).map(c => c.opening.match(/Write the entries for these modules: (.+)\./)[1]);
+  const libraryRead = model => model.calls.some(c => c.tools.includes("submit_library"));
+
+  // The first run reads everything, and its draft goes live.
+  const first = scripted();
+  const one = await run(first);
+  assert.deepEqual(workers(first), ["modules/cache", "modules/db", "modules/db-cluster"]);
+  assert.equal(one.summary.comparedWith, undefined, "nothing to compare with yet");
+  const v1 = one.record.catalogVersion;
+  await approveCatalog({ org: who.org, version: v1, by: who.email });
+  await makeLive({ org: who.org, version: v1, by: who.email });
+  const live = catalogAt(who.org, v1);
+
+  // The cache changes: only it is read and written again; the databases are kept.
+  fs.appendFileSync(path.join(dir, "modules/cache/README.md"), "Moved to the new cache module.\n");
+  const second = scripted();
+  const two = await run(second);
+  assert.deepEqual(workers(second), ["modules/cache"]);
+  assert.equal(libraryRead(second), false, "the README and pipeline did not change");
+  assert.deepEqual(wrote(second), ["modules/cache"]);
+  assert.deepEqual(two.summary.modules.map(m => [m.source, m.status]), [["modules/cache", "read"], ["modules/db", "kept"], ["modules/db-cluster", "kept"]]);
+  assert.deepEqual(two.summary.comparedWith, { catalog: v1, kept: 2, written: 1, gone: [] });
+  assert.equal(modulesDone(two.summary), 3);
+  assert.equal(comparedWords(two.summary), `Compared with catalog ${v1}: 2 modules unchanged and kept, 1 entry written again.`);
+  const kept = two.events.find(e => e.type === "kept");
+  assert.deepEqual(kept.sources, ["modules/db", "modules/db-cluster"]);
+  assert.match(discoveryEventLine(kept), new RegExp(`^Unchanged since catalog ${v1}, so kept as it is there: modules/db, modules/db-cluster`));
+  const draft = catalogAt(who.org, two.record.catalogVersion);
+  assert.deepEqual(catalogProblems(draft), []);
+  for (const id of ["db", "db_cluster"]) {
+    const was = live.modules.find(m => m.id === id);
+    const now = draft.modules.find(m => m.id === id);
+    for (const field of ["line", "when", "guidance", "meets", "availability", "inputs"]) assert.deepEqual(now[field], was[field], `${id}'s ${field} kept as approved`);
+  }
+  // Questions about kept modules are carried, answers and all; the cache's are its reader's again.
+  const carried = two.service.questions(two.id).filter(q => q.carried);
+  assert.ok(carried.length > 0);
+  assert.ok(carried.every(q => q.touches.every(t => t !== "modules/cache")));
+
+  // The database changes: it and the one that meets the same need are written again.
+  fs.appendFileSync(path.join(dir, "modules/db/README.md"), "Now with backups.\n");
+  await approveCatalog({ org: who.org, version: two.record.catalogVersion, by: who.email });
+  await makeLive({ org: who.org, version: two.record.catalogVersion, by: who.email });
+  const third = scripted();
+  const three = await run(third);
+  assert.deepEqual(workers(third), ["modules/db"]);
+  assert.deepEqual(wrote(third), ["modules/db, modules/db-cluster"], "db-cluster meets the need db meets, so what spans them is written whole");
+  assert.deepEqual(three.summary.comparedWith.written, 2);
+
+  // Nothing changed since the live catalog: no model call, no draft, and it says so.
+  await approveCatalog({ org: who.org, version: three.record.catalogVersion, by: who.email });
+  await makeLive({ org: who.org, version: three.record.catalogVersion, by: who.email });
+  const fourth = scripted();
+  const four = await run(fourth);
+  assert.equal(fourth.calls.length, 0);
+  assert.equal(four.record.status, "finished");
+  assert.equal(four.record.catalogVersion, null);
+  assert.equal(four.summary.unchangedSince, three.record.catalogVersion);
+  assert.match(discoveryEventLine(four.events.find(e => e.type === "unchanged")), /^Nothing in the library has changed since catalog \d+, so no draft was written\. To read every module again anyway: `sealeye discover --all`, or Read every module again on the Discovery page\.$/);
+  assert.match(discoveryEventLine(four.events.find(e => e.type === "finished")), /^Finished: catalog \d+ still describes the library$/);
+
+  // Asked to, it reads everything.
+  const fifth = scripted();
+  const five = await run(fifth, { full: true });
+  assert.deepEqual(workers(fifth), ["modules/cache", "modules/db", "modules/db-cluster"]);
+  assert.equal(libraryRead(fifth), true);
+  assert.equal(five.summary.full, true);
+
+  // The README changes the rules every module is read against: everything is read again.
+  fs.appendFileSync(path.join(dir, "README.md"), "Every app needs an owner.\n");
+  const sixth = scripted();
+  await run(sixth);
+  assert.deepEqual(workers(sixth), ["modules/cache", "modules/db", "modules/db-cluster"]);
+});

@@ -1352,7 +1352,8 @@ const ownRun = (req, id) => {
 app.post("/discoveries", async (req, res) => {
   if (!mayDiscover(req.caller)) return discoveryForbidden(res);
   try {
-    const started = await discoveries.start({ caller: req.caller, surface: req.surface });
+    // { full: true } reads every module again, whatever changed.
+    const started = await discoveries.start({ caller: req.caller, surface: req.surface, full: req.body?.full === true });
     return res.status(202).json(started);
   } catch (err) {
     if (err instanceof RunGoing) return res.status(409).json({ error: { code: "RUN_GOING", message: "A discovery run is already going for your organization. Follow that one, or wait for it to end." } });

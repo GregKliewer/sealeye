@@ -4532,3 +4532,40 @@ each, so the platform team knows what to build next and why.
   app's code, and the app needs a service that runs continuously). A met need lists
   each app with what it still waits on (`stillWaiting`), and only an app that waits on
   nothing else is told `sealeye run` will finish it.
+
+## Discovery reads again only what changed
+
+Thu Oct 22, 2026, PHASE4-PLAN Step 6c (Greg, Oct 22: readers and entries, compared with
+the live catalog's run). Today's measured runs on Juniper Mutual put about 85% of a run's
+cost in the supervisor writing entries and about 15% in the readers, so keeping
+unchanged modules' findings alone would save little; keeping their entries saves most of
+it.
+
+- **Compared with the run behind the live catalog**, for the same library: what the
+  platform team approved, so a draft never approved never becomes the base of the next.
+  With no such run, a run is a full one, as before.
+- **A module is unchanged when its folder's hash is** (`moduleHash`, which a run already
+  kept), its earlier reader finished, and the live catalog has its entry. It keeps that
+  finding (its reader does not run) and that entry: the words, the guidance, which needs
+  it meets and whatever a person wrote of it, as approved (`keepEntries` in
+  `api/discovery/draft.js`). What code reads of it is read fresh every run, and which
+  of this run's questions it rests on is worked out again.
+- **The README and pipeline decide whether anything can be kept** (`libraryHash`): every
+  reader may read them, so when they change, the rules every module is read against may
+  have changed, and every module is read again, as is the library's own reader.
+- **What spans modules is written whole** (`toWrite` in `api/discovery/service.js`): the
+  supervisor still sees every finding, and writes the entries of the modules that
+  changed and of unchanged ones they touch: one a changed module's finding or earlier
+  entry names, one that met a need a changed module met (two databases), or one whose
+  entry names a module the library no longer has.
+- **Questions about kept modules are carried over**, with their answers, so nobody is
+  asked again what they answered (`carried: true` on the question). A question about the
+  whole catalog is carried too, since the README and pipeline it came from are unchanged.
+- **Nothing changed, no draft**: a run that finds every module unchanged and none gone
+  writes nothing and says so, naming the catalog that still describes the library.
+- **Asked to, a run reads everything**: `POST /discoveries { full: true }`, `sealeye
+  discover --all`, the Discovery page's "Read every module again". Each run says what it
+  was compared with (`comparedWith`, `comparedWords` in `core/discovery-words.js`) on
+  both surfaces.
+- **The eval is unchanged**: its organization never has a live catalog, so every graded
+  run is a full one, comparable with every run before.

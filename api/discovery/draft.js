@@ -154,6 +154,34 @@ export function draftCatalog({ run, modules, library, entries, questions }) {
   };
 }
 
+/**
+ * A draft whose modules the run did not read again take their entries from the live
+ * catalog the run was compared with (DESIGN.md, "Discovery reads again only what
+ * changed"): its words, its guidance, which needs it meets, and what a person wrote of
+ * it, as approved; what code read of the module this time (its outputs, how it takes an
+ * app, what it would run, how it connects, which release), since that is read fresh
+ * every run; and which of this run's questions it rests on.
+ *
+ * @param {object} document     the draft, every entry written from this run
+ * @param {object} base         the live catalog's document
+ * @param {Set<string>} sources the folders whose entries are kept from `base`
+ * @param {object[]} questions  this run's questions, those carried over among them
+ */
+export function keepEntries(document, base, sources, questions) {
+  const before = new Map((base?.modules || []).map(m => [m.source, m]));
+  return {
+    ...document,
+    modules: document.modules.map(m => {
+      const was = before.get(m.source);
+      if (!sources.has(m.source) || !was) return m;
+      const { open: _old, ...kept } = was;
+      const fresh = Object.fromEntries(["outputs", "delivers", "runs", "offers", "accepts", "version", "tag", "commit", "unreleased"].filter(k => k in m).map(k => [k, m[k]]));
+      const open = openFor(m.source, questions);
+      return { ...kept, id: m.id, ...fresh, ...(open.length ? { open } : {}) };
+    })
+  };
+}
+
 /** The same draft with some entries written again (a late answer), the rest as they were. */
 export function rewriteEntries(document, { modules, entries, questions, library = null }) {
   const bySource = new Map((entries || []).map(e => [e.source, e]));

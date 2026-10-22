@@ -18,7 +18,7 @@ When ROADMAP.md changes what a phase holds, fix its picture here in the same com
 | 1 | Team release | Mostly done Oct 11, 2026 | Hosted API, tokens, Postgres, the live portal, CI. Open: the second-person test, which runs alongside Phase 3 |
 | 2 | Day-two parity | Built Oct 12, 2026 | Logs, performance, costs, pause, configure, the settings store and evidence, on both surfaces |
 | 3 | Governed backbone | Built Oct 14, 2026, all but routing ([PHASE3-PLAN.md](PHASE3-PLAN.md)) | agentgateway in front of every model call, identity per caller, spend caps, the secret scanner. Open: routing and the Bedrock route (Step 8). The gateway's span in the trace moved to Phase 4 |
-| 4 | Learn the platform | Built Oct 22, 2026, all but what runs in a customer's account ([PHASE4-PLAN.md](PHASE4-PLAN.md)) | A discovery swarm reads the organization's library into its catalog, with must-refuse tests and Terraform; a gap report. Open: LangFuse self-hosted in Canada and discovery in a customer's own account (both before the first customer), and reading only changed modules again |
+| 4 | Learn the platform | Built Oct 22, 2026, all but what runs in a customer's account ([PHASE4-PLAN.md](PHASE4-PLAN.md)) | A discovery swarm reads the organization's library into its catalog, with must-refuse tests and Terraform; a gap report. Open: LangFuse self-hosted in Canada and discovery in a customer's own account (both before the first customer) |
 | 5 | The path to production | Planned | Promote, approvals in ServiceNow, Jira gap tickets with options and a recommendation, team accounts, Cognito sign-in |
 | 6 | seaLeye for agents | **New**, planned | seaLeye's tools as MCP behind the gateway, for coding agents |
 | 7 | Delivery and breadth | Planned | In-network or single tenant, the organization's own model, more clouds and regions, Windows |
@@ -197,7 +197,7 @@ flowchart TB
   class admin,catalog,cloud,contract,discovery,executor,frontdoor,library built
 ```
 
-Key flow: one discovery run, overnight, in a new account for the customer; the run is paid. The swarm reads in parallel, asks people when unsure without ever waiting for them, and is tested before use. Built as drawn, but for two things: a run reads every module (only changed ones again is still to come), and a person's answer is taken whenever it comes, never waited for (Q19).
+Key flow: one discovery run, overnight, in a new account for the customer; the run is paid. The swarm reads in parallel, asks people when unsure without ever waiting for them, and is tested before use. Built as drawn, but a person's answer is taken whenever it comes, never waited for (Q19); a run reads again only the modules that changed since the live catalog, unless asked to read them all.
 
 ```mermaid
 flowchart TB

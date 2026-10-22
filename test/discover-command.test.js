@@ -195,3 +195,36 @@ test("both surfaces say the same things about a run", () => {
     assert.doesNotMatch(line, /[–—]/, "no dashes in what anyone reads");
   }
 });
+
+// Step 6c: a run reads only what changed since the live catalog, unless asked to read every
+// module again, which both surfaces offer and the API takes as { full: true }.
+test("sealeye discover --all asks for every module to be read again; without it, nothing is asked", async () => {
+  const http = await import("node:http");
+  const bodies = [];
+  const server = http.createServer((req, res) => {
+    let body = "";
+    req.on("data", d => (body += d));
+    req.on("end", () => {
+      if (req.method === "POST" && req.url === "/discoveries") bodies.push(JSON.parse(body || "{}"));
+      res.writeHead(req.url === "/discoveries" && req.method === "POST" ? 409 : 200, { "content-type": "application/json" });
+      res.end(JSON.stringify(req.url === "/whoami" ? { org: "default", team: "platform", scope: "org", email: "lee@example.com", name: "Lee" } : { error: { code: "NO_LIBRARY", message: "No platform library is named for discovery yet." } }));
+    });
+  });
+  await new Promise(r => server.listen(0, r));
+  const at = `http://127.0.0.1:${server.address().port}`;
+  const env = { ...process.env, HOME: api.home, SEALEYE_HOME: api.home, SEALEYE_TOKEN: LEE, SEALEYE_API: at, NO_COLOR: "1" };
+  const run = args => promisify(execFile)(process.execPath, [path.join(root, "cli/bin/sealeye"), "discover", ...args, "--api", at], { cwd: api.home, env }).catch(e => e);
+  try {
+    await run(["--all"]);
+    await run([]);
+  } finally {
+    server.close();
+  }
+  assert.deepEqual(bodies, [{ full: true }, {}]);
+  const { comparedWords, READ_ALL } = await import("../core/discovery-words.js");
+  assert.equal(READ_ALL, "Read every module again");
+  assert.equal(comparedWords({ full: true }), "Read every module again, as asked.");
+  assert.equal(comparedWords({ unchangedSince: 12 }), "Nothing had changed since catalog 12, so no draft was written.");
+  assert.equal(comparedWords({ comparedWith: { catalog: 12, kept: 13, written: 1, gone: ["modules/old"] } }), "Compared with catalog 12: 13 modules unchanged and kept, 1 entry written again; no longer in the library: modules/old.");
+  assert.equal(comparedWords({}), null);
+});
