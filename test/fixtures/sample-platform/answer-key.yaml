@@ -205,11 +205,13 @@ catalog:
         subnet_group_name: { required: true, line: The stage's database network. }
         security_group_ids: { required: true, line: Who may connect. }
         instance_class: { default: db.r6g.large, line: How large the database is. }
+        permissions_boundary_arn: { default: null, line: The platform's limit, carried by the database's one-time setup too. }
         tags: { default: {}, line: Extra labels on everything it makes. }
       guidance: >-
         Always from staging up; below staging use postgres, which takes the same inputs.
         From staging up it has a reader in another zone, five weeks of backups, and
-        protection against deletion.
+        protection against deletion. Your app gets a database and a user of its own and
+        signs in with its own identity, never a password, as with postgres.
 
     - id: document_table
       source: modules/document-table

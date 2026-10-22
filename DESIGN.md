@@ -4236,6 +4236,14 @@ sealeye-sample-platform #4 and #5 (`postgres` and `http-api` at 1.2) and here.
     database is named when no setup ran, and `secret_arns` no longer suggests a
     database's password. Checked and kept: `nonsensitive(var.master_password == null)`
     plans the setup once, or not at all, with OpenTofu 1.12.6.
+- **`postgres-cluster` signs the app in the same way** (Oct 22, 2026; library
+  `postgres-cluster` 1.1.0, a release Greg tags): the same setup step, byte for byte,
+  the right to sign in on the cluster's own resource id, and the same outputs plus
+  `reader_address`. It is for staging up, so seaLeye, which builds dev, does not build
+  it yet: the pilot has no `postgres_cluster.security_group_ids` value, and the
+  Terraform role and the setup boundary name database instances (`db:sealeye-*-dev`,
+  `rds!db-*`), not clusters (`cluster:`, `rds!cluster-*`). Widening them is its own
+  change, with an independent review, when a stage past dev is built.
 
 ## The command installs the libraries its release was tested with
 
