@@ -238,9 +238,10 @@ export function buildableView(catalog = loadCatalog()) {
     // app, what it would run, how it connects to another), nor which commit its release
     // is: the platform's to know too. Its version is the developer's to read.
     // What an environment built from it offers (core/operations.js), so a card promises
-    // only what the developer can then do: logs and readings come back only from what
-    // seaLeye's own templates build.
-    modules: modules.map(({ builds_with, guidance, edited, outputs, delivers, runs, offers, accepts, tag, commit, unreleased, ...m }) => ({ ...m, buildable: true, operations: operationsOf({ builds_with }) })),
+    // only what the developer can then do: readings come back only from what seaLeye's
+    // own templates build; logs from those, and from a module that says where it keeps
+    // them (delivers.logs).
+    modules: modules.map(({ builds_with, guidance, edited, outputs, delivers, runs, offers, accepts, tag, commit, unreleased, ...m }) => ({ ...m, buildable: true, operations: operationsOf({ builds_with, delivers }) })),
     need_kinds: catalog.need_kinds || [],
     profiles: catalog.profiles || [],
     patterns
@@ -250,7 +251,7 @@ export function buildableView(catalog = loadCatalog()) {
 /** What an environment built from a catalog entry offers: its operations, by what builds it. */
 function operationsOf(entry) {
   if (Array.isArray(entry?.operations)) return entry.operations;
-  return environmentOperations(entry?.builds_with === "terraform" ? "terraform" : "cloudformation");
+  return environmentOperations(entry?.builds_with === "terraform" ? "terraform" : "cloudformation", { logs: Boolean(entry?.delivers?.logs) });
 }
 
 /**

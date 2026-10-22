@@ -191,7 +191,7 @@ export function rootModule({ moduleSource, inputs, outputs, state, tags, parts =
 /** The outputs worth reading back: the app's address, and where a site's files go. */
 export function outputsWanted(entry) {
   const d = entry.delivers || {};
-  return [...new Set([d.address, d.kind === "files" ? d.output : null].filter(Boolean))].filter(o => o in (entry.outputs || {}));
+  return [...new Set([d.address, d.kind === "files" ? d.output : null, d.kind === "package" ? d.logs : null].filter(Boolean))].filter(o => o in (entry.outputs || {}));
 }
 
 /**

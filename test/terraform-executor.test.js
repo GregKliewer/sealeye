@@ -31,8 +31,8 @@ function juniperCatalog() {
     m.delivers = null;
   }
   const http = doc.modules.find(m => m.id === "http_api");
-  http.outputs = { url: { line: "The API's address." }, role_name: { line: "The function's role." } };
-  http.delivers = { kind: "package", package: "package_path", handler: "handler", address: "url" };
+  http.outputs = { url: { line: "The API's address." }, role_name: { line: "The function's role." }, log_group: { line: "Where the app's logs are kept." } };
+  http.delivers = { kind: "package", package: "package_path", handler: "handler", address: "url", logs: "log_group" };
   // What code reads of how modules connect (api/discovery/terraform.js, connectsOf).
   http.inputs.policy_arns = { required: false, default: [] };
   http.inputs.secret_arns = { required: false, default: [] };
@@ -78,7 +78,9 @@ switch (args[0]) {
     process.exit(0);
   case "output": {
     const site = root && root.output && root.output.bucket_name;
-    process.stdout.write(JSON.stringify(site ? { bucket_name: { value: "juniper-site-sealeye-x-dev" }, url: { value: "https://d111.cloudfront.net" } } : { url: { value: "https://abc.execute-api.ca-central-1.amazonaws.com" } }));
+    const name = root && root.module && root.module.app && root.module.app.name;
+    const group = fs.existsSync(path.join(log, "log-group-elsewhere")) ? fs.readFileSync(path.join(log, "log-group-elsewhere"), "utf8") : "/aws/lambda/" + name + "-dev-api";
+    process.stdout.write(JSON.stringify(site ? { bucket_name: { value: "juniper-site-sealeye-x-dev" }, url: { value: "https://d111.cloudfront.net" } } : { url: { value: "https://abc.execute-api.ca-central-1.amazonaws.com" }, log_group: { value: group } }));
     process.exit(0);
   }
   case "destroy": say({ type: "change_summary", changes: { add: 0, change: 0, remove: 9, operation: "destroy" } }); process.exit(0);
@@ -124,6 +126,15 @@ before(async () => {
     aws: `
       require("fs").appendFileSync(${JSON.stringify(path.join(logDir, "aws-profile.log"))}, (process.env.AWS_PROFILE || "-") + " " + args.slice(0, 2).join(" ") + "\\n");
       if (args[0] === "ssm") out([]);
+      // What the app wrote, read from the group the module named.
+      if (args[1] === "filter-log-events") {
+        const group = args[args.indexOf("--log-group-name") + 1];
+        const start = Number(args[args.indexOf("--start-time") + 1]);
+        const end = args.includes("--end-time") ? Number(args[args.indexOf("--end-time") + 1]) : Infinity;
+        const at = Date.now() - 1000;   // one line, written a second ago, in its window only
+        const tail = group.includes("orders") ? "ORDERS_TABLE=orders-table-dev" : "DB_PASSWORD=hunter2";
+        out(at >= start && at < end ? [{ timestamp: at, message: "listening on 8080, logs from " + group + " " + tail }] : []);
+      }
       // The private network's leftover interfaces, as the test plants them (sweep.json).
       if (args[1] === "describe-network-interfaces") {
         const planted = ${JSON.stringify(path.join(logDir, "sweep.json"))};
@@ -237,9 +248,24 @@ test("an API is built from the organization's module: packaged with the adapter,
   assert.deepEqual(done.terraform.applied, { add: 9, change: 0, remove: 0 });
   assert.deepEqual(done.terraform.ignoredInputs, ["handler", "name"], "the plan does not name the module or its handler");
   assert.deepEqual(done.terraform.inputs.find(i => i.name === "permissions_boundary_arn"), { name: "permissions_boundary_arn", source: "platform value", from: "permissions_boundary_arn" });
-  assert.deepEqual(done.operations, ["deploy-again", "status", "watch", "teardown", "evidence", "plan", "online"]);
+  assert.deepEqual(done.operations, ["deploy-again", "status", "watch", "teardown", "logs", "evidence", "plan", "online"], "logs, since the module says where they are");
   assert.match(done.report, /your organization's own module, `modules\/http-api`/);
   assert.doesNotMatch(done.report, /Terraform|OpenTofu|CloudFormation|Lambda/, "no product name in a developer's report");
+  // The module said where the app's logs are kept, so they are read from there, through
+  // the Terraform role, masked as the starter's are, and the report says how.
+  assert.equal(done.outputs.LogGroup, `/aws/lambda/${done.resourceName}-dev-api`);
+  assert.match(done.report, /## Logs\n\nEverything your app prints, from the first request\. Read them with `sealeye logs lookup`/);
+  fs.writeFileSync(path.join(logDir, "aws-profile.log"), "");
+  const appLogs = await h.call(`/deployments/${done.deploymentId}/logs`, { token: DEV });
+  assert.equal(appLogs.status, 200, JSON.stringify(appLogs.body));
+  assert.equal(appLogs.body.lines.length, 1);
+  assert.match(appLogs.body.lines[0].message, new RegExp(`logs from /aws/lambda/${done.resourceName}-dev-api`));
+  assert.match(appLogs.body.lines[0].message, /DB_PASSWORD=\[value redacted\]/, "masked as the starter's logs are");
+  assert.match(fs.readFileSync(path.join(logDir, "aws-profile.log"), "utf8"), /^sealeye-deploy-terraform logs filter-log-events$/m, "read through the Terraform role");
+  const listed = (await h.call("/deployments", { token: DEV })).body.deployments.find(d => d.deploymentId === done.deploymentId);
+  assert.ok(listed.operations.includes("logs"), "the listing says so too, for the portal's card");
+  assert.ok(!(await h.call("/catalog", { token: DEV })).body.document.modules.find(m => m.id === "static_site").operations.includes("logs"), "a site offers none");
+  assert.ok((await h.call("/catalog", { token: DEV })).body.document.modules.find(m => m.id === "http_api").operations.includes("logs"), "the catalog's entry offers them, so the card promises them");
 
   const root = lastRoot();
   assert.equal(root.module.app.source, "./library/modules/http-api");
@@ -251,7 +277,7 @@ test("an API is built from the organization's module: packaged with the adapter,
   assert.equal(root.terraform.required_providers.aws.version, "5.100.0");
   assert.equal(root.terraform.backend.s3.use_lockfile, true);
   assert.equal(root.terraform.backend.s3.key, `tofu-state/juniper/${done.stackName}.tfstate`);
-  assert.deepEqual(Object.keys(root.output), ["url"]);
+  assert.deepEqual(Object.keys(root.output), ["url", "log_group"]);
 
   const calls = tofuCalls();
   assert.deepEqual(calls.map(c => c.args[0]), ["init", "plan", "apply", "output"]);
@@ -263,9 +289,6 @@ test("an API is built from the organization's module: packaged with the adapter,
   // The work folder goes when the deployment ends; the state is in S3.
   assert.equal(fs.existsSync(path.join(h.home, "tofu", done.deploymentId)), false);
 
-  const logs = await h.call(`/deployments/${done.deploymentId}/logs`, { token: DEV });
-  assert.equal(logs.status, 409);
-  assert.equal(logs.body.error.code, "NOT_FOR_THIS_ENVIRONMENT");
   assert.equal((await h.call(`/deployments/${done.deploymentId}/pause`, { token: DEV, method: "POST" })).body.error.code, "NOT_FOR_THIS_ENVIRONMENT");
   assert.equal((await h.call(`/deployments/${done.deploymentId}/performance`, { token: DEV })).status, 409);
 
@@ -281,6 +304,20 @@ test("an API is built from the organization's module: packaged with the adapter,
   assert.match(summary.rows.find(r => r.label === "Built").text, /^modules\/http-api at 5e63aa573473, artifact /);
   assert.match(ev.body.markdown, /`permissions_boundary_arn`: platform value/);
   assert.ok(!ev.body.markdown.includes(BOUNDARY), "inputs by name and source, not value");
+
+  // A deploy again that fails has no group of its own, and the environment's logs are
+  // still read, from the record that has one; the newest record still offers them.
+  fs.writeFileSync(path.join(logDir, "fail-apply"), "creating Lambda Function: AccessDeniedException");
+  const broken = await h.call("/deployments", { token: DEV, method: "POST", body: { backend: "cloudformation", fromDeployment: done.deploymentId } });
+  assert.equal(broken.status, 201, JSON.stringify(broken.body));
+  const failed = await waitFor(broken.body.deploymentId, DEV);
+  fs.rmSync(path.join(logDir, "fail-apply"), { force: true });
+  assert.equal(failed.status, "failed");
+  assert.equal(failed.outputs.LogGroup, undefined);
+  assert.ok(failed.operations.includes("logs"), "the environment's group is on an earlier record");
+  const stillRead = await h.call(`/deployments/${failed.deploymentId}/logs`, { token: DEV });
+  assert.equal(stillRead.status, 200, JSON.stringify(stillRead.body));
+  assert.match(stillRead.body.lines[0].message, new RegExp(`logs from /aws/lambda/${done.resourceName}-dev-api`));
 
   // Deployed again: the same code, fetched back, built the same way.
   fs.writeFileSync(path.join(logDir, "tofu.log"), "");
@@ -463,6 +500,12 @@ test("an app and the table it uses are built as one environment, connected throu
   const ev = await h.call(`/deployments/${done.deploymentId}/evidence`, { token: DEV });
   assert.match(ev.body.markdown, /- Connected: `document_table`, the folder `modules\/document-table` at commit/);
   assert.match(ev.body.markdown, /`ORDERS_TABLE` is `document_table\.table_name` \(names only\)/);
+  // The setting the table reaches the app under is masked by name in its logs, as the
+  // starter's settings are, since its value is the platform's own.
+  const masked = await h.call(`/deployments/${done.deploymentId}/logs`, { token: DEV });
+  assert.equal(masked.status, 200, JSON.stringify(masked.body));
+  assert.match(masked.body.lines[0].message, /ORDERS_TABLE=\[value redacted\]/);
+  assert.doesNotMatch(masked.body.lines[0].message, /orders-table-dev/);
 
   // Torn down together, from the same root.
   fs.rmSync(path.join(logDir, "main.tf.json"), { force: true });
@@ -518,4 +561,52 @@ test("an environment that joined the private network says a tear-down can take u
   assert.ok(calls.includes("ec2 delete-network-interface --network-interface-id eni-0bbb --region ca-central-1"), calls.join("\n"));
   assert.ok(calls.some(c => c.includes(`Name=description,Values=AWS Lambda VPC ENI-${done.resourceName}-*`) && c.includes("Name=status,Values=available")), "only detached interfaces named for this environment's functions");
   fs.rmSync(path.join(logDir, "sweep.json"), { force: true });
+});
+
+test("an environment whose module does not say where its logs are has none to read, and says why", async () => {
+  const startedAt = new Date().toISOString();
+  const quiet = await startApi({
+    tokens: [{ token: DEV, id: "dev", team: "payments", org: "juniper" }],
+    records: [{ backend: "terraform", orgId: "juniper", teamId: "payments", startedAt, kind: "api", deploymentId: "dep_tfnologs000", status: "succeeded", stackName: "sealeye-payments-q-123456", app: { name: "q" }, outputs: { ApiUrl: "https://q.example" }, terraform: {} }],
+    aws: ""
+  });
+  try {
+    const r = await quiet.call("/deployments/dep_tfnologs000/logs", { token: DEV });
+    assert.equal(r.status, 409);
+    assert.equal(r.body.error.code, "NO_LOGS");
+    assert.match(r.body.error.message, /does not say where your app's logs are kept/);
+    const rec = (await quiet.call("/deployments/dep_tfnologs000", { token: DEV })).body;
+    assert.ok(!rec.operations.includes("logs"), "so neither surface offers them");
+    assert.deepEqual(quiet.awsCalls(), [], "nothing was asked of AWS");
+  } finally {
+    quiet.stop();
+  }
+});
+
+test("a module that names a group that is not the environment's own is not believed: no logs, and the record says why", async () => {
+  const zip = await appZip({ "package.json": JSON.stringify({ name: "sly", main: "index.js" }), "index.js": "1" });
+  fs.writeFileSync(path.join(logDir, "log-group-elsewhere"), "/aws/lambda/sealeye-payments-api");
+  fs.writeFileSync(path.join(logDir, "aws-profile.log"), "");
+  try {
+    const res = await h.call("/deployments", { token: DEV, method: "POST", body: { backend: "cloudformation", plan: planFor("sly", "api", [{ id: "http_api" }]), zip, appPath: "sly" } });
+    assert.equal(res.status, 201, JSON.stringify(res.body));
+    const done = await waitFor(res.body.deploymentId, DEV);
+    assert.equal(done.status, "succeeded", done.failureReason);
+    assert.equal(done.outputs.LogGroup, undefined, "another environment's group is never kept");
+    assert.equal(done.terraform.logsNotKept, "the module named a group that is not this environment's own");
+    assert.ok(!done.operations.includes("logs"));
+    const r = await h.call(`/deployments/${done.deploymentId}/logs`, { token: DEV });
+    assert.equal(r.status, 409);
+    assert.equal(r.body.error.code, "NO_LOGS");
+    assert.doesNotMatch(fs.readFileSync(path.join(logDir, "aws-profile.log"), "utf8"), /filter-log-events/, "nothing was read");
+    assert.match(done.report, /does not say where, so seaLeye cannot read it back to you/);
+    // The setup function's group is the platform team's, whatever a module outputs.
+    const { ownLogGroup } = await import("../api/executor/terraform/index.js");
+    assert.equal(ownLogGroup(`/aws/lambda/${done.resourceName}-dev-db-setup`, done.resourceName), false);
+    assert.equal(ownLogGroup(`/aws/lambda/${done.resourceName}-dev-api`, done.resourceName), true);
+    assert.equal(ownLogGroup(`/aws/lambda/${done.resourceName}x-dev-api`, done.resourceName), false, "a longer name is another environment");
+    assert.equal(ownLogGroup("/aws/lambda/platform-sealeye-api", done.resourceName), false);
+  } finally {
+    fs.rmSync(path.join(logDir, "log-group-elsewhere"), { force: true });
+  }
 });

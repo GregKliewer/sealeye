@@ -279,6 +279,17 @@ Resources:
                 Effect: Allow
                 Action: logs:DescribeLogGroups
                 Resource: "*"
+              # Reading an app's logs back to its developer (`sealeye logs`), from the
+              # group the organization's module said it keeps them in: the API asks only
+              # for the group on the environment's record, and may read none but an
+              # environment's own (DESIGN.md, "A Terraform environment's logs are read
+              # where its module says they are", Greg, Oct 22, 2026).
+              - Sid: ReadAppLogs
+                Effect: Allow
+                Action: logs:FilterLogEvents
+                Resource:
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/sealeye-*"
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/sealeye-*:*"
               # http-api: its HTTPS address. API Gateway names nothing in an ARN, as the
               # CloudFormation role's statement says too.
               # Every part of it is tagged as it is made (the provider's default tags), and

@@ -73,6 +73,9 @@ test("a module's name is short enough for every name a module makes from it, and
 
 test("discovery's code reads how a module takes an app, from its inputs and outputs", () => {
   assert.deepEqual(deliversOf({ package_path: {}, handler: {}, name: {} }, { url: {} }), { kind: "package", package: "package_path", handler: "handler", address: "url" });
+  // A module that says where the app's logs are kept (http-api 1.2.3): `sealeye logs` reads there.
+  assert.deepEqual(deliversOf({ package_path: {}, handler: {}, name: {} }, { url: {}, log_group: {} }), { kind: "package", package: "package_path", handler: "handler", address: "url", logs: "log_group" });
+  assert.equal(deliversOf({ name: {} }, { bucket_name: { line: "Upload the site's files here." }, url: {}, log_group: {} }).logs, undefined, "a site has no app logs");
   assert.deepEqual(deliversOf({ name: {} }, { bucket_name: { line: "Upload the site's files here." }, url: {} }), { kind: "files", output: "bucket_name", address: "url" });
   assert.equal(deliversOf({ name: {} }, { bucket_name: { line: "The bucket." }, bucket_arn: {} }), null, "a bucket an app keeps its own files in is not a site");
   assert.equal(deliversOf({ package_path: {} }, {}), null, "a package with no function named is not enough");
@@ -466,6 +469,12 @@ test("the Terraform role changes only the security groups seaLeye's environments
   const setup = text.slice(text.indexOf("  SetupBoundary:"), text.indexOf("  TerraformRole:"));
   assert.match(setup, /rds!db-\*/);
   assert.doesNotMatch(setup, /rds-db:connect/);
+  // Reading an app's logs back: only groups named for seaLeye's environments, and only
+  // read (Greg, Oct 22, 2026).
+  const read = block("ReadAppLogs");
+  assert.match(read, /Action: logs:FilterLogEvents\n/, "read, nothing else");
+  assert.match(read, /log-group:\/aws\/lambda\/sealeye-\*/);
+  assert.doesNotMatch(read, /Resource: "\*"/);
 });
 
 

@@ -8,7 +8,7 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
-import { OPERATIONS, commandFor, commandLine, label, wordsFor } from "../core/operations.js";
+import { OPERATIONS, commandFor, commandLine, environmentOperations, label, offers, wordsFor } from "../core/operations.js";
 
 const root = path.resolve(import.meta.dirname, "..");
 const cliSource = fs.readFileSync(path.join(root, "cli/bin/sealeye"), "utf8");
@@ -95,4 +95,13 @@ test("the portal writes no command line of its own", () => {
     text.split("\n").forEach((line, i) => { if (typed.test(line)) found.push(`${file}:${i + 1}: ${line.trim()}`); });
   }
   assert.deepEqual(found, []);
+});
+
+test("an environment built from the organization's module offers logs only when the module says where they are", () => {
+  assert.ok(!environmentOperations("terraform").includes("logs"));
+  assert.ok(environmentOperations("terraform", { logs: true }).includes("logs"));
+  assert.equal(offers("terraform", "logs", { logs: true }), true);
+  assert.equal(offers("terraform", "logs"), false);
+  assert.ok(environmentOperations("cloudformation").includes("logs"), "the starter's always has them");
+  assert.ok(!environmentOperations("terraform", { logs: true }).includes("perf"), "nothing else comes with it");
 });

@@ -10,6 +10,7 @@ import { maskSecretText } from "../core/tracing.js";
 import { recentLogs, listStoredSettings } from "./executor/cfn.js";
 import { storeFolder } from "./executor/settings.js";
 import { resourceNameOf } from "./executor/compose.js";
+import { terraformProfile } from "./executor/terraform/tofu.js";
 import { settingNamesFor } from "../core/setting-names.js";
 
 export const WINDOWS = { "15m": 15, "1h": 60, "6h": 360, "1d": 1440 };
@@ -20,7 +21,9 @@ const escape = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
  * @param {object} record  any deployment of the environment that has a stack
- * @param {{ window?: string, now?: number }} options
+ * @param {{ window?: string, now?: number, siblings?: object[] }} options  `siblings`:
+ *        the environment's other records, for a Terraform environment whose newest
+ *        record has no group of its own yet (a build under way, or one that failed)
  * @returns {Promise<{status: number, body: object}>}
  */
 // A secret-looking name, as traces mask it: key, secret, token, password.
@@ -46,7 +49,7 @@ export function maskerFor(names = []) {
 // how the newest lines come back first.
 const STEPS_MINUTES = [1, 5, 15, 60, 360, 1440];
 
-export async function readLogs(record, { window = "1h", now = Date.now() } = {}) {
+export async function readLogs(record, { window = "1h", now = Date.now(), siblings = [] } = {}) {
   const minutes = WINDOWS[window];
   if (!minutes) return refusal(400, "INVALID_WINDOW", `since must be one of ${Object.keys(WINDOWS).join(", ")}`);
   if (record.kind === "static") {
@@ -55,12 +58,22 @@ export async function readLogs(record, { window = "1h", now = Date.now() } = {})
   if (record.status === "destroyed" || record.status === "destroying") {
     return refusal(409, "NO_LOGS", "This environment has been torn down, and its logs went with it.");
   }
+  // An environment built from the organization's own module keeps its logs where that
+  // module says (`LogGroup`, from the output discovery found; DESIGN.md, "A Terraform
+  // environment's logs are read where its module says they are"), read through the
+  // Terraform role. One whose module says nothing has nothing to read.
+  const terraform = record.backend === "terraform";
+  const terraformGroup = terraform ? environmentLogGroup(record, siblings) : null;
+  if (terraform && !terraformGroup) {
+    return refusal(409, "NO_LOGS", "The module your organization built this environment from does not say where your app's logs are kept, so the platform cannot read them. Ask your platform team.");
+  }
   const fn = resourceNameOf(record);
-  if (!record.stackName || !fn) {
+  if (!record.stackName || (!terraform && !fn)) {
     return refusal(409, "NO_LOGS", "Nothing was built for this deployment, so there are no logs to read.");
   }
 
-  const group = `/aws/lambda/${fn}`;
+  const group = terraform ? terraformGroup : `/aws/lambda/${fn}`;
+  const profile = terraform ? terraformProfile() : null;
   const windowStart = now - minutes * 60_000;
   let events = [];
   let until = now;
@@ -68,7 +81,7 @@ export async function readLogs(record, { window = "1h", now = Date.now() } = {})
   for (const step of [...STEPS_MINUTES.filter(m => m < minutes), minutes]) {
     const since = Math.max(windowStart, now - step * 60_000);
     if (since >= until) continue;
-    const read = await recentLogs(group, { sinceMs: since, untilMs: until });
+    const read = await recentLogs(group, { sinceMs: since, untilMs: until, profile });
     if (!read.ok && read.missing) {
       return { status: 200, body: { app: record.app?.name || null, since: window, lines: [], more: false, note: "Your app has not written anything yet: there is nothing to read until it has run." } };
     }
@@ -87,8 +100,13 @@ export async function readLogs(record, { window = "1h", now = Date.now() } = {})
   // The names of the app's settings, whose values the API never reads: those in the
   // store, those its deploys were given from a .env, and those its plan asks for.
   let note;
-  const names = new Set([...(record.settings || []).map(x => x.name), ...settingNamesFor(record.plan)]);
-  try {
+  // Every setting the app reads by name: the starter's, and for an organization's module
+  // the settings its parts reach the app under (terraform.settings), whose values are
+  // the platform's ids and addresses.
+  const names = new Set([...(record.settings || []).map(x => x.name), ...settingNamesFor(record.plan), ...Object.keys(record.terraform?.settings || {})]);
+  // An app built from an organization's module reads no settings from the store, so
+  // there is nothing there to mask by name.
+  if (!terraform) try {
     const listed = await listStoredSettings(storeFolder({ team: record.teamId || "default", app: record.app?.name }));
     if (listed.ok) listed.settings.forEach(x => names.add(x.name));
     else note = "The platform could not read which settings are in your organization's store just now, so only values beside a secret-looking name, or a setting this app's deploys used, were taken out.";
@@ -109,4 +127,20 @@ export async function readLogs(record, { window = "1h", now = Date.now() } = {})
 
 function refusal(status, code, message) {
   return { status, body: { error: { code, message } } };
+}
+
+/**
+ * Where a Terraform environment's app logs are: the group on this record, or on the
+ * newest of the environment's other records that has one (a record being built, or
+ * one that failed, has none of its own yet, and the environment's group has not
+ * moved). Null when no record of the environment has a group: the module said nothing.
+ */
+export function environmentLogGroup(record, siblings = []) {
+  if (record?.outputs?.LogGroup) return record.outputs.LogGroup;
+  const key = record?.stackName || record?.environment;
+  if (!key) return null;
+  const same = siblings
+    .filter(d => d && d.deploymentId !== record.deploymentId && d.backend === "terraform" && (d.stackName || d.environment) === key && d.outputs?.LogGroup)
+    .sort((a, b) => String(b.startedAt || "").localeCompare(String(a.startedAt || "")));
+  return same[0]?.outputs?.LogGroup || null;
 }

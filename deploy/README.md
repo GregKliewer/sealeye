@@ -751,6 +751,28 @@ several minutes.
 What the first build still lacks (a permission the role is missing, a value the cloud
 sets itself that drift reads as a change) is found from what the pilot says, the way
 the first table build was.
+
+### Reading an app's logs from an organization's module
+
+Oct 22, 2026 (DESIGN.md, "A Terraform environment's logs are read where its module says
+they are"). A module that runs an app's code and outputs `log_group` has said where the
+app's logs are kept, and `sealeye logs` and the portal's Logs card read from there. The
+sample library's `http-api` does from 1.2.3. On the pilot:
+
+**1. The Terraform deploy role again**, the same command as step 2 of "The Terraform
+executor": it may now read (`logs:FilterLogEvents`, nothing else) the log groups named
+for seaLeye's environments, `/aws/lambda/sealeye-*`, and the API asks only for the group
+on the environment's record.
+
+**2. Discover the library again**, then approve and make live, as in step 4 of "The
+Terraform executor". The catalog records the output; one discovered before cannot offer
+logs, whatever the library now outputs.
+
+**3. Check it.** With a Juniper developer's token, build an app again (`sealeye run` or
+`sealeye deploy --again` in its folder; a running environment keeps its old record until
+it is built again), then `sealeye logs <app>`: its lines, masked, the way the starter's
+are. `sealeye status <app>` says the command in its Logs row, and the report's Logs
+section does too.
 ## Parking between bursts of work
 
 When you will be away from the pilot for a while, park it. Parked, it costs about $6 a
