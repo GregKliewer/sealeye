@@ -4413,7 +4413,8 @@ module makes its own, and nothing told seaLeye where.
   ... does not say where your app's logs are kept"), and its report says the same.
 - **The setup function's logs stay the platform team's** (Greg, Oct 22, option 2):
   not readable through `sealeye logs`. When a build fails at that step, its last lines
-  belong in the failure reason, which is owed.
+  belong in the failure reason (built Oct 22, 2026: "A failed setup step says its last
+  lines").
 - **A catalog discovered before this** records no `delivers.logs`, so an environment
   built from it offers no logs until the catalog is discovered again at a release that
   outputs the group. On the pilot that is catalog 10, with http-api 1.2.3.
@@ -4590,3 +4591,27 @@ it.
   whose library reader failed, an answer left unused, and a question that spans changed
   and kept modules each went wrong; each is fixed above and tested in
   `test/discovery-run.test.js`.
+
+## A failed setup step says its last lines
+
+Thu Oct 22, 2026, owed to "A Terraform environment's logs are read where its module says
+they are" (Greg, option 2: the setup function's logs stay the platform team's). A
+database's one-time setup step runs inside the private network, and when it fails, the
+provider's error carries only what the function returned, not what it was doing.
+
+- **Read only when the apply failed at a step the module invokes itself**
+  (`invokedFunction` in `api/executor/terraform/tofu.js`: the error's address names an
+  invocation, and the provider's words name the function), and only a function named for
+  this environment's own module (`<name>-...`), so the Terraform role's reach, bounded by
+  the platform's naming, is bounded again by the environment's.
+- **Its last lines, at most five, since the apply began** (`setupLastLines` in
+  `api/executor/terraform/index.js`), read through the Terraform role the way an app's
+  logs are, and added to the failure reason after OpenTofu's own error: "The setup
+  step's last lines: ...". The platform's bookkeeping (a request handed over or
+  finished, a fresh copy started) is left out; its other lines are said in the
+  phrasebook's words with its own text beside them (`platformLine`).
+- **Never a value that looks like a secret**: each line is scanned with the shared rules
+  (`scanText`) and replaced by the line that says why, as an interview's file is. The
+  setup step reads the database's master password, so this is not hypothetical.
+- **A log that cannot be read adds nothing**: the reason stands as OpenTofu gave it.
+
