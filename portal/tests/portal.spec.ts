@@ -970,7 +970,7 @@ test("an environment built from the organization's own modules shows only what i
   await expect(lines.nth(1).getByTestId("line-from")).toHaveText("your app");
   await expect(lines.nth(2).getByTestId("line-from")).toHaveText("the front door");
   await expect(lines.nth(2).getByTestId("platform-words")).toHaveText("GET /beneficiaries got 504: your app did not answer within the time the front door waits");
-  await expect(lines.nth(3).getByTestId("line-from")).toHaveText("postgres");
+  await expect(lines.nth(3).getByTestId("line-from")).toHaveText("your database");
   await expect(lines.nth(3).getByTestId("platform-words")).toHaveText("The database refused your app's sign-in");
   await logs.getByTestId("log-places").getByRole("button", { name: "the front door" }).click();
   await expect(lines).toHaveCount(1);

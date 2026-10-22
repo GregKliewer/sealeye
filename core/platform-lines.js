@@ -78,10 +78,11 @@ export function platformLine(message) {
 // database's lines, beside the app's"): every line from those places is the platform's,
 // so each is read, and the line itself is kept beside the words as an app line's is.
 
-/** Where a line came from, in the developer's words: the app, the front door, or a module. */
+/** Where a line came from, in the developer's words, when the API has not said. */
 export function fromWords(from) {
   if (!from || from === "app") return "your app";
   if (from === "door") return "the front door";
+  if (from === "database") return "your database";
   return String(from);
 }
 
@@ -100,13 +101,15 @@ export function doorLine(message) {
   const status = Number(r.status);
   const took = known(r.latency) ? timeWords(Number(r.latency)) : null;
   const reached = known(r.integrationStatus);
-  const why = known(r.integrationError) ? r.integrationError : known(r.error) ? r.error : null;
+  // Why the front door says it failed is in its own words, which name the cloud's
+  // products: it stays in the line beside these words, never in them.
+  const why = known(r.integrationError) || known(r.error);
   const call = pathOf(r);
   if (status === 429) return { kind: "door-throttled", words: `The front door turned away ${call}: too many requests at once (${status})` };
   if (status === 504) return { kind: "door-timeout", words: `${call} got ${status}: your app did not answer within the time the front door waits` };
-  if (status >= 500 && !reached) return { kind: "door-error", words: `${call} got ${status}: the front door could not reach your app${why ? ` (${why})` : ""}` };
-  if (status >= 500 && why && Number(r.integrationStatus) < 500) return { kind: "door-error", words: `${call} got ${status}: the front door could not read your app's answer (${why})` };
-  if (status >= 400 && !reached) return { kind: "door-refused", words: `The front door refused ${call} with ${status} before it reached your app${why ? ` (${why})` : ""}` };
+  if (status >= 500 && !reached) return { kind: "door-error", words: `${call} got ${status}: the front door could not reach your app` };
+  if (status >= 500 && why && Number(r.integrationStatus) < 500) return { kind: "door-error", words: `${call} got ${status}: the front door could not read your app's answer` };
+  if (status >= 400 && !reached) return { kind: "door-refused", words: `The front door refused ${call} with ${status} before it reached your app` };
   return { kind: status >= 400 ? "door-app-error" : "door-request", words: `${call} answered ${status}${took ? ` in ${took}` : ""}` };
 }
 
@@ -144,11 +147,29 @@ export function databaseLine(message) {
   return null;
 }
 
-/** A line read for the developer, by where it came from; null for an app's own line. */
-export function readLine(from, message) {
-  if (!from || from === "app") return platformLine(message);
-  if (from === "door") return doorLine(message);
-  return databaseLine(message);
+/** A line read for the developer, by the kind of place it came from; null when none applies. */
+export function readLine(kind, message) {
+  if (!kind || kind === "app") return platformLine(message);
+  if (kind === "door") return doorLine(message);
+  if (kind === "database") return databaseLine(message);
+  return null;
+}
+
+// What a database line may show of what the app sent it. Its log repeats a failed query
+// (STATEMENT) and the values that broke a rule (DETAIL), which the app never chose to
+// print: those are taken out whole. Elsewhere a quoted literal goes, and a double-quoted
+// name stays only when it names a table, a column or the like.
+const NAMES = /\b(?:relation|table|column|database|user|role|schema|index|constraint|function|type|sequence|view|extension|tablespace|trigger|operator)\s*$/i;
+
+/** A database's line with anything the app sent it taken out (DESIGN.md, "The front door's and the database's lines"). */
+export function maskDatabaseLine(message) {
+  const line = String(message || "");
+  const cut = line.match(/^(.*?:(?:STATEMENT|DETAIL|QUERY|CONTEXT):\s+)/);
+  if (cut) return `${cut[1]}[value redacted]`;
+  return line
+    .replace(/'(?:[^']|'')*'/g, "'[value redacted]'")
+    .replace(/=\((?:[^()]|\([^()]*\))*\)/g, "=([value redacted])")
+    .replace(/"([^"]*)"/g, (whole, _inner, at, text) => (NAMES.test(text.slice(0, at)) ? whole : '"[value redacted]"'));
 }
 
 /** Every phrase the phrasebook can say, for the word check in the tests. */
@@ -167,7 +188,7 @@ export function allPlatformWords() {
     "This request took 74 ms",
     "Your app exited on its own, without a reason the platform could read",
     "Your app threw an error it did not catch",
-    "your app", "the front door",
+    "your app", "the front door", "your database",
     "The front door turned away GET /notes: too many requests at once (429)",
     "GET /notes got 504: your app did not answer within the time the front door waits",
     "GET /notes got 502: the front door could not reach your app",

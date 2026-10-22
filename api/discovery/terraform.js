@@ -362,6 +362,10 @@ export function moduleRuns(libraryDir, source) {
     for (const m of code.matchAll(/\bprovisioner\s+"([A-Za-z0-9_-]+)"/g)) found.add(`a provisioner (${m[1]})`);
     if (/\bdata\s+"external"/.test(code)) found.add("the external data source");
     if (/\bdata\s+"terraform_remote_state"/.test(code)) found.add("another environment's state (terraform_remote_state)");
+    // The role may set up the front door's log delivery, which needs the account's log
+    // resource policy, so no module may write one itself (DESIGN.md, "The front door's
+    // and the database's lines, beside the app's").
+    if (/\bresource\s+"aws_cloudwatch_log_resource_policy"/.test(code)) found.add("the account's log resource policy (aws_cloudwatch_log_resource_policy)");
     // Providers named in required_providers, and any resource or data source of one.
     for (const m of code.matchAll(/^\s*([A-Za-z0-9_-]+)\s*=\s*\{[^}]*source\s*=\s*"([^"]+)"/gm)) {
       const src = m[2].toLowerCase().replace(/^registry\.(?:opentofu|terraform)\.io\//, "");

@@ -7,7 +7,7 @@
 // and a line naming one of the app's stored settings has that value taken out as well
 // (DESIGN.md, "Logs pass through the masking traces do"). Read only: nothing changes.
 import { maskSecretText } from "../core/tracing.js";
-import { fromWords, readLine } from "../core/platform-lines.js";
+import { fromWords, maskDatabaseLine, readLine } from "../core/platform-lines.js";
 import { recentLogs, listStoredSettings } from "./executor/cfn.js";
 import { storeFolder } from "./executor/settings.js";
 import { resourceNameOf } from "./executor/compose.js";
@@ -105,10 +105,11 @@ export async function readLogs(record, { window = "1h", now = Date.now(), siblin
   // own logs, when the modules said where (DESIGN.md, "The front door's and the
   // database's lines, beside the app's"). One stream in time order, each line saying
   // where it came from; `from` narrows it to one place.
-  const sources = [{ from: "app", group }, ...(terraform ? environmentOtherLogs(record, siblings) : [])];
-  const places = [...new Set(sources.map(x => x.from))];
-  if (from && !places.includes(from)) {
-    return refusal(400, "UNKNOWN_FROM", `This environment's lines come from ${places.map(fromWords).join(", ")}: from must be ${places.join(", ")}.`);
+  const sources = [{ from: "app", kind: "app", words: "your app", group }, ...(terraform ? environmentOtherLogs(record, siblings) : [])]
+    .map(x => ({ ...x, kind: x.kind || (x.from === "door" ? "door" : "module"), words: x.words || fromWords(x.from) }));
+  const places = [...new Map(sources.map(x => [x.from, { from: x.from, words: x.words }])).values()];
+  if (from && !places.some(p => p.from === from)) {
+    return refusal(400, "UNKNOWN_FROM", `This environment's lines come from ${places.map(p => p.words).join(", ")}: from must be ${places.map(p => p.from).join(", ")}.`);
   }
   const chosen = from ? sources.filter(x => x.from === from) : sources;
 
@@ -116,18 +117,21 @@ export async function readLogs(record, { window = "1h", now = Date.now(), siblin
   let more = false;
   let appWroteNothing = false;
   const unread = [];
-  for (const source of chosen) {
-    const read = await readGroup(source.group, { now, minutes, profile });
+  const reads = await Promise.all(chosen.map(source => readGroup(source.group, { now, minutes, profile })));
+  for (const [i, source] of chosen.entries()) {
+    const read = reads[i];
     if (read.missing) {
       if (source.from === "app") appWroteNothing = true;
       continue;
     }
     if (read.error) {
       if (source.from === "app") return refusal(502, "LOGS_UNAVAILABLE", `The platform could not read your app's logs just now (${read.error}).`);
-      unread.push(`${fromWords(source.from)} (${read.error})`);
+      // The cloud's own words name accounts, roles and paths: they stay in the server's log.
+      console.error(`logs: could not read ${source.group} for ${record.deploymentId}: ${read.error}`);
+      if (!unread.includes(source.words)) unread.push(source.words);
       continue;
     }
-    events.push(...read.events.map(e => ({ ...e, from: source.from })));
+    events.push(...read.events.map(e => ({ ...e, from: source.from, kind: source.kind })));
     more = more || read.more;
   }
   if (!events.length && appWroteNothing && !unread.length) {
@@ -138,7 +142,7 @@ export async function readLogs(record, { window = "1h", now = Date.now(), siblin
 
   // The names of the app's settings, whose values the API never reads: those in the
   // store, those its deploys were given from a .env, and those its plan asks for.
-  let note = unread.length ? `The platform could not read the lines of ${unread.join(" and ")} just now, so only the rest are shown.` : undefined;
+  const notes = unread.length ? [`The platform could not read the lines of ${unread.join(" and ")} just now, so only the rest are shown.`] : [];
   // Every setting the app reads by name: the starter's, and for an organization's module
   // the settings its parts reach the app under (terraform.settings), whose values are
   // the platform's ids and addresses.
@@ -148,7 +152,7 @@ export async function readLogs(record, { window = "1h", now = Date.now(), siblin
   if (!terraform) try {
     const listed = await listStoredSettings(storeFolder({ team: record.teamId || "default", app: record.app?.name }));
     if (listed.ok) listed.settings.forEach(x => names.add(x.name));
-    else note = "The platform could not read which settings are in your organization's store just now, so only values beside a secret-looking name, or a setting this app's deploys used, were taken out.";
+    else notes.push("The platform could not read which settings are in your organization's store just now, so only values beside a secret-looking name, or a setting this app's deploys used, were taken out.");
   } catch { /* an app name the store cannot hold has no stored settings */ }
   const mask = maskerFor([...names]);
 
@@ -158,13 +162,14 @@ export async function readLogs(record, { window = "1h", now = Date.now(), siblin
       app: record.app?.name || null,
       since: window,
       more,
-      ...(note ? { note } : {}),
+      ...(notes.length ? { note: notes.join(" ") } : {}),
       // Each line masked, and the platform's own lines read for the developer
       // (core/platform-lines.js): the words beside the line, never instead of it.
-      ...(places.length > 1 ? { sources: places.map(p => ({ from: p, words: fromWords(p) })) } : {}),
+      ...(places.length > 1 ? { sources: places } : {}),
       lines: events.slice(-MAX_LINES).reverse().map(e => {
-        const message = mask(e.message).replace(/\s+$/, "");
-        const platform = readLine(e.from, message);
+        // A database's lines repeat what the app sent it, which it never chose to print.
+        const message = mask(e.kind === "database" ? maskDatabaseLine(e.message) : e.message).replace(/\s+$/, "");
+        const platform = readLine(e.kind, message);
         return {
           at: new Date(e.timestamp).toISOString(),
           message,
@@ -203,7 +208,9 @@ export function environmentLogGroup(record, siblings = []) {
  * @returns {{ from: string, group: string }[]}
  */
 export function environmentOtherLogs(record, siblings = []) {
-  if (Array.isArray(record?.terraform?.logs) && record.terraform.logs.length) return record.terraform.logs;
+  // A build that recorded its places, none included, is the answer: an older build's
+  // front door may be gone.
+  if (Array.isArray(record?.terraform?.logs)) return record.terraform.logs;
   const key = record?.stackName || record?.environment;
   if (!key) return [];
   const same = siblings

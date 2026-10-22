@@ -233,7 +233,7 @@ export function Control() {
 
       {latest.kind !== "static" && offers("perf") && env.deploys.some(d => d.stackName) ? <PerformanceCard app={env.app} deploymentId={(env.deploys.find(d => d.stackName) || latest).deploymentId} /> : null}
 
-      {latest.kind !== "static" && offers("logs") && env.deploys.some(d => d.stackName) ? <LogsCard app={env.app} deploymentId={(env.deploys.find(d => d.stackName) || latest).deploymentId} /> : null}
+      {latest.kind !== "static" && offers("logs") && env.deploys.some(d => d.stackName) ? <LogsCard key={(env.deploys.find(d => d.stackName) || latest).deploymentId} app={env.app} deploymentId={(env.deploys.find(d => d.stackName) || latest).deploymentId} /> : null}
 
       {offers("evidence") ? <EvidenceCard key={evidenceFor || latest.deploymentId} deploymentId={evidenceFor || latest.deploymentId} latest={!evidenceFor || evidenceFor === latest.deploymentId} /> : null}
     </>
@@ -428,7 +428,7 @@ function LogsCard({ app, deploymentId }: { app: string; deploymentId: string }) 
             {places ? (
               <div className="flex flex-wrap gap-1" role="group" aria-label="From where" data-testid="log-places">
                 {[{ from: null as string | null, words: "Everywhere" }, ...places].map(p => (
-                  <Button key={p.from || "all"} size="sm" variant={p.from === from ? "primary" : "ghost"} aria-pressed={p.from === from}
+                  <Button key={p.from || "all"} size="sm" variant={p.from === from ? "primary" : "ghost"} aria-pressed={p.from === from} disabled={busy}
                     onClick={() => { setFrom(p.from); read(since, p.from); }}>{p.words}</Button>
                 ))}
               </div>

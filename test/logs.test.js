@@ -29,9 +29,9 @@ before(async () => {
       { ...base, backend: "terraform", deploymentId: "dep_notes000001", app: { name: "notes-api" }, kind: "api", status: "succeeded", stackName: "sealeye-default-notes-api-dddddd", resourceName: "sealeye-notes-api-dddddd",
         outputs: { ApiUrl: "https://notes.example/", LogGroup: "/aws/lambda/sealeye-notes-api-dddddd-dev-api" },
         terraform: { logs: [
-          { from: "door", group: "/aws/apigateway/sealeye-notes-api-dddddd-dev-api" },
-          { from: "postgres", group: "/aws/rds/instance/sealeye-notes-api-dddddd-dev/postgresql" },
-          { from: "postgres", group: "/aws/rds/instance/sealeye-notes-api-dddddd-dev/iam-db-auth-error" }
+          { from: "door", kind: "door", words: "the front door", group: "/aws/vendedlogs/apigateway/sealeye-notes-api-dddddd-dev-api" },
+          { from: "database", kind: "database", words: "your database", group: "/aws/rds/instance/sealeye-notes-api-dddddd-dev/postgresql" },
+          { from: "database", kind: "database", words: "your database", group: "/aws/rds/instance/sealeye-notes-api-dddddd-dev/iam-db-auth-error" }
         ] } }
     ],
     aws: `
@@ -41,11 +41,17 @@ if (args[1] === "filter-log-events" && opt("--log-group-name").includes("notes-a
   const group = opt("--log-group-name");
   const from = Number(opt("--start-time")), to = args.includes("--end-time") ? Number(opt("--end-time")) : Infinity;
   const lines = group.startsWith("/aws/lambda/") ? [{ timestamp: t - 40000, message: "notes-api listening" }]
-    : group.startsWith("/aws/apigateway/") ? [
+    : group.startsWith("/aws/vendedlogs/apigateway/") ? [
         { timestamp: t - 20000, message: JSON.stringify({ requestId: "r1", method: "POST", path: "/notes", status: "500", latency: "212", integrationStatus: "500", integrationError: "-", error: "-" }) },
         { timestamp: t - 10000, message: JSON.stringify({ requestId: "r2", method: "GET", path: "/notes", status: "504", latency: "30001", integrationStatus: "-", integrationError: "-", error: "Service Unavailable" }) }
       ]
-    : group.endsWith("/postgresql") ? [{ timestamp: t - 30000, message: "2026-10-22 12:00:00 UTC:10.0.1.5(41234):notes_api_app@notes_api:[812]:FATAL:  PAM authentication failed for user \\"notes_api_app\\"" }]
+    : group.endsWith("/postgresql") ? [
+        { timestamp: t - 30000, message: "2026-10-22 12:00:00 UTC:10.0.1.5(41234):notes_api_app@notes_api:[812]:FATAL:  PAM authentication failed for user \\"notes_api_app\\"" },
+        // What the app sent the database, repeated in its log: never shown.
+        { timestamp: t - 35000, message: "2026-10-22 12:00:00 UTC:10.0.1.5(41234):notes_api_app@notes_api:[812]:STATEMENT:  INSERT INTO notes VALUES ('ghp_${"y".repeat(36)}', 'alice@example.com')" },
+        { timestamp: t - 36000, message: "2026-10-22 12:00:00 UTC:10.0.1.5(41234):notes_api_app@notes_api:[812]:DETAIL:  Key (email)=(alice@example.com) already exists." },
+        { timestamp: t - 37000, message: "2026-10-22 12:00:00 UTC:10.0.1.5(41234):notes_api_app@notes_api:[812]:ERROR:  invalid input syntax for type integer: \\"4111111111111111\\"" }
+      ]
     : fail("An error occurred (AccessDeniedException) when calling the FilterLogEvents operation");
   out(lines.filter(e => e.timestamp >= from && e.timestamp < to));
 }
@@ -187,21 +193,26 @@ test("a line the platform wrote is read for the developer, with the platform's o
 test("the front door's and the database's lines come beside the app's, each saying where it came from", async () => {
   const { status, body } = await api.call("/deployments/dep_notes000001/logs?since=15m", { token: ANA });
   assert.equal(status, 200, JSON.stringify(body));
-  assert.deepEqual(body.sources, [{ from: "app", words: "your app" }, { from: "door", words: "the front door" }, { from: "postgres", words: "postgres" }]);
+  assert.deepEqual(body.sources, [{ from: "app", words: "your app" }, { from: "door", words: "the front door" }, { from: "database", words: "your database" }]);
   // One stream, newest first, in time order across every place.
-  assert.deepEqual(body.lines.map(l => l.from), ["door", "door", "postgres", "app"]);
+  assert.deepEqual(body.lines.map(l => l.from), ["door", "door", "database", "database", "database", "database", "app"]);
+  // What the app sent its database is never shown, and a name the database gives stays.
+  const all = JSON.stringify(body);
+  for (const sent of ["ghp_", "alice@example.com", "4111111111111111"]) assert.ok(!all.includes(sent), sent);
+  assert.match(body.lines[3].message, /:STATEMENT: {2}\[value redacted\]$/);
+  assert.match(body.lines[2].message, /for user \"notes_api_app\"$/);
   assert.deepEqual(body.lines[0].platform, { kind: "door-timeout", words: "GET /notes got 504: your app did not answer within the time the front door waits" });
   assert.deepEqual(body.lines[1].platform, { kind: "door-app-error", words: "POST /notes answered 500 in 212 ms" });
   assert.deepEqual(body.lines[2].platform, { kind: "sign-in-refused", words: "The database refused your app's sign-in" });
   assert.match(body.lines[2].message, /PAM authentication failed/, "the database's own line is kept beside the words");
-  assert.equal(body.lines[3].platform, undefined, "the app's own line is left alone");
-  // A place that could not be read says so; the rest are still shown.
-  assert.match(body.note, /could not read the lines of postgres \(.*AccessDenied.*\) just now, so only the rest are shown/);
+  assert.equal(body.lines[6].platform, undefined, "the app's own line is left alone");
+  // A place that could not be read says so, in words; the cloud's own words stay on the server.
+  assert.equal(body.note, "The platform could not read the lines of your database just now, so only the rest are shown.");
   // Only the environment's own groups were asked for.
   const groups = api.awsCalls().filter(l => l.startsWith("logs filter-log-events") && l.includes("notes-api")).map(l => /--log-group-name (\S+)/.exec(l)[1]);
   assert.deepEqual([...new Set(groups)].sort(), [
-    "/aws/apigateway/sealeye-notes-api-dddddd-dev-api", "/aws/lambda/sealeye-notes-api-dddddd-dev-api",
-    "/aws/rds/instance/sealeye-notes-api-dddddd-dev/iam-db-auth-error", "/aws/rds/instance/sealeye-notes-api-dddddd-dev/postgresql"
+    "/aws/lambda/sealeye-notes-api-dddddd-dev-api", "/aws/rds/instance/sealeye-notes-api-dddddd-dev/iam-db-auth-error",
+    "/aws/rds/instance/sealeye-notes-api-dddddd-dev/postgresql", "/aws/vendedlogs/apigateway/sealeye-notes-api-dddddd-dev-api"
   ]);
 
   // One place only, and a place the environment does not have is refused in words.
@@ -209,7 +220,7 @@ test("the front door's and the database's lines come beside the app's, each sayi
   assert.deepEqual(door.body.lines.map(l => l.from), ["door", "door"]);
   const odd = await api.call("/deployments/dep_notes000001/logs?since=15m&from=cache", { token: ANA });
   assert.equal(odd.status, 400);
-  assert.equal(odd.body.error.message, "This environment's lines come from your app, the front door, postgres: from must be app, door, postgres.");
+  assert.equal(odd.body.error.message, "This environment's lines come from your app, the front door, your database: from must be app, door, database.");
 
   // The command: each line says where it came from, and how to read one place.
   const run = args => promisify(execFile)(process.execPath, [path.join(root, "cli/bin/sealeye"), "logs", "notes-api", "--since", "15m", ...args, "--api", api.api], {
@@ -218,9 +229,9 @@ test("the front door's and the database's lines come beside the app's, each sayi
   const { stdout } = await run([]);
   assert.match(stdout, /^\d\d:\d\d:\d\d {2}the front door {2}GET \/notes got 504: your app did not answer within the time the front door waits {2}·  \{/m);
   assert.match(stdout, /^\d\d:\d\d:\d\d {2}your app {8}notes-api listening$/m);
-  assert.match(stdout, /sealeye logs notes-api --from app\|door\|postgres reads one place only\./);
-  const one = await run(["--from", "postgres"]);
-  assert.match(one.stdout, /Reading what postgres wrote in the last 15 minutes/);
+  assert.match(stdout, /sealeye logs notes-api --from app\|door\|database reads one place only\./);
+  const one = await run(["--from", "database"]);
+  assert.match(one.stdout, /Reading what your database wrote in the last 15 minutes/);
   assert.doesNotMatch(one.stdout, /the front door {2}GET/);
 });
 
@@ -231,12 +242,14 @@ test("the phrasebook reads the front door's record and the database's lines, in 
   const door = r => doorLine(JSON.stringify({ method: "GET", path: "/notes", latency: "74", integrationError: "-", error: "-", ...r }));
   assert.equal(door({ status: "200", integrationStatus: "200" }).words, "GET /notes answered 200 in 74 ms");
   assert.equal(door({ status: "429", integrationStatus: "-" }).words, "The front door turned away GET /notes: too many requests at once (429)");
-  assert.equal(door({ status: "404", integrationStatus: "-", error: "Not Found" }).words, "The front door refused GET /notes with 404 before it reached your app (Not Found)");
-  assert.equal(door({ status: "502", integrationStatus: "200", integrationError: "Malformed Lambda proxy response" }).words, "GET /notes got 502: the front door could not read your app's answer (Malformed Lambda proxy response)");
+  assert.equal(door({ status: "404", integrationStatus: "-", error: "Not Found" }).words, "The front door refused GET /notes with 404 before it reached your app");
+  // The front door's own reason names the cloud's products: it stays in the line, never the words.
+  assert.equal(door({ status: "502", integrationStatus: "200", integrationError: "Malformed Lambda proxy response" }).words, "GET /notes got 502: the front door could not read your app's answer");
   assert.equal(doorLine("not json"), null);
   assert.equal(databaseLine("2026-10-22 12:00:00 UTC::@:[1]:LOG:  checkpoint starting: time"), null, "the database's routine lines are left alone");
   assert.equal(databaseLine("Failed to authenticate the connection request for user notes_app because the token age is longer than 15 minutes.").words, "Your app signed in with an old sign-in: make a new one for each connection");
   assert.equal(databaseLine("x:[9]:ERROR:  duplicate key value violates unique constraint \"notes_pkey\"").kind, "query-error");
   assert.equal(readLine("app", "INIT_START Runtime Version: nodejs:20").kind, "cold-start");
   assert.equal(readLine("door", "INIT_START Runtime Version: nodejs:20"), null, "each place is read by its own phrasebook");
+  assert.equal(readLine("module", "x:[1]:ERROR:  something"), null, "a module that is not a database is shown as it is");
 });

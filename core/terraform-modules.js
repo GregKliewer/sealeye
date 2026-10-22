@@ -311,10 +311,26 @@ export function partLogsOutputs(entry) {
  * uses: named for the environment's module name, under the services the platform's role
  * may read there. The app's own group is `/aws/lambda/<name>-...` (`ownLogGroup`).
  */
-export const OTHER_LOG_PREFIXES = Object.freeze(["/aws/apigateway/", "/aws/rds/instance/"]);
+export const OTHER_LOG_PREFIXES = Object.freeze(["/aws/vendedlogs/apigateway/", "/aws/rds/instance/"]);
 
-/** Whether a group a module output is one of the environment's own, beside the app's. */
+/**
+ * Whether a group a module output is one of the environment's own, beside the app's:
+ * under one of those, named `<name>-dev` and then `-` or `/`, so another app whose name
+ * begins with this one's is not taken for it.
+ */
 export function ownOtherLogGroup(group, name) {
   if (typeof group !== "string" || !name) return false;
-  return OTHER_LOG_PREFIXES.some(p => group.startsWith(`${p}${name}-`));
+  return OTHER_LOG_PREFIXES.some(p => {
+    const own = `${p}${name}-${DEVELOPER_STAGE}`;
+    return group.startsWith(own) && (group[own.length] === "-" || group[own.length] === "/");
+  });
+}
+
+/**
+ * What a module an app uses is, for reading its lines (`readLine`): a database, whose
+ * lines the database phrasebook reads, or another module, whose lines are shown as they
+ * are. Read from the needs discovery said it meets.
+ */
+export function partLogKind(entry) {
+  return (entry?.meets || []).includes("relational_database") ? "database" : "module";
 }

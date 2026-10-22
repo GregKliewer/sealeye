@@ -141,7 +141,7 @@ Usage:
   ${product.command} list [--deployments] [--all] [--api <url>] [--json]
   ${product.command} evidence [app | deploymentId] [--json] [--out <file>] [--api <url>]
   ${product.command} plan [app | deploymentId] [--report] [--out <folder>] [--json] [--api <url>]
-  ${product.command} logs [app | deploymentId] [--since 15m|1h|6h|1d] [--from app|door|<module>] [--json] [--api <url>]
+  ${product.command} logs [app | deploymentId] [--since 15m|1h|6h|1d] [--from app|door|database] [--json] [--api <url>]
   ${product.command} config [app | deploymentId] [--retention <days>] [--json] [--api <url>]
   ${product.command} perf [app | deploymentId] [--since 1h|6h|1d|7d] [--json] [--api <url>]
   ${product.command} costs [--since 7d|30d] [--json] [--api <url>]
@@ -858,7 +858,7 @@ async function main() {
   }
 
   if (command === "logs") {
-    const target = nameOrHere(`${product.command} logs <app | deploymentId> [--since 15m|1h|6h|1d] [--from app|door|<module>]`);
+    const target = nameOrHere(`${product.command} logs <app | deploymentId> [--since 15m|1h|6h|1d] [--from app|door|database]`);
     if (!target) return;
     const env = await environmentTarget({ apiBaseUrl, target });
     if (!env) return;
@@ -880,7 +880,8 @@ async function main() {
     // Lines from more than one place (the front door's, a module's) each say where they
     // came from, in one column as wide as the longest.
     const width = Math.max(0, ...(result.sources || []).map(x => x.words.length));
-    const place = line => (result.sources ? `${c.accent(fromWords(line.from).padEnd(width))}  ` : "");
+    const wordsOf = new Map((result.sources || []).map(x => [x.from, x.words]));
+    const place = line => (result.sources ? `${c.accent((wordsOf.get(line.from) || fromWords(line.from)).padEnd(width))}  ` : "");
     for (const line of [...result.lines].reverse()) {
       console.log(line.platform
         ? `${c.dim(localClock(line.at))}  ${place(line)}${c.fg(line.platform.words)}  ${c.dim(`·  ${line.message}`)}`

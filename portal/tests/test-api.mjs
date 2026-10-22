@@ -92,7 +92,7 @@ fs.writeFileSync(path.join(home, "deployments.json"), JSON.stringify([
     // database puts the app in the private network, which a tear-down waits on.
     terraform: { module: { id: "http_api", source: "modules/http-api" }, parts: [{ id: "document_table", source: "modules/document-table", line: "A table of documents your app finds by key." }, { id: "postgres", source: "modules/postgres", line: "A relational database your app signs in to with its own identity." }], network: true, settings: { BENEFICIARIES_TABLE: "document_table.table_name", DATABASE_HOST: "postgres.address" },
       // The front door's record and the database's own log, beside the app's.
-      logs: [{ from: "door", group: "/aws/apigateway/sealeye-beneficiary-look-1a2b3c-dev-api" }, { from: "postgres", group: "/aws/rds/instance/sealeye-beneficiary-look-1a2b3c-dev/postgresql" }] } },
+      logs: [{ from: "door", kind: "door", words: "the front door", group: "/aws/vendedlogs/apigateway/sealeye-beneficiary-look-1a2b3c-dev-api" }, { from: "database", kind: "database", words: "your database", group: "/aws/rds/instance/sealeye-beneficiary-look-1a2b3c-dev/postgresql" }] } },
   { ...base, orgId: "other-org", deploymentId: "dep_fffffffffff1", app: { name: "not-yours" }, kind: "api", status: "succeeded", stackName: "sealeye-not-yours",
     plan: { profile: "dev" }, outputs: {}, requestedBy: by("Other Org", "x@other.example"), startedAt: ago(3600_000) }
 ]));
@@ -106,7 +106,7 @@ fs.mkdirSync(bin);
 fs.writeFileSync(path.join(bin, "logs.cjs"), `const args = process.argv.slice(2), opt = n => args[args.indexOf(n) + 1];
 const from = Number(opt("--start-time")), to = args.includes("--end-time") ? Number(opt("--end-time")) : Infinity, now = Date.now();
 const group = opt("--log-group-name");
-if (group.startsWith("/aws/apigateway/")) { process.stdout.write(JSON.stringify([{ timestamp: now - 90000, message: JSON.stringify({ requestId: "r1", method: "GET", path: "/beneficiaries", status: "504", latency: "30001", integrationStatus: "-", integrationError: "-", error: "Service Unavailable" }) }].filter(l => l.timestamp >= from && l.timestamp < to))); process.exit(0); }
+if (group.startsWith("/aws/vendedlogs/apigateway/")) { process.stdout.write(JSON.stringify([{ timestamp: now - 90000, message: JSON.stringify({ requestId: "r1", method: "GET", path: "/beneficiaries", status: "504", latency: "30001", integrationStatus: "-", integrationError: "-", error: "Service Unavailable" }) }].filter(l => l.timestamp >= from && l.timestamp < to))); process.exit(0); }
 if (group.startsWith("/aws/rds/")) { process.stdout.write(JSON.stringify([{ timestamp: now - 100000, message: "2026-10-22 12:00:00 UTC:10.0.1.5(41234):lookup_app@lookup:[812]:FATAL:  PAM authentication failed for user lookup_app" }].filter(l => l.timestamp >= from && l.timestamp < to))); process.exit(0); }
 const lines = [{ timestamp: now - 120000, message: "listening on 8080" }, { timestamp: now - 60000, message: "GET /orders with Bearer abcdefghijklmnopqrstuvwxyz0123" }, { timestamp: now - 30000, message: "REPORT RequestId: 6245\\tDuration: 3000.00 ms\\tBilled Duration: 3000 ms\\tMemory Size: 128 MB\\tMax Memory Used: 97 MB\\tStatus: timeout" }];
 process.stdout.write(JSON.stringify(lines.filter(l => l.timestamp >= from && l.timestamp < to)));
