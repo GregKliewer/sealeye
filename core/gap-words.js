@@ -72,8 +72,14 @@ export function rankWords(gap) {
 
 /** A need the live catalog builds now, that drafted plans still wait on. */
 export function metWords(met) {
-  const apps = (met.apps || []).map(a => `${a.name} (${a.team})`);
-  return `Your live catalog builds this now, with ${(met.modules || []).join(" or ")}. ${apps.length === 1 ? "The app that asked for it" : `The ${apps.length} apps that asked for it`} can be planned again with \`sealeye run\`: ${apps.join(", ")}.`;
+  const name = a => `${a.name} (${a.team})`;
+  const ready = (met.apps || []).filter(a => !(a.stillWaiting || []).length);
+  const waiting = (met.apps || []).filter(a => (a.stillWaiting || []).length);
+  const parts = [`Your live catalog builds this now, with ${(met.modules || []).join(" or ")}.`];
+  if (ready.length) parts.push(`${ready.length === 1 ? "The app that asked for it waits on nothing else, and" : `${ready.length} apps that asked for it wait on nothing else, and`} can be planned again with \`sealeye run\`: ${ready.map(name).join(", ")}.`);
+  // Planning one of these again drafts it again: say what it still waits on.
+  for (const a of waiting) parts.push(`${name(a)} still waits on ${a.stillWaiting.join("; ")}, so planning it again would draft it again.`);
+  return parts.join(" ");
 }
 
 /** The report's heading line. */

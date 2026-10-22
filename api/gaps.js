@@ -64,6 +64,19 @@ export function gapReport(records, { catalog, version, source }) {
     });
   }
 
+  // An app the live catalog meets one need of may still wait on others: planning it again
+  // drafts it again until those are met too (the first report on the pilot, Oct 22, 2026:
+  // a database built now, for an app still waiting on a service that runs continuously).
+  const gapsOf = new Map();
+  for (const g of gaps) for (const a of g.apps) {
+    const key = `${a.team}/${a.name}`;
+    gapsOf.set(key, [...(gapsOf.get(key) || []), g.line]);
+  }
+  for (const m of met) for (const a of m.apps) {
+    const waiting = gapsOf.get(`${a.team}/${a.name}`) || [];
+    if (waiting.length) a.stillWaiting = waiting;
+  }
+
   // Demand first: how many apps, then how many teams, then the checklist.
   gaps.sort((a, b) =>
     b.count - a.count ||
