@@ -10,6 +10,7 @@ import { normalizeProfile } from "../../core/schema.js";
 import { region } from "./cfn.js";
 import { sourceInWords } from "./settings.js";
 import { commandLine } from "../../core/operations.js";
+import { logsHowWords } from "../../core/plan-report-words.js";
 
 const TEMPLATE_PATH = path.join(repoRoot, "prompts", "report.md");
 
@@ -84,14 +85,14 @@ function whatWasCreated(record) {
   if (record.kind === "static") {
     lines.push(
       "- A public website, served straight from storage. Anyone with the link can open it.",
-      `- The storage holding your files (bucket \`${o.BucketName || "—"}\`).`
+      `- The storage holding your files (${o.BucketName ? `bucket \`${o.BucketName}\`` : "its name could not be read"}).`
     );
   } else {
     const retention = record.parameters?.RetentionDays;
     lines.push(
       "- A public HTTPS address for your app. There is no server for you to run, patch or scale.",
       `- Your app running unchanged on Node.js 20 (function \`${o.FunctionName || record.app?.name}\`). The platform starts it with \`node index.js\` and hands it real HTTP requests.`,
-      `- Somewhere to read what your app printed (log group \`${o.LogGroup || "—"}\`${retention ? `, kept for ${retention} days` : ""}).`
+      `- Somewhere to read what your app printed${retention ? `, kept for ${retention} days` : ""} (the Logs section below says how).`
     );
   }
 
@@ -111,7 +112,7 @@ function yourUrl(record) {
   if (url && record.kind === "static" && record.backend !== "terraform") {
     lines.push(
       "",
-      "That address is `http://`, not `https://`. This profile serves your files straight out of storage with no CDN in front of them, and a storage-hosted site is plain HTTP. The CDN is what adds `https://` and your own domain name — it is a deliberate omission here, not something that went wrong."
+      "That address is `http://`, not `https://`. This profile serves your files straight out of storage with no content delivery network in front of them, and a storage-hosted site is plain HTTP. That network is what adds `https://` and your own domain name: leaving it out is deliberate here, not something that went wrong."
     );
   }
 
@@ -128,15 +129,13 @@ function logs(record) {
     return lines.join("\n");
   }
 
+  // The command, never a path: a developer has no way to open the platform's own
+  // (DESIGN.md, "Logs are found by the command, never by a path").
   if (logGroup) {
-    lines.push(
-      "Everything your app prints goes here. Follow it live with:",
-      "",
-      fence(`aws logs tail ${logGroup} --follow`)
-    );
+    lines.push(`Everything your app prints, from the first request. ${logsHowWords(record.app?.name)}`);
   } else {
     lines.push(
-      "A static site has no application logs — nothing of yours is running. Requests are served directly from storage."
+      "A static site has no application logs: nothing of yours is running. Requests are served directly from storage."
     );
   }
   return lines.join("\n");
@@ -177,7 +176,7 @@ function redeploy(record) {
   return [
     "## Redeploy",
     "",
-    `Change ${what}, then run \`sealeye deploy\` again in this folder. The URL stays the same — it belongs to the environment, not to any one deployment.`
+    `Change ${what}, then run \`sealeye deploy\` again in this folder. The URL stays the same: it belongs to the environment, not to any one deployment.`
   ].join("\n");
 }
 
@@ -222,13 +221,13 @@ function assumptions(record, plan) {
       const inputs = Object.entries(m.inputs || {})
         .map(([k, v]) => `${k}: ${v}`)
         .join(", ");
-      lines.push(`  - \`${m.id}\`${inputs ? ` — ${inputs}` : ""}`);
+      lines.push(`  - \`${m.id}\`${inputs ? `: ${inputs}` : ""}`);
     }
   }
 
   if (plan?.outputs?.length) lines.push(`- Outputs you asked for: ${plan.outputs.join(", ")}`);
 
-  lines.push(`- Region: ${region()} — fixed for this environment.`);
+  lines.push(`- Region: ${region()}, fixed for this environment.`);
   if (record.paused) {
     lines.push("- Your app is paused: it was paused before this deploy and still takes no requests. Resume it to put it back (sealeye resume, or Pause in the portal).");
   }

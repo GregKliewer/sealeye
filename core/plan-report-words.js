@@ -3,6 +3,8 @@
 // deployment's plan and report (GET /deployments/{id}/plan), so the two surfaces say it
 // the same way. Runs in a browser too: nothing here imports a node: module or a package.
 
+import { commandLine, label } from "./operations.js";
+
 /** Where the plan's files came from, in a sentence. */
 export function planOrigin(view) {
   if (view?.rebuilt) {
@@ -52,4 +54,15 @@ export function teardownWaitWords(record) {
   return record?.terraform?.network === true
     ? "Its connections into the private network take up to 20 minutes to remove."
     : null;
+}
+
+/**
+ * How a developer reads what their app prints, in the words of both surfaces
+ * (DESIGN.md, "Logs are found by the command, never by a path"): the command with the
+ * app's name, its window, and the portal's card. Never a path on the platform, which a
+ * developer has no way to open. Only for an environment that offers logs; the caller
+ * checks (`offers` in core/operations.js).
+ */
+export function logsHowWords(app) {
+  return `Read them with \`${commandLine("logs", app)}\` (the last hour; \`--since 1d\` for a day), or ${label("logs")} on seaLeye.online.`;
 }

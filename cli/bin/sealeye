@@ -48,7 +48,7 @@ import { catalogSentence, plainValidationErrors } from "../../core/plan-words.js
 import { evidenceSummary } from "../../core/evidence-summary.js";
 import { noReportWords, planOrigin, teardownDataWords, teardownWaitWords } from "../../core/plan-report-words.js";
 import { RETENTION_CHOICES, retentionOf, withRetention } from "../../core/retention.js";
-import { commandFor, wordsFor } from "../../core/operations.js";
+import { commandFor, commandLine, wordsFor } from "../../core/operations.js";
 import { discover } from "../discover.js";
 import { catalogs } from "../catalogs.js";
 import { platform } from "../platform.js";
@@ -2740,7 +2740,10 @@ function deploymentSummaryLines(dep, { step: showStep = true } = {}) {
 
   const url = publicUrl(dep);
   if (url) row("URL:", c.accent(url));
-  if (dep.outputs?.LogGroup) row("Logs:", c.accent(dep.outputs.LogGroup));
+  // The command, never the platform's path (DESIGN.md, "Logs are found by the command,
+  // never by a path"): an environment with logs to read is one the platform keeps a
+  // group for.
+  if (dep.outputs?.LogGroup) row("Logs:", c.accent(commandLine("logs", dep.app?.name)));
   if (dep.outputs?.BucketName) row("Bucket:", c.accent(dep.outputs.BucketName));
   if (dep.startedAt) row("Started:", c.dim(dep.startedAt));
   if (dep.finishedAt) row("Finished:", c.dim(dep.finishedAt));
