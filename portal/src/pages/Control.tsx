@@ -18,7 +18,7 @@ import { Address } from "../Address";
 import { Cmd, CommandHint } from "../Command";
 import { commandLine, label } from "../../../core/operations.js";
 import { hasSettingsAndCosts } from "../../../core/token.js";
-import { teardownDataWords } from "../../../core/plan-report-words.js";
+import { teardownDataWords, teardownWaitWords } from "../../../core/plan-report-words.js";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -651,6 +651,7 @@ function DeployAgain({ app, fromDeployment, packagedBy, locked, onDone }: { app:
 /** A tear-down is asked for twice: once with the button, once by typing the app's name. */
 function TearDown({ app, deploymentId, record, locked, onDone }: { app: string; deploymentId: string; record?: unknown; locked: boolean; onDone: () => void }) {
   const holdsData: string[] = teardownDataWords(record);
+  const waits: string | null = teardownWaitWords(record);
   const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState("");
   const [busy, setBusy] = useState(false);
@@ -680,6 +681,7 @@ function TearDown({ app, deploymentId, record, locked, onDone }: { app: string; 
         <DialogTitle>{label("teardown")} {app}?</DialogTitle>
         <DialogDescription>Everything the platform built for it is removed, and its address stops working. The plan stays in the developer's folder, so <Cmd op="run" /> can build it again. Type <span className="font-mono text-ink">{app}</span> to confirm.</DialogDescription>
         {holdsData.length ? <ul className="mt-3 space-y-1 text-amber" data-testid="teardown-data">{holdsData.map((line: string) => <li key={line}>{line}</li>)}</ul> : null}
+        {waits ? <p className="mt-3 text-sm text-dim" data-testid="teardown-wait">{waits}</p> : null}
         <Input className="mt-4 font-mono" aria-label="Type the app's name to confirm" value={typed} onChange={e => setTyped(e.target.value)} autoFocus />
         {error ? <div className="mt-3"><Problem message={error} /></div> : null}
         <div className="mt-5 flex justify-end gap-3">

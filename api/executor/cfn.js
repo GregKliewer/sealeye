@@ -171,6 +171,35 @@ export async function refreshSite(bucketName, { profile = null } = {}) {
   return made.ok ? { ok: true, distribution: ids[0] } : { ok: false, error: firstLine(made.stderr) };
 }
 
+/**
+ * The network interfaces the platform made for an environment's functions in the
+ * private network and left behind: detached (`available`) and named for the
+ * environment's functions, whose names all start with the module's name (DESIGN.md,
+ * "A tear-down waits for the private network, and sweeps what it leaves"). Read
+ * through the Terraform role. An interface still in use is never listed.
+ * @returns {Promise<{ok: boolean, interfaces?: {id: string, description: string}[], error?: string}>}
+ */
+export async function leftoverInterfaces(moduleName, { profile = null } = {}) {
+  const r = await runAws([
+    "ec2", "describe-network-interfaces",
+    "--filters", `Name=description,Values=AWS Lambda VPC ENI-${moduleName}-*`, "Name=status,Values=available",
+    "--query", "NetworkInterfaces[].{id: NetworkInterfaceId, description: Description}",
+    "--output", "json", "--region", region()
+  ], { profile }).catch(err => ({ ok: false, stderr: err.message }));
+  if (!r.ok) return { ok: false, error: firstLine(r.stderr) };
+  try {
+    const interfaces = (JSON.parse(r.stdout || "[]") || []).filter(i => typeof i?.id === "string");
+    return { ok: true, interfaces };
+  } catch { return { ok: false, error: "the list of interfaces was not JSON" }; }
+}
+
+/** Delete one detached network interface, through the Terraform role. */
+export async function deleteInterface(id, { profile = null } = {}) {
+  const r = await runAws(["ec2", "delete-network-interface", "--network-interface-id", id, "--region", region()], { profile })
+    .catch(err => ({ ok: false, stderr: err.message }));
+  return r.ok ? { ok: true } : { ok: false, error: firstLine(r.stderr) };
+}
+
 /** Copy an artifact an earlier deployment packaged back out of the bucket, to deploy it again. */
 export async function fetchArtifact(bucket, key, file) {
   const r = await tryAws(["s3", "cp", `s3://${bucket}/${key}`, file, "--region", region(), "--only-show-errors"]);

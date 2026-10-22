@@ -41,3 +41,15 @@ export function teardownDataWords(record) {
     return `This also deletes ${named}, and everything in it.`;
   });
 }
+
+/**
+ * What a tear-down of an environment that joined the private network takes: the
+ * platform lets go of its functions' connections in its own time, up to 20 minutes
+ * (DESIGN.md, "A tear-down waits for the private network, and sweeps what it leaves").
+ * Null for any other environment. Both surfaces say it before asking the platform.
+ */
+export function teardownWaitWords(record) {
+  return record?.terraform?.network === true
+    ? "Its connections into the private network take up to 20 minutes to remove."
+    : null;
+}

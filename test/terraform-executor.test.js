@@ -43,6 +43,13 @@ function juniperCatalog() {
   const site = doc.modules.find(m => m.id === "static_site");
   site.outputs = { bucket_name: { line: "Upload the site's files here." }, url: { line: "The site's address." } };
   site.delivers = { kind: "files", output: "bucket_name", address: "url" };
+  // A database in the private network, as catalog 9 has it: the app joins the network
+  // through the inputs http-api 1.2.0 took, and signs in with its own identity.
+  http.inputs.subnet_ids = { required: false, default: [] };
+  http.inputs.security_group_ids = { required: false, default: [] };
+  const pg = doc.modules.find(m => m.id === "postgres");
+  pg.outputs = { address: { line: "Where the database answers." }, port: { line: "Its port." }, database_user: { line: "The app's user." }, access_policy_arn: { line: "Signs in as that user." }, password_secret_arn: { line: "The master password, kept." } };
+  pg.offers = { access: "access_policy_arn", narrower: [], secrets: ["password_secret_arn"], values: ["address", "port", "database_user"] };
   return doc;
 }
 
@@ -117,6 +124,11 @@ before(async () => {
     aws: `
       require("fs").appendFileSync(${JSON.stringify(path.join(logDir, "aws-profile.log"))}, (process.env.AWS_PROFILE || "-") + " " + args.slice(0, 2).join(" ") + "\\n");
       if (args[0] === "ssm") out([]);
+      // The private network's leftover interfaces, as the test plants them (sweep.json).
+      if (args[1] === "describe-network-interfaces") {
+        const planted = ${JSON.stringify(path.join(logDir, "sweep.json"))};
+        out(require("fs").existsSync(planted) ? JSON.parse(require("fs").readFileSync(planted, "utf8")) : []);
+      }
     `,
     files: {
       "catalogs.json": [{ org: "juniper", version: 3, status: "live", document: juniperCatalog(), createdBy: "platform@example.com", createdAt: at, approvedBy: "platform@example.com", approvedAt: at, madeLiveBy: "platform@example.com", madeLiveAt: at }]
@@ -176,7 +188,7 @@ test("until the platform values are set, the module is not built, and the platfo
   assert.match(http.why, /permissions_boundary_arn/);
   assert.deepEqual(http.inputs.filter(i => i.required).map(i => i.input), ["permissions_boundary_arn"]);
   const pg = asked.body.wanted.find(w => w.module === "postgres");
-  assert.match(pg.why, /does not take an app's code/);
+  assert.match(pg.why, /the platform has no subnet_ids and security_group_ids value for the module that runs the app to join that network with/);
 
   assert.equal((await h.call("/platform", { token: DEV })).status, 403, "a team's token cannot see them");
   assert.equal((await h.call("/platform", { token: OTHER })).status, 403);
@@ -458,4 +470,52 @@ test("an app and the table it uses are built as one environment, connected throu
   const gone = await waitFor(done.deploymentId, DEV, st => ["destroyed", "failed"].includes(st));
   assert.equal(gone.status, "destroyed", gone.failureReason);
   assert.deepEqual(Object.keys(lastRoot().module).sort(), ["app", "document_table"]);
+});
+
+test("an environment that joined the private network says a tear-down can take up to 20 minutes, and sweeps the interfaces the network leaves behind", async () => {
+  // The platform's values the app joins the network with, and the database's own.
+  for (const [name, value] of [["subnet_ids", "subnet-0a1 subnet-0b2"], ["security_group_ids", "sg-apps0001"], ["postgres.subnet_group_name", "juniper-dev-databases"], ["postgres.security_group_ids", "sg-dbs00001"]]) {
+    const set = await h.call(`/platform/values/${name}`, { token: PLATFORM, method: "PUT", body: { value: value.includes(" ") ? value.split(" ") : value } });
+    assert.equal(set.status, 200, JSON.stringify(set.body));
+  }
+  const zip = await appZip({ "package.json": JSON.stringify({ name: "notes", main: "index.js" }), "index.js": "1" });
+  const plan = planFor("notes", "api", [{ id: "http_api" }, { id: "postgres", connect: { address: "DATABASE_HOST", port: "DATABASE_PORT", database_user: "DATABASE_USER" } }]);
+  const checked = await h.call("/plans/validate", { token: DEV, method: "POST", body: plan });
+  assert.equal(checked.body.valid, true, JSON.stringify(checked.body.errors));
+
+  // Before a build, a sweep finds nothing to delete: the platform answers with no interfaces.
+  fs.rmSync(path.join(logDir, "sweep.json"), { force: true });
+  fs.writeFileSync(path.join(logDir, "aws-profile.log"), "");
+  const res = await h.call("/deployments", { token: DEV, method: "POST", body: { backend: "cloudformation", plan, zip, appPath: "notes" } });
+  assert.equal(res.status, 201, JSON.stringify(res.body));
+  const done = await waitFor(res.body.deploymentId, DEV);
+  assert.equal(done.status, "succeeded", done.failureReason);
+  assert.equal(done.terraform.network, true, "the record says the app joined the private network");
+  assert.deepEqual(done.terraform.swept, { at: done.terraform.swept.at, interfaces: [] });
+  assert.match(fs.readFileSync(path.join(logDir, "aws-profile.log"), "utf8"), /^sealeye-deploy-terraform ec2 describe-network-interfaces$/m, "read through the Terraform role");
+  assert.deepEqual(lastRoot().module.app.subnet_ids, ["subnet-0a1", "subnet-0b2"]);
+
+  const { teardownWaitWords, teardownDataWords } = await import("../core/plan-report-words.js");
+  const listed = (await h.call("/deployments", { token: DEV })).body.deployments.find(d => d.deploymentId === done.deploymentId);
+  assert.equal(teardownWaitWords(listed), "Its connections into the private network take up to 20 minutes to remove.");
+  assert.equal(teardownDataWords(listed).length, 1);
+  const table = (await h.call("/deployments", { token: DEV })).body.deployments.find(d => d.app?.name === "orders");
+  assert.equal(teardownWaitWords(table), null, "an environment outside the network says nothing of it");
+
+  // After the tear-down, the two interfaces the platform did not get to are deleted;
+  // one it still uses is not even listed, and what was swept is on the record.
+  fs.writeFileSync(path.join(logDir, "sweep.json"), JSON.stringify([
+    { id: "eni-0aaa", description: `AWS Lambda VPC ENI-${done.resourceName}-dev-api-1111` },
+    { id: "eni-0bbb", description: `AWS Lambda VPC ENI-${done.resourceName}-dev-db-setup-2222` }
+  ]));
+  await h.call(`/deployments/${done.deploymentId}`, { token: DEV, method: "DELETE" });
+  const gone = await waitFor(done.deploymentId, DEV, st => ["destroyed", "failed"].includes(st));
+  assert.equal(gone.status, "destroyed", gone.failureReason);
+  assert.deepEqual(gone.terraform.swept.interfaces, ["eni-0aaa", "eni-0bbb"]);
+  assert.equal(gone.terraform.swept.notDeleted, undefined);
+  const calls = h.awsCalls().filter(c => c.startsWith("ec2 "));
+  assert.ok(calls.includes("ec2 delete-network-interface --network-interface-id eni-0aaa --region ca-central-1"), calls.join("\n"));
+  assert.ok(calls.includes("ec2 delete-network-interface --network-interface-id eni-0bbb --region ca-central-1"), calls.join("\n"));
+  assert.ok(calls.some(c => c.includes(`Name=description,Values=AWS Lambda VPC ENI-${done.resourceName}-*`) && c.includes("Name=status,Values=available")), "only detached interfaces named for this environment's functions");
+  fs.rmSync(path.join(logDir, "sweep.json"), { force: true });
 });

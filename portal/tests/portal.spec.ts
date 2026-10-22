@@ -930,8 +930,13 @@ test("an environment built from the organization's own modules shows only what i
   await expect(page.getByTestId("configure")).toHaveCount(0);
   await expect(page.getByTestId("settings")).toHaveCount(0);
   await expect(page.locator("body")).not.toContainText(/Terraform|OpenTofu|CloudFormation/);
-  // Tearing it down says the table it uses goes too, before anything is asked.
+  // Tearing it down says the table and the database it uses go too, and that the
+  // private network takes its time, before anything is asked.
   await page.getByTestId("teardown").getByRole("button", { name: "Tear down" }).click();
-  await expect(page.getByTestId("teardown-data")).toHaveText("This also deletes a table of documents your app finds by key, and everything in it.");
+  await expect(page.getByTestId("teardown-data").locator("li")).toHaveText([
+    "This also deletes a table of documents your app finds by key, and everything in it.",
+    "This also deletes a relational database your app signs in to with its own identity, and everything in it."
+  ]);
+  await expect(page.getByTestId("teardown-wait")).toHaveText("Its connections into the private network take up to 20 minutes to remove.");
   await page.getByRole("button", { name: "Keep it" }).click();
 });

@@ -286,7 +286,11 @@ database in the private network"; Greg: private endpoints, never a NAT gateway; 
 signs in with its own identity, no password): the library's `postgres` makes the app's
 user and database with a one-time setup function of its own, the app's module joins
 the private network only when its plan has a module that lives there, and the platform
-keeps the master password where no app's role can read it.
+keeps the master password where no app's role can read it. The first database's
+tear-down (Oct 21 to 22) showed the private network lets go of a function's interface up
+to twenty minutes after the function, with the role already gone: both surfaces now say
+the wait, and the executor sweeps what the network leaves (DESIGN.md, "A tear-down waits
+for the private network, and sweeps what it leaves"; Greg, Oct 22, option A).
 
 ## Part D: what was asked for, and writing it down
 
