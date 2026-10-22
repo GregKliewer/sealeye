@@ -60,7 +60,8 @@ core/       what cli/ and api/ must agree on: schema.js (the plan contract), cat
             command and sent with the interview's plan for the portal),
             plan-words.js, evidence-summary.js and plan-report-words.js (words the
             command and the portal both say), platform-lines.js (the lines the platform
-            writes into an app's logs, read for the developer), gap-words.js (what the
+            writes into an app's logs, the front door's record and a database's lines,
+            read for the developer, and what of a database's lines is shown), gap-words.js (what the
             gap report says, and its tie-breaking checklist), retention.js (how long logs are kept), setting-names.js,
             environments.js (what an environment's key is: one row in `sealeye
             list`, one page in the portal, the page `sealeye online <app>` opens),
@@ -279,7 +280,10 @@ down (409 ENVIRONMENT_BUILT_ANOTHER_WAY). Pause, resume and performance answer 4
 NOT_FOR_THIS_ENVIRONMENT for a Terraform environment; its logs are read from the group
 its module output (`delivers.logs`, kept as `outputs.LogGroup`) through the Terraform
 role, and 409 NO_LOGS when the module said nothing (DESIGN.md, "A Terraform
-environment's logs are read where its module says they are"). A deploy whose code looks like it holds a
+environment's logs are read where its module says they are"); its front door's record
+and its database's own lines are read beside them when the modules output where
+(`terraform.logs`; DESIGN.md, "The front door's and the database's lines, beside the
+app's"). A deploy whose code looks like it holds a
 secret is refused with 422 SECRETS_FOUND (file, line and rule, nothing kept); when the
 scan itself cannot finish, an interview or a deploy is refused with 503 SCAN_FAILED.
 Keep existing endpoints and commands working; add, do not break.
