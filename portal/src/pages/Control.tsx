@@ -233,9 +233,12 @@ export function Control() {
 
       {latest.kind !== "static" && offers("perf") && env.deploys.some(d => d.stackName) ? <PerformanceCard app={env.app} deploymentId={(env.deploys.find(d => d.stackName) || latest).deploymentId} /> : null}
 
-      {latest.kind !== "static" && offers("logs") && env.deploys.some(d => d.stackName) ? <LogsCard key={(env.deploys.find(d => d.stackName) || latest).deploymentId} app={env.app} deploymentId={(env.deploys.find(d => d.stackName) || latest).deploymentId} /> : null}
+      {/* Each card's key starts with its own name: these are siblings, and two with the
+          same key (both the latest deployment's id) left a stale Logs card behind on every
+          re-render, one a second while a change was under way. */}
+      {latest.kind !== "static" && offers("logs") && env.deploys.some(d => d.stackName) ? <LogsCard key={`logs:${(env.deploys.find(d => d.stackName) || latest).deploymentId}`} app={env.app} deploymentId={(env.deploys.find(d => d.stackName) || latest).deploymentId} /> : null}
 
-      {offers("evidence") ? <EvidenceCard key={evidenceFor || latest.deploymentId} deploymentId={evidenceFor || latest.deploymentId} latest={!evidenceFor || evidenceFor === latest.deploymentId} /> : null}
+      {offers("evidence") ? <EvidenceCard key={`evidence:${evidenceFor || latest.deploymentId}`} deploymentId={evidenceFor || latest.deploymentId} latest={!evidenceFor || evidenceFor === latest.deploymentId} /> : null}
     </>
   );
 }
