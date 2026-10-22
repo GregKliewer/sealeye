@@ -854,7 +854,7 @@ test("only what changed since the live catalog is read and written again; the re
   assert.deepEqual(two.summary.modules.map(m => [m.source, m.status]), [["modules/cache", "read"], ["modules/db", "kept"], ["modules/db-cluster", "kept"]]);
   assert.deepEqual(two.summary.comparedWith, { catalog: v1, kept: 2, written: 1, gone: [] });
   assert.equal(modulesDone(two.summary), 3);
-  assert.equal(comparedWords(two.summary), `Compared with catalog ${v1}: 2 modules unchanged and kept, 1 entry written again.`);
+  assert.equal(comparedWords(two.summary), `Compared with catalog ${v1}: 2 modules unchanged and kept, 1 entry written.`);
   const kept = two.events.find(e => e.type === "kept");
   assert.deepEqual(kept.sources, ["modules/db", "modules/db-cluster"]);
   assert.match(discoveryEventLine(kept), new RegExp(`^Unchanged since catalog ${v1}, so kept as it is there: modules/db, modules/db-cluster`));
@@ -904,4 +904,116 @@ test("only what changed since the live catalog is read and written again; the re
   const sixth = scripted();
   await run(sixth);
   assert.deepEqual(workers(sixth), ["modules/cache", "modules/db", "modules/db-cluster"]);
+});
+
+test("a kept run keeps a person's edits, takes answers to carried questions, and writes everything when a module comes or goes", async () => {
+  const { approveCatalog, makeLive, changeDraft } = await import("../api/catalogs.js");
+  const { applyEdit } = await import("../core/catalog-edits.js");
+  const { comparedWords } = await import("../core/discovery-words.js");
+  const who = { ...caller, org: "acme-comes-and-goes" };
+  const dir = library();
+  const run = async (model, options = {}) => {
+    const service = createDiscoveryService({ client: model.client, readLibrary: readFolder(dir) });
+    const { discoveryId } = await service.start({ caller: who, repos: [{ owner: "acme", repo: "platform" }], ...options });
+    await service.settled(discoveryId);
+    return { service, id: discoveryId, record: service.record(discoveryId), summary: service.get(discoveryId) };
+  };
+  const workers = model => [...new Set(model.calls.filter(c => c.tools.includes("submit_finding")).map(c => c.opening.match(/Your module is (\S+)\./)[1]))].sort();
+  const wrote = model => model.calls.filter(c => c.tools.includes("write_catalog")).map(c => c.opening.match(/Write the entries for these modules: (.+)\./)[1]);
+  const goLive = async version => {
+    await approveCatalog({ org: who.org, version, by: who.email });
+    await makeLive({ org: who.org, version, by: who.email });
+  };
+
+  // A person changes db-cluster's guidance before the first draft goes live.
+  const one = await run(scripted());
+  await changeDraft({ org: who.org, version: one.record.catalogVersion, change: doc => applyEdit(doc, { module: "db_cluster", field: "guidance", text: "Staging and prod, as the platform team says.", by: "lead@acme.test", at: "2026-10-22T12:00:00Z" }) });
+  await goLive(one.record.catalogVersion);
+
+  // The database changes, so db-cluster is written again: what the person wrote stays.
+  fs.appendFileSync(path.join(dir, "modules/db/README.md"), "Now with backups.\n");
+  const second = scripted();
+  const two = await run(second);
+  assert.deepEqual(wrote(second), ["modules/db, modules/db-cluster"]);
+  let draft = catalogAt(who.org, two.record.catalogVersion);
+  const cluster = draft.modules.find(m => m.id === "db_cluster");
+  assert.equal(cluster.guidance, "Staging and prod, as the platform team says.");
+  assert.equal(cluster.edited.guidance.by, "lead@acme.test");
+
+  // The question that spanned both databases is not carried: one of them changed, so it is theirs to ask again.
+  assert.equal(two.service.questions(two.id).some(q => q.carried && q.kind === "overlap"), false);
+  // A question about the kept cache is carried, and answered on this run: the cache's entry is written again with it.
+  const deprecated = two.service.questions(two.id).find(q => q.carried && q.kind === "deprecated");
+  assert.ok(deprecated, "the cache's question is carried");
+  await two.service.answer({ id: two.id, questionId: deprecated.id, answer: "Yes, to old apps", by: "lead@acme.test" });
+  await two.service.settled(two.id);
+  assert.deepEqual(wrote(second), ["modules/db, modules/db-cluster", "modules/cache"]);
+  const asked = JSON.parse(second.calls.at(-1).opening.split("Questions so far, with any answers:")[1]);
+  assert.equal(asked.find(q => q.kind === "deprecated").answer, "Yes, to old apps");
+  draft = catalogAt(who.org, two.record.catalogVersion);
+  assert.equal(draft.modules.find(m => m.id === "db_cluster").guidance, "Staging and prod, as the platform team says.", "still the person's words");
+  await goLive(two.record.catalogVersion);
+
+  // A module comes: only it is read, but every entry is written, since what spans the catalog may change.
+  fs.mkdirSync(path.join(dir, "modules/queue"));
+  fs.writeFileSync(path.join(dir, "modules/queue/README.md"), "A queue for work an app hands off.\n");
+  fs.writeFileSync(path.join(dir, "modules/queue/variables.tf"), 'variable "name" {\n  type = string\n}\n');
+  const third = scripted();
+  const three = await run(third);
+  assert.deepEqual(workers(third), ["modules/queue"]);
+  assert.deepEqual(wrote(third), ["modules/cache, modules/db, modules/db-cluster, modules/queue"]);
+  assert.deepEqual(three.summary.comparedWith, { catalog: two.record.catalogVersion, kept: 3, written: 4, gone: [] });
+  await goLive(three.record.catalogVersion);
+
+  // A module goes: nothing is read, every entry left is written, and the run says what went.
+  fs.rmSync(path.join(dir, "modules/cache"), { recursive: true });
+  const fourth = scripted();
+  const four = await run(fourth);
+  assert.deepEqual(workers(fourth), []);
+  assert.deepEqual(wrote(fourth), ["modules/db, modules/db-cluster, modules/queue"]);
+  assert.deepEqual(four.summary.comparedWith.gone, ["modules/cache"]);
+  assert.match(comparedWords(four.summary), /no longer in the library: modules\/cache\.$/);
+  assert.equal(catalogAt(who.org, four.record.catalogVersion).modules.some(m => m.id === "cache"), false);
+  await goLive(four.record.catalogVersion);
+
+  // Nothing changed: the run says where its questions are, the run behind the live catalog.
+  const five = await run(scripted());
+  assert.equal(five.record.catalogVersion, null);
+  assert.equal(five.summary.unchangedSince, four.record.catalogVersion);
+  assert.equal(five.summary.questionsIn, four.id);
+});
+
+test("a module whose nested module changed is read again, and a kept entry takes what code reads fresh", async () => {
+  const { approveCatalog, makeLive } = await import("../api/catalogs.js");
+  const { keepEntries } = await import("../api/discovery/draft.js");
+  const who = { ...caller, org: "acme-nested" };
+  const dir = library();
+  fs.mkdirSync(path.join(dir, "modules/db/modules/replica"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "modules/db/modules/replica/variables.tf"), 'variable "name" {\n  type = string\n}\n');
+  const run = async model => {
+    const service = createDiscoveryService({ client: model.client, readLibrary: readFolder(dir) });
+    const { discoveryId } = await service.start({ caller: who, repos: [{ owner: "acme", repo: "platform" }] });
+    await service.settled(discoveryId);
+    return { record: service.record(discoveryId), summary: service.get(discoveryId) };
+  };
+  const workers = model => [...new Set(model.calls.filter(c => c.tools.includes("submit_finding")).map(c => c.opening.match(/Your module is (\S+)\./)[1]))].sort();
+  const one = await run(scripted());
+  await approveCatalog({ org: who.org, version: one.record.catalogVersion, by: who.email });
+  await makeLive({ org: who.org, version: one.record.catalogVersion, by: who.email });
+  const ids = Object.fromEntries(one.summary.modules.map(m => [m.source, m.id]));
+
+  // Only the module inside db changes: db's reader may read it, so db is read again too.
+  fs.appendFileSync(path.join(dir, "modules/db/modules/replica/variables.tf"), 'variable "zone" {\n  type = string\n}\n');
+  const second = scripted();
+  const two = await run(second);
+  assert.deepEqual(workers(second), ["modules/db", "modules/db/modules/replica"]);
+  // Every module keeps the id the live catalog gave it.
+  assert.deepEqual(Object.fromEntries(two.summary.modules.map(m => [m.source, m.id])), ids);
+
+  // A kept entry keeps its words, and takes what code read this run: a first release
+  // given since makes it released, and nothing stays open that no question holds.
+  const base = { modules: [{ source: "modules/db", id: "db", line: "A database.", guidance: "Dev only.", unreleased: true, open: ["q_old"] }] };
+  const fresh = { modules: [{ source: "modules/db", id: "db", line: "Different words.", version: "1.0.0", tag: "db/v1.0.0" }] };
+  const [entry] = keepEntries(fresh, base, new Set(["modules/db"]), []).modules;
+  assert.deepEqual(entry, { source: "modules/db", id: "db", line: "A database.", guidance: "Dev only.", version: "1.0.0", tag: "db/v1.0.0" });
 });

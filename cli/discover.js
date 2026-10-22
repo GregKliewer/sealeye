@@ -173,11 +173,19 @@ async function answerOpen({ apiBaseUrl, run, say, json }) {
 async function runFor({ apiBaseUrl, id }) {
   if (id) return getDiscovery({ apiBaseUrl, id });
   const [latest] = await listDiscoveries({ apiBaseUrl });
-  return latest ? getDiscovery({ apiBaseUrl, id: latest.discoveryId }) : null;
+  if (!latest) return null;
+  // A run that found nothing changed has no questions of its own: the run behind the
+  // live catalog holds them, so that is the one to answer and show.
+  if (latest.unchangedSince && latest.questionsIn) {
+    const held = await getDiscovery({ apiBaseUrl, id: latest.questionsIn }).catch(() => null);
+    if (held) return { ...held, latestWords: comparedWords(latest) };
+  }
+  return getDiscovery({ apiBaseUrl, id: latest.discoveryId });
 }
 
 function printRun(run, say) {
   const library = (run.repos || []).map(r => `${r.repo}${r.commit ? ` at ${r.commit.slice(0, 7)}` : ""}`).join(", ");
+  if (run.latestWords) console.log(step(`The latest run: ${run.latestWords} Its questions are on this one:`));
   console.log(`${c.accent(run.discoveryId)}  ${discoveryStateWords(run)}`);
   if (library) console.log(step(`library ${library}`));
   const notRead = (run.modules || []).filter(m => m.status === "not_read").map(m => m.source);

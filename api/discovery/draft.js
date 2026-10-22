@@ -167,6 +167,8 @@ export function draftCatalog({ run, modules, library, entries, questions }) {
  * @param {Set<string>} sources the folders whose entries are kept from `base`
  * @param {object[]} questions  this run's questions, those carried over among them
  */
+const CODE_READ = ["outputs", "delivers", "runs", "offers", "accepts", "version", "tag", "commit", "unreleased"];
+
 export function keepEntries(document, base, sources, questions) {
   const before = new Map((base?.modules || []).map(m => [m.source, m]));
   return {
@@ -175,9 +177,14 @@ export function keepEntries(document, base, sources, questions) {
       const was = before.get(m.source);
       if (!sources.has(m.source) || !was) return m;
       const { open: _old, ...kept } = was;
-      const fresh = Object.fromEntries(["outputs", "delivers", "runs", "offers", "accepts", "version", "tag", "commit", "unreleased"].filter(k => k in m).map(k => [k, m[k]]));
+      // What code read this run, exactly: a field it no longer finds goes (a module given
+      // its first release is no longer unreleased; a tag deleted takes its version with it).
+      for (const k of CODE_READ) {
+        if (k in m) kept[k] = m[k];
+        else delete kept[k];
+      }
       const open = openFor(m.source, questions);
-      return { ...kept, id: m.id, ...fresh, ...(open.length ? { open } : {}) };
+      return { ...kept, id: m.id, ...(open.length ? { open } : {}) };
     })
   };
 }

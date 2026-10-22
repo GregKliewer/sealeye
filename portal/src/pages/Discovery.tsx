@@ -39,7 +39,11 @@ const MOVES = new Set(["question", "answered", "answers_used", "merged", "draft"
 
 function Discovery() {
   const runs = useLoad(api.discoveries);
-  const latestId = runs.data?.[0]?.discoveryId || null;
+  // A run that found nothing changed has no questions or draft of its own: the page shows
+  // the run behind the live catalog, which holds them, and says why.
+  const newest = runs.data?.[0] || null;
+  const latestId = (newest?.unchangedSince && newest.questionsIn) || newest?.discoveryId || null;
+  const unchangedNote = newest?.unchangedSince ? comparedWords(newest) : null;
   const [run, setRun] = useState<DiscoveryRun | null>(null);
   const [draft, setDraft] = useState<DraftCatalog | null>(null);
   const [lines, setLines] = useState<string[]>([]);
@@ -139,6 +143,7 @@ function Discovery() {
       {runs.error ? <Problem message={runs.error} /> : null}
       {problem ? <Problem message={problem} /> : null}
       {runs.data && !runs.data.length ? <p className="text-dim" data-testid="no-runs">No discovery run yet.</p> : null}
+      {unchangedNote ? <p className="mb-4 text-sm text-dim" data-testid="run-unchanged">The latest run: {unchangedNote} Its questions and its draft are on the run below.</p> : null}
 
       {run ? (
         <Card className="mb-6" data-testid="run">

@@ -28,6 +28,14 @@ const run = {
   ],
   spend: { supervisor: { cost: 0.12 } }, catalogVersion: 1, createdAt: at, finishedAt: at
 };
+// A later run that found nothing changed since run 1's catalog: no questions or draft of
+// its own, so both surfaces answer and show run 1's.
+const later = new Date(Date.now() + 60_000).toISOString();
+const unchanged = {
+  id: "dsc_0000000000000002", org: "default", orgName: "Acme", status: "finished", startedBy: "lee@example.com", surface: "cli",
+  repos: run.repos, modules: run.modules.map(m => ({ ...m, status: "kept" })), spend: {}, catalogVersion: null,
+  unchangedSince: 1, questionsIn: run.id, createdAt: later, finishedAt: later
+};
 const question = (id, text, answer = null) => ({
   id, seq: 1, discovery: run.id, org: "default", kind: "other", question: text, options: ["Yes", "No"], guess: "No",
   touches: ["modules/db"], evidence: [{ file: "modules/db/README.md", shows: "says so" }], answer, createdAt: at
@@ -43,7 +51,7 @@ before(async () => {
     aws: "",
     env: { SEALEYE_LIBRARY_REPOS: "" },
     files: {
-      "discoveries.json": { runs: [run], questions: [question("q_open", "Is db for dev only?"), question("q_done", "Is db encrypted?", "Yes")] },
+      "discoveries.json": { runs: [run, unchanged], questions: [question("q_open", "Is db for dev only?"), question("q_done", "Is db encrypted?", "Yes")] },
       "catalogs.json": [{ org: "default", version: 1, status: "draft", createdBy: "lee@example.com", createdAt: at, approvedBy: null, approvedAt: null,
         document: { catalogVersion: "d", modules: [{ id: "db", source: "modules/db", availability: "available", builds_with: "terraform", line: "A database." }], need_kinds: starterCatalog().need_kinds, profiles: starterCatalog().profiles } }]
     }
@@ -58,7 +66,7 @@ const sealeye = (args, tok) => promisify(execFile)(process.execPath, [path.join(
 
 test("sealeye discover status: the latest run, what was read, and what is open", async () => {
   const { stdout } = await sealeye(["discover", "status"], LEE);
-  assert.match(stdout, /dsc_0000000000000001  Finished, draft catalog 1/);
+  assert.match(stdout, /The latest run: Nothing had changed since catalog 1, so no draft was written\. Its questions are on this one:\n.*dsc_0000000000000001  Finished, draft catalog 1/);
   assert.match(stdout, /library acme\/platform at 5e63aa5/);
   assert.match(stdout, /1 of 2 modules read; not read: modules\/cache/);
   assert.match(stdout, /2 questions, 1 open; spent US\$0\.12/);
@@ -225,6 +233,6 @@ test("sealeye discover --all asks for every module to be read again; without it,
   assert.equal(READ_ALL, "Read every module again");
   assert.equal(comparedWords({ full: true }), "Read every module again, as asked.");
   assert.equal(comparedWords({ unchangedSince: 12 }), "Nothing had changed since catalog 12, so no draft was written.");
-  assert.equal(comparedWords({ comparedWith: { catalog: 12, kept: 13, written: 1, gone: ["modules/old"] } }), "Compared with catalog 12: 13 modules unchanged and kept, 1 entry written again; no longer in the library: modules/old.");
+  assert.equal(comparedWords({ comparedWith: { catalog: 12, kept: 13, written: 1, gone: ["modules/old"] } }), "Compared with catalog 12: 13 modules unchanged and kept, 1 entry written; no longer in the library: modules/old.");
   assert.equal(comparedWords({}), null);
 });

@@ -6,6 +6,7 @@
 //
 // Runs in a browser: the portal imports it. No node: modules, no packages.
 import { shownWord } from "./developer-words.js";
+import { commandLine } from "./operations.js";
 
 /** The choice that opens a box for an answer of the engineer's own. */
 export const SOMETHING_ELSE = "Something else";
@@ -15,7 +16,6 @@ export const LATER = "Answer later";
 export const ANSWER_LIMIT = 600;
 
 const short = commit => (typeof commit === "string" ? commit.slice(0, 7) : "");
-import { commandLine } from "./operations.js";
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
@@ -148,7 +148,7 @@ export function comparedWords(run) {
   if (run?.unchangedSince) return `Nothing had changed since catalog ${run.unchangedSince}, so no draft was written.`;
   const c = run?.comparedWith;
   if (!c) return run?.full ? "Read every module again, as asked." : null;
-  return `Compared with catalog ${c.catalog}: ${plural(c.kept, "module", "modules")} unchanged and kept, ${plural(c.written, "entry", "entries")} written again${c.gone?.length ? `; no longer in the library: ${c.gone.join(", ")}` : ""}.`;
+  return `Compared with catalog ${c.catalog}: ${plural(c.kept, "module", "modules")} unchanged and kept, ${plural(c.written, "entry", "entries")} written${c.gone?.length ? `; no longer in the library: ${c.gone.join(", ")}` : ""}.`;
 }
 
 /**

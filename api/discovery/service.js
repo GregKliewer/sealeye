@@ -32,6 +32,22 @@ import { ANSWER_LIMIT } from "../../core/discovery-words.js";
 import { createBudget, readLibraryLevel, readModule, SpendingLimit, superviseEntries } from "./readers.js";
 import * as store from "./store.js";
 import { connectsOf, deliversOf, idFor, libraryHash, listModules, moduleHash, moduleInputs, moduleOutputs, moduleRuns } from "./terraform.js";
+import { keepEdits } from "../../core/catalog-edits.js";
+import fs from "node:fs";
+
+/**
+ * How this seaLeye reads a library: its discovery prompts, and a number raised when the
+ * code that reads a module changes what it records. A run compares with the live
+ * catalog's only when it was read the same way: after a release that reads better, every
+ * module is read again (the review of Step 6c, Oct 22, 2026).
+ */
+const READER_CODE = 1;
+export function readerVersion() {
+  const dir = path.join(import.meta.dirname, "..", "..", "prompts");
+  const hash = crypto.createHash("sha256").update(`code ${READER_CODE}\0`);
+  for (const f of fs.readdirSync(dir).filter(f => /^discovery-.*\.md$/.test(f)).sort()) hash.update(`${f}\0`).update(fs.readFileSync(path.join(dir, f))).update("\0");
+  return hash.digest("hex").slice(0, 16);
+}
 
 // Set from the first measured run on the made-up organization, Oct 15, 2026 (PHASE4-PLAN
 // D6): its most expensive worker spent half a cent and the whole run eighteen cents;
@@ -150,7 +166,9 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
     // changed, so it wrote no draft (DESIGN.md, "Discovery reads again only what changed").
     full: Boolean(run.full),
     ...(run.baseline ? { comparedWith: { catalog: run.baseline.catalog, kept: run.baseline.kept.length, written: (run.baseline.written || []).length, gone: run.baseline.gone || [] } } : {}),
-    ...(run.unchangedSince ? { unchangedSince: run.unchangedSince } : {}),
+    // A run that found nothing changed has no questions or draft of its own: the run
+    // behind the live catalog holds them, and both surfaces go there for them.
+    ...(run.unchangedSince ? { unchangedSince: run.unchangedSince, questionsIn: run.questionsIn || null } : {}),
     // An answer being written into the draft now, and why the last one could not be,
     // for a surface to show after the run's own stream has ended (Greg, Oct 15, 2026).
     rewriting: (live.get(run.id)?.rewrites || 0) > 0,
@@ -380,7 +398,7 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
         const kept = new Set(st.kept || []);
         const sends = [
           ...st.modules.filter(m => !kept.has(m.source)).map(module => new Send("worker", { module })),
-          ...(kept.size ? [] : [new Send("library_reader", { modules: st.modules })])
+          ...(kept.size && st.library ? [] : [new Send("library_reader", { modules: st.modules })])
         ];
         // Nothing to read, only a module gone: straight to the writing.
         return sends.length ? sends : ["supervise"];
@@ -455,6 +473,7 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
     if (!was || !Array.isArray(was.modules) || !was.libraryHash) return null;
     if (was.repos?.[0]?.repo !== run.repos[0]?.repo) return null;
     if (was.libraryHash !== libHash) return null;
+    if (was.readerVersion !== readerVersion()) return null;
     return { run: was, catalog: live.version, document: live.document };
   }
 
@@ -474,11 +493,17 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
     const changedText = changed.map(src => JSON.stringify([run.modules.find(m => m.source === src)?.finding || null, entryOf.get(src) || null])).join("\n");
     const changedNeeds = new Set(changed.flatMap(src => entryOf.get(src)?.meets || []));
     const gone = (base.modules || []).filter(m => !run.modules.some(x => x.source === m.source));
+    // A module added or gone may overlap any other, and nothing yet says which needs a
+    // new one meets: every entry is written again (the findings are still kept).
+    const added = run.modules.some(m => !entryOf.has(m.source));
+    if (added || gone.length) return run.modules.map(m => m.source);
+    const changedModules = run.modules.filter(m => changed.includes(m.source));
     const touched = run.modules.filter(m => kept.has(m.source)).filter(m => {
       const was = entryOf.get(m.source);
       return mentions(changedText, m) ||
-        (was?.meets || []).some(k => changedNeeds.has(k)) ||
-        gone.some(g => mentions(JSON.stringify(was || {}), g));
+        // And the other way: a kept entry that names a changed module.
+        changedModules.some(c => mentions(JSON.stringify(was || {}), c)) ||
+        (was?.meets || []).some(k => changedNeeds.has(k));
     }).map(m => m.source);
     return [...changed, ...touched];
   }
@@ -489,13 +514,26 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
    * entry kept from the live catalog still rests on what it rested on. A question about
    * the whole catalog is carried too: the README and pipeline it came from are unchanged.
    */
-  async function carryQuestions(run, was, kept) {
+  async function carryQuestions(run, was, kept, baseCatalog) {
     const s = state(run.id);
+    const here = new Set(run.modules.map(m => m.source));
     let carried = 0;
     for (const q of store.questionsOf(was.id)) {
       if (q.mergedInto) continue;
-      if (!(q.touches || []).every(t => kept.has(t))) continue;
-      await store.saveQuestion({ ...q, id: `q_${crypto.randomBytes(6).toString("hex")}`, seq: ++s.qseq, discovery: run.id, carriedFrom: q.id, merged: [], usedAt: q.answer != null ? q.usedAt : null });
+      const touches = q.touches || [];
+      const allKept = touches.every(t => kept.has(t));
+      // An answered question that also touches a module read again is carried too, so
+      // its answer reaches that module's entry and nobody is asked it again; an open one
+      // is left to the module's reader, which asks again what it needs to.
+      if (!allKept && !(q.answer != null && touches.some(t => kept.has(t)))) continue;
+      // In the draft only if it is in the catalog the run keeps entries from: an answer
+      // written into a later draft that never went live is written in again.
+      const inBase = q.answer != null && q.usedAt && Number(q.usedIn) <= Number(baseCatalog);
+      await store.saveQuestion({
+        ...q, id: `q_${crypto.randomBytes(6).toString("hex")}`, seq: ++s.qseq, discovery: run.id, carriedFrom: q.id, merged: [],
+        touches: touches.filter(t => here.has(t)),
+        usedAt: inBase ? q.usedAt : null, usedIn: inBase ? q.usedIn : null
+      });
       carried += 1;
     }
     return carried;
@@ -512,11 +550,21 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
     emit(run.id, { type: "writing" });
     const before = asked(run.id);
     const base = run.baseline ? catalogAt(run.org, run.baseline.catalog) : null;
-    const sources = base ? toWrite(run, base) : run.modules.map(m => m.source);
+    // An answer not yet written into an entry is written in now: its modules are written
+    // again even when kept (an answer given during the run, or carried from a draft that
+    // never went live).
+    const pending = before.filter(q => q.answer != null && !q.usedAt).flatMap(q => q.touches || []);
+    const sources = base
+      ? [...new Set([...toWrite(run, base), ...pending])].filter(src => run.modules.some(m => m.source === src))
+      : run.modules.map(m => m.source);
     const keep = new Set(base ? run.modules.map(m => m.source).filter(src => !sources.includes(src)) : []);
+    const liveEntry = new Map((base?.modules || []).map(m => [m.source, m]));
     const build = (list, questions) => {
       const doc = draftCatalog({ run, modules: run.modules, library: run.library, entries: list, questions });
-      return base ? keepEntries(doc, base, keep, questions) : doc;
+      if (!base) return doc;
+      const kept = keepEntries(doc, base, keep, questions);
+      // What a person wrote of an entry written again is theirs, as a late answer keeps it.
+      return { ...kept, modules: kept.modules.map(m => (keep.has(m.source) || !liveEntry.get(m.source)?.edited ? m : keepEdits(liveEntry.get(m.source), m))) };
     };
     const written = sources.length ? await superviseEntries({
       clientFor: clientFor(run),
@@ -537,7 +585,8 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
     const kept = await addCatalog({ org: run.org, document, by: run.startedBy });
     run.catalogVersion = kept.version;
     run.spend = s.budget.spend();
-    await markUsed(before.filter(q => q.answer != null && !q.usedAt), kept.version);
+    // Only answers whose modules were written: one about a kept module is in it already.
+    await markUsed(before.filter(q => q.answer != null && !q.usedAt && (q.touches || []).every(t => sources.includes(t))), kept.version);
     await save(run.id);
     emit(run.id, { type: "draft", catalog: { version: kept.version }, open: questions.filter(q => q.answer == null).length });
   }
@@ -698,13 +747,25 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
         run.repos[i] = { repo: target.owner && target.repo ? repoName(target) : snap.repo, ref: target.ref || null, commit: snap.commit, via: snap.via, tagged: Boolean(snap.tagged), files: snap.files, secretFiles: snap.secretFiles.length, findings: snap.findings.length };
         emit(run.id, { type: "library", repo: snap.repo, commit: snap.commit, files: snap.files, held: snap.secretFiles.length + (snap.unreadFiles || []).length, replaced: snap.findings.length });
       }
+      // What every reader may read beyond its own module, hashed, how this seaLeye reads,
+      // and the run it can be compared with (DESIGN.md, "Discovery reads again only what
+      // changed").
+      run.libraryHash = libraryHash(s.snapshots[0].dir);
+      run.readerVersion = readerVersion();
+      const baseline = run.full ? null : baselineFor(run, run.libraryHash);
+      const before = new Map((baseline?.run.modules || []).map(m => [m.source, m]));
       const modules = [];
-      const ids = new Set();
+      // A module the base run read keeps its id, so a plan or an environment that names
+      // it still names it when a new module would sort ahead of it.
+      const ids = new Set([...before.values()].filter(m => s.snapshots.some(snap => listModules(snap.dir).includes(m.source))).map(m => m.id));
       s.snapshots.forEach((snap, repo) => {
         for (const source of listModules(snap.dir)) {
-          let id = idFor(source);
-          while (ids.has(id)) id = `${id}_${repo + 2}`;
-          ids.add(id);
+          let id = before.get(source)?.id;
+          if (!id) {
+            id = idFor(source);
+            while (ids.has(id)) id = `${id}_${repo + 2}`;
+            ids.add(id);
+          }
           // What code reads of it, exactly: its inputs and outputs, how it takes an app,
           // and anything it would run on the platform's server (core/terraform-modules.js).
           const inputs = moduleInputs(path.join(snap.dir, source));
@@ -715,15 +776,14 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
           modules.push({ source, id, repo, hash: moduleHash(snap.dir, source), inputs, outputs, delivers: deliversOf(inputs, outputs), runs: moduleRuns(snap.dir, source), ...connectsOf(inputs, outputs), release, unreleased: Boolean(snap.tagged && !release) });
         }
       });
-      // What every reader may read beyond its own module, hashed, and the run it can be
-      // compared with: modules whose code is unchanged since then keep what was found.
-      run.libraryHash = libraryHash(s.snapshots[0].dir);
-      const baseline = run.full ? null : baselineFor(run, run.libraryHash);
-      const before = new Map((baseline?.run.modules || []).map(m => [m.source, m]));
+      // Modules whose code is unchanged since then keep what was found. A module holding
+      // another counts as changed when the one inside it did: its reader may read it.
       const entries = new Set((baseline?.document.modules || []).map(m => m.source));
+      const same = m => { const was = before.get(m.source); return was && was.hash === m.hash; };
       const kept = modules.filter(m => {
         const was = before.get(m.source);
-        return was && was.hash === m.hash && was.status !== "not_read" && was.finding && entries.has(m.source);
+        const inside = modules.filter(n => n.source.startsWith(`${m.source}/`));
+        return was && same(m) && inside.every(same) && was.status !== "not_read" && was.finding && entries.has(m.source);
       }).map(m => m.source);
       const keptSet = new Set(kept);
       run.modules = modules.map(m => ({ ...m, status: keptSet.has(m.source) ? "kept" : "reading" }));
@@ -732,9 +792,19 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
 
       if (baseline) {
         const gone = [...before.keys()].filter(src => !modules.some(m => m.source === src));
-        // Nothing changed: no draft, since it would be the live catalog again.
-        if (kept.length === modules.length && !gone.length) {
+        // Nothing changed: no draft, since it would be the live catalog again. What code
+        // reads of each module (its release above all) must be as the live catalog has it
+        // too; a release moved with no change to the code still makes a draft, written
+        // with no model call.
+        const entryOf = new Map(baseline.document.modules.map(m => [m.source, m]));
+        const codeSame = m => {
+          const e = entryOf.get(m.source) || {};
+          return (e.version || null) === (m.release?.version || null) && Boolean(e.unreleased) === Boolean(m.unreleased) &&
+            ["outputs", "delivers", "runs", "offers", "accepts"].every(k => JSON.stringify(e[k] ?? null) === JSON.stringify(m[k] ?? null));
+        };
+        if (kept.length === modules.length && !gone.length && modules.every(codeSame)) {
           run.unchangedSince = baseline.catalog;
+          run.questionsIn = baseline.run.id;
           run.status = "finished";
           run.finishedAt = new Date(now()).toISOString();
           run.spend = s.budget.spend();
@@ -746,7 +816,7 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
         run.baseline = { run: baseline.run.id, catalog: baseline.catalog, kept, gone };
         // Questions are carried only beside kept modules: with none kept, the library's
         // README and pipeline are read again too, and ask again what they need to.
-        const carried = kept.length ? await carryQuestions(run, baseline.run, keptSet) : 0;
+        const carried = kept.length ? await carryQuestions(run, baseline.run, keptSet, baseline.catalog) : 0;
         await save(run.id);
         if (kept.length) emit(run.id, { type: "kept", sources: kept, catalog: { version: baseline.catalog }, carried });
       }

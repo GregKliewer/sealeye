@@ -495,13 +495,18 @@ run in parallel and never wait on a person; the supervisor writes the draft, wit
 words a developer reads, the planner's guidance and which needs each module meets
 (`meets`). A question goes out the moment a reader raises it, and an answer is used
 whenever it comes: before the entries are written it is simply read, after, it re-writes
-only what it touches. The live catalog then feeds the interview, the executor and the
+only what it touches. A run compares the library with the run behind the live catalog:
+modules whose code is unchanged keep their finding and their entry as approved, with
+their questions, so only what changed is read and written again (`--all` reads
+everything; DESIGN.md, "Discovery reads again only what changed"). The live catalog then feeds the interview, the executor and the
 gap report, which judges every drafted plan's needs against it.
 
 ```mermaid
 flowchart LR
   read["read: one commit per repository,<br/>scanned, flagged lines replaced"] --> plan["plain code: each module folder,<br/>its inputs from its variables"]
-  plan --> w1["worker per module<br/>(small route)"]
+  plan --> keep["unchanged since the live<br/>catalog's run: kept as approved"]
+  keep --> sup
+  plan --> w1["worker per module that changed<br/>(small route)"]
   plan --> lib["library reader: README, pipeline<br/>(small route)"]
   w1 --> sup["supervisor writes the draft<br/>(frontier route)"]
   lib --> sup
@@ -769,7 +774,7 @@ The decisions that shaped the architecture, by DESIGN.md heading.
 | Tracing | Tracing the interview with LangFuse; Tracing stays in the product |
 | Secrets in code | The secret scanner; The interview reads around a secret, not past the file |
 | Spending | A run's cap is close, not exact; What a run costs, and a cap of a dollar; The cap on every run; The gateway's budget: $20 a period; The outer limit, and a record of calls kept 90 days |
-| Learning the platform | Phase 4's decisions, and one reopened; The catalog is data, and every organization starts with the starter; A plan names its catalog (planVersion 0.5); The interview reads the organization's catalog; A module's name is found as code when it is an ordinary word; The made-up organization: Juniper Mutual; Discovery records which needs each module meets; The gap report |
+| Learning the platform | Phase 4's decisions, and one reopened; The catalog is data, and every organization starts with the starter; A plan names its catalog (planVersion 0.5); The interview reads the organization's catalog; A module's name is found as code when it is an ordinary word; The made-up organization: Juniper Mutual; Discovery records which needs each module meets; The gap report; Discovery reads again only what changed |
 | Building from the organization's modules | A Terraform executor builds an organization's own modules; Each module is built at the version its library released; Modules are connected through what the library offers; An app reaches a database in the private network; A tear-down waits for the private network, and sweeps what it leaves |
 | What a developer sees of the platform | Logs are found by the command, never by a path; A Terraform environment's logs are read where its module says they are; What the platform saw, in the developer's words |
 | The model gateway | Phase 3's decisions, as recommended; agentgateway, read and run (Step 4); The model gateway on the server; A token on every model call; Inference from Canada: disclosed, on the US profile |

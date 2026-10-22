@@ -247,7 +247,8 @@ DELETE /sessions (the portal's sign-in and sign-out), GET /platform (?stage=; th
 organization's platform values and what each Terraform module still needs), PUT and
 DELETE /platform/values/{name} ({ value, stage? }: a word or a list of words, never a
 secret), an organization-wide token's only, POST /discoveries (a run over the
-library the server names), GET /discoveries, GET /discoveries/{id} (the run and its
+library the server names; `{ full: true }` reads every module, otherwise only what
+changed since the live catalog's run), GET /discoveries, GET /discoveries/{id} (the run and its
 questions, and whether an answer is being written into the draft), GET /discoveries/{id}/events (server-sent events), GET
 /discoveries/{id}/catalog (its draft), POST /discoveries/{id}/answers ({ question, answer },
 while it runs or after); discovery is an organization-wide token's only, one run at a time for an organization (409 RUN_GOING), over one library repository (409 ONE_LIBRARY). GET /catalogs (the organization's catalogs and which is live), GET
@@ -484,6 +485,9 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   also says which need kinds each module meets (`meets`, known keys only, never sent to
   a developer's client), which the gap report reads and the eval grades as
   `needs_mapped`. A
+  run reads again only the modules that changed since the run behind the live catalog,
+  keeping the rest's findings, entries and questions as approved (`baselineFor`,
+  `keepEntries`, `toWrite`; `sealeye discover --all` reads everything). A
   run is traced in LangFuse as its shape only (`traceDiscovery`, `traceDiscoveryCall` in
   `core/tracing.js`): workers, files by path and size, tokens, cost, questions by kind;
   never a file, a prompt or a reply. `npm run eval:discovery -- --run --library <clone>`
