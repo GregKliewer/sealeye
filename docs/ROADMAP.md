@@ -174,6 +174,13 @@ gateway's own span in that trace moved to Phase 4. Routes come with Step 8.*
 
 **Goal:** seaLeye builds from the organization's own modules, not only its four.
 
+**Built Oct 22, 2026** (PHASE4-PLAN Steps 1 to 11, but 6c), proven on the pilot with the
+made-up Juniper Mutual: discovery, the self-test and making a catalog live, planning from
+it, the Terraform executor with connected modules and a database in the private network,
+the gap report. **Not built:** reading only changed modules again (Step 6c); LangFuse
+self-hosted in Canada and discovery in a paid account per customer, both owed before the
+first customer's real code (PHASE4-PLAN, "Owed after this plan").
+
 - Admin onboarding: identity provider, repositories, which automation is strategic.
 - The discovery agent is a swarm, built on Phase 3 from the start: a LangGraph
   supervisor fans work out to parallel workers, one module each, gathers their findings,
@@ -198,8 +205,10 @@ gateway's own span in that trace moved to Phase 4. Routes come with Step 8.*
   organization (`juniper`), discovery's traces, merged questions and the eval graded
   twice, built Oct 16, 2026. The rough-edges step, with Q21's rule for platform words,
   built Oct 16, 2026. Step 8, the interview eval planning against Juniper Mutual's
-  live catalog, built Oct 16, 2026. Step 10, the gap report, with discovery saying which
-  needs each module meets, built Oct 22, 2026.
+  live catalog, built Oct 16, 2026. Step 9, the Terraform executor, built
+  Oct 17 to 22, 2026 (its first database Oct 21; its tear-down, its logs and what the
+  platform saw Oct 22). Step 10, the gap report, with discovery saying which needs each
+  module meets, built Oct 22, 2026. Step 11, written down Oct 22, 2026.
 - LangFuse self-hosted in ca-central-1 (answers Q13; moved here from Phase 3 on Oct 13,
   2026), before the first run on an organization's real code (Greg, Oct 14, 2026:
   Phase 4's own runs read seaLeye's templates, a made-up organization and public
