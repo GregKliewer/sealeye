@@ -498,6 +498,9 @@ export async function runDiscovery(libraryDir, key, out, { scripted = false, cli
   const total = spend.reduce((t, [, c]) => t + c, 0);
   console.log(`
 The run: ${run.status}${run.reason ? ` (${run.reason})` : ""}, ${Math.round((Date.now() - started) / 1000)} s, US$${total.toFixed(4)} in all`);
+  // Why a run that failed or stopped did, as the run says it (Oct 22, 2026: a run that
+  // failed in no time printed nothing more than "failed (error)").
+  if (run.message) console.log(`  ${run.message}`);
   for (const [w, c] of spend) console.log(`  US$${c.toFixed(4)}  ${w}`);
   if (!run.catalogVersion) return { graded: null, run, questions, total };
   const draft = catalogAt(run.org, run.catalogVersion);
