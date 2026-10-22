@@ -71,6 +71,11 @@ function guidanceFor(written, finding, rules) {
 }
 
 /** An entry from what code read and what the model wrote of it. */
+function meetsOf(keys) {
+  const wanted = new Set(keys);
+  return starterCatalog().need_kinds.map(n => n.key).filter(k => wanted.has(k));
+}
+
 function entryFor(module, written, finding, questions, library) {
   const words = written || finding || {};
   const inputLines = { ...(finding?.input_lines || {}), ...(written?.input_lines || {}) };
@@ -106,6 +111,10 @@ function entryFor(module, written, finding, questions, library) {
     ...(module.release ? { version: module.release.version, tag: module.release.tag, commit: module.release.commit } : {}),
     ...(module.unreleased ? { unreleased: true } : {}),
     ...(guidance ? { guidance } : {}),
+    // Which needs an app may have it meets, as the supervisor judged: what the gap report
+    // reads (DESIGN.md, "Discovery records which needs each module meets"). Known keys
+    // only, in the list's own order; a module the supervisor did not write has none.
+    ...(Array.isArray(written?.meets) ? { meets: meetsOf(written.meets) } : {}),
     // Each rule as found, with where, for whoever approves the catalog (Step 7).
     ...(rules.length ? { rules } : {})
   };

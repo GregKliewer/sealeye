@@ -254,7 +254,6 @@ export function gradeCatalog(candidate, key, { questions = null, selfTest = null
     }
   }
 
-  if (key.gaps?.length) pending.push({ case: "gaps", waits: "PHASE4-PLAN Step 10, the gap report", what: key.gaps.join(", ") });
   if (key.stages) pending.push({ case: "stages", waits: "Phase 5", what: (key.stages.path || []).join(", ") });
 
   const problems = catalogProblems(candidate);
@@ -265,7 +264,38 @@ export function gradeCatalog(candidate, key, { questions = null, selfTest = null
     problems,
     hardCases,
     pending,
+    // Graded apart from `correct`, so a run before discovery mapped needs grades the
+    // same as it did (DESIGN.md, "Discovery records which needs each module meets").
+    needs: gradeNeeds(pairs, key),
     correct
+  };
+}
+
+/**
+ * Which needs each module meets, against the key, and the gaps that leaves: the need
+ * kinds no offered module meets must be exactly the key's `gaps`. A draft with no
+ * `meets` at all was made before discovery mapped needs, and says so.
+ */
+export function gradeNeeds(pairs, key) {
+  const found = pairs.filter(p => p.found);
+  if (!found.some(p => Array.isArray(p.found.meets))) return { mapped: false, ok: false, why: "no module says which needs it meets", modules: [], gaps: null };
+  const set = a => [...new Set(a || [])].sort();
+  const modules = found.filter(p => Array.isArray(p.key.meets)).map(p => {
+    const wanted = set(p.key.meets);
+    const got = set(p.found.meets);
+    const ok = wanted.join() === got.join();
+    return { source: p.key.source, ok, why: ok ? "" : `meets ${got.join(", ") || "nothing"}, not ${wanted.join(", ") || "nothing"}` };
+  });
+  const kinds = (key.catalog?.need_kinds || []).length ? key.catalog.need_kinds.map(n => n.key) : null;
+  const offered = found.filter(p => p.found.availability === "available").flatMap(p => p.found.meets || []);
+  const all = kinds || [...new Set([...(key.gaps || []), ...found.flatMap(p => p.key.meets || [])])];
+  const unmet = set(all.filter(k => !offered.includes(k)));
+  const gapsOk = unmet.join() === set(key.gaps).join();
+  return {
+    mapped: true,
+    ok: modules.every(m => m.ok) && gapsOk,
+    modules,
+    gaps: { ok: gapsOk, unmet, wanted: set(key.gaps) }
   };
 }
 
@@ -366,6 +396,16 @@ export function gradeLines(graded) {
   lines.push("");
   for (const h of graded.hardCases) lines.push(`  ${h.ok ? "ok" : "NO"}  ${h.case}: ${h.why}`);
   for (const p of graded.pending) lines.push(`  ..  ${p.case}: waits on ${p.waits} (${p.what})`);
+  const n = graded.needs;
+  if (n) {
+    lines.push("");
+    if (!n.mapped) lines.push(`  NO  needs met: ${n.why}`);
+    else {
+      for (const m of n.modules.filter(m => !m.ok)) lines.push(`  NO  ${m.source}: ${m.why}`);
+      lines.push(`  ${n.modules.every(m => m.ok) ? "ok" : "NO"}  needs met: ${n.modules.filter(m => m.ok).length} of ${n.modules.length} modules as the key says`);
+      lines.push(`  ${n.gaps.ok ? "ok" : "NO"}  gaps: nothing offered meets ${n.gaps.unmet.join(", ") || "nothing"}${n.gaps.ok ? "" : `; the key says ${n.gaps.wanted.join(", ")}`}`);
+    }
+  }
   return lines;
 }
 
@@ -567,6 +607,7 @@ async function main(args) {
         const refusals = graded.hardCases.filter(h => h.case.startsWith("must refuse"));
         if (refusals.length) tracing.scoreTrace(result.traceId, "must_refuse_refused", refusals.every(h => h.ok));
         tracing.scoreTrace(result.traceId, "questions_asked", result.questions.length);
+        if (graded.needs) tracing.scoreTrace(result.traceId, "needs_mapped", graded.needs.ok);
       }
     }
     if (datasetId) {

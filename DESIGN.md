@@ -4456,3 +4456,40 @@ catalog 10 were the platform's, in its own words.
   out at the door, which never reaches the app), since the library's module keeps no
   access log of the door; and a part's logs (a database refusing a sign-in). Both are
   owed to this entry.
+
+## Discovery records which needs each module meets
+
+Thu Oct 22, 2026, the first half of the gap report (PHASE4-PLAN Step 10). A catalog's
+need kinds are the starter's, word for word, whatever the library builds: a discovered
+catalog that builds a database still lists "a relational database" as a need kind, and
+nothing in it says that `postgres` is what meets it. So the needs ledger cannot tell a
+need the live catalog builds now from one nothing in the library meets, and a plan
+drafted before catalog 9 still counts its database as waiting.
+
+Greg chose, Oct 22, of two: have discovery say, per module, which needs it meets, so
+every draft is judged against the live catalog, rather than counting as gaps only the
+needs on plans drafted against the live catalog. It is a judgment, so it is the
+model's, graded against the answer key.
+
+- **The supervisor writes it** (`meets` on each entry of `write_catalog`, required, its
+  items the need kinds' keys as an enum), since it sees every module at once and can say
+  that two modules meet the same need (`postgres` below staging and `postgres-cluster`
+  from staging up) and that none meets another. Its prompt gives the need kinds by key
+  and line, and says a deprecated module still says what it meets: seaLeye knows it is
+  not offered.
+- **The draft keeps known keys only**, in the need list's own order (`meetsOf` in
+  `api/discovery/draft.js`). `catalogProblems` refuses a `meets` that is not a list of
+  the catalog's own need kinds. A catalog discovered before this has none; the starter's
+  modules meet none, since every need is by definition beyond them.
+- **Never sent to a developer's client**: `buildableView` leaves it out, as it does what
+  a module offers and how it is built.
+- **The answer key says what each Juniper module meets**, and the needs nothing offered
+  meets are exactly its planted gaps: a stream of events, sign-in for its own users and a
+  scheduled task. The grader checks each module's `meets` and the gaps they leave
+  (`gradeNeeds` in `scripts/eval-discovery.js`), apart from `catalog_correct`, so a run
+  before this grades the same as it did; its own score is `needs_mapped`.
+- **Not a person's to edit yet.** `sealeye catalog edit` changes words only; a wrong
+  `meets` is fixed by answering a question and discovering again. A wrong one costs a
+  wrong line in the gap report, never a build.
+- The prompt changed, so `npm run eval:discovery -- --run` is run before and after
+  (Greg's Mac, with a model key).
