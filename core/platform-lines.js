@@ -147,6 +147,19 @@ export function databaseLine(message) {
   return null;
 }
 
+/**
+ * Whether a database's line is one a developer is shown (Greg, Oct 22: its errors and
+ * refused sign-ins, not what it logs of itself). Its start-up, its checkpoints, its
+ * configuration and the platform's own record of each sign-in it checked (several lines
+ * of a web request, from the first pilot read, Oct 22) are the platform team's; a
+ * warning, an error, a refused sign-in and the redacted lines that go with them are
+ * the developer's.
+ */
+export function databaseLineShown(message) {
+  if (databaseLine(message)) return true;
+  return /:(?:WARNING|DETAIL):\s/.test(String(message || ""));
+}
+
 /** A line read for the developer, by the kind of place it came from; null when none applies. */
 export function readLine(kind, message) {
   if (!kind || kind === "app") return platformLine(message);

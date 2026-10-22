@@ -31,7 +31,9 @@ before(async () => {
         terraform: { logs: [
           { from: "door", kind: "door", words: "the front door", group: "/aws/vendedlogs/apigateway/sealeye-notes-api-dddddd-dev-api" },
           { from: "database", kind: "database", words: "your database", group: "/aws/rds/instance/sealeye-notes-api-dddddd-dev/postgresql" },
-          { from: "database", kind: "database", words: "your database", group: "/aws/rds/instance/sealeye-notes-api-dddddd-dev/iam-db-auth-error" }
+          { from: "database", kind: "database", words: "your database", group: "/aws/rds/instance/sealeye-notes-api-dddddd-dev/iam-db-auth-error" },
+          // One the role may not read, to show the note.
+          { from: "database", kind: "database", words: "your database", group: "/aws/rds/instance/sealeye-notes-api-dddddd-dev/upgrade" }
         ] } }
     ],
     aws: `
@@ -50,7 +52,15 @@ if (args[1] === "filter-log-events" && opt("--log-group-name").includes("notes-a
         // What the app sent the database, repeated in its log: never shown.
         { timestamp: t - 35000, message: "2026-10-22 12:00:00 UTC:10.0.1.5(41234):notes_api_app@notes_api:[812]:STATEMENT:  INSERT INTO notes VALUES ('ghp_${"y".repeat(36)}', 'alice@example.com')" },
         { timestamp: t - 36000, message: "2026-10-22 12:00:00 UTC:10.0.1.5(41234):notes_api_app@notes_api:[812]:DETAIL:  Key (email)=(alice@example.com) already exists." },
-        { timestamp: t - 37000, message: "2026-10-22 12:00:00 UTC:10.0.1.5(41234):notes_api_app@notes_api:[812]:ERROR:  invalid input syntax for type integer: \\"4111111111111111\\"" }
+        { timestamp: t - 37000, message: "2026-10-22 12:00:00 UTC:10.0.1.5(41234):notes_api_app@notes_api:[812]:ERROR:  invalid input syntax for type integer: \\"4111111111111111\\"" },
+        // What the database logs of itself, as the first pilot read showed: never shown.
+        { timestamp: t - 38000, message: "2026-10-22 20:07:19 UTC::@:[1356]:LOG:  database system is ready to accept connections" },
+        { timestamp: t - 38500, message: "2026-10-22 20:12:40 UTC::@:[1358]:LOG:  checkpoint complete: wrote 216 buffers (0.4%)" }
+      ]
+    : group.endsWith("/iam-db-auth-error") ? [
+        // The platform's record of each sign-in it checked, a web request over several lines: never shown.
+        { timestamp: t - 39000, message: "*   Trying 127.0.0.1:1108...\\n* Connected to rdsauthproxy (127.0.0.1) port 1108\\n> POST /authenticateRequest HTTP/1.1" },
+        { timestamp: t - 39500, message: "< HTTP/1.1 200 OK\\n< Content-Length: 0" }
       ]
     : fail("An error occurred (AccessDeniedException) when calling the FilterLogEvents operation");
   out(lines.filter(e => e.timestamp >= from && e.timestamp < to));
@@ -201,6 +211,7 @@ test("the front door's and the database's lines come beside the app's, each sayi
   for (const sent of ["ghp_", "alice@example.com", "4111111111111111"]) assert.ok(!all.includes(sent), sent);
   assert.match(body.lines[3].message, /:STATEMENT: {2}\[value redacted\]$/);
   assert.match(body.lines[2].message, /for user \"notes_api_app\"$/);
+  assert.doesNotMatch(all, /checkpoint|ready to accept|rdsauthproxy|authenticateRequest/, "the database's housekeeping, and the platform's record of each sign-in, are not shown");
   assert.deepEqual(body.lines[0].platform, { kind: "door-timeout", words: "GET /notes got 504: your app did not answer within the time the front door waits" });
   assert.deepEqual(body.lines[1].platform, { kind: "door-app-error", words: "POST /notes answered 500 in 212 ms" });
   assert.deepEqual(body.lines[2].platform, { kind: "sign-in-refused", words: "The database refused your app's sign-in" });
@@ -212,7 +223,8 @@ test("the front door's and the database's lines come beside the app's, each sayi
   const groups = api.awsCalls().filter(l => l.startsWith("logs filter-log-events") && l.includes("notes-api")).map(l => /--log-group-name (\S+)/.exec(l)[1]);
   assert.deepEqual([...new Set(groups)].sort(), [
     "/aws/lambda/sealeye-notes-api-dddddd-dev-api", "/aws/rds/instance/sealeye-notes-api-dddddd-dev/iam-db-auth-error",
-    "/aws/rds/instance/sealeye-notes-api-dddddd-dev/postgresql", "/aws/vendedlogs/apigateway/sealeye-notes-api-dddddd-dev-api"
+    "/aws/rds/instance/sealeye-notes-api-dddddd-dev/postgresql", "/aws/rds/instance/sealeye-notes-api-dddddd-dev/upgrade",
+    "/aws/vendedlogs/apigateway/sealeye-notes-api-dddddd-dev-api"
   ]);
 
   // One place only, and a place the environment does not have is refused in words.
