@@ -4347,3 +4347,27 @@ executor allows cannot express.
 - **Why not wait in the executor for the platform to let go:** the role is already gone
   by then, so waiting changes nothing; and twenty minutes of the platform's own time is
   the library's to shorten, not seaLeye's to hide.
+
+## Logs are found by the command, never by a path
+
+Thu Oct 22, 2026, after Greg debugged the first database environment's "Internal Server
+Error" by finding its logs on the platform himself: seaLeye promised logs on the card
+("everything your app prints") and never said where to read them. `sealeye status`
+showed the platform's own path (`/aws/lambda/...`, a cloud noun a developer cannot
+open, principle 8), the report told them to run the cloud's own command for it, and the
+portal's Logs card and `sealeye logs` went unmentioned. For an environment built from
+the organization's modules there was nothing to mention: `GET /logs` answers 409.
+
+Greg, Oct 22: say the command, never the path, and read a Terraform environment's logs
+too (the second comes in its own pull request, "What the platform saw" after it).
+
+- **One sentence, said by every surface** (`logsHowWords` in
+  `core/plan-report-words.js`): "Read them with `sealeye logs <app>` (the last hour;
+  `--since 1d` for a day), or Logs on seaLeye.online", from `core/operations.js`, so a
+  renamed command renames it everywhere. The card's Logs line ends with it, the report's
+  Logs section is it, and `sealeye status`'s Logs row is the command.
+- **The path is gone from everything a developer reads.** The report's "What was
+  created" says where to read without naming the platform's own place for it, and its
+  em dashes went with it.
+- **A Terraform environment keeps the report's honest line** ("reading it through seaLeye
+  is not available ... yet") until the next pull request reads them.
