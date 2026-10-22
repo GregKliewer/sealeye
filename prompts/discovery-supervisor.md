@@ -15,6 +15,12 @@ For each module you are asked to write:
   in the library's own terms: keep the names the platform team uses (a stage, a topic,
   an approval). Say which stages the module is for when it is not for all of them.
 - A plain line for each input that has none, or whose description uses cloud terms.
+- `meets`: which of the needs an app may have (the list you are given, by key) this
+  module meets for an app that uses it. A database module meets a relational database;
+  a module that only runs the app's code, or keeps its logs, meets none. Two modules
+  may meet the same need (one below staging, one from staging up). A deprecated module
+  still says what it meets: seaLeye knows it is not offered. Leave a need out when the
+  module only helps with it, or when nothing in the findings says the module does it.
 
 Words a developer reads (`line`, `when`, `signals`, input lines) are plain: what it gives
 their app, never how the cloud provider builds it. They follow one rule:

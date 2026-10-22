@@ -15,6 +15,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { plainWordsRule } from "../../core/developer-words.js";
+import { needKinds, starterCatalog } from "../../core/catalog.js";
 import { addSpend, priceUsage } from "../../core/model-prices.js";
 import { createWithOneRetry } from "../interview/model.js";
 import { listFiles, readFile, ToolRefusal } from "../interview/tools.js";
@@ -130,6 +131,11 @@ export const submitLibraryTool = {
   }
 };
 
+// The needs an app may have, which every catalog keeps from the starter (draft.js): the
+// keys the supervisor says a module meets, for the gap report (DESIGN.md, "Discovery
+// records which needs each module meets").
+const NEED_KEYS = needKinds(starterCatalog()).map(n => n.key);
+
 export const writeCatalogTool = {
   name: "write_catalog",
   description: "Write the entries you were asked for, and any questions of your own. Call once.",
@@ -144,7 +150,7 @@ export const writeCatalogTool = {
         items: {
           type: "object",
           additionalProperties: false,
-          required: ["source", "line", "when", "signals", "role", "availability", "guidance", "open"],
+          required: ["source", "line", "when", "signals", "role", "availability", "guidance", "meets", "open"],
           properties: {
             source: { type: "string", description: "The module's folder, exactly as given." },
             line: { type: "string" },
@@ -154,6 +160,7 @@ export const writeCatalogTool = {
             availability: { type: "string", enum: ["available", "deprecated"] },
             guidance: { type: "string" },
             input_lines: { type: "object", additionalProperties: { type: "string" } },
+            meets: { type: "array", items: { type: "string", enum: NEED_KEYS }, description: "The needs an app may have, by key from the list given, that this module meets for an app that uses it. Empty when it meets none of them." },
             open: { type: "array", items: { type: "string" }, description: "Ids of unanswered questions this entry rests on." }
           }
         }
@@ -405,6 +412,9 @@ async function superviseTraced({ clientFor, credentialIsGateway, budget, org, mo
     "",
     "What the library reader found:",
     JSON.stringify(library || null, null, 1),
+    "",
+    "The needs an app may have, by key, for each entry's meets:",
+    ...needKinds(starterCatalog()).map(n => `- ${n.key}: ${n.line}`),
     "",
     "Questions so far, with any answers:",
     JSON.stringify(asked, null, 1)

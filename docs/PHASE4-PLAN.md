@@ -301,6 +301,11 @@ for the private network, and sweeps what it leaves"; Greg, Oct 22, option A).
   only breaks ties.
 - `GET /gaps`, `sealeye gaps`, and a Gaps page (parity).
 
+Greg, Oct 22, 2026: discovery says which needs each module meets, so every draft is
+judged against the live catalog; the report is an organization-wide token's only; ties
+go to the gap more teams asked for, then a fixed checklist. The first half built Oct 22
+(DESIGN.md, "Discovery records which needs each module meets").
+
 ### Step 11. Write it down
 
 DESIGN.md entries for each decision; ARCHITECTURE.md's containers, a discovery flow and

@@ -616,7 +616,10 @@ const SCORES = {
   catalog_correct: "BOOLEAN",
   hard_cases_caught: "NUMERIC",
   self_test_passed: "BOOLEAN",
-  must_refuse_refused: "BOOLEAN"
+  must_refuse_refused: "BOOLEAN",
+  // Whether each module's `meets` matches the key, and the needs nothing offered meets
+  // are the key's gaps (DESIGN.md, "Discovery records which needs each module meets").
+  needs_mapped: "BOOLEAN"
 };
 
 // Scores are sent one request each to LangFuse's public scores endpoint, with a hard

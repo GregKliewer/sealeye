@@ -113,6 +113,8 @@ function scripted({ hold = null, holdWorker = null, deprecated = ["modules/cache
         role: "core",
         availability: source === "modules/cache" ? "deprecated" : "available",
         guidance: source === "modules/db" ? `Below staging only${overlapAnswer ? ` (${overlapAnswer})` : ""}.` : source === "modules/db-cluster" ? "From staging up." : "As the library says.",
+        // Which needs each meets, as a supervisor would say; an unknown key is dropped.
+        meets: source === "modules/cache" ? ["cache"] : ["work_queue", "relational_database", "a_need_nobody_listed"],
         open: []
       }));
       const wider = repeatWider && first
@@ -196,6 +198,21 @@ test("a run reads every module in parallel, raises questions as they come, and w
   assert.deepEqual(byId.db.inputs, { name: { required: true, line: "The app's name.", type: "string" }, size: { required: false, default: "small", type: "string" } });
   assert.equal(byId.db.builds_with, "terraform");
   assert.equal(byId.cache.availability, "deprecated");
+  // Which needs each meets: known keys only, in the need list's own order.
+  assert.deepEqual(byId.db.meets, ["relational_database", "work_queue"]);
+  assert.deepEqual(byId.cache.meets, ["cache"]);
+  const supervised = model.calls.find(c => c.tools.includes("write_catalog"));
+  assert.match(supervised.opening, /The needs an app may have, by key, for each entry's meets:\n- continuous_service: a service that runs continuously/);
+  // Never in what a developer's client is sent, and only the catalog's own need kinds.
+  const { buildableView, starterCatalog } = await import("../core/catalog.js");
+  const starter = structuredClone(starterCatalog());
+  starter.modules[0].meets = ["cache"];
+  assert.deepEqual(catalogProblems(starter), []);
+  assert.ok(buildableView(starter).modules.length > 0 && buildableView(starter).modules.every(m => !("meets" in m)));
+  starter.modules[0].meets = ["a_need_nobody_listed"];
+  assert.deepEqual(catalogProblems(starter), [`module ${starter.modules[0].id}: meets a_need_nobody_listed, which is not one of the catalog's need kinds`]);
+  starter.modules[0].meets = "cache";
+  assert.deepEqual(catalogProblems(starter), [`module ${starter.modules[0].id}: meets is a list of need kinds`]);
   // What code read of each module reaches its entry: none of these takes an app, and
   // none would run anything (PHASE4-PLAN Step 9; lost on the way once, Oct 17, 2026).
   for (const m of draft.modules) {

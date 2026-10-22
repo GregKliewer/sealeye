@@ -22,7 +22,9 @@ test("the answer key is a catalog by seaLeye's own rules, and passes its own gra
   assert.equal(key.catalog.modules.length, 14);
   const graded = gradeCatalog(key.catalog, key);
   assert.equal(graded.correct, true, gradeLines(graded).join("\n"));
-  assert.deepEqual(graded.pending.map(p => p.case), ["overlap", "unclear module asked", "gaps", "stages"], "what waits is listed, never counted as passed");
+  assert.deepEqual(graded.pending.map(p => p.case), ["overlap", "unclear module asked", "stages"], "what waits is listed, never counted as passed");
+  assert.equal(graded.needs.ok, true, "the key's meets leave exactly its gaps unmet");
+  assert.deepEqual(graded.needs.gaps.unmet, ["event_stream", "scheduled_task", "user_sign_in"]);
   assert.ok(key.catalog.modules.every(m => !isBuildable(m.id, key.catalog)), "nothing builds Terraform until Step 9");
 });
 
@@ -238,4 +240,30 @@ test("the unclear cache is graded on a question about the caches only, not on on
   const caseOf = qs => gradeCatalog(doc, key, { questions: qs }).hardCases.find(h => h.case === "unclear module asked");
   assert.equal(caseOf([wide]).ok, false, "a rule across every module is not about the caches");
   assert.equal(caseOf([wide, unclear]).ok, true);
+});
+
+test("which needs each module meets is graded apart from the catalog, and the gaps it leaves with it", () => {
+  // A draft from before discovery mapped needs: graded as it was, and the needs said not mapped.
+  const before = copy();
+  for (const m of before.modules) delete m.meets;
+  const old = gradeCatalog(before, key);
+  assert.equal(old.correct, true, "the catalog's own grade does not change");
+  assert.equal(old.needs.mapped, false);
+  assert.match(gradeLines(old).join("\n"), /NO {2}needs met: no module says which needs it meets/);
+
+  // A module that meets the wrong need, and a gap it hides.
+  const wrong = copy();
+  bySource(wrong, "modules/work-queue").meets = ["work_queue", "event_stream"];
+  const graded = gradeCatalog(wrong, key);
+  assert.equal(graded.correct, true);
+  assert.equal(graded.needs.ok, false);
+  const lines = gradeLines(graded).join("\n");
+  assert.match(lines, /NO {2}modules\/work-queue: meets event_stream, work_queue, not work_queue/);
+  assert.match(lines, /NO {2}gaps: nothing offered meets scheduled_task, user_sign_in; the key says event_stream, scheduled_task, user_sign_in/);
+
+  // A deprecated module's need is still a gap when nothing offered meets it.
+  const noCache = copy();
+  bySource(noCache, "modules/cache-valkey").meets = [];
+  const g = gradeCatalog(noCache, key);
+  assert.ok(g.needs.gaps.unmet.includes("cache"), "the deprecated cache does not fill it");
 });

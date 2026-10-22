@@ -113,6 +113,17 @@ export function catalogProblems(doc) {
     }
   }
 
+  // Which needs a module meets (the gap report's, DESIGN.md, "Discovery records which
+  // needs each module meets"): the catalog's own need kinds, by key.
+  if (Array.isArray(doc.modules) && Array.isArray(doc.need_kinds)) {
+    const keys = new Set(doc.need_kinds.map(n => n?.key).filter(Boolean));
+    for (const m of doc.modules) {
+      if (!m || !text(m.id) || m.meets === undefined) continue;
+      if (!Array.isArray(m.meets)) problems.push(`module ${m.id}: meets is a list of need kinds`);
+      else for (const k of m.meets) if (!keys.has(k)) problems.push(`module ${m.id}: meets ${k}, which is not one of the catalog's need kinds`);
+    }
+  }
+
   if (Array.isArray(doc.modules)) {
     for (const m of doc.modules) {
       if (m && text(m.id) && m.guidance !== undefined && !text(m.guidance)) problems.push(`module ${m.id}: guidance is text`);
@@ -241,7 +252,7 @@ export function buildableView(catalog = loadCatalog()) {
     // only what the developer can then do: readings come back only from what seaLeye's
     // own templates build; logs from those, and from a module that says where it keeps
     // them (delivers.logs).
-    modules: modules.map(({ builds_with, guidance, edited, outputs, delivers, runs, offers, accepts, tag, commit, unreleased, ...m }) => ({ ...m, buildable: true, operations: operationsOf({ builds_with, delivers }) })),
+    modules: modules.map(({ builds_with, guidance, edited, outputs, delivers, runs, offers, accepts, tag, commit, unreleased, meets, ...m }) => ({ ...m, buildable: true, operations: operationsOf({ builds_with, delivers }) })),
     need_kinds: catalog.need_kinds || [],
     profiles: catalog.profiles || [],
     patterns

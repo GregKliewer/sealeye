@@ -27,6 +27,7 @@ catalog:
     - id: static_site
       source: modules/static-site
       availability: available
+      meets: []
       builds_with: terraform
       role: core
       line: >-
@@ -50,6 +51,7 @@ catalog:
     - id: custom_domain
       source: modules/custom-domain
       availability: available
+      meets: [custom_domain]
       builds_with: terraform
       role: optional
       line: Puts your app behind a name your organization owns, with a certificate that renews itself.
@@ -74,6 +76,7 @@ catalog:
     - id: http_api
       source: modules/http-api
       availability: available
+      meets: []
       builds_with: terraform
       role: core
       line: >-
@@ -105,6 +108,7 @@ catalog:
     - id: container_service
       source: modules/container-service
       availability: available
+      meets: [continuous_service]
       builds_with: terraform
       role: core
       line: Runs your app continuously, in the private network, and replaces it when it stops being well.
@@ -132,6 +136,7 @@ catalog:
     - id: internal_entry
       source: modules/internal-entry
       availability: available
+      meets: [internal_only]
       builds_with: terraform
       role: optional
       line: A front door only your organization's own network can reach.
@@ -155,6 +160,7 @@ catalog:
     - id: postgres
       source: modules/postgres
       availability: available
+      meets: [relational_database]
       builds_with: terraform
       role: optional
       line: A relational database for your app, below staging.
@@ -183,6 +189,7 @@ catalog:
     - id: postgres_cluster
       source: modules/postgres-cluster
       availability: available
+      meets: [relational_database]
       builds_with: terraform
       role: optional
       line: A relational database for your app that survives losing a zone, from staging up.
@@ -207,6 +214,7 @@ catalog:
     - id: document_table
       source: modules/document-table
       availability: available
+      meets: [document_database]
       builds_with: terraform
       role: optional
       line: A table of documents, each found by its key, that grows by itself.
@@ -223,6 +231,7 @@ catalog:
     - id: work_queue
       source: modules/work-queue
       availability: available
+      meets: [work_queue]
       builds_with: terraform
       role: optional
       line: A queue between your app and the work it hands off, so nothing is lost and nothing loops forever.
@@ -240,6 +249,7 @@ catalog:
     - id: file_bucket
       source: modules/file-bucket
       availability: available
+      meets: [file_storage]
       builds_with: terraform
       role: optional
       line: Somewhere for your app to keep the files it writes and reads back. Always private.
@@ -255,6 +265,7 @@ catalog:
     - id: secrets
       source: modules/secrets
       availability: available
+      meets: [runtime_secrets]
       builds_with: terraform
       role: optional
       line: A place for the secrets your app reads while it runs. The values never pass through a plan.
@@ -271,6 +282,7 @@ catalog:
     - id: logs_and_alarms
       source: modules/logs-and-alarms
       availability: available
+      meets: []
       builds_with: terraform
       role: shared
       line: Keeps your app's logs and raises an alarm when it starts logging errors.
@@ -290,6 +302,7 @@ catalog:
     - id: cache_redis
       source: modules/cache-redis
       availability: deprecated
+      meets: [cache]
       builds_with: terraform
       role: optional
       line: A cache in front of something slower. Deprecated, and not for new apps.
@@ -308,6 +321,7 @@ catalog:
     - id: cache_valkey
       source: modules/cache-valkey
       availability: available
+      meets: [cache]
       builds_with: terraform
       role: optional
       line: A cache in front of something slower, encrypted when stored and on the way.
@@ -393,8 +407,10 @@ answers:
     when: after_draft
     answer: guess
 
-# What the library has nothing for. The gap report (PHASE4-PLAN Step 10) must find
-# these once apps ask for them; graded then.
+# What the library has nothing for: the need kinds no module above meets (`meets`, the
+# needs an app may have that each module meets for an app that uses it). The grader
+# checks that a draft's `meets` leave exactly these unmet, and the gap report (PHASE4-PLAN
+# Step 10) finds them once apps ask for them.
 gaps: [event_stream, user_sign_in, scheduled_task]
 
 # The path to production, for Phase 5. Recorded so the library's evidence for it is
