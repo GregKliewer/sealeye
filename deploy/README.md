@@ -775,6 +775,32 @@ which a second discovery replaced); one discovered before cannot offer logs.
 it is built again), then `sealeye logs <app>`: its lines, masked, the way the starter's
 are. `sealeye status <app>` says the command in its Logs row, and the report's Logs
 section does too.
+
+### The front door's and the database's lines
+
+Oct 22, 2026 (DESIGN.md, "The front door's and the database's lines, beside the app's").
+The sample library's `http-api` 1.3.0 keeps the front door's record of each request
+(`access_log_group`, under `/aws/vendedlogs/apigateway/`), and `postgres` 1.3.0 its own
+log and its refused sign-ins (`log_group`, `sign_in_log_group`, under
+`/aws/rds/instance/`). `sealeye logs` reads them beside the app's lines, each labelled,
+with `--from app|door|database` for one place; a database shows only its errors and
+refused sign-ins. On the pilot, done Oct 22:
+
+**1. The Terraform deploy role again**, the same command. Its log permissions are now a
+managed policy of their own, `sealeye-deploy-terraform-logs-<suffix>` (the role's
+inline policy is near IAM's limit for a role: the next widening goes to a managed policy
+too). It may make, keep and read the groups above, named for seaLeye's environments, and
+set up the front door's log delivery (`logs:CreateLogDelivery` and its relatives,
+including `logs:PutResourcePolicy`, on `*`, as AWS documents; a module that writes the
+account's log resource policy itself is not built).
+
+**2. Tag the library's releases, release seaLeye, then discover again**, approve and
+make live, as for the app's logs above.
+
+**3. Check it.** Build an app with a database again, make a request or two, then
+`sealeye logs <app> --since 15m`: lines labelled "the front door" and "your app", and
+"your database" only when the database refused something. The front door's lines can
+arrive a minute or two after the request.
 ## Parking between bursts of work
 
 When you will be away from the pilot for a while, park it. Parked, it costs about $6 a

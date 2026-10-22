@@ -295,7 +295,13 @@ keeps the master password where no app's role can read it. The first database's
 tear-down (Oct 21 to 22) showed the private network lets go of a function's interface up
 to twenty minutes after the function, with the role already gone: both surfaces now say
 the wait, and the executor sweeps what the network leaves (DESIGN.md, "A tear-down waits
-for the private network, and sweeps what it leaves"; Greg, Oct 22, option A).
+for the private network, and sweeps what it leaves"; Greg, Oct 22, option A). The same
+day, what a developer reads of such an environment: its app's logs where its module
+says (DESIGN.md, "A Terraform environment's logs are read where its module says they
+are"), the platform's own lines in the developer's words ("What the platform saw"), the
+front door's record and the database's errors and refused sign-ins beside them ("The
+front door's and the database's lines, beside the app's"), and a failed database setup
+step's last lines in the failure's reason ("A failed setup step says its last lines").
 
 ## Part D: what was asked for, and writing it down
 
