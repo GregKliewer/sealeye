@@ -4524,3 +4524,9 @@ each, so the platform team knows what to build next and why.
   platform lacks, which a developer's words never do; the need's own line stays plain.
 - **Read-only.** It talks to nothing; it reads the ledger, the live catalog and the
   platform's values as they are when asked.
+- **"Built now" never tells an app still waiting on a gap to plan again** (the first
+  report on the pilot, Oct 22, with catalog 12: payment-events-processor drafted a
+  database it could not use, since Juniper builds one only beside a module that runs the
+  app's code, and the app needs a service that runs continuously). A met need lists
+  each app with what it still waits on (`stillWaiting`), and only an app that waits on
+  nothing else is told `sealeye run` will finish it.

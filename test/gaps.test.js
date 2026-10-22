@@ -93,6 +93,7 @@ test("demand first: by apps, then teams, then the checklist; what the library ha
 
   // A queue the live catalog builds now is not a gap: the app that asked can plan again.
   assert.deepEqual(body.met.map(m => [m.kind, m.modules, m.apps.map(a => a.name)]), [["work_queue", ["work_queue"], ["batch"]]]);
+  assert.equal(body.met[0].apps[0].stillWaiting, undefined, "batch waits on nothing else");
   // Only Juniper's own.
   assert.ok(!JSON.stringify(body).includes("shop"));
 });
@@ -103,7 +104,9 @@ test("the words both surfaces say", () => {
   assert.match(libraryWords({ library: { status: "unknown" } }), /discovered before discovery said which needs each module meets/);
   assert.match(rankWords({ tieBrokenBy: "teams" }), /more teams asked for this one/);
   assert.equal(rankWords({ tieBrokenBy: null }), null);
-  assert.equal(metWords({ modules: ["work_queue"], apps: [{ name: "batch", team: "lending" }] }), "Your live catalog builds this now, with work_queue. The app that asked for it can be planned again with `sealeye run`: batch (lending).");
+  assert.equal(metWords({ modules: ["work_queue"], apps: [{ name: "batch", team: "lending" }] }), "Your live catalog builds this now, with work_queue. The app that asked for it waits on nothing else, and can be planned again with `sealeye run`: batch (lending).");
+  // An app that still waits on a gap is never told to plan again (the pilot, Oct 22, 2026).
+  assert.equal(metWords({ modules: ["postgres"], apps: [{ name: "events", team: "payments", stillWaiting: ["a stream of events it publishes or reads"] }] }), "Your live catalog builds this now, with postgres. events (payments) still waits on a stream of events it publishes or reads, so planning it again would draft it again.");
   // A sentence about the need itself is still in plain words, for a platform team that pastes it.
   for (const w of ["Nothing in your library meets this.", metWords({ modules: [], apps: [] })]) assert.deepEqual(forbiddenWords(w), [], w);
 });
@@ -140,4 +143,17 @@ test("sealeye gaps prints the report in the same words, and refuses a team's tok
   assert.equal(json.gaps.length, 5);
   const refused = await run(DEV).catch(err => err);
   assert.match(String(refused.stdout) + String(refused.stderr), /The gap report is for your platform team: it needs an organization-wide token\./);
+});
+
+test("a need built now, for an app still waiting on others, says so rather than telling it to plan again", () => {
+  const records = [drafted("dep_pe1", "juniper", "payments", "events", [need("relational_database", "a relational database"), need("event_stream", "a stream of events")], 1)];
+  const doc = catalogWithMeets();
+  // A database the platform builds: the boundary and the network values are set.
+  doc.platform = { stage: "dev", names: ["permissions_boundary_arn", "subnet_ids", "security_group_ids", "postgres.subnet_group_name", "postgres.security_group_ids"] };
+  const report = gapReport(records, { catalog: doc, version: 12, source: "organization" });
+  assert.deepEqual(report.gaps.map(g => g.kind), ["event_stream"]);
+  assert.deepEqual(report.met.map(m => m.kind), ["relational_database"]);
+  assert.deepEqual(report.met[0].apps[0].stillWaiting, ["a stream of events it publishes or reads"]);
+  assert.match(metWords(report.met[0]), /events \(payments\) still waits on a stream of events it publishes or reads, so planning it again would draft it again\.$/);
+  assert.doesNotMatch(metWords(report.met[0]), /can be planned again/);
 });
