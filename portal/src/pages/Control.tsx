@@ -233,7 +233,7 @@ export function Control() {
 
       {latest.kind !== "static" && offers("perf") && env.deploys.some(d => d.stackName) ? <PerformanceCard app={env.app} deploymentId={(env.deploys.find(d => d.stackName) || latest).deploymentId} /> : null}
 
-      {latest.kind !== "static" && offers("logs") && env.deploys.some(d => d.stackName) ? <LogsCard app={env.app} deploymentId={(env.deploys.find(d => d.stackName) || latest).deploymentId} /> : null}
+      {latest.kind !== "static" && offers("logs") && env.deploys.some(d => d.stackName) ? <LogsCard key={(env.deploys.find(d => d.stackName) || latest).deploymentId} app={env.app} deploymentId={(env.deploys.find(d => d.stackName) || latest).deploymentId} /> : null}
 
       {offers("evidence") ? <EvidenceCard key={evidenceFor || latest.deploymentId} deploymentId={evidenceFor || latest.deploymentId} latest={!evidenceFor || evidenceFor === latest.deploymentId} /> : null}
     </>
@@ -383,15 +383,20 @@ const WINDOWS: [string, string][] = [["15m", "15 minutes"], ["1h", "hour"], ["6h
 function LogsCard({ app, deploymentId }: { app: string; deploymentId: string }) {
   const { signedOut } = useSession();
   const [since, setSince] = useState("1h");
+  const [from, setFrom] = useState<string | null>(null);
+  const [places, setPlaces] = useState<{ from: string; words: string }[] | null>(null);
   const [logs, setLogs] = useState<Logs | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function read(window = since) {
+  async function read(window = since, place = from) {
     setBusy(true);
     setError(null);
     try {
-      setLogs(await api.logs(deploymentId, window));
+      const got = await api.logs(deploymentId, window, place);
+      // Every place this environment's lines come from, kept while one is chosen.
+      if (got.sources && !place) setPlaces(got.sources);
+      setLogs(got);
     } catch (err) {
       if (err instanceof SignedOut) return signedOut(err.message);
       setError((err as Error).message);
@@ -420,13 +425,22 @@ function LogsCard({ app, deploymentId }: { app: string; deploymentId: string }) 
           </>
         ) : (
           <>
+            {places ? (
+              <div className="flex flex-wrap gap-1" role="group" aria-label="From where" data-testid="log-places">
+                {[{ from: null as string | null, words: "Everywhere" }, ...places].map(p => (
+                  <Button key={p.from || "all"} size="sm" variant={p.from === from ? "primary" : "ghost"} aria-pressed={p.from === from} disabled={busy}
+                    onClick={() => { setFrom(p.from); read(since, p.from); }}>{p.words}</Button>
+                ))}
+              </div>
+            ) : null}
             {logs.note ? <p className="text-dim">{logs.note}</p> : null}
             {!logs.note && !logs.lines.length ? <p className="text-dim">Nothing in the last {words}.</p> : null}
             {logs.lines.length ? (
               <ol className="max-h-[32rem] overflow-auto rounded-md border border-rule bg-ground p-3 font-mono text-xs" data-testid="log-lines">
                 {logs.lines.map((l, i) => (
-                  <li key={i} className="flex gap-3 py-0.5" data-platform={l.platform ? l.platform.kind : undefined}>
+                  <li key={i} className="flex gap-3 py-0.5" data-platform={l.platform ? l.platform.kind : undefined} data-from={l.from}>
                     <span className="shrink-0 text-dim">{new Date(l.at).toLocaleTimeString()}</span>
+                    {logs.sources ? <span className="shrink-0 text-amber" data-testid="line-from">{logs.sources.find(s => s.from === l.from)?.words || l.from}</span> : null}
                     {l.platform ? (
                       // What the platform saw, in the developer's words, with the platform's own line beside it.
                       <span className="whitespace-pre-wrap break-all"><span className="text-ink" data-testid="platform-words">{l.platform.words}</span><span className="text-dim">  ·  {l.message}</span></span>

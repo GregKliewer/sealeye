@@ -1058,7 +1058,7 @@ app.get("/deployments/:deploymentId/logs", async (req, res) => {
   const dep = getDeployment(req.params.deploymentId);
   if (!canSee(req, dep)) return res.status(404).json({ error: { code: "NOT_FOUND", message: "deploymentId not found" } });
   if (runsAnotherTeams(req, res, dep)) return;
-  const { status, body } = await readLogs(dep, { window: typeof req.query.since === "string" ? req.query.since : "1h", siblings: listDeployments() });
+  const { status, body } = await readLogs(dep, { window: typeof req.query.since === "string" ? req.query.since : "1h", siblings: listDeployments(), from: typeof req.query.from === "string" && req.query.from ? req.query.from : null });
   return res.status(status).json(body);
 });
 

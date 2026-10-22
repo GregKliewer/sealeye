@@ -11,6 +11,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { PART_LOGS_OUTPUT } from "../../core/terraform-modules.js";
 
 // Folders that hold modules' examples or tests, not modules. A module's own nested
 // modules (modules/x/modules/y) are modules of their own.
@@ -323,7 +324,10 @@ export function connectsOf(inputs = {}, outputs = {}) {
       access,
       narrower: names.filter(n => POLICY_OUTPUT.test(n) && n !== access).sort(),
       secrets,
-      values: names.filter(n => !/_arns?$|_ids?$/.test(n) && n !== "role_name").sort()
+      // Where a module keeps its own logs is the platform's to read back to the
+      // developer, never a value the app looks up (DESIGN.md, "The front door's and the
+      // database's lines, beside the app's").
+      values: names.filter(n => !/_arns?$|_ids?$/.test(n) && n !== "role_name" && !PART_LOGS_OUTPUT.test(n)).sort()
     };
   }
   const takes = Object.keys(inputs);
@@ -358,6 +362,10 @@ export function moduleRuns(libraryDir, source) {
     for (const m of code.matchAll(/\bprovisioner\s+"([A-Za-z0-9_-]+)"/g)) found.add(`a provisioner (${m[1]})`);
     if (/\bdata\s+"external"/.test(code)) found.add("the external data source");
     if (/\bdata\s+"terraform_remote_state"/.test(code)) found.add("another environment's state (terraform_remote_state)");
+    // The role may set up the front door's log delivery, which needs the account's log
+    // resource policy, so no module may write one itself (DESIGN.md, "The front door's
+    // and the database's lines, beside the app's").
+    if (/\bresource\s+"aws_cloudwatch_log_resource_policy"/.test(code)) found.add("the account's log resource policy (aws_cloudwatch_log_resource_policy)");
     // Providers named in required_providers, and any resource or data source of one.
     for (const m of code.matchAll(/^\s*([A-Za-z0-9_-]+)\s*=\s*\{[^}]*source\s*=\s*"([^"]+)"/gm)) {
       const src = m[2].toLowerCase().replace(/^registry\.(?:opentofu|terraform)\.io\//, "");

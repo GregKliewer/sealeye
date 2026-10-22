@@ -15,7 +15,7 @@ import { requireSetting, sealeyeHome } from "../../../core/config.js";
 import { firstSentence, moduleEntry } from "../../../core/catalog.js";
 import { moduleName } from "../../../core/names.js";
 import { settingNamesFor } from "../../../core/setting-names.js";
-import { connectionProblems, inNetwork, isPart, terraformBuilds } from "../../../core/terraform-modules.js";
+import { connectionProblems, doorLogsOutput, inNetwork, isPart, ownOtherLogGroup, partLogKind, partLogsOutputs, terraformBuilds } from "../../../core/terraform-modules.js";
 import { putDeployment } from "../../store.js";
 import { changesIn, versionBuilt, versionMove } from "./versions.js";
 import { valuesAt } from "../../platform.js";
@@ -281,6 +281,39 @@ export function clientOutputs(entry, raw = {}, { name = null } = {}) {
   return out;
 }
 
+/**
+ * Where the environment's other lines are kept (DESIGN.md, "The front door's and the
+ * database's lines, beside the app's"): the front door's record, from the app's module,
+ * and each module the app uses' own logs, each by where it came from. A group is kept
+ * only when it is the environment's own (`ownOtherLogGroup`), as the app's is.
+ * @returns {{ from: string, group: string }[]}
+ */
+export function otherLogs(entry, parts = [], raw = {}, name = null) {
+  const out = [];
+  const door = doorLogsOutput(entry);
+  if (door && ownOtherLogGroup(raw[door], name)) out.push({ from: "door", kind: "door", words: "the front door", group: raw[door] });
+  // A database is "your database" and read by its phrasebook; another module is named by
+  // its catalog line, its lines shown as they are. Two databases go by their ids.
+  const kinds = parts.map(p => partLogKind(p.entry));
+  for (const [i, p] of parts.entries()) {
+    const kind = kinds[i];
+    const many = kinds.filter(k => k === "database").length > 1;
+    const from = kind === "database" && !many ? "database" : p.key;
+    const words = kind === "database" && !many ? "your database" : lineWords(p.entry, p.key);
+    for (const o of partLogsOutputs(p.entry)) {
+      const group = raw[`${p.key}__${o}`];
+      if (ownOtherLogGroup(group, name)) out.push({ from, kind, words, group });
+    }
+  }
+  return out;
+}
+
+/** A module's catalog line as a place's name: "a table of documents your app finds by key". */
+function lineWords(entry, id) {
+  const line = String(entry?.line || "").trim().replace(/[.!?]+$/, "");
+  return line ? line.charAt(0).toLowerCase() + line.slice(1) : String(id);
+}
+
 /** Whether a log group a module output is the environment's own app group. */
 export function ownLogGroup(group, name) {
   if (typeof group !== "string" || !name) return false;
@@ -407,6 +440,9 @@ export async function startTerraformDeployment(record, plan, appPath, catalog, o
     if (!read.ok) throw new Error(`your environment was built, and the platform could not read back its address (${read.error})`);
     record.moduleOutputs = read.outputs;
     record.outputs = clientOutputs(entry, read.outputs, { name: record.resourceName });
+    // The front door's record of requests and each module's own logs, when the modules
+    // say where they keep them, read back beside the app's own lines.
+    record.terraform.logs = otherLogs(entry, ready.parts, read.outputs, record.resourceName);
     if (entry.delivers?.logs && !record.outputs.LogGroup) {
       record.terraform.logsNotKept = typeof read.outputs[entry.delivers.logs] === "string" ? "the module named a group that is not this environment's own" : "the module gave no group";
     }

@@ -963,7 +963,19 @@ test("an environment built from the organization's own modules shows only what i
   const logs = page.getByTestId("logs");
   await expect(logs).toBeVisible();
   await logs.getByRole("button", { name: "Show logs" }).click();
-  await expect(logs.getByTestId("log-lines").locator("li")).toHaveCount(3);
+  // The front door's record and the database's own lines beside the app's, each saying
+  // where it came from, in one stream; one place can be chosen.
+  const lines = logs.getByTestId("log-lines").locator("li");
+  await expect(lines).toHaveCount(5);
+  await expect(lines.nth(1).getByTestId("line-from")).toHaveText("your app");
+  await expect(lines.nth(2).getByTestId("line-from")).toHaveText("the front door");
+  await expect(lines.nth(2).getByTestId("platform-words")).toHaveText("GET /beneficiaries got 504: your app did not answer within the time the front door waits");
+  await expect(lines.nth(3).getByTestId("line-from")).toHaveText("your database");
+  await expect(lines.nth(3).getByTestId("platform-words")).toHaveText("The database refused your app's sign-in");
+  await logs.getByTestId("log-places").getByRole("button", { name: "the front door" }).click();
+  await expect(lines).toHaveCount(1);
+  await logs.getByTestId("log-places").getByRole("button", { name: "Everywhere" }).click();
+  await expect(lines).toHaveCount(5);
   await expect(page.getByTestId("performance")).toHaveCount(0);
   await expect(page.getByTestId("configure")).toHaveCount(0);
   await expect(page.getByTestId("settings")).toHaveCount(0);
