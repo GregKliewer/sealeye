@@ -313,6 +313,14 @@ DESIGN.md entries for each decision; ARCHITECTURE.md's containers, a discovery f
 the catalog in the data section; CLAUDE.md's plan contract (0.5) and layout; ROADMAP
 Phase 4 ticked; BUILD-OUT's picture marked built.
 
+Done Oct 22, 2026: ARCHITECTURE.md brought up to 2.46.9 (the system in a paragraph, the
+gap report and the self-test among the API's parts, the discovery flow through to the
+interview and the gap report, reading an organization's environment back in the
+security model, the decision index and the known limits); ROADMAP Phase 4 marked built
+but for 6c and what is owed before the first customer; BUILD-OUT's table and Phase 4
+pictures marked built. Each decision went into DESIGN.md as it was made, and CLAUDE.md
+with the code that made it true.
+
 ## Order and rough effort
 
 | Steps | What | Effort |

@@ -1,7 +1,8 @@
 # seaLeye: architecture
 
-First written Oct 12, 2026, at 2.20.0 (main at PR #31). This file describes the system
-as it is built today. Why each part is the way it is lives in [DESIGN.md](../DESIGN.md);
+First written Oct 12, 2026, at 2.20.0 (main at PR #31); brought up to date Oct 22,
+2026, at 2.46.9, as Phase 4's build ended (PHASE4-PLAN Step 11). This file describes the
+system as it is built today. Why each part is the way it is lives in [DESIGN.md](../DESIGN.md);
 where it is going lives in [VISION.md](VISION.md) and [ROADMAP.md](ROADMAP.md). When a
 change makes a diagram here wrong, fix the diagram in the same commit.
 
@@ -32,10 +33,14 @@ interview, a LangGraph graph around a Claude model, that reads the copy, asks th
 developer at most four questions and submits a plan. The API checks the plan against the
 plan contract: a plan whose app needs something the platform cannot build is saved as a
 draft and refused, with evidence; a ready plan, once the developer says yes, is
-packaged and built from one of the platform's CloudFormation templates through a deploy
-role that can build nothing else. The API keeps the record, mirrors the real stack
-status, and serves every day-two operation (settings, logs, performance, costs, pause,
-evidence, tear down) to both surfaces through the same endpoints.
+packaged and built through a role that can build nothing else: from one of seaLeye's
+own CloudFormation templates, or, for an organization whose own Terraform library
+discovery has read into a live catalog, from that organization's modules with
+OpenTofu. The API keeps the record, mirrors the real status, and serves every day-two
+operation (settings, logs, performance, costs, pause, evidence, tear down) to both
+surfaces through the same endpoints. A platform team runs discovery over its library,
+approves the catalog it drafts, and reads a gap report of what developers asked for
+that the catalog cannot build.
 
 ## 2. Goals and constraints
 
@@ -169,6 +174,7 @@ flowchart LR
     interview["<b>interview/</b><br/>graph.js, model.js, tools.js,<br/>service.js, pgstore.js"]
     discovery["<b>discovery/</b><br/>library, terraform, readers,<br/>draft, service, store"]
     validate["<b>validate.js, needs.js</b><br/>The plan contract,<br/>the needs ledger"]
+    gaps["<b>gaps.js, self-test.js</b><br/>The gap report;<br/>a catalog's self-test"]
     catalogs["<b>catalogs.js</b><br/>Each organization's catalog,<br/>or the starter"]
     executor["<b>executor/</b><br/>compose, package, uploads,<br/>settings, report, evidence, resume"]
     terraform["<b>executor/terraform/</b><br/>the organization's module,<br/>root module, OpenTofu"]
@@ -179,7 +185,7 @@ flowchart LR
     scan["<b>secret-scan.js</b><br/>The shared rules again,<br/>then gitleaks"]
   end
 
-  core["<b>core/</b><br/>schema, catalog, names, upload rules,<br/>secrets, secret scan rules, tracing, plan words"]
+  core["<b>core/</b><br/>schema, catalog, names, upload rules,<br/>secrets, secret scan rules, tracing,<br/>plan, gap and platform-line words"]
   prompts["<b>prompts/, templates/</b><br/>System prompt, contract,<br/>module catalog, CloudFormation"]
 
   server --> tokens
@@ -190,6 +196,10 @@ flowchart LR
   discovery --> store
   discovery --> prompts
   server --> validate
+  server --> gaps
+  gaps --> validate
+  gaps --> catalogs
+  gaps --> platform
   server --> catalogs
   validate --> catalogs
   executor --> catalogs
@@ -481,9 +491,12 @@ sequenceDiagram
 ```
 
 **The discovery run.** Plain code reads the library and lists its modules; the readers
-run in parallel and never wait on a person; the supervisor writes the draft. A question
-goes out the moment a reader raises it, and an answer is used whenever it comes: before
-the entries are written it is simply read, after, it re-writes only what it touches.
+run in parallel and never wait on a person; the supervisor writes the draft, with the
+words a developer reads, the planner's guidance and which needs each module meets
+(`meets`). A question goes out the moment a reader raises it, and an answer is used
+whenever it comes: before the entries are written it is simply read, after, it re-writes
+only what it touches. The live catalog then feeds the interview, the executor and the
+gap report, which judges every drafted plan's needs against it.
 
 ```mermaid
 flowchart LR
@@ -501,6 +514,9 @@ flowchart LR
   test --> approve["approved, by an<br/>organization-wide token"]
   approve --> test2["self-test again,<br/>and no environment dropped"]
   test2 --> live[("live catalog")]
+  live --> interview["the interview<br/>plans from it"]
+  live --> gapreport["the gap report:<br/>drafted needs no built<br/>module meets"]
+  ledger[("needs ledger:<br/>drafted plans")] --> gapreport
 ```
 
 ## 8. Data
@@ -694,6 +710,7 @@ flowchart LR
 | The app's own code at build time | Dependencies install with `--ignore-scripts` and an environment holding only what npm needs. |
 | The API to AWS | The server role can only assume `sealeye-deploy-*`. The deploy role builds only seaLeye's resources, and can create a function role only with the permissions boundary on it. |
 | The built app at run time | The boundary allows logs and reading `/sealeye-apps/`; each function's role narrows that to its own folder. |
+| Reading an organization's environment back | Through the Terraform role: its app logs (`logs:FilterLogEvents` on groups named `/aws/lambda/sealeye-*` only, and the API asks only for the group its module named, believed only when it is the environment's own and never the database setup function's), and the detached network interfaces its functions left, deleted only when detached and named for its functions. |
 | Secrets in output | Setting values never appear in records, evidence, logs, the terminal or the portal; logs pass through the same masking traces do. |
 | Traces | Shapes of turns, file paths and sizes; never file contents. Off without LangFuse keys, or with `--no-trace`. |
 | The API to the model | On the server the API holds no model key: the model key is the gateway's alone (`/sealeye/gateway/`, which the API never reads). The gateway lets through only the API's key with a token the API signed for that call, checked against the public half only. It is on a network only the API joins, with no published port. |
@@ -752,7 +769,9 @@ The decisions that shaped the architecture, by DESIGN.md heading.
 | Tracing | Tracing the interview with LangFuse; Tracing stays in the product |
 | Secrets in code | The secret scanner; The interview reads around a secret, not past the file |
 | Spending | A run's cap is close, not exact; What a run costs, and a cap of a dollar; The cap on every run; The gateway's budget: $20 a period; The outer limit, and a record of calls kept 90 days |
-| Learning the platform | Phase 4's decisions, and one reopened; The catalog is data, and every organization starts with the starter; A plan names its catalog (planVersion 0.5); The interview reads the organization's catalog; A module's name is found as code when it is an ordinary word; The made-up organization: Juniper Mutual |
+| Learning the platform | Phase 4's decisions, and one reopened; The catalog is data, and every organization starts with the starter; A plan names its catalog (planVersion 0.5); The interview reads the organization's catalog; A module's name is found as code when it is an ordinary word; The made-up organization: Juniper Mutual; Discovery records which needs each module meets; The gap report |
+| Building from the organization's modules | A Terraform executor builds an organization's own modules; Each module is built at the version its library released; Modules are connected through what the library offers; An app reaches a database in the private network; A tear-down waits for the private network, and sweeps what it leaves |
+| What a developer sees of the platform | Logs are found by the command, never by a path; A Terraform environment's logs are read where its module says they are; What the platform saw, in the developer's words |
 | The model gateway | Phase 3's decisions, as recommended; agentgateway, read and run (Step 4); The model gateway on the server; A token on every model call; Inference from Canada: disclosed, on the US profile |
 
 ## 12. Known limits and where they go next
@@ -762,7 +781,10 @@ The decisions that shaped the architecture, by DESIGN.md heading.
 | One API process; the store reads from memory | One pilot server | Staged hosting (PHASE2-PLAN, "Owed after this plan"): a managed database, then containers when downtime matters |
 | One shared AWS account and deploy role | The pilot is one organization | Phase 5: a role per team, in the team's account |
 | Tokens instead of sign-in | A handful of people | Phase 5: Cognito (Q16) |
-| An organization's Terraform modules build one at a time, at the dev stage, with no settings | Connecting modules needs the library to offer it, and settings would be kept in plain text in state | Phase 4 Step 9's second pull request: versions and connections; ROADMAP item 10 for settings |
+| An organization's environment is built at the dev stage, from one module that runs the app and the modules it uses, with no settings of its own | Developers deploy to dev; settings would be kept in plain text in state | Phase 5 for later stages; ROADMAP Phase 1 item 10 for settings |
+| A module that only runs beside something else (a service that runs continuously, an internal front door) is not built | The executor builds what takes an app's code or offers it access | Each in its own step, as a gap report asks for them |
+| Which needs a module meets is the model's judgment, fixed only by discovering again | A wrong one costs a wrong line in the gap report, never a build (Greg, Oct 22) | When a platform team needs to correct one by hand |
+| The front door's own errors, and a part's logs, are not in `sealeye logs` | The app's logs and the platform's own lines are | Owed to "What the platform saw": an access log of the library's front door, then the parts' logs |
 | ca-central-1, Node 20, no CloudFront from seaLeye's own templates | The pilot's scope | Phase 7 |
 | Traces in LangFuse Cloud (US) | Sample apps only; off for any pilot on real code | Phase 4: self-hosted in ca-central-1, before discovery reads an organization's code |
 | No promotion past dev | Developers deploy to dev | Phase 5 |
