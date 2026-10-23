@@ -170,7 +170,7 @@ flowchart TB
 |---|---|---|---|
 | `sealeye` command | `cli/`, `core/` | the API only | Holds a token (`~/.sealeye/config`, 0600), never a model key or AWS credentials for deploying. Installed from seaLeye.run. |
 | Portal | `portal/` | the API only, at `/api` on its own origin | Imports a few browser-safe `core/` files so both surfaces say the same words. Every value on a page comes from an API call. |
-| Caddy | `deploy/Caddyfile` | the API, static files Certificates for sealeye.online, api.sealeye.online and sealeye.run (sealeye.org is GitHub Pages). Passes the interview's event stream through unbuffered. |
+| Caddy | `deploy/Caddyfile` | the API, static files | Certificates for sealeye.online, api.sealeye.online and sealeye.run (sealeye.org is GitHub Pages). Passes the interview's event stream through unbuffered. |
 | API | `api/`, `core/`, `prompts/`, `templates/` | Postgres, AWS (CLI and OpenTofu), the model gateway, LangFuse, GitHub | The only part that reaches AWS: the AWS CLI as the deploy role for the starter's templates, `tofu` (pinned in the image, providers from the image only) as the Terraform role for an organization's modules. One process. On the server it holds a key for the gateway, not a model key; on a laptop, with no `SEALEYE_GATEWAY_KEY`, it calls Anthropic with its own key. |
 | Model gateway | `deploy/gateway.yaml`, `deploy/gateway.sh` | Anthropic | agentgateway, pinned by digest. The only part on the server that holds the model key. Lets through only the API's key with a token the API signed for that call (person, team, run, worker, surface), and logs those names; keeps a money budget for each 30-day period and a record of every call (90 days, read by `deploy/server.sh gateway-calls`) in its own SQLite file, and a per-run token limit in memory; logs no prompts or replies. On a network of its own that only the API joins; no published port. |
 | Postgres | `api/migrations/` | | Reachable only from the API, on the server's own network. |
@@ -180,23 +180,24 @@ flowchart TB
 ```mermaid
 flowchart LR
   subgraph api["seaLeye API (api/)"]
-    server["<b>server.js</b><br/>Routes, auth, scoping<br/>by organization and team"]
+    server["<b>server.js, busy.js</b><br/>Routes, auth, scoping<br/>by organization and team;<br/>one change at a time per environment"]
     tokens["<b>tokens.js</b><br/>Tokens and portal sessions,<br/>stored as hashes"]
     interview["<b>interview/</b><br/>graph.js, model.js, tools.js,<br/>service.js, pgstore.js"]
     discovery["<b>discovery/</b><br/>library, terraform, readers,<br/>draft, service, store"]
     validate["<b>validate.js, needs.js</b><br/>The plan contract,<br/>the needs ledger"]
     gaps["<b>gaps.js, self-test.js</b><br/>The gap report;<br/>a catalog's self-test"]
-    catalogs["<b>catalogs.js</b><br/>Each organization's catalog,<br/>or the starter"]
+    catalogs["<b>catalogs.js, catalog-use.js</b><br/>Each organization's catalog,<br/>or the starter; what a new live<br/>catalog would stop building"]
     executor["<b>executor/</b><br/>compose, package, uploads,<br/>settings, report, evidence, resume"]
-    terraform["<b>executor/terraform/</b><br/>the organization's module,<br/>root module, OpenTofu"]
+    terraform["<b>executor/terraform/</b><br/>index (lifecycle, interface sweep),<br/>library (the module at its release),<br/>versions, root (main.tf.json),<br/>tofu.js (the only file that spawns tofu)"]
+    gwtoken["<b>gateway-token.js, model-routes.js</b><br/>A signed token on every model call;<br/>discovery's small and frontier routes"]
     platform["<b>platform.js</b><br/>Each organization's<br/>platform values"]
-    cfn["<b>executor/cfn.js</b><br/>Every AWS call but the<br/>artifact upload"]
+    cfn["<b>executor/cfn.js</b><br/>The only file that spawns aws:<br/>stacks, artifacts, site sync,<br/>logs, interfaces"]
     dayTwo["<b>logs, performance, costs,<br/>pause, team, setting-changes</b>"]
     store["<b>store.js, db.js</b><br/>Records in memory,<br/>written through to Postgres"]
     scan["<b>secret-scan.js</b><br/>The shared rules again,<br/>then gitleaks"]
   end
 
-  core["<b>core/</b><br/>schema, catalog, names, upload rules,<br/>secrets, secret scan rules, tracing,<br/>plan, gap and platform-line words"]
+  core["<b>core/</b><br/>schema, catalog, terraform-modules,<br/>module-versions, names, upload rules,<br/>secrets, secret scan rules, tracing,<br/>plan, gap, discovery, developer<br/>and platform-line words"]
   prompts["<b>prompts/, templates/</b><br/>System prompt, contract,<br/>module catalog, CloudFormation"]
 
   server --> tokens
@@ -226,6 +227,10 @@ flowchart LR
   terraform --> cfn
   terraform --> discovery
   terraform --> platform
+  terraform --> store
+  dayTwo --> terraform
+  interview --> gwtoken
+  discovery --> gwtoken
   validate --> platform
   server --> platform
   platform --> store
