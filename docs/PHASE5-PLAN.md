@@ -48,21 +48,24 @@ The plan has five parts, in the order the dependencies force.
   later stages apply. The Terraform executor builds every module at stage `dev`, always.
 - **Discovery already reads the path to production, as words.** Each reader writes
   which stages a module is for (`stages`, in the library's terms) and a rule's stages;
-  the draft keeps them only inside `guidance` ("For dev, sit, uat."). The library
+  the draft keeps a module's stages only inside `guidance` ("For dev, sit, uat.") and
+  each rule's as free text in `rules[].stages`. The library
   reader writes `discovery.path_to_production`: the stages in order, what is aside
   (perf), and the gates ("staging: a platform team approval"; "prod: a platform team
   approval and an approved change ticket"). Nothing reads either as data yet.
 - **The made-up library plants the case.** Juniper's `postgres` is for dev, sit and
-  uat; `postgres-cluster` is for staging up, takes the same inputs, and offers what
-  `postgres` offers and a reader address besides. Its pipeline builds a package once and
+  uat; `postgres-cluster` is for staging up and takes the same required inputs; from
+  its 1.1.0 release (Oct 22, 2026) it offers what `postgres` offers and a reader address
+  besides, though live catalog 9 read 1.0.0, which offers no access policy. Its pipeline builds a package once and
   promotes it by checksum, one stage at a time (`app-promote.yml`). The answer key grades
   the overlap as "caught when each entry names the other"; how a plan names a module per
   stage "still waits on Q20".
 - **Platform values are already kept by stage** (`api/platform.js`, `GET
   /platform?stage=`), so "what the next stage is missing" can be read for a module's
   inputs today. An app's settings are kept by team and app, not by stage.
-- **The record of what was built is already exact.** A deployment keeps its plan's,
-  its root module's and its artifact's checksums (`api/executor/evidence.js`), so a
+- **The record of what was built is already exact.** A deployment keeps its plan's
+  and its artifact's checksums, and a Terraform one its root module's (recorded in
+  `api/server.js` and the executors, reported by `api/executor/evidence.js`), so a
   request can name the package by checksum without building anything again.
 - **Waiting in Postgres is already done once.** The interview's graph is checkpointed
   in Postgres (`api/interview/pgstore.js`) and each `interrupt()` survives a restart.
@@ -130,8 +133,8 @@ About two to three days.
   module with an `instead`, that the platform uses the other from that stage. A prompt
   change: `npm run eval:interview` before (Step 0) and after.
 - A discovery change: `npm run eval:discovery -- --run` before and after, and an
-  independent review before the pull request. A change to discovery's prompts raises
-  `readerVersion`, so the next run reads every module.
+  independent review before the pull request. A change to discovery's prompts changes
+  `readerVersion` (a hash of them), so the next run reads every module.
 
 About two to three days, with the review.
 
