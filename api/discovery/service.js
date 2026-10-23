@@ -287,6 +287,9 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
     id: q.id, kind: q.kind, question: q.question, options: q.options, guess: q.guess, touches: q.touches,
     evidence: q.evidence, answer: q.answer ?? null, answeredBy: q.answeredBy || null, answeredAt: q.answeredAt || null,
     usedAt: q.usedAt || null,
+    // The catalog the answer was written into, so a page showing an earlier catalog can
+    // say an answer went into a later one.
+    usedIn: q.usedIn ?? null,
     // Asked in the run behind the live catalog, about a module kept as it was, and carried
     // into this one with its answer (DESIGN.md, "Discovery reads again only what changed").
     ...(q.carriedFrom ? { carried: true } : {}),

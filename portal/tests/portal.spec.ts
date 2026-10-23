@@ -676,7 +676,7 @@ test("Discovery shows the run, its open question, and the draft resting on it; a
   await signInOrgWide(page);
   await page.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: "Platform" }).click();
   await expect(page.getByRole("navigation", { name: "Platform" }).getByRole("link", { name: "Discovery" })).toBeVisible();
-  await expect(page.getByTestId("run")).toContainText("Finished, draft catalog 1");
+  await expect(page.getByTestId("run")).toContainText("Finished, wrote catalog 1");
   await expect(page.getByTestId("run")).toContainText("northwind/platform-library at 5e63aa5");
   await expect(page.getByTestId("command-hint").first()).toContainText("sealeye discover");
 
@@ -691,6 +691,10 @@ test("Discovery shows the run, its open question, and the draft resting on it; a
   await expect(page.getByTestId("draft-module")).toHaveCount(3);
   await expect(page.getByTestId("rests-on-question")).toHaveCount(1);
   await expect(page.getByTestId("answered-question")).toContainText("postgres-cluster");
+  // The answer is a reply set under its question, and the card says which run asked.
+  await expect(page.getByTestId("answered-question").getByTestId("answer")).toHaveText("postgres-cluster");
+  await expect(page.getByTestId("answered-in")).toHaveText("Asked in run dsc_0000000000000001, which wrote catalog 1.");
+  await expect(page.getByTestId("draft-title")).toHaveText("Draft catalog 1");
 
   // An answer of one's own, in words.
   await q.getByLabel("Something else").check();
@@ -1053,3 +1057,36 @@ test("a team's token sees no Platform section, and Environments stays underlined
   await page.getByRole("link", { name: "payments-api", exact: true }).click();
   await expect(sections.filter({ hasText: "Environments" })).toHaveClass(/border-phosphor/);
 });
+
+// Choosing a catalog shows it and the run that wrote it (Greg, Oct 23, 2026).
+test("choosing a catalog shows it, its run's questions and how each was answered, and leads back", async ({ page }) => {
+  await signInOrgWide(page);
+  await page.goto("/discovery");
+  await expect(page.getByTestId("answered-question").filter({ hasText: "Which database is for perf?" })).toHaveCount(1);
+  await page.getByTestId("catalog-row").filter({ hasText: "from run dsc_0000000000000000" }).getByTestId("catalog-show").click();
+  await expect(page).toHaveURL(/\/discovery\?catalog=2$/);
+  await expect(page.getByTestId("shown-catalog")).toContainText("Showing catalog 2, draft, and the run that wrote it.");
+  await expect(page.getByTestId("run")).toContainText("dsc_0000000000000000");
+  await expect(page.getByTestId("draft-title")).toHaveText("Draft catalog 2");
+  await expect(page.getByTestId("draft-module")).toHaveCount(1);
+  await expect(page.getByTestId("answered-question")).toHaveCount(1);
+  await expect(page.getByTestId("answered-question")).toContainText("Is the work queue for every team?");
+  await expect(page.getByTestId("answered-question").getByTestId("answer")).toHaveText("Every team");
+  await expect(page.getByTestId("catalog-row").filter({ hasText: "from run dsc_0000000000000000" })).toHaveAttribute("aria-current", "true");
+  await page.getByTestId("back-to-latest").click();
+  await expect(page).toHaveURL(/\/discovery$/);
+  await expect(page.getByTestId("draft-title")).toHaveText("Draft catalog 1");
+  await expect(page.getByTestId("answered-question").filter({ hasText: "Which database is for perf?" })).toHaveCount(1);
+});
+
+test("a live catalog is titled as live, never as a draft, and an answer used later says where it went", async ({ page }) => {
+  await signInAs(page, JUNIPER_WIDE, "Pat Juniper");
+  await page.goto("/discovery?catalog=3");
+  await expect(page.getByTestId("draft-title")).toHaveText("Catalog 3, live");
+  await expect(page.getByTestId("draft")).toContainText("It no longer changes");
+  await expect(page.getByTestId("edit-words")).toHaveCount(0);
+  const answers = page.getByTestId("answered-question");
+  await expect(answers.filter({ hasText: "Is postgres for dev only?" })).toContainText("in catalog 3");
+  await expect(answers.filter({ hasText: "private network" })).toContainText("written into catalog 4, after this one");
+});
+

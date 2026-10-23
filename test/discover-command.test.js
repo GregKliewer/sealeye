@@ -66,7 +66,7 @@ const sealeye = (args, tok) => promisify(execFile)(process.execPath, [path.join(
 
 test("sealeye discover status: the latest run, what was read, and what is open", async () => {
   const { stdout } = await sealeye(["discover", "status"], LEE);
-  assert.match(stdout, /The latest run: Nothing had changed since catalog 1, so no draft was written\. Its questions are on this one:\n.*dsc_0000000000000001  Finished, draft catalog 1/);
+  assert.match(stdout, /The latest run: Nothing had changed since catalog 1, so no draft was written\. Its questions are on this one:\n.*dsc_0000000000000001  Finished, wrote catalog 1/);
   assert.match(stdout, /library acme\/platform at 5e63aa5/);
   assert.match(stdout, /1 of 2 modules read; not read: modules\/cache/);
   assert.match(stdout, /2 questions, 1 open; spent US\$0\.12/);

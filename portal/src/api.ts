@@ -35,7 +35,8 @@ export interface Person { email: string; name: string; org: string; team: string
 export interface DiscoveryQuestion {
   id: string; kind: string; question: string; options: string[]; guess: string; touches: string[];
   evidence: { file: string; line?: number; shows: string }[];
-  answer: string | null; answeredBy: string | null; answeredAt: string | null; usedAt: string | null;
+  answer: string | null; answeredBy: string | null; answeredAt: string | null; usedAt: string | null; usedIn?: number | null;
+  carried?: boolean;
   merged?: { question: string; raisedBy: string }[];
 }
 export interface DiscoverySummary {

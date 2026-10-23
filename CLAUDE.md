@@ -28,7 +28,7 @@ Two surfaces, one product: **seaLeye.run** is the `sealeye` command, and
 cli/        the sealeye command: bin/sealeye, client.js (talks to the API), interview/
             (follow.js streams the interview; render.js), discover.js (a discovery run,
             its questions answered as they come; discover-screen.js draws its window),
-            catalogs.js (`sealeye catalog versions|test|edit|fix|approve|live`), platform.js
+            catalogs.js (`sealeye catalog versions|show|test|edit|fix|approve|live`), platform.js
             (`sealeye platform`, the organization's platform values), doctor.js,
             store-offer.js (moving .env values into the store),
             brand.js (the only place terminal colours live)
@@ -459,7 +459,8 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   code the platform has), Catalog (modules and the needs ledger), Costs, Team, Health,
   and Discovery (Edit words on its draft, and its Catalogs card: the self-test, Edit
   words on any other draft, Fix what blocks approval, Approve,
-  Make live), Platform (the organization's platform values) and Gaps (the
+  Make live; choosing a catalog there shows it and its run's questions and answers,
+  `/discovery?catalog=<v>`, as `sealeye catalog show <v>` does), Platform (the organization's platform values) and Gaps (the
   gap report), shown only to an organization-wide token. Control shows only what an environment offers. Costs and the Settings card are shown only to an
   organization whose settings and costs are kept (`hasSettingsAndCosts` in
   `core/token.js`); the header names the token's own organization. Integrations is
