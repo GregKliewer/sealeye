@@ -116,17 +116,21 @@ flowchart TB
 
   subgraph server["Pilot server (one EC2 instance)"]
     caddy["<b>Caddy</b><br/>[Reverse proxy]<br/>TLS for every domain; serves the portal,<br/>seaLeye.run and the installer"]
-    api["<b>seaLeye API</b><br/>[Node 20, Express, api/ + core/]<br/>Interview, plan contract, executor,<br/>day-two operations"]
+    api["<b>seaLeye API</b><br/>[Node 20, Express, api/ + core/,<br/>OpenTofu in the image]<br/>Interview, discovery, plan contract,<br/>both executors, day-two operations"]
     pg[("<b>Postgres 16</b><br/>[Database]<br/>Records, tokens, sessions,<br/>setting changes, interviews")]
     gw["<b>Model gateway</b><br/>[agentgateway, deploy/gateway.yaml]<br/>Holds the model key; the API's key<br/>and the 30-day money budget"]
   end
 
   subgraph aws["The organization's AWS account"]
-    cfn["<b>CloudFormation</b><br/>One stack per environment"]
-    s3a[("<b>Artifact bucket</b><br/>Packaged app zips")]
+    cfn["<b>CloudFormation</b><br/>One stack per starter environment"]
+    s3a[("<b>Artifact bucket</b><br/>Packaged app zips;<br/>tofu-state/org/environment.tfstate<br/>and its lock file")]
     ssm[("<b>Parameter Store</b><br/>App setting values,<br/>/sealeye-apps/team/app/")]
-    envs["<b>Environments</b><br/>Lambda + HTTP API,<br/>or an S3 static site"]
-    cw["<b>CloudWatch, Cost Explorer</b><br/>Logs, readings, costs"]
+    envs["<b>Starter environments</b><br/>Lambda + HTTP API,<br/>or an S3 static site"]
+    subgraph net["Foundation network (platform-sealeye-foundation)"]
+      tfenvs["<b>Environments from the organization's modules</b><br/>The app's module (an API or a site)<br/>and the parts it uses: table, bucket,<br/>queue, Postgres with IAM sign-in"]
+      vpce["<b>Private endpoints</b><br/>tables and buckets (free, foundation);<br/>Secrets Manager (platform-sealeye-endpoints)"]
+    end
+    cw["<b>CloudWatch, Cost Explorer</b><br/>Logs (the app's, the front door's,<br/>the database's), readings, costs"]
   end
 
   anthropic["<b>Anthropic API</b>"]
@@ -140,15 +144,17 @@ flowchart TB
   caddy -- "HTTP :3000" --> api
   api -- "SQL" --> pg
   api -- "AWS CLI, as the deploy role" --> cfn
-  api -- "upload" --> s3a
+  api -- "tofu init, plan, apply, destroy,<br/>as the Terraform role" --> tfenvs
+  api -- "upload; Terraform state" --> s3a
   api -- "put, list names" --> ssm
   api -- "read" --> cw
   cfn -- "creates" --> envs
   envs -- "read own settings at start" --> ssm
+  tfenvs -- "no NAT: through" --> vpce
   api -- "model calls, the API's key<br/>and a token it signs per call" --> gw
   gw -- "model calls, the model key" --> anthropic
   api -. "traces" .-> langfuse
-  api -- "one commit as an archive,<br/>GitHub App or read-only token" --> libgh
+  api -- "one commit or a module's release<br/>as an archive, GitHub App<br/>or read-only token" --> libgh
 
   classDef person fill:#08427b,stroke:#052e56,color:#fff
   classDef container fill:#438dd5,stroke:#2e6295,color:#fff
@@ -157,7 +163,7 @@ flowchart TB
   class dev person
   class cli,portal,caddy,api,gw container
   class pg store
-  class cfn,s3a,ssm,envs,cw,anthropic,langfuse,libgh external
+  class cfn,s3a,ssm,envs,tfenvs,vpce,cw,anthropic,langfuse,libgh external
 ```
 
 | Container | Code | Talks to | Notes |
@@ -165,7 +171,7 @@ flowchart TB
 | `sealeye` command | `cli/`, `core/` | the API only | Holds a token (`~/.sealeye/config`, 0600), never a model key or AWS credentials for deploying. Installed from seaLeye.run. |
 | Portal | `portal/` | the API only, at `/api` on its own origin | Imports a few browser-safe `core/` files so both surfaces say the same words. Every value on a page comes from an API call. |
 | Caddy | `deploy/Caddyfile` | the API, static files Certificates for sealeye.online, api.sealeye.online and sealeye.run (sealeye.org is GitHub Pages). Passes the interview's event stream through unbuffered. |
-| API | `api/`, `core/`, `prompts/`, `templates/` | Postgres, AWS (CLI), the model gateway, LangFuse | The only part that reaches AWS. One process. On the server it holds a key for the gateway, not a model key; on a laptop, with no `SEALEYE_GATEWAY_KEY`, it calls Anthropic with its own key. |
+| API | `api/`, `core/`, `prompts/`, `templates/` | Postgres, AWS (CLI and OpenTofu), the model gateway, LangFuse, GitHub | The only part that reaches AWS: the AWS CLI as the deploy role for the starter's templates, `tofu` (pinned in the image, providers from the image only) as the Terraform role for an organization's modules. One process. On the server it holds a key for the gateway, not a model key; on a laptop, with no `SEALEYE_GATEWAY_KEY`, it calls Anthropic with its own key. |
 | Model gateway | `deploy/gateway.yaml`, `deploy/gateway.sh` | Anthropic | agentgateway, pinned by digest. The only part on the server that holds the model key. Lets through only the API's key with a token the API signed for that call (person, team, run, worker, surface), and logs those names; keeps a money budget for each 30-day period and a record of every call (90 days, read by `deploy/server.sh gateway-calls`) in its own SQLite file, and a per-run token limit in memory; logs no prompts or replies. On a network of its own that only the API joins; no published port. |
 | Postgres | `api/migrations/` | | Reachable only from the API, on the server's own network. |
 
