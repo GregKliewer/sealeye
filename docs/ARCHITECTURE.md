@@ -738,6 +738,7 @@ LangGraph's own checkpoint tables also live in `interview_state`.
 |---|---|---|
 | App setting values | Parameter Store, `/sealeye-apps/<team>/<app>/` | until unset; never copied into seaLeye |
 | Packaged app zips | artifact bucket, `<name>/<deploymentId>.zip` | reused by Deploy again |
+| Terraform state | artifact bucket, `tofu-state/<org>/<environment>.tfstate`, with its lock file | until the environment is torn down |
 | Uploaded copies | `~/.sealeye/deploy-uploads/<deploymentId>/` on the server | until the deployment ends |
 | Interview scratch folders | on the server | until the interview ends, or a day |
 | Backups | config bucket, `backups/` | 30 days |
@@ -746,13 +747,19 @@ LangGraph's own checkpoint tables also live in `interview_state`.
 
 ### 8.3 The plan contract
 
-planVersion 0.5, in `core/schema.js` (`contractSchema`). A plan names the catalog it
+planVersion 0.5, or 0.6 when it connects modules, in `core/schema.js` (`contractSchema`). A plan names the catalog it
 was written against (`catalog: starter`, or the version of one of the organization's
 own that is or was live), and its module ids and need kinds are checked against that
 catalog (`schemaFor` in `core/catalog.js`, `api/validate.js`). A module is buildable
-when the catalog marks it available and the platform has an executor for what its
-`builds_with` names: today CloudFormation, which builds the starter's four
-(`static_site_edge`, `http_api_serverless`, `observability_basic`, `config_basic`).
+when the catalog marks it available, no question it rests on is still open, and the
+platform has an executor for what its `builds_with` names: CloudFormation, which builds
+the starter's four (`static_site_edge`, `http_api_serverless`, `observability_basic`,
+`config_basic`), or Terraform, for a module whose every required input has a source
+(seaLeye, the plan or the organization's platform values), that takes the app's code or
+offers it access, and runs no commands (`terraformBuilds` in
+`core/terraform-modules.js`). A module the app uses (`isPart`) says in `connect` which
+setting each value it offers reaches the app under; that makes the plan 0.6
+(`connectionProblems`).
 Anything else an app needs is a NEED from that catalog's need kinds, or `unlisted`,
 with evidence naming the file. A plan with needs is `drafted`; a plan without is
 `ready`. 0.2, 0.3 and 0.4 plans are read as 0.5 against the starter. The interview plans
