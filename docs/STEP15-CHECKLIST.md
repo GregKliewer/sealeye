@@ -51,7 +51,9 @@ about it?
 
 ## After
 
-- Deployment and interview ids (`sealeye list --deployments`):
+- Deployment ids (`sealeye list --deployments --all`, since torn-down and drafted ones
+  are hidden without `--all`), and interview ids (`int_...`, the run column of
+  `deploy/server.sh gateway-calls <their email>`):
 - LangFuse traces for their runs (sample apps only, so tracing stays on):
 - Their one-sentence verdict, in their words:
 - **Phase 1 met?** They ran `sealeye run`, got an address, saw it on sealeye.online,

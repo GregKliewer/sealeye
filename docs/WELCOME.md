@@ -19,7 +19,8 @@ website at https://sealeye.online.
 ## What you need
 
 - A Mac or Linux machine, with Node.js 20 or later (`node -v` shows yours; get it from
-  https://nodejs.org if you need to).
+  https://nodejs.org if you need to), and a terminal: `sealeye run` asks you questions,
+  so it runs in one, not in a script.
 - The token Greg sent you, separately from this note. It starts with `sl_`. Treat it
   like a password: it is yours alone, and it is never typed on a command line.
 - The sample apps Greg sent you as a zip. Unzip it somewhere you like.
@@ -30,7 +31,10 @@ website at https://sealeye.online.
 curl -fsSL https://sealeye.run/install | sh
 ```
 
-It installs `sealeye` with npm and says when it is done. Check with `sealeye --help`.
+It downloads the command into a folder of its own in your home folder, puts `sealeye`
+on your PATH, and ends with "Done." It needs curl and tar, which Macs and most Linux
+machines have. If it stops saying your global npm folder needs administrator rights, do
+what its message says, then run it again. Check with `sealeye --help`.
 
 ## 2. Sign in
 
@@ -56,9 +60,13 @@ sealeye run
 - It shows a plan: what it will build, and why. Read it.
 - It asks "Deploy this? [y/N]". Type `y` to go ahead. Anything else stops, and nothing
   is built.
-- Building takes a few minutes and carries on in the background. It prints a
-  deployment id (it starts with `dep_`); `sealeye watch <that id>` follows it to the
-  end, and `sealeye list` shows the address once it is ready. Open the address in a
+- If you run it again in a folder whose app is already live, it says so first and asks
+  "Continue? [y/N]": going on updates that environment, it does not make a second one.
+- Building takes a few minutes and carries on in the background: it prints a
+  deployment id (it starts with `dep_`) and gives you your terminal back, with a notice
+  when it is done if your machine can show one. `sealeye watch`, in the same folder,
+  follows it to the end (`sealeye run --watch` stays from the start), and `sealeye
+  list` shows the address once it is ready. Open the address in a
   browser: it is your app, running.
 
 You can keep the app's name as it is. Other people may have an app with the same name;
@@ -80,8 +88,9 @@ straight to that app's page) and sign in with the same token. You should see the
 environments you just made, with their state and addresses. Click one to see its
 history.
 
-Tear one of them down from the website: open it and choose "Tear it down". It asks you
-to type the app's name to confirm. Tear down the other one from the command line:
+Tear one of them down from the website: open it and choose "Tear down". It asks you to
+type the app's name, then "Tear it down" to confirm. Tear down the other one from the
+command line; it asks before it does anything, so type `y`:
 
 ```bash
 sealeye teardown static-website
@@ -102,7 +111,8 @@ seaLeye sends a copy of your app's folder to the platform to read and build it. 
 never sends `.env` files or other files that hold secrets, only their names. It also
 checks your code for values that look like secrets, a key written into a file say: a
 line with one is not sent (the rest of the file is), and a deploy is refused until the value moves
-into a setting. The sample apps have none. For these
+into a setting (`sealeye settings set <NAME>`), or a line in `.sealeye-allow` says it is
+not a secret. Files your `.gitignore` leaves out are not sent at all. The sample apps have none. For these
 sample apps, each interview is recorded so it can be improved: the questions, your
 answers and the plan, never the contents of your files. `sealeye run --no-trace` turns
 that off for a run.
