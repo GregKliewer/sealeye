@@ -253,8 +253,8 @@ organization's platform values and what each Terraform module still needs), PUT 
 DELETE /platform/values/{name} ({ value, stage? }: a word or a list of words, never a
 secret), an organization-wide token's only, POST /discoveries (a run over the
 library the server names; `{ full: true }` reads every module, otherwise only what
-changed since the live catalog's run), GET /discoveries, GET /discoveries/{id} (the run and its
-questions, and whether an answer is being written into the draft), GET /discoveries/{id}/events (server-sent events), GET
+changed since the live catalog's run), GET /discoveries, GET /discoveries/{id} (any run and its
+questions, each answer with the catalog it was written into, `usedIn`, and whether an answer is being written into the draft), GET /discoveries/{id}/events (server-sent events), GET
 /discoveries/{id}/catalog (its draft), POST /discoveries/{id}/answers ({ question, answer },
 while it runs or after); discovery is an organization-wide token's only, one run at a time for an organization (409 RUN_GOING), over one library repository (409 ONE_LIBRARY). GET /catalogs (the organization's catalogs and which is live), GET
 /catalogs/{v}/self-test (its word check names each field to change, which `sealeye catalog
@@ -457,12 +457,15 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
 - seaLeye.online (`portal/`) has Environments, New environment (the interview, from a
   folder chosen in the browser), Control (state, deploy again, tear down,
   pause, settings, configure, history, plan and report, performance, logs, evidence), Validate (check a plan, and deploy a ready one with the
-  code the platform has), Catalog (modules and the needs ledger), Costs, Team, Health,
-  and Discovery (Edit words on its draft, and its Catalogs card: the self-test, Edit
+  code the platform has), Catalog (modules and the needs ledger), Team (Team and Costs
+  as tabs), Health (beside the person, with a status mark, not a section), and Platform
+  (as tabs: Discovery (Edit words on its draft, and its Catalogs card: the self-test, Edit
   words on any other draft, Fix what blocks approval, Approve,
   Make live; choosing a catalog there shows it and its run's questions and answers,
-  `/discovery?catalog=<v>`, as `sealeye catalog show <v>` does), Platform (the organization's platform values) and Gaps (the
-  gap report), shown only to an organization-wide token. Control shows only what an environment offers. Costs and the Settings card are shown only to an
+  `/discovery?catalog=<v>`, as `sealeye catalog show <v>` does), Platform values and Gaps (the
+  gap report)), shown only to an organization-wide token. A section of several pages
+  shows them as a second row of tabs; addresses are unchanged (`portal/src/Layout.tsx`;
+  DESIGN.md, "The portal's sections are grouped by whose work they are"). Control shows only what an environment offers. Costs and the Settings card are shown only to an
   organization whose settings and costs are kept (`hasSettingsAndCosts` in
   `core/token.js`); the header names the token's own organization. Long lists (an
   app's history, a catalog's entries, Catalogs, Answered) show a page at a time with a

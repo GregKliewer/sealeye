@@ -28,7 +28,7 @@ There are two surfaces and one product:
 - **seaLeye.online**, the web portal, for anyone who prefers a browser.
 - Both are clients of one **seaLeye API**, so they can always do the same things.
 
-## Where it stands (Oct 22, 2026, version 2.48.1)
+## Where it stands (Oct 23, 2026, version 2.50.0)
 
 - **Live** for a pilot: the API at https://api.sealeye.online, the portal at
   https://sealeye.online, and the command installed from https://sealeye.run. The
@@ -41,7 +41,8 @@ There are two surfaces and one product:
   Terraform library into a catalog, the self-test, approving and making a catalog live,
   the Terraform executor with connected modules and a database in the private network,
   the gap report, and reading again only what changed. Proven on the pilot with the
-  made-up Juniper Mutual.
+  made-up Juniper Mutual. Since (Oct 23): the portal's sections grouped, each catalog
+  shown with the run that wrote it, long lists paged, and which apps use each module.
 - **Owed before the first customer's real code** (PHASE4-PLAN, "Owed after this
   plan"): LangFuse self-hosted in Canada, a new paid account per customer for
   discovery, the Bedrock route, a catalog too large for the prompt, admin onboarding

@@ -212,7 +212,9 @@ About three days.
 - `GET /integrations`, `PUT` and `DELETE /integrations/{name}` ({ values }, names out and
   values in, never back), an organization-wide token's only, with a check that
   connects and says in words whether it worked (`POST /integrations/{name}/check`).
-- `sealeye integrations` and an Integrations page: each job (approvals, gap tickets,
+- `sealeye integrations` and an Integrations page (a tab in the Platform section, as
+  the Promotions page joins a section rather than the top bar; DESIGN.md, "The
+  portal's sections are grouped by whose work they are"): each job (approvals, gap tickets,
   notifications), what is connected for it, when it last worked, and what seaLeye does
   without it. The archived mock-up's design, showing only what is real.
 - The credentials in the organization's store (D10). The pilot server's role gains read
