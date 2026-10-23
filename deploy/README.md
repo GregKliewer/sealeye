@@ -10,17 +10,21 @@ in to the seaLeye account as someone who can create IAM roles.
 | `server.yaml` | The server: instance, fixed address, firewall (web only, no SSH), its role, an image repository, a config bucket. Stack `platform-sealeye-server`. |
 | `deploy-role.yaml` | The `sealeye-deploy-*` role every deployment goes through. Stack `platform-sealeye-deploy-role`. |
 | `settings.mjs`, `start.mjs`, `with-settings.mjs` | How the API starts: its settings from Parameter Store, its database, AWS calls through the deploy role. |
-| `compose.yaml`, `Caddyfile` | What runs on the server: the API, Postgres and Caddy. |
-| `dns.yaml` | Route 53 for a domain, with the `api` record. |
+| `compose.yaml`, `Caddyfile` | What runs on the server: the API, the model gateway, Postgres and Caddy. |
+| `gateway.yaml`, `gateway.sh` | The model gateway (agentgateway): its configuration, and the server's half of gateway-restart, gateway-logs, gateway-calls and the nightly prune. |
+| `gateway-signing-key.mjs` | Makes the key the API signs each model call's token with. Run on your Mac. |
+| `dns.yaml` | Route 53 for one domain: the domain and `www` at the server or at GitHub Pages, and an `api` record when one is given. Stacks `platform-sealeye-dns-<domain>`. |
 | `release.sh` | Build, push and roll out a new version. Run on your Mac. |
 | `update.sh` | The server's half of a release. `release.sh` sends it. It also installs the nightly backup. |
-| `server.sh` | The server's own jobs, run from your Mac: backup, restore check, importing records, restart, logs. |
+| `server.sh` | The server's own jobs, run from your Mac: backup, restore-check, import, restart, logs, disk, settings-sources, token add/revoke/list, gateway-restart, gateway-logs, gateway-calls, library-check, tofu-unlock, park and unpark. `deploy/server.sh` with no job lists them. |
 | `ci-role.yaml` | The role GitHub takes to store the image it builds. Stack `platform-sealeye-ci`. |
 | `backup.sh`, `restore-check.sh` | The server's half of those jobs. |
-| `terraform-role.yaml` | The `sealeye-deploy-terraform-*` role an organization's own modules are built through, and their functions' boundary. Stack `platform-sealeye-terraform-role`. |
+| `terraform-role.yaml` | The `sealeye-deploy-terraform-*` role an organization's own modules are built through, its log permissions (`sealeye-deploy-terraform-logs-*`), the apps' functions' boundary and the database setup function's boundary. Stack `platform-sealeye-terraform-role`. |
 | `foundation.yaml` | The network the made-up organization's modules are built into, with its free endpoints. Stack `platform-sealeye-foundation`. |
 | `endpoints.yaml` | The network's paid endpoints, which park deletes. Stack `platform-sealeye-endpoints`. |
 | `pin-tofu.sh` | Writes OpenTofu's and the AWS provider's checksums into the Dockerfile. Run on your Mac after either version changes. |
+| `spikes/` | How the gateway and the app's settings read were proved, each with its own README. |
+| `../Dockerfile` | The API's image: the API, gitleaks, OpenTofu and the AWS provider, pinned by checksum; `npm test` runs during the build. |
 
 Platform stacks are named `platform-sealeye-*`, never `sealeye-*`, so the deploy role,
 which may only touch `sealeye-*` stacks, can never touch them.
@@ -60,7 +64,9 @@ aws cloudformation deploy --region ca-central-1 \
 ```
 
 Both `echo` lines should print a real value before you run the deploy. Its output
-`DeployRoleArn` is `arn:aws:iam::<account>:role/sealeye-deploy-pilot`.
+`DeployRoleArn` is `arn:aws:iam::<account>:role/sealeye-deploy-pilot`. Its `RoleSuffix`
+parameter (default `pilot`) names the role `sealeye-deploy-<suffix>`; the Terraform role
+stack takes the same parameter.
 
 When `deploy-role.yaml` changes, run the same commands again: the stack is updated in
 place, the role keeps its name, and `SEALEYE_DEPLOY_ROLE_ARN` stays the same. Do it, and
@@ -115,7 +121,7 @@ put_value SEALEYE_FUNCTION_BOUNDARY_ARN "$(aws cloudformation describe-stacks --
 `SEALEYE_FUNCTION_BOUNDARY_ARN` is the most any app's function may do (write its logs and
 read app settings); every function role is made with it, and the deploy role can make
 one no other way. Changing a setting later takes
-effect at the next release, or after `docker compose restart api` on the server.
+effect at the next release, or after `deploy/server.sh restart`.
 
 ## Once: the database password
 
@@ -490,8 +496,10 @@ GitHub App (the way an organization's own library is read), or a fine-grained to
 (the pilot's way, quickest to set up). When both are set the app is used. Either can be
 set up first; the API reads the settings when it starts.
 
-**The repositories.** Owner/repo, optionally `@` and a branch, tag or commit; several
-separated by commas:
+**The repositories.** Owner/repo, optionally `@` and a branch, tag or commit. Name one:
+a discovery run reads one library repository for now, and refuses (409 ONE_LIBRARY)
+while more than one is named. `library-check` reads each of several, separated by
+commas:
 
 ```bash
 aws ssm put-parameter --region ca-central-1 --name /sealeye/SEALEYE_LIBRARY_REPOS --type String --overwrite \
@@ -593,8 +601,9 @@ aws cloudformation describe-stacks --region ca-central-1 --stack-name platform-s
   --query "Stacks[0].Outputs" --output table
 ```
 
-Each output's description says which platform value it is. Today's two modules need
-none of them; connecting modules (the next pull request) will.
+Each output's description says which platform value it is. `http-api` and
+`static-site` alone need none of them; an app with a database needs the network's, set
+in step 4 of "Once: the database".
 
 **4. Release, then discover Juniper's library again.** Catalog 3 was written before
 discovery recorded how a module takes an app and what it would run, so the executor
@@ -801,6 +810,7 @@ make live, as for the app's logs above.
 `sealeye logs <app> --since 15m`: lines labelled "the front door" and "your app", and
 "your database" only when the database refused something. The front door's lines can
 arrive a minute or two after the request.
+
 ## Parking between bursts of work
 
 When you will be away from the pilot for a while, park it. Parked, it costs about $6 a
@@ -831,6 +841,7 @@ Coming back, from the same place:
 
 ```bash
 git switch main && git pull
+deploy/server.sh unpark --dry-run   # what it would do, changing nothing
 deploy/server.sh unpark
 ```
 
@@ -858,7 +869,11 @@ It ships what is checked out in this folder: the API image for that commit, and 
 portal and the package built from its files. So it stops, before anything reaches AWS,
 unless this is `main` with nothing uncommitted and exactly the commit GitHub has, and
 then says which commit it is releasing. If it says this copy is behind, `git pull` and
-run it again.
+run it again. It also stops, before anything reaches AWS, when the command has changed
+since the version in package.json was released: raise the version (`npm version minor
+--no-git-tag-version`) through a pull request, then release again. "sealeye X is new to
+sealeye.run" or "The command is the same as the sealeye X already released" says which
+it found.
 
 If GitHub built this commit, the release uses that image and needs no Docker. If not
 (GitHub's run is still going, or the role is not set up), it builds the image here,
@@ -902,6 +917,16 @@ Records already there are left alone, so running it twice does no harm. It resta
 API afterwards, which is how the API reads them; an interview in progress carries on
 across the restart.
 
+## Settings still sent from a developer's .env
+
+The live environments whose settings came from a developer's `.env` rather than the
+organization's store, each with its app, team, who last deployed it and the setting
+names (never a value), for following up:
+
+```bash
+deploy/server.sh settings-sources
+```
+
 ## Who may call it: tokens
 
 Every request but `/health` needs a token issued to a person (PHASE1-PLAN Step 13).
@@ -914,6 +939,7 @@ deploy/server.sh token add you@example.com "Your Name" --org-wide   # sees every
 deploy/server.sh token add you@example.com "Your Name" --org-wide --org juniper   # in another organization
 deploy/server.sh token list                                          # never shows tokens
 deploy/server.sh token revoke ana@example.com                        # stops working at once
+deploy/server.sh token revoke tok_...                               # one token by its id, from token list
 ```
 
 A token sees only its own team's environments: their list, status, evidence and tear
@@ -929,8 +955,8 @@ pilot has a second one, `juniper`, so a catalog discovered from Juniper Mutual's
 (the made-up organization) can be approved and made live without changing what anyone
 in `default` plans against (PHASE4-PLAN Step 7). To act as it, use that token:
 `SEALEYE_TOKEN=<its token> sealeye catalog versions`, or sign in with it on the portal.
-The library discovery reads is still the server's one setting (`SEALEYE_LIBRARY_REPOS`)
-for every organization, until admin onboarding names one each.
+The library discovery reads is still the server's one setting (`SEALEYE_LIBRARY_REPOS`,
+one repository) for every organization, until admin onboarding names one each.
 
 The token is made on your Mac and shown once, there. The server is sent only its hash,
 so it is in no log, no command history and no Session Manager record, and a copy of the
@@ -967,7 +993,10 @@ Every interview is capped by what it spends: a dollar by default, or `SEALEYE_RU
 (in US dollars) in the server's settings. The cap prices each reply from
 `core/model-prices.js`, a table with the date it was last checked. It is close, not
 exact: a run can go past it by one reply, or by more if a provider changes a price
-before the table does (DESIGN.md, "A run's cap is close, not exact").
+before the table does (DESIGN.md, "A run's cap is close, not exact"). A discovery run
+has caps of its own: 10 cents a worker and $3 a run by default, or
+`SEALEYE_DISCOVERY_WORKER_CAP` and `SEALEYE_DISCOVERY_RUN_CAP` (US dollars, above zero)
+in the server's settings.
 
 Check the table, and update `checkedOn`, before any organization starts using seaLeye,
 before a release that changes the model, and whenever `release.sh` warns that it is
