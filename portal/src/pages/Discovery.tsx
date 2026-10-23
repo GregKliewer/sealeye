@@ -7,7 +7,7 @@
 // (PHASE4-PLAN Step 7), and walks each field that blocks a draft's approval, as `sealeye
 // catalog fix` does (DESIGN.md, "What blocks approval is fixed in one walk").
 import { Fragment, useEffect, useState } from "react";
-import { Navigate } from "react-router";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router";
 import { api, ApiError, type CatalogSummary, type DiscoveryQuestion, type DiscoveryRun, type DraftCatalog, type DraftModule, type SelfTest, type WordFix } from "../api";
 import { orgWide, useLoad, useSession } from "../session";
 import { ago, when } from "../model";
@@ -16,7 +16,7 @@ import { CommandHint } from "../Command";
 import { commandLine, label } from "../../../core/operations.js";
 import { editableFieldsOf, EDIT_LIMIT } from "../../../core/catalog-edits.js";
 import { forbiddenWords } from "../../../core/developer-words.js";
-import { comparedWords, READ_ALL, choicesFor, discoveryEventLine, discoveryStateWords, isOpen, activityWords, answerStateWords, elapsedWords, modulesDone, nextProgress, progressSummary, SOMETHING_ELSE, ANSWER_LIMIT, approvedWords, catalogStatusWords, catalogSummaryWords, madeLiveWords, nextCatalogStep, RESTS_ON_QUESTION, selfTestSummary, avoidWords, stillSaysWords, FIX_OFFER, fixableByEditing, fixedWords, fixPlaceWords, notFixedByEditing, wordFixesOf, builtWords, withVersion } from "../../../core/discovery-words.js";
+import { comparedWords, READ_ALL, choicesFor, discoveryEventLine, discoveryStateWords, isOpen, activityWords, answerStateWords, catalogAboutWords, catalogTitleWords, elapsedWords, modulesDone, nextProgress, progressSummary, SOMETHING_ELSE, ANSWER_LIMIT, approvedWords, catalogStatusWords, catalogSummaryWords, madeLiveWords, nextCatalogStep, RESTS_ON_QUESTION, selfTestSummary, avoidWords, stillSaysWords, FIX_OFFER, fixableByEditing, fixedWords, fixPlaceWords, notFixedByEditing, wordFixesOf, builtWords, withVersion } from "../../../core/discovery-words.js";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -43,7 +43,17 @@ function Discovery() {
   // the run behind the live catalog, which holds them, and says why.
   const newest = runs.data?.[0] || null;
   const latestId = (newest?.unchangedSince && newest.questionsIn) || newest?.discoveryId || null;
-  const unchangedNote = newest?.unchangedSince ? comparedWords(newest) : null;
+  // A catalog chosen from the Catalogs card: the page shows the run that wrote it, its
+  // questions and answers, and the catalog itself (Greg, Oct 23, 2026). Its address
+  // carries the catalog, so it can be linked.
+  const [params] = useSearchParams();
+  const navigate = useNavigate();
+  const chosen = /^[1-9][0-9]*$/.test(params.get("catalog") || "") ? Number(params.get("catalog")) : null;
+  const [tick, setTick] = useState(0);
+  const catalogList = useLoad(api.catalogs, [tick]);
+  const chosenSummary = chosen ? catalogList.data?.catalogs.find(c => c.version === chosen) || null : null;
+  const runId = chosen ? chosenSummary?.discovery || null : latestId;
+  const unchangedNote = !chosen && newest?.unchangedSince ? comparedWords(newest) : null;
   const [run, setRun] = useState<DiscoveryRun | null>(null);
   const [draft, setDraft] = useState<DraftCatalog | null>(null);
   const [lines, setLines] = useState<string[]>([]);
@@ -52,19 +62,22 @@ function Discovery() {
   const [progress, setProgress] = useState(() => nextProgress(null, null));
   const [problem, setProblem] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
-  const [tick, setTick] = useState(0);
 
   // The run and its draft, read again whenever something the page shows has moved.
   useEffect(() => {
-    if (!latestId) { setRun(null); setDraft(null); return; }
     let live = true;
-    api.discovery(latestId).then(r => {
+    // A chosen catalog is read by its version, whatever its run wrote after it.
+    if (chosen) api.catalogVersion(chosen).then(r => live && setDraft(r.document)).catch(err => live && setProblem(err instanceof ApiError ? err.message : String(err)));
+    if (!runId) { setRun(null); if (!chosen) setDraft(null); return () => { live = false; }; }
+    api.discovery(runId).then(r => {
       if (!live) return;
       setRun(r);
-      if (r.catalog) api.discoveryDraft(latestId).then(d => live && setDraft(d.document)).catch(() => {});
+      if (!chosen && r.catalog) api.discoveryDraft(runId).then(d => live && setDraft(d.document)).catch(() => {});
     }).catch(err => live && setProblem(err.message));
     return () => { live = false; };
-  }, [latestId, tick]);
+  }, [runId, chosen, tick]);
+  // Choosing another catalog starts from a clean page.
+  useEffect(() => { setDraft(null); setRun(null); setProblem(null); }, [chosen]);
 
   // A run that is going is followed as it goes.
   const running = run?.status === "running";
@@ -93,10 +106,10 @@ function Discovery() {
     return () => clearInterval(timer);
   }, [running]);
   useEffect(() => {
-    if (!latestId || !running) return;
+    if (!runId || !running) return;
     setLines([]);
     setProgress(nextProgress(null, null));
-    return api.discoveryEvents(latestId, e => {
+    return api.discoveryEvents(runId, e => {
       // The platform stamps each event; one that is not is timed from when it came.
       const stamped = e.at ? e : { ...e, at: new Date().toISOString() };
       setProgress((p: ReturnType<typeof nextProgress>) => nextProgress(p, stamped));
@@ -105,7 +118,7 @@ function Discovery() {
       if (MOVES.has(e.type)) setTick(t => t + 1);
     }, () => { setTick(t => t + 1); runs.reload(); });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [latestId, running]);
+  }, [runId, running]);
 
   // Every module read again, whatever changed: `sealeye discover --all`.
   const [readAll, setReadAll] = useState(false);
@@ -115,6 +128,8 @@ function Discovery() {
     setProblem(null);
     try {
       await api.startDiscovery(readAll);
+      // A new run is the latest: the page follows it, whatever catalog was chosen.
+      if (chosen) navigate("/discovery");
       runs.reload();
     } catch (err) {
       setProblem(err instanceof ApiError ? err.message : String(err));
@@ -126,6 +141,10 @@ function Discovery() {
   const questions = run?.questions || [];
   const open = questions.filter(isOpen);
   const answered = questions.filter(q => !isOpen(q));
+  // The catalog the cards show: the chosen one, or the run's own draft.
+  const shownVersion = chosen ?? run?.catalog?.version;
+  const shownStatus = catalogList.data?.catalogs.find(c => c.version === shownVersion)?.status || null;
+  const shown = typeof shownVersion === "number" ? { version: shownVersion, status: shownStatus } : null;
 
   return (
     <>
@@ -143,6 +162,14 @@ function Discovery() {
       {runs.error ? <Problem message={runs.error} /> : null}
       {problem ? <Problem message={problem} /> : null}
       {runs.data && !runs.data.length ? <p className="text-dim" data-testid="no-runs">No discovery run yet.</p> : null}
+      {chosen ? (
+        <p className="mb-4 text-sm" data-testid="shown-catalog">
+          {catalogList.data && !chosenSummary ? `Your organization has no catalog ${chosen}.`
+            : chosenSummary && !chosenSummary.discovery ? `Showing catalog ${chosen}. No discovery run wrote it, so it has no questions.`
+            : `Showing catalog ${chosen}${chosenSummary ? `, ${catalogStatusWords(chosenSummary.status).toLowerCase()},` : ""} and the run that wrote it.`}
+          {" "}<Link to="/discovery" className="text-phosphor underline underline-offset-2" data-testid="back-to-latest">Back to the latest run</Link>
+        </p>
+      ) : null}
       {unchangedNote ? <p className="mb-4 text-sm text-dim" data-testid="run-unchanged">The latest run: {unchangedNote} Its questions and its draft are on the run below.</p> : null}
 
       {run ? (
@@ -181,31 +208,38 @@ function Discovery() {
       {open.length ? (
         <div className="mb-3">
           <h2 className="text-lg font-semibold">Waiting on an answer: {open.length}</h2>
-          <p className="text-sm text-dim" data-testid="answer-anytime">The run carries on while these wait. Answer here or with <span className="font-mono">{commandLine("discover", null, ["answers"])}</span>, now or after it finishes.</p>
+          <p className="text-sm text-dim" data-testid="answer-anytime">The run carries on while these wait. Answer here or with <span className="font-mono">{commandLine("discover", null, chosen && run ? ["answers", run.discoveryId] : ["answers"])}</span>, now or after it finishes.{shown?.status && shown.status !== "draft" ? ` Catalog ${shown.version} no longer changes: an answer goes into a new draft.` : ""}</p>
         </div>
       ) : null}
       <div className="space-y-4">
         {open.map(q => <QuestionCard key={q.id} runId={run!.discoveryId} q={q} onAnswered={() => setTick(t => t + 1)} />)}
       </div>
 
-      {draft ? <DraftTable draft={draft} version={run?.catalog?.version} questions={questions} tick={tick} onChanged={() => setTick(t => t + 1)} /> : null}
+      {draft ? <DraftTable draft={draft} version={shownVersion} questions={run ? questions : null} tick={tick} onChanged={() => setTick(t => t + 1)} /> : null}
 
-      <CatalogsCard tick={tick} runDraft={draft ? run?.catalog?.version : undefined} />
+      <CatalogsCard tick={tick} runDraft={draft ? shownVersion : undefined} chosen={chosen} />
 
       {answered.length ? (
         <Card className="mt-8">
-          <CardHeader><CardTitle>Answered</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
-            {answered.map(q => (
-              <div key={q.id} className="text-sm" data-testid="answered-question">
-                <div>{q.question}</div>
-                <div className="mt-1 text-dim">
-                  <span className="text-ink">{q.answer}</span>
-                  {q.answeredBy ? ` · ${q.answeredBy}` : ""}{q.answeredAt ? ` · ${when(q.answeredAt)}` : ""}
-                  {" · "}<AnswerState q={q} run={run!} />
-                </div>
-              </div>
-            ))}
+          <CardHeader>
+            <CardTitle>Answered</CardTitle>
+            <p className="text-sm text-dim" data-testid="answered-in">Asked in run <span className="font-mono">{run!.discoveryId}</span>{shown ? `, which wrote catalog ${shown.version}` : ""}.</p>
+          </CardHeader>
+          <CardContent>
+            <ul className="divide-y divide-rule">
+              {answered.map(q => (
+                <li key={q.id} className="py-3 first:pt-0 last:pb-0 text-sm" data-testid="answered-question">
+                  <div className="font-medium">{q.question}</div>
+                  {/* The answer as a reply to the question: set in, under a phosphor rule. */}
+                  <div className="mt-2 ml-1 border-l-2 border-phosphor pl-3" data-testid="answer">{q.answer}</div>
+                  <div className="mt-1 ml-1 pl-3.5 text-xs text-dim">
+                    {[q.answeredBy, q.answeredAt ? when(q.answeredAt) : null].filter(Boolean).join(" · ")}
+                    {q.answeredBy || q.answeredAt ? " · " : ""}<AnswerState q={q} run={run!} shown={shown} />
+                    {q.carried ? <span data-testid="carried"> · asked in an earlier run</span> : null}
+                  </div>
+                </li>
+              ))}
+            </ul>
           </CardContent>
         </Card>
       ) : null}
@@ -214,8 +248,8 @@ function Discovery() {
 }
 
 /** Where an answer stands: in the draft, being written in (turning), or not yet and why. */
-function AnswerState({ q, run }: { q: DiscoveryQuestion; run: DiscoveryRun }) {
-  const state = answerStateWords(q, run);
+function AnswerState({ q, run, shown }: { q: DiscoveryQuestion; run: DiscoveryRun; shown: { version: number; status: string | null } | null }) {
+  const state = answerStateWords(q, run, shown);
   return (
     <span className="inline-flex items-center gap-1.5" data-testid="answer-state">
       {state.moving ? <span aria-hidden="true" className="sealeye-spin inline-block size-3 rounded-full border-2 border-phosphor border-t-transparent" /> : null}
@@ -292,10 +326,10 @@ function DraftTable({ draft, version, questions, tick, onChanged }: { draft: Dra
   const editable = status === "draft" && typeof version === "number";
   return (
     <Card className="mt-8" data-testid="draft">
-      <CardHeader><CardTitle>Draft catalog {version}</CardTitle></CardHeader>
+      <CardHeader><CardTitle data-testid="draft-title">{typeof version === "number" ? catalogTitleWords(version, status) : "Draft catalog"}</CardTitle></CardHeader>
       <CardContent>
         <p className="mb-3 text-sm text-dim">
-          What the run wrote, as it stands with the answers so far. A draft goes live only after its self-test, once a platform engineer approves it and makes it live.
+          {typeof version === "number" ? catalogAboutWords(version, status) : catalogAboutWords(0, "draft")}
           {catalogOpen.length ? " The catalog as a whole rests on a question not yet answered." : ""}
         </p>
         <Table>
@@ -354,7 +388,13 @@ function OtherDraft({ version, tick, onChanged }: { version: number; tick: numbe
  * The organization's catalogs: which is live, each one's status, its self-test, and the
  * next step for each: approve a draft, make an approved or retired one live.
  */
-function CatalogsCard({ tick, runDraft }: { tick: number; runDraft?: number }) {
+function CatalogsCard({ tick, runDraft, chosen }: { tick: number; runDraft?: number; chosen: number | null }) {
+  const navigate = useNavigate();
+  // Choosing a row shows that catalog and its run at the top of the page.
+  const choose = (version: number) => {
+    navigate(`/discovery?catalog=${version}`);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
   const [list, setList] = useState<{ live: { version: number | "starter"; source: string }; catalogs: CatalogSummary[] } | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [mine, setMine] = useState(0);
@@ -401,11 +441,12 @@ function CatalogsCard({ tick, runDraft }: { tick: number; runDraft?: number }) {
     <Card className="mt-8" data-testid="catalogs">
       <CardHeader><CardTitle>{label("catalogs")}</CardTitle></CardHeader>
       <CardContent>
-        <p className="mb-3 text-sm text-dim" data-testid="live-catalog">
+        <p className="mb-1 text-sm text-dim" data-testid="live-catalog">
           {list.live.source === "starter"
             ? "Your organization plans against the starter catalog: seaLeye's own modules. None of its own is live."
             : `Your organization plans against catalog ${list.live.version}.`}
         </p>
+        {list.catalogs.length ? <p className="mb-3 text-sm text-dim">Choose a catalog to see what it holds, and the questions its run asked with how each was answered.</p> : null}
         {problem ? <div className="mb-3"><Problem message={problem} /></div> : null}
         {list.catalogs.length ? (
           <Table>
@@ -416,8 +457,12 @@ function CatalogsCard({ tick, runDraft }: { tick: number; runDraft?: number }) {
               {list.catalogs.map(x => {
                 const next = nextCatalogStep(x.status);
                 return (
-                  <TableRow key={x.version} data-testid="catalog-row">
-                    <TableCell className="font-mono">{x.version}</TableCell>
+                  <TableRow key={x.version} data-testid="catalog-row" aria-current={chosen === x.version ? "true" : undefined}
+                    className={chosen === x.version ? "bg-phosphor-chip/50" : "cursor-pointer"}
+                    onClick={e => { if (!(e.target as HTMLElement).closest("button, a")) choose(x.version); }}>
+                    <TableCell className="font-mono">
+                      <Link to={`/discovery?catalog=${x.version}`} onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} className="text-phosphor underline-offset-2 hover:underline" data-testid="catalog-show" title={`${label("catalog-show")} catalog ${x.version} and its run`}>{x.version}</Link>
+                    </TableCell>
                     <TableCell><Badge tone={x.status === "live" ? "phosphor" : x.status === "draft" ? "amber" : "neutral"}>{catalogStatusWords(x.status)}</Badge></TableCell>
                     <TableCell className="text-sm text-dim">{catalogSummaryWords(x)}</TableCell>
                     <TableCell className="text-right whitespace-nowrap">

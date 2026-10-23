@@ -5,6 +5,8 @@
 // page on seaLeye.online does the same and says the same (core/discovery-words.js).
 //
 //   sealeye catalog versions      every catalog, and which is live
+//   sealeye catalog show [v]      one catalog (the live one without v): its entries, and
+//                                 the questions its run asked and how each was answered
 //   sealeye catalog test [v]      the self-test, run now (the newest draft without v)
 //   sealeye catalog edit <v> <module> [<field> [words]]
 //                                 a draft entry's words: shown, or changed (asked for
@@ -16,12 +18,12 @@
 //                                 it offers the walk in a terminal
 //   sealeye catalog live <v>      make an approved or retired catalog live
 import { ask, c, step } from "./brand.js";
-import { approveCatalogVersion, catalogSelfTest, editCatalog, getCatalogVersion, listCatalogs, makeCatalogLive } from "./client.js";
+import { approveCatalogVersion, catalogSelfTest, editCatalog, getCatalogVersion, getDiscovery, listCatalogs, makeCatalogLive } from "./client.js";
 import { editableFieldsOf, fieldOf } from "../core/catalog-edits.js";
 import { forbiddenWords, shownWord } from "../core/developer-words.js";
 import { commandLine } from "../core/operations.js";
 import {
-  approvedWords, avoidWords, stillSaysWords, catalogStatusWords, catalogSummaryWords, FIX_OFFER, fixableByEditing, fixedWords, fixPlaceWords,
+  answerStateWords, catalogTitleWords, choicesFor, isOpen, approvedWords, avoidWords, stillSaysWords, catalogStatusWords, catalogSummaryWords, FIX_OFFER, fixableByEditing, fixedWords, fixPlaceWords,
   builtWords, madeLiveWords, nextCatalogStep, notFixedByEditing, selfTestSummary, withVersion, wordFixesOf
 } from "../core/discovery-words.js";
 
@@ -197,6 +199,24 @@ export async function catalogs({ apiBaseUrl, sub, args, say, json = false }) {
     return;
   }
 
+  if (sub === "show") {
+    // Without a number, the live catalog: the one developers plan against now.
+    let version;
+    if (asked !== undefined) version = await versionFor({ apiBaseUrl, asked, verb: "show" });
+    else {
+      const list = await listCatalogs({ apiBaseUrl });
+      if (list.live.source === "starter") throw userError(`None of your organization's catalogs is live. ${commandLine("catalog-show", null, ["<number>"])} shows one; ${commandLine("catalogs")} lists them.`);
+      version = Number(list.live.version);
+    }
+    const { catalog, document } = await getCatalogVersion({ apiBaseUrl, version });
+    // The run that wrote it, named in the catalog itself.
+    const runId = catalog.discovery || document?.discovery?.run || null;
+    const run = runId ? await getDiscovery({ apiBaseUrl, id: runId }).catch(() => null) : null;
+    if (json) return console.log(JSON.stringify({ catalog, document, questions: run?.questions ?? null }, null, 2));
+    printCatalog({ catalog: { ...catalog, discovery: runId }, document, run, say });
+    return;
+  }
+
   if (sub === "test") {
     const version = await versionFor({ apiBaseUrl, asked, verb: "test" });
     const result = await catalogSelfTest({ apiBaseUrl, version });
@@ -363,4 +383,48 @@ export async function catalogs({ apiBaseUrl, sub, args, say, json = false }) {
   }
 
   throw userError(`sealeye catalog takes versions, test, edit, fix, approve or live, not ${sub}.`);
+}
+
+/**
+ * One catalog, as the Discovery page shows it when its row is chosen: its title, its
+ * entries, then the questions its run asked, open first, each answer under its question
+ * with who gave it and where it stands (Greg, Oct 23, 2026).
+ */
+function printCatalog({ catalog, document, run, say }) {
+  const shown = { version: catalog.version, status: catalog.status };
+  console.log("");
+  console.log(c.accent(catalogTitleWords(catalog.version, catalog.status)));
+  console.log(step(catalogSummaryWords(catalog)));
+  console.log("");
+  const modules = document?.modules || [];
+  const width = Math.max(0, ...modules.map(m => String(m.id).length));
+  for (const m of modules) {
+    const offered = m.availability === "available" ? "Offered" : m.availability === "deprecated" ? "Deprecated" : "Not read";
+    console.log(`  ${c.accent(String(m.id).padEnd(width))}  ${(m.availability === "available" ? c.accent : c.fg)(offered.padEnd(10))}  ${c.dim(m.line || "")}`);
+  }
+  if (!catalog.discovery) return;
+  const questions = run?.questions || [];
+  console.log("");
+  if (!run) return say(`Its run, ${catalog.discovery}, could not be read.`);
+  if (!questions.length) return say(`Its run, ${catalog.discovery}, asked no questions.`);
+  const open = questions.filter(isOpen);
+  const answered = questions.filter(q => !isOpen(q));
+  say(`Asked in run ${catalog.discovery}:`);
+  for (const q of open) {
+    console.log("");
+    console.log(`  ${q.question}`);
+    const choices = choicesFor(q);
+    console.log(c.dim(`    waiting on an answer${choices.length ? `; the guess is ${choices[0]}` : ""}`));
+  }
+  for (const q of answered) {
+    console.log("");
+    console.log(`  ${q.question}`);
+    console.log(`    ${c.accent("│")} ${q.answer}`);
+    const about = [q.answeredBy, q.answeredAt ? q.answeredAt.slice(0, 10) : null, answerStateWords(q, run, shown).words, q.carried ? "asked in an earlier run" : null].filter(Boolean).join(" · ");
+    console.log(c.dim(`      ${about}`));
+  }
+  if (open.length) {
+    console.log("");
+    say(`${commandLine("discover", null, ["answers", catalog.discovery])} answers them here; an answer goes into ${catalog.status === "draft" ? "this draft" : "a new draft"}.`);
+  }
 }

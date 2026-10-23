@@ -4771,3 +4771,30 @@ than the bar holds. Greg asked for them grouped; he chose a second row of tabs o
   rather than wrapping or widening the page. Phase 5's pages (promotion, integrations)
   go into these sections rather than adding to the bar.
 
+## A catalog is shown with the run that wrote it, and is named by its status
+
+Decided Fri Oct 23, 2026. Greg asked whether the Discovery page's answers were only the
+latest run's, whether earlier ones were lost, and whether the draft should still say
+"Draft" once live. Only the latest run was shown on either surface; nothing was lost
+(every run's questions are kept with it, and every catalog names its run); and the card
+said "Draft catalog N" whatever its status. Greg chose all three changes in one pull
+request.
+
+- **Choosing a catalog shows it and its run.** A row of the Catalogs card, or its
+  number, opens `/discovery?catalog=<v>`: the run that wrote it, its open and answered
+  questions, and the catalog itself, with "Back to the latest run". `sealeye catalog
+  show [v]` prints the same (the live catalog without v). No endpoint was added: a
+  catalog names its run, and GET /discoveries/{id} returns any run.
+- **A catalog is titled by its status**: "Draft catalog 9", "Catalog 8, live",
+  "Catalog 7, approved, not live" (`catalogTitleWords`), and a run says it "wrote"
+  catalog N, never "draft catalog N", since that catalog may since be live.
+- **An answer read against a chosen catalog says where it went** (`answerStateWords`
+  with the shown catalog): "in catalog 3", or "written into catalog 4, after this one"
+  for an answer given later. GET /discoveries/{id} now carries each question's `usedIn`.
+- **An older run's open question can still be answered.** Nothing new decides this: the
+  API already writes an answer whose catalog is no longer a draft into a new draft, never
+  into an approved or live one, and the page says so.
+- **The answer is set as a reply** (Greg chose A of three): under its question, set in
+  with a phosphor rule, who and when and where it stands on a dim line below, a divider
+  between pairs, and "asked in an earlier run" on a question carried from one.
+

@@ -69,10 +69,11 @@ export function discoveryEventLine(event) {
 }
 
 /** A run's state in a few words, for a list or a heading. */
+// "wrote", not "draft": the catalog a run wrote may since be approved or live (Greg, Oct 23, 2026).
 export function discoveryStateWords(run) {
   if (!run) return "No run yet";
   if (run.status === "running") return "Running";
-  if (run.status === "finished") return run.catalog ? `Finished, draft catalog ${run.catalog.version}` : run.unchangedSince ? `Finished, nothing changed since catalog ${run.unchangedSince}` : "Finished";
+  if (run.status === "finished") return run.catalog ? `Finished, wrote catalog ${run.catalog.version}` : run.unchangedSince ? `Finished, nothing changed since catalog ${run.unchangedSince}` : "Finished";
   if (run.status === "stopped") return run.reason === "restarted" ? "Stopped when the platform restarted" : run.reason === "spending_limit" ? "Stopped at its spending limit" : "Stopped";
   return "Did not finish";
 }
@@ -155,12 +156,37 @@ export function comparedWords(run) {
  * Where an answered question's answer stands, from the question and its run as the API
  * gives them: in the draft, being written in now, or not yet and why. `moving` is true
  * while a rewrite is going, for a surface to show something turning.
+ * @param {any} q
+ * @param {any} run
+ * @param {{ version: number, status: string | null } | null} [shown]
  */
-export function answerStateWords(q, run) {
-  if (q.usedAt) return { words: "in the draft", moving: false };
-  if (run?.rewriting) return { words: "being written into the draft", moving: true };
-  if (run?.answerProblem) return { words: `not written into the draft yet: ${run.answerProblem}. The answer is kept.`, moving: false };
-  return { words: "waiting to be written into the draft", moving: false };
+export function answerStateWords(q, run, shown = null) {
+  // Read against a catalog chosen from the list (`shown`, its version and status): an
+  // answer used after it was written is in a later catalog, and one that catalog is no
+  // longer a draft for goes into a new draft, never into it (Greg, Oct 23, 2026).
+  const fixed = Boolean(shown?.status && shown.status !== "draft");
+  const into = Number(q.usedIn);
+  if (q.usedAt) {
+    if (shown?.version && into > Number(shown.version)) return { words: `written into catalog ${into}, after this one`, moving: false };
+    return { words: fixed ? `in catalog ${shown.version}` : "in the draft", moving: false };
+  }
+  const draft = fixed ? "a new draft" : "the draft";
+  if (run?.rewriting) return { words: `being written into ${draft}`, moving: true };
+  if (run?.answerProblem) return { words: `not written into ${draft} yet: ${run.answerProblem}. The answer is kept.`, moving: false };
+  return { words: `waiting to be written into ${draft}`, moving: false };
+}
+
+/** A catalog's card title: a draft is "Draft catalog 9"; any other, "Catalog 8, live". */
+export function catalogTitleWords(version, status) {
+  if (!status || status === "draft") return `Draft catalog ${version}`;
+  return `Catalog ${version}, ${catalogStatusWords(status).toLowerCase()}`;
+}
+
+/** What a catalog's card says under its title, by its status. */
+export function catalogAboutWords(version, status) {
+  if (!status || status === "draft") return "What the run wrote, as it stands with the answers so far. A draft goes live only after its self-test, once a platform engineer approves it and makes it live.";
+  const now = status === "live" ? " Developers in your organization plan against it." : "";
+  return `What catalog ${version} holds, as it was approved. It no longer changes: an answer to one of its run's questions is written into a new draft.${now}`;
 }
 
 /** Whether a question still waits on an answer. */

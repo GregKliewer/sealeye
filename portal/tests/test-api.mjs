@@ -237,6 +237,20 @@ fs.writeFileSync(path.join(home, "discoveries.json"), JSON.stringify({
     repos: [{ repo: "northwind/platform-library", commit: "5e63aa5".padEnd(40, "0"), via: "app" }],
     modules: runModules, library: { stages: ["dev", "prod"], rules: [] }, cap: { worker: 0.1, run: 3 },
     spend: { supervisor: { cost: 0.12 } }, catalogVersion: 1, createdAt: ago(3600_000), finishedAt: ago(3500_000)
+  }, {
+    // The run that wrote catalog 2, earlier: its answer is reached by choosing catalog 2.
+    id: "dsc_0000000000000000", org: "default", orgName: "Northwind Payments", status: "finished", startedBy: "lead@example.com",
+    caller: { email: "lead@example.com", org: "default", team: "default" }, surface: "portal",
+    repos: [{ repo: "northwind/platform-library", commit: "4d52bb4".padEnd(40, "0"), via: "app" }],
+    modules: runModules, library: { stages: ["dev", "prod"], rules: [] }, cap: { worker: 0.1, run: 3 },
+    spend: { supervisor: { cost: 0.1 } }, catalogVersion: 2, createdAt: ago(7300_000), finishedAt: ago(7200_000)
+  }, {
+    // Juniper's run behind its live catalog 3.
+    id: "dsc_0000000000000009", org: "juniper", orgName: "Juniper Mutual", status: "finished", startedBy: "pat@juniper.example",
+    caller: { email: "pat@juniper.example", org: "juniper", team: "platform" }, surface: "cli",
+    repos: [{ repo: "juniper/platform-modules", commit: "9a8b7c6".padEnd(40, "0"), via: "app" }],
+    modules: runModules, library: { stages: ["dev", "prod"], rules: [] }, cap: { worker: 0.1, run: 3 },
+    spend: { supervisor: { cost: 0.1 } }, catalogVersion: 3, createdAt: ago(87000_000), finishedAt: ago(86500_000)
   }],
   questions: [
     { id: "q_open000001", seq: 1, discovery: "dsc_0000000000000001", org: "default", kind: "deprecated",
@@ -246,7 +260,19 @@ fs.writeFileSync(path.join(home, "discoveries.json"), JSON.stringify({
     { id: "q_done000001", seq: 2, discovery: "dsc_0000000000000001", org: "default", kind: "other",
       question: "Which database is for perf?", options: ["postgres-cluster", "postgres"], guess: "postgres-cluster",
       touches: ["modules/postgres"], evidence: [{ file: "README.md", shows: "perf is built from staging" }],
-      raisedBy: "supervisor", answer: "postgres-cluster", answeredBy: "lead@example.com", answeredAt: ago(3000_000), usedAt: ago(2990_000), usedIn: 1, createdAt: ago(3540_000) }
+      raisedBy: "supervisor", answer: "postgres-cluster", answeredBy: "lead@example.com", answeredAt: ago(3000_000), usedAt: ago(2990_000), usedIn: 1, createdAt: ago(3540_000) },
+    { id: "q_old0000001", seq: 1, discovery: "dsc_0000000000000000", org: "default", kind: "other",
+      question: "Is the work queue for every team?", options: ["Every team", "Only payments"], guess: "Every team",
+      touches: ["modules/work-queue"], evidence: [{ file: "modules/work-queue/README.md", shows: "names no team" }],
+      raisedBy: "supervisor", answer: "Every team", answeredBy: "lead@example.com", answeredAt: ago(7250_000), usedAt: ago(7240_000), usedIn: 2, createdAt: ago(7280_000) },
+    { id: "q_jun0000001", seq: 1, discovery: "dsc_0000000000000009", org: "juniper", kind: "other",
+      question: "Is postgres for dev only?", options: ["dev, sit and uat", "dev only"], guess: "dev, sit and uat",
+      touches: ["modules/postgres"], evidence: [{ file: "modules/postgres/README.md", shows: "names the stages" }],
+      raisedBy: "supervisor", answer: "dev, sit and uat", answeredBy: "pat@juniper.example", answeredAt: ago(86600_000), usedAt: ago(86550_000), usedIn: 3, createdAt: ago(86900_000) },
+    { id: "q_jun0000002", seq: 2, discovery: "dsc_0000000000000009", org: "juniper", kind: "other",
+      question: "Does http-api need the private network?", options: ["Only with a database", "Always"], guess: "Only with a database",
+      touches: ["modules/http-api"], evidence: [{ file: "modules/http-api/README.md", shows: "takes subnets" }],
+      raisedBy: "supervisor", answer: "Only with a database", answeredBy: "pat@juniper.example", answeredAt: ago(60000_000), usedAt: ago(59000_000), usedIn: 4, createdAt: ago(86800_000) }
   ]
 }));
 
