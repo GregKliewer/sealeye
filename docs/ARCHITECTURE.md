@@ -365,7 +365,8 @@ sequenceDiagram
   participant API as seaLeye API
   participant M as Anthropic model<br/>(through the gateway on the server)
   participant DB as Postgres
-  participant AWS as AWS (as deploy role)
+  participant AWS as AWS (deploy role or Terraform role)
+  participant Lib as Platform library (GitHub)
 
   Dev->>CLI: sealeye run (in the app folder)
   CLI->>API: GET /deployments (is this app already live?)
@@ -406,10 +407,21 @@ sequenceDiagram
     API-->>CLI: 201, deploymentId
     par in the API, in the background
       API->>API: packaging: npm install --ignore-scripts<br/>in dist/stage, add run.sh, zip
-      API->>AWS: s3 cp the artifact, then cloudformation deploy
-      loop every 5 seconds until final
-        API->>AWS: describe-stacks
-        API->>DB: record: running, then succeeded or failed, with outputs
+      alt the starter's modules (CloudFormation, as the deploy role)
+        API->>AWS: s3 cp the artifact, then cloudformation deploy
+        loop every 5 seconds until final
+          API->>AWS: describe-stacks
+          API->>DB: record: running, then succeeded or failed, with outputs
+        end
+      else the organization's modules (OpenTofu, as the Terraform role)
+        API->>Lib: each module at the live catalog's release,<br/>read-only, checked again for anything it would run
+        API->>API: main.tf.json: module.app, module per part,<br/>inputs from the plan, the platform values<br/>and the parts' outputs (connect), state key
+        opt a part in the private network
+          API->>AWS: sweep detached network interfaces
+        end
+        API->>AWS: tofu init, plan, apply (step shown live)
+        API->>AWS: tofu output, and a site's files synced
+        API->>DB: record: succeeded or failed, outputs,<br/>versions built and the change in versions
       end
     and in the command
       CLI->>API: GET /deployments/{id}, for a few seconds
@@ -419,15 +431,52 @@ sequenceDiagram
   end
 ```
 
-A static site follows the same path without the package: the stack makes the bucket and
-the API copies the files into it before calling the deploy a success. On a re-run, the
+A static site follows the same path without the package: the stack (or the
+organization's module) makes the bucket and the API copies the files into it before
+calling the deploy a success. A plan from the organization's catalog is planVersion 0.6
+when it connects modules: each part says in `connect` which setting each value it offers
+reaches the app under, and code wires the rest. An app's module joins the network only
+when a part it uses is in it. On a re-run, the
 first call finds the live environment, and the plan card is a difference against it.
 
 The portal's New environment page runs the same flow from a folder chosen in the
 browser, using the same upload rules (`core/upload-rules.js`). An interview started on
 one surface can be finished on the other.
 
-### 7.2 Portal sign-in
+### 7.2 Tearing an environment down
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor Dev as Developer
+  participant CLI as sealeye command (or the portal's Tear down)
+  participant API as seaLeye API
+  participant DB as Postgres
+  participant AWS as AWS
+
+  Dev->>CLI: sealeye teardown [app]
+  CLI->>API: GET /deployments/{id}
+  CLI->>Dev: what the environment holds ("This also deletes ...,<br/>and everything in it"), and in the private network,<br/>that it can take up to 20 minutes
+  CLI->>Dev: Tear down app, and everything it holds? [y/N]
+  Dev->>CLI: y
+  CLI->>API: DELETE /deployments/{id}
+  API->>API: one change at a time (409 ENVIRONMENT_BUSY)
+  API->>DB: record: destroying
+  alt a starter environment
+    API->>AWS: empty a site's bucket, delete-stack, poll
+  else from the organization's modules
+    API->>AWS: empty each bucket it holds, tofu destroy
+    opt in the private network
+      API->>AWS: sweep the detached interfaces its functions left
+    end
+  end
+  API->>DB: record: destroyed (stack gone, or the state empty)
+  CLI->>Dev: destroyed
+```
+
+A script with no terminal reads the same words and goes on without asking.
+
+### 7.3 Portal sign-in
 
 ```mermaid
 sequenceDiagram
@@ -457,7 +506,7 @@ sequenceDiagram
   Note over B,API: Any change made with the cookie must also carry x-sealeye-portal: 1
 ```
 
-### 7.3 An app reads its settings when it starts
+### 7.4 An app reads its settings when it starts
 
 ```mermaid
 sequenceDiagram
@@ -474,7 +523,7 @@ sequenceDiagram
   Note over R,A: The app's code is unchanged: it reads process.env as it always did
 ```
 
-### 7.4 One model call
+### 7.5 One model call
 
 Every turn of an interview is one of these (PHASE3-PLAN Steps 3 to 7). On a laptop, with
 no gateway key, the API calls Anthropic directly with its own key and steps 2 to 4 and
@@ -504,7 +553,7 @@ sequenceDiagram
   Note over API,G: A refusal is never retried. The developer reads that the run reached<br/>its limit, or that seaLeye has used its model budget for this period.
 ```
 
-### 7.5 Release
+### 7.6 Release
 
 ```mermaid
 sequenceDiagram
