@@ -120,16 +120,19 @@ export interface DeploymentRecord extends DeploymentSummary {
   stackStatus?: string | null;
 }
 
+/** An app that uses a module now: its page only where the viewer may open it. */
+export interface ModuleUser { app: string; team: string; version: string | null; path: string | null }
+
 export interface Catalog {
   // Which catalog this is (planVersion 0.5): the starter, or one of the organization's.
   catalog?: { version: number | "starter"; source: "starter" | "organization"; approvedBy: string | null; approvedAt: string | null; live?: boolean };
-  modules: { id: string; line: string; shortLine: string | null; availability: string; role: string; version?: string }[];
+  modules: { id: string; line: string; shortLine: string | null; availability: string; role: string; version?: string; usedBy?: ModuleUser[] }[];
   needs: { kind: string; line: string }[];
 }
 
 export interface NeedsLedger {
   apps: number;
-  needs: { kind: string; listed?: boolean; line: string; count: number; apps: { name: string; team?: string; deploymentId: string | null; when: string | null }[]; firstSeen: string | null; lastSeen: string | null }[];
+  needs: { kind: string; listed?: boolean; line: string; count: number; apps: { name: string; team?: string; deploymentId: string | null; path?: string | null; when: string | null }[]; firstSeen: string | null; lastSeen: string | null }[];
 }
 
 // An app's settings in the organization's store (PHASE2-PLAN Step 8): names, whether

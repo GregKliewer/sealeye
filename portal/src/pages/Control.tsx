@@ -25,6 +25,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "../components/ui/dialog";
 import { Input } from "../components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
+import { Chips, NOTHING_CHOSEN, Pager, useChips, usePaged } from "../components/Paging";
 
 const POLL_MS = 5000;
 
@@ -185,49 +186,9 @@ export function Control() {
         <Configure app={env.app} fromDeployment={code.deploymentId} locked={locked} onDone={deployments.reload} />
       ) : null}
 
-      <Card className="mt-6">
-        <CardHeader><CardTitle>What has been done to this app</CardTitle></CardHeader>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Deployment</TableHead><TableHead>Status</TableHead><TableHead>Started</TableHead><TableHead>By</TableHead><TableHead>From</TableHead><TableHead />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {env.deploys.map(d => {
-              const s = statusOf(d);
-              const live = underWay(d, now);
-              return (
-                <TableRow key={d.deploymentId} data-testid="history-row" data-under-way={live ? "" : undefined}
-                  className={live ? "bg-phosphor-chip/40 shadow-[inset_3px_0_0_var(--color-phosphor)]" : undefined}>
-                  <TableCell className="font-mono text-xs">
-                    {d.deploymentId}
-                    {d.fromDeployment ? <div className="font-sans text-dim">again, with {d.packagedBy || d.fromDeployment}'s code</div> : null}
-                  </TableCell>
-                  <TableCell>
-                    <Badge tone={s.tone} moving={live}>{s.label}</Badge>
-                    {live && d.step ? <div className="mt-1 max-w-xs text-xs text-dim" data-testid="history-step">{d.step}</div> : null}
-                    {d.replaced ? <div className="mt-1 text-xs text-dim" data-testid="replaced-by">{d.replacedBy ? <>by <span className="font-mono">{d.replacedBy}</span></> : "by a newer deploy"}</div> : null}
-                  </TableCell>
-                  <TableCell className="text-xs">{when(d.startedAt)}</TableCell>
-                  <TableCell>{who(d.requestedBy)}</TableCell>
-                  <TableCell className="text-dim">{d.surface === "portal" ? "Portal" : "Command line"}</TableCell>
-                  <TableCell className="space-x-2 whitespace-nowrap text-right">
-                    {offers("plan") ? <Button variant="ghost" size="sm" aria-label={`Plan and report for ${d.deploymentId}`} onClick={() => {
-                      setPlanFor(d.deploymentId);
-                      document.getElementById("plan")?.scrollIntoView({ behavior: "smooth", block: "start" });
-                    }}>Plan</Button> : null}
-                    {offers("evidence") ? <Button variant="ghost" size="sm" aria-label={`Evidence for ${d.deploymentId}`} onClick={() => {
-                      setEvidenceFor(d.deploymentId);
-                      document.getElementById("evidence")?.scrollIntoView({ behavior: "smooth", block: "start" });
-                    }}>Evidence</Button> : null}
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </Card>
+      <HistoryCard deploys={env.deploys} now={now} offers={offers}
+        onPlan={id => { setPlanFor(id); document.getElementById("plan")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}
+        onEvidence={id => { setEvidenceFor(id); document.getElementById("evidence")?.scrollIntoView({ behavior: "smooth", block: "start" }); }} />
 
       {offers("plan") ? <PlanCard dep={env.deploys.find(d => d.deploymentId === planFor) || latest} latest={!planFor || planFor === latest.deploymentId} /> : null}
 
@@ -752,5 +713,59 @@ function UnderWay({ dep, app, now }: { dep: DeploymentSummary; app: string; now:
         </p>
       </div>
     </section>
+  );
+}
+
+/**
+ * Every deployment of this app, newest first: a page at a time, and by status with the
+ * chips above it (Greg, Oct 23, 2026). Statuses are as the badges say them.
+ */
+function HistoryCard({ deploys, now, offers, onPlan, onEvidence }: {
+  deploys: DeploymentSummary[]; now: number; offers: (op: string) => boolean;
+  onPlan: (id: string) => void; onEvidence: (id: string) => void;
+}) {
+  const chips = useChips(deploys, d => { const s = statusOf(d); return { key: s.label, label: s.label }; });
+  const paged = usePaged(chips.shown, "history", chips.filterKey);
+  return (
+    <Card className="mt-6">
+      <CardHeader><CardTitle>What has been done to this app</CardTitle></CardHeader>
+      {chips.chips.length > 1 ? <div className="px-6 pb-3"><Chips chips={chips} /></div> : null}
+      {!chips.shown.length ? <p className="px-6 pb-4 text-sm text-dim" data-testid="nothing-chosen">{NOTHING_CHOSEN}</p> : null}
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Deployment</TableHead><TableHead>Status</TableHead><TableHead>Started</TableHead><TableHead>By</TableHead><TableHead>From</TableHead><TableHead />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {paged.shown.map(d => {
+            const s = statusOf(d);
+            const live = underWay(d, now);
+            return (
+              <TableRow key={d.deploymentId} data-testid="history-row" data-under-way={live ? "" : undefined}
+                className={live ? "bg-phosphor-chip/40 shadow-[inset_3px_0_0_var(--color-phosphor)]" : undefined}>
+                <TableCell className="font-mono text-xs">
+                  {d.deploymentId}
+                  {d.fromDeployment ? <div className="font-sans text-dim">again, with {d.packagedBy || d.fromDeployment}'s code</div> : null}
+                </TableCell>
+                <TableCell>
+                  <Badge tone={s.tone} moving={live}>{s.label}</Badge>
+                  {live && d.step ? <div className="mt-1 max-w-xs text-xs text-dim" data-testid="history-step">{d.step}</div> : null}
+                  {d.replaced ? <div className="mt-1 text-xs text-dim" data-testid="replaced-by">{d.replacedBy ? <>by <span className="font-mono">{d.replacedBy}</span></> : "by a newer deploy"}</div> : null}
+                </TableCell>
+                <TableCell className="text-xs">{when(d.startedAt)}</TableCell>
+                <TableCell>{who(d.requestedBy)}</TableCell>
+                <TableCell className="text-dim">{d.surface === "portal" ? "Portal" : "Command line"}</TableCell>
+                <TableCell className="space-x-2 whitespace-nowrap text-right">
+                  {offers("plan") ? <Button variant="ghost" size="sm" aria-label={`Plan and report for ${d.deploymentId}`} onClick={() => onPlan(d.deploymentId)}>Plan</Button> : null}
+                  {offers("evidence") ? <Button variant="ghost" size="sm" aria-label={`Evidence for ${d.deploymentId}`} onClick={() => onEvidence(d.deploymentId)}>Evidence</Button> : null}
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+      <Pager paged={paged} className="px-6 py-3" />
+    </Card>
   );
 }

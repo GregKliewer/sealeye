@@ -7,6 +7,7 @@ import { listDeployments } from "./store.js";
 import { needKinds, profileExpectsFor, orgName } from "../core/catalog.js";
 import { catalogFor } from "./catalogs.js";
 import { normalizeProfile, UNLISTED_NEED } from "../core/schema.js";
+import { environmentPath } from "../core/environments.js";
 
 /**
  * Roll the drafted plans up by need kind.
@@ -59,6 +60,8 @@ export function rollupNeeds(records = listDeployments(), { viewer = null, catalo
         name: dep.app.name,
         team: dep.teamId || "default",
         deploymentId: own ? dep.deploymentId : null,
+        // Its page in the portal, for a viewer who may open it.
+        path: own ? environmentPath(dep) : null,
         when,
         profile,
         evidence: own ? (need.evidence || []) : [],

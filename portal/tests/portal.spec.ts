@@ -1092,3 +1092,100 @@ test("a live catalog is titled as live, never as a draft, and an answer used lat
   await expect(answers.filter({ hasText: "private network" })).toContainText("written into catalog 4, after this one");
 });
 
+
+// Paging and status chips (Greg, Oct 23, 2026): the API's answer is widened here, in the
+// browser, so the shared records every other test counts are left as they are.
+test("an app's history shows a page at a time, remembers how many rows, and filters by status", async ({ page }) => {
+  await page.route("**/api/deployments", async route => {
+    const res = await route.fetch();
+    const body = await res.json();
+    const first = body.deployments.find((d: { deploymentId: string }) => d.deploymentId === "dep_aaaaaaaaaaa0");
+    const extra = Array.from({ length: 13 }, (_, i) => ({
+      ...first, deploymentId: `dep_extra${String(i).padStart(7, "0")}`,
+      status: i < 8 ? "failed" : "succeeded", replaced: i >= 8, failureReason: i < 8 ? "It did not start." : undefined,
+      startedAt: new Date(Date.parse(first.startedAt) - (i + 1) * 3600_000).toISOString()
+    }));
+    await route.fulfill({ response: res, json: { ...body, deployments: [...body.deployments, ...extra] } });
+  });
+  await signIn(page);
+  await page.getByRole("link", { name: "payments-api", exact: true }).click();
+  // Earlier tests deploy payments-api too (the records are shared), so counts are read.
+  const rows = page.getByTestId("history-row");
+  await expect(rows).toHaveCount(10);
+  await expect(page.getByTestId("pager-position")).toHaveText(/^1 to 10 of \d+$/);
+  const total = Number((await page.getByTestId("pager-position").textContent())!.split(" of ")[1]);
+  expect(total).toBeGreaterThanOrEqual(15);
+  await page.getByTestId("pager").getByRole("button", { name: "Next" }).click();
+  await expect(rows).toHaveCount(Math.min(10, total - 10));
+  await expect(page.getByTestId("pager-position")).toHaveText(`11 to ${Math.min(20, total)} of ${total}`);
+
+  // The chips count each status, and turning one off leaves the rest, from the first page.
+  const chips = page.getByTestId("status-chip");
+  const failedChip = chips.filter({ hasText: "Failed" });
+  await expect(failedChip).toHaveText(/^Failed \d+$/);
+  const failed = Number((await failedChip.textContent())!.split(" ")[1]);
+  expect(failed).toBeGreaterThanOrEqual(8);
+  await failedChip.click();
+  await expect(failedChip).toHaveAttribute("aria-pressed", "false");
+  await expect(rows).toHaveCount(Math.min(10, total - failed));
+  for (const chip of await chips.all()) if ((await chip.getAttribute("aria-pressed")) === "true") await chip.click();
+  await expect(page.getByTestId("nothing-chosen")).toBeVisible();
+  await expect(rows).toHaveCount(0);
+  await failedChip.click();
+  await expect(rows).toHaveCount(Math.min(10, failed));
+
+  // The rows picker is remembered by this card, in this browser.
+  for (const chip of await chips.all()) if ((await chip.getAttribute("aria-pressed")) === "false") await chip.click();
+  await page.getByTestId("pager-rows").selectOption("25");
+  await expect(rows).toHaveCount(Math.min(25, total));
+  await page.reload();
+  await expect(rows).toHaveCount(Math.min(25, total));
+  await expect(page.getByTestId("pager-rows")).toHaveValue("25");
+});
+
+test("Catalogs shows a page at a time and filters by status", async ({ page }) => {
+  await page.route("**/api/catalogs", async route => {
+    const res = await route.fetch();
+    const body = await res.json();
+    const row = body.catalogs[0];
+    const statuses = ["retired", "retired", "retired", "retired", "retired", "retired", "retired", "retired", "retired", "retired", "approved"];
+    const extra = statuses.map((status, i) => ({ ...row, version: 20 + i, status, live: false, discovery: null }));
+    await route.fulfill({ response: res, json: { ...body, catalogs: [...body.catalogs, ...extra] } });
+  });
+  await signInOrgWide(page);
+  await page.goto("/discovery");
+  const card = page.getByTestId("catalogs");
+  await expect(card.getByTestId("catalog-row")).toHaveCount(10);
+  await expect(card.getByTestId("pager-position")).toHaveText("1 to 10 of 13");
+  await expect(card.getByTestId("status-chip").filter({ hasText: "Retired" })).toHaveText("Retired 10");
+  await card.getByTestId("status-chip").filter({ hasText: "Retired" }).click();
+  await expect(card.getByTestId("catalog-row")).toHaveCount(3);
+  await expect(card.getByTestId("pager")).toHaveCount(0);
+});
+
+test("a module shows which apps use it and at which release, linked where you may open them", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: "Catalog" }).click();
+  const api = page.getByTestId("module-card").filter({ hasText: "http_api_serverless" });
+  await expect(api.getByTestId("module-use-count")).toContainText("Used by");
+  await expect(api.getByTestId("module-users")).toHaveCount(0);
+  await api.getByTestId("module-toggle").click();
+  const users = api.getByTestId("module-user");
+  await expect(users.filter({ hasText: "payments-api" }).getByRole("link")).toHaveText("payments-api");
+  // Another team's app is named, with its team, and not linked: its page is theirs.
+  await expect(users.filter({ hasText: "another-teams-api" })).toContainText("team payments");
+  await expect(users.filter({ hasText: "another-teams-api" }).getByRole("link")).toHaveCount(0);
+  await users.filter({ hasText: "payments-api" }).getByRole("link").click();
+  await expect(page).toHaveURL(/\/environments\/sealeye-payments-api$/);
+});
+
+test("a need shows the apps waiting on it, each linked to its page where you may open it", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: "Catalog" }).click();
+  const need = page.getByTestId("need-row").filter({ hasText: "a relational database" });
+  await expect(need.getByTestId("need-apps")).toHaveCount(0);
+  await need.getByTestId("need-toggle").click();
+  await expect(need.getByTestId("need-toggle")).toHaveAttribute("aria-expanded", "true");
+  await need.getByTestId("need-app").getByRole("link", { name: "ledger-sync" }).click();
+  await expect(page).toHaveURL(/\/environments\/default%3Aledger-sync$/);
+});
