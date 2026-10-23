@@ -430,7 +430,7 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
 - The API runs on one pilot server (https://api.sealeye.online, `deploy/`), with
   records and interviews in Postgres, or locally with a JSON file and interviews in
   memory (no `DATABASE_URL`). No sign-in yet: each person has a token, issued with
-  `deploy/server.sh token add` and kept by `sealeye login`, a stand-in until Q3 (ROADMAP
+  `deploy/server.sh token add` and kept by `sealeye login`, a stand-in until Cognito sign-in (ROADMAP
   Phase 5, Q16). Tokens are in org "default", except the pilot's second organization,
   `juniper` (`deploy/server.sh token add ... --org juniper`), where Juniper Mutual's
   discovered catalog may go live. An app's settings and costs are kept by team, not yet

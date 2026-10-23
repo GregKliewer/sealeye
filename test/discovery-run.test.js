@@ -365,7 +365,7 @@ test("Juniper Mutual: given good words, the draft passes the answer key's checks
   // And the Terraform executor builds from it what takes an app, once the platform gives
   // the permissions boundary, and the modules an app uses that offer it access (the
   // table, the bucket and the queue, since the library's 1.1.0 releases); a database
-  // waits on the network (Q23), and nothing else runs an app.
+  // is built once the platform has the private network's values (Q23, closed Oct 20, 2026), and nothing else runs an app.
   const byId = Object.fromEntries(draft.modules.map(m => [m.id, m]));
   assert.equal(byId.http_api.delivers.kind, "package");
   assert.equal(byId.static_site.delivers.kind, "files");

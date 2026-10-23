@@ -94,7 +94,8 @@ third lines stay open until it does.
 9. **Observability**: every interview is a LangFuse trace, joined to the deployment it
    produced and scored on how it turned out (`core/tracing.js`, DESIGN.md "Tracing the
    interview with LangFuse"). It moved to the API with the interview on Oct 10, 2026,
-   one trace across the interview's pauses; where an organization's traces live is Q13.
+   one trace across the interview's pauses; where an organization's traces live was Q13, answered Oct 13, 2026: LangFuse
+   self-hosted in ca-central-1 (Phase 4, owed).
 10. **Setting values move to the organization's secret store.** *Done Oct 12, 2026
     (PHASE2-PLAN Part B; DESIGN.md, "Settings live in the organization's store").*
     Until then the command sent an app's setting values from its `.env` with each
