@@ -281,7 +281,7 @@ flowchart TB
 
   subgraph mac["Administrator's Mac"]
     release["<b>deploy/release.sh</b><br/>Builds the portal and package,<br/>sends the release"]
-    serversh["<b>deploy/server.sh</b><br/>backup, restore-check, import,<br/>restart, logs, token add/revoke/list,<br/>gateway-restart, gateway-logs,<br/>gateway-calls"]
+    serversh["<b>deploy/server.sh</b><br/>backup, restore-check, import,<br/>restart, logs, disk, settings-sources,<br/>token add/revoke/list (--org, --org-wide),<br/>gateway-restart, gateway-logs, gateway-calls,<br/>library-check, tofu-unlock,<br/>park, unpark"]
   end
 
   subgraph acct["AWS account, ca-central-1"]
@@ -297,8 +297,15 @@ flowchart TB
         c4["gateway :4000<br/>(network: model)"]
       end
     end
-    deployRole["<b>sealeye-deploy-pilot</b><br/>role + function permissions boundary"]
-    stacks["<b>Environment stacks</b><br/>sealeye-team-app-hash"]
+    artifacts[("<b>Artifact bucket</b><br/>app zips; tofu-state/ and lock files")]
+    deployRole["<b>sealeye-deploy-pilot</b><br/>role + function permissions boundary<br/>(platform-sealeye-deploy-role)"]
+    tfRole["<b>sealeye-deploy-terraform-*</b><br/>role, function boundary, setup boundary,<br/>logs policy (platform-sealeye-terraform-role)"]
+    stacks["<b>Starter environments</b><br/>stacks sealeye-team-app-hash"]
+    subgraph foundation["platform-sealeye-foundation"]
+      vpc["VPC, private subnets, database<br/>and cache subnet groups,<br/>apps / databases / caches groups,<br/>free endpoints for tables and buckets"]
+      tfenvs["<b>Environments from the<br/>organization's modules</b><br/>and their parts"]
+    end
+    endpoints["<b>platform-sealeye-endpoints</b><br/>Secrets Manager endpoint;<br/>deleted by park, made by unpark"]
   end
 
   c1 -- "HTTP" --> c2
@@ -314,14 +321,27 @@ flowchart TB
   c2 -- "read settings at start,<br/>never gateway/" --> ssmp
   ec2 -- "gateway.sh: model key,<br/>gateway key, budget" --> ssmp
   c2 -- "assume role" --> deployRole
+  c2 -- "assume role (tofu)" --> tfRole
   deployRole -- "create, update, delete" --> stacks
+  tfRole -- "apply, destroy,<br/>sweep detached interfaces" --> tfenvs
+  tfRole -- "state, artifacts" --> artifacts
+  serversh -- "park, unpark" --> endpoints
+  tfenvs -. "Secrets Manager<br/>(database setup only)" .-> endpoints
   dns -- "A records" --> ec2
 ```
 
-- **Platform stacks** are named `platform-sealeye-*` (server, deploy role, CI role, one
-  DNS stack per domain). The deploy role cannot touch them.
+- **Platform stacks** are named `platform-sealeye-*`: server, deploy role, Terraform
+  role, CI role, foundation (the network), endpoints (its paid endpoints), and one DNS
+  stack per domain. Neither deploy role can touch them; the Terraform role may change
+  only security groups an environment made.
+- **Parking** (`deploy/server.sh park`, refused while any environment stands) keeps a
+  backup in `parked/`, deletes `platform-sealeye-endpoints` and stops the server;
+  `unpark` reverses it. The foundation network is kept, since the platform values name
+  its ids.
 - **The server's own role** can read its settings, pull its image, use its config
-  bucket and assume a `sealeye-deploy-*` role. It cannot build anything itself.
+  bucket and assume a `sealeye-deploy-*` role (the deploy role, or the Terraform role
+through the `sealeye-deploy-terraform` profile `deploy/settings.mjs` writes). It cannot
+build anything itself.
 - **The API's settings** come from Parameter Store under `/sealeye/` at start
   (`deploy/settings.mjs`), including LangFuse keys, the key it calls the model gateway
   with and the database password. The API then drops the database password from its
