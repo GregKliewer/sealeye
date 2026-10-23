@@ -776,16 +776,26 @@ flowchart LR
     auth["Token or session check,<br/>team and org scoping"]
     sandbox["Interview tools: read-only,<br/>inside the copy, secret files and<br/>files with a finding refused"]
     pkg["Packaging: --ignore-scripts,<br/>scrubbed environment"]
+    tofu["OpenTofu: released modules only,<br/>checked for anything they run;<br/>providers from the image only"]
+  end
+  subgraph libside["Platform library (GitHub)"]
+    lib["Read-only, one repository,<br/>token revoked after use"]
   end
   subgraph cloud["AWS"]
     role["Deploy role: seaLeye's templates<br/>and names only"]
     boundary["Function boundary: logs<br/>and its own settings only"]
+    tfrole["Terraform role: sealeye-* names,<br/>never platform-sealeye-*;<br/>logs through its own policy"]
+    tfboundary["Function boundary: logs; dev tables,<br/>buckets and queues named for seaLeye;<br/>joining the network; rds-db:connect"]
+    setup["Setup boundary: the database's<br/>one-time setup function alone<br/>reads the kept master password"]
   end
   subgraph modelside["Model gateway (its own network)"]
     gw["Only the API's key and a token<br/>the API signed; budget and run limit;<br/>holds the model key; logs no content"]
   end
   files -- "filtered zip" --> caddy --> auth --> sandbox
   auth --> pkg --> role --> boundary
+  pkg --> tofu --> tfrole --> tfboundary
+  tfrole --> setup
+  lib -- "scanned again" --> tofu
   sandbox -- "model calls" --> gw
 ```
 
