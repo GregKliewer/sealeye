@@ -1,9 +1,10 @@
 # Phase 4 plan: seaLeye learns an organization's platform
 
 Written Wed Oct 14, 2026, after Phase 3 was built apart from routing (Step 8, waiting
-on the account's Bedrock access) and the gateway's span in the trace (moved here). A
-draft for Greg: the decisions below are recommendations until he answers them. Nothing
-in it is built yet.
+on the account's Bedrock access) and the gateway's span in the trace (moved here). Built
+Oct 14 to 22, 2026 (Steps 1 to 11, 6c included), proven on the pilot with the made-up
+Juniper Mutual. Every decision below was answered by Greg. What is owed before the first
+customer is in "Owed after this plan".
 
 **Goal** (ROADMAP Phase 4): seaLeye builds from the organization's own modules, not only
 its four. A discovery agent reads the organization's platform library and writes a
@@ -56,13 +57,13 @@ The plan has four parts, in the order the dependencies force.
 |---|---|---|---|---|
 | D1 | Where traces live during Phase 4 | LangFuse Cloud, as today. Self-hosting in ca-central-1 waits until the first run on an organization's real code: a precondition for that run, not for Phase 4. Every run before it reads seaLeye's own templates, the made-up organization or public modules | Step 4 | Greg, Wed Oct 14: LangFuse Cloud; "no one will be picking this up at a real bank any time soon" |
 | D2 | Where discovery runs before a customer | In the seaLeye account, like the pilot. A new account per customer, and a paid run, start with the first customer, as decided Oct 13 | Step 4 | Greg, Wed Oct 14: as recommended |
-| D3 | How the swarm reads the library (Q17) | Plain code in the graph: a read-only clone of named repositories, at a named commit. The model never chooses what is read. A provider's MCP server later, through the gateway, where one adds something a clone cannot | Step 5 | Greg, Wed Oct 14: as recommended. Answers Q17 |
+| D3 | How the swarm reads the library (Q17) | Plain code in the graph: a read-only clone of named repositories, at a named commit. The model never chooses what is read. A provider's MCP server later, through the gateway, where one adds something a clone cannot | Step 5 | Greg, Wed Oct 14: as recommended. Answers Q17. Built Oct 15 as one commit's archive from GitHub's API, read in memory, not a clone (DESIGN.md, "Reading the library") |
 | D4 | What a catalog is | A versioned document per organization in Postgres, in the same shape as `module-catalog.yaml`. The four built-ins become a starter catalog. Plans name the catalog version they were made from (planVersion 0.5). A catalog goes live only when a platform engineer approves it and it passes its self-test | Step 1 | Greg, Wed Oct 14: as recommended |
 | D5 | Which models the swarm uses | Workers read with the small model (`claude-haiku-5-5`); the supervisor and the rule writer use the frontier model (`claude-sonnet-5`). Both through the gateway on the Anthropic route, as named routes: the non-Bedrock half of Phase 3 Step 8, brought forward | Step 5 | Greg, Wed Oct 14: as recommended |
 | D6 | A discovery run's caps | A cap per worker and per run, set from a measured run on the made-up organization, as Phase 3 sized the interview's dollar. Placeholder until measured: a dollar a worker, twenty a run | Step 6 | Greg, Wed Oct 14: as recommended. Set Thu Oct 15 from the first measured run (US$0.18, no worker over half a cent): ten cents a worker, three dollars a run |
 | D7 | Where a platform engineer answers the swarm's questions | Both surfaces, one operation: `sealeye discover` and a Discovery page, on an endpoint first (parity). The run pauses with `interrupt()` and waits in Postgres, as the interview does | Step 6 | Greg, Thu Oct 15 (Q19, reopened Oct 14): the run never pauses. Questions go out on the run's events as they arise and sit on the draft with a guess; an answer is used if it comes before its entry is written, and re-runs only the entries it touches if it comes later. A guess never goes live. Both surfaces, one operation, as first written (DESIGN.md, "A discovery run never pauses") |
 | D8 | The Terraform executor's scope | One root module per environment that calls the organization's module by source and version; state in an S3 bucket with a lock file, in the account the environment is built in; `terraform` run by the API like the AWS CLI. Only modules discovery marked buildable, with their inputs from the catalog | Step 9 | Greg, Wed Oct 14: as recommended. Sat Oct 17, its details (DESIGN.md, "A Terraform executor builds an organization's own modules" and the four entries after it): OpenTofu; a role of its own; platform values by stage on both surfaces; a foundation network; how a module takes an app read by code; settings and modules that run commands refused; versions and connecting modules in a second pull request |
-| D9 | What the made-up organization is | A private repository, `sealeye-sample-platform`, of 10 to 15 Terraform modules and a few pipeline files, with an answer key in a file discovery never reads. Built at the start of Part B | Step 4 | Greg, Wed Oct 14: as recommended, with modules that are commonly assembled into the same kind of application (a backend API, a website, or another), so a sample app can be planned from several of them together |
+| D9 | What the made-up organization is | A private repository, `sealeye-sample-platform`, of 10 to 15 Terraform modules and a few pipeline files, with an answer key in a file discovery never reads. Built at the start of Part B | Step 4 | Greg, Wed Oct 14: as recommended, with modules that are commonly assembled into the same kind of application (a backend API, a website, or another), so a sample app can be planned from several of them together. Public since Oct 20, 2026, under MIT (DESIGN.md, "The sample platform is public") |
 
 ## Part A: one catalog becomes many
 
@@ -141,9 +142,9 @@ library's own build-once-and-promote pipeline, the hard cases below with the ove
 stage, and three gaps; the answer key in seaLeye
 (`test/fixtures/sample-platform/answer-key.yaml`) and `npm run eval:discovery`. Greg
 added the path to production on Oct 15, so the set exercises more than dev, and Q20 (a
-module per stage in a plan) was raised. Not yet: "only what changed is read again"
-waits for discovery (Step 6), and the smoke test grades the starter against itself
-until then.
+module per stage in a plan) was raised. Only what changed is read again was built
+Oct 22, 2026 (Step 6c). The smoke test still grades the starter catalog against itself;
+discovery has not yet been run on seaLeye's own `templates/`.
 
 - `sealeye-sample-platform`: 10 to 15 modules that are commonly assembled into the same
   kinds of application, a backend API or a website, so a sample app's right plan uses
@@ -163,8 +164,8 @@ commit of each repository named in `SEALEYE_LIBRARY_REPOS`, with a GitHub App or
 read-only token, by the upload's rules and both scans, before any model; the gateway
 has `small` and `frontier`. Greg chose both ways in, flagged lines replaced rather than
 files held back, no `.sealeye-allow` for a library, and the repositories in a setting.
-`deploy/server.sh library-check` reads them on the server as the run will. Not yet: the
-graph it is the first node of (Step 6).
+`deploy/server.sh library-check` reads them on the server as the run will. It is the
+first node of the discovery run (Step 6, built Oct 15, 2026).
 
 - Plain code: clone the named repositories read-only at a commit, walk them with the
   same rules the upload uses (`core/upload-rules.js`), and scan everything with the
@@ -177,9 +178,9 @@ graph it is the first node of (Step 6).
 
 Part a, the run in the API, built Thu Oct 15, 2026 (DESIGN.md, "The discovery run"),
 with Greg's choices: an organization-wide token only, inputs read by code, a run cut off
-by a restart stopped not resumed, and questions as choices with the guess first. Still
-to come: 6b, `sealeye discover` and the Discovery page; 6c, only what changed is read
-again. The caps were set from Greg's measured runs (D6).
+by a restart stopped not resumed, and questions as choices with the guess first. 6b,
+`sealeye discover` and the Discovery page, and 6c, only what changed is read again, are
+built (below). The caps were set from Greg's measured runs (D6).
 
 Part c built Thu Oct 22, 2026 (DESIGN.md, "Discovery reads again only what changed";
 Greg: readers and entries both, compared with the live catalog's run): a module whose
@@ -192,8 +193,9 @@ for later; the Discovery page, shown only to an organization-wide token, does th
 Part a and b are released together, as parity asks.
 
 Owed to Step 7, from the measured runs: questions that are the same issue in different
-words (three about the caches in the fourth run) are not yet merged; the supervisor
-should, when it sees the readers' questions.
+words (three about the caches in the fourth run). Built Oct 16, 2026: the supervisor
+merges them (`merges`; DESIGN.md, "A catalog goes live through a self-test, approved
+and made live apart").
 
 - A LangGraph supervisor fans out one worker per module, in parallel, gathers their
   findings, and writes the catalog entries.
@@ -214,9 +216,10 @@ should, when it sees the readers' questions.
 ### Step 7. Self-test, then live
 
 Built Fri Oct 16, 2026 (DESIGN.md, "A catalog goes live through a self-test, approved
-and made live apart"). Still to be done on Greg's Mac, where the model key is: the
-measured run before and after the supervisor's prompt change (merges), with `npm run
-eval:discovery -- --run --library <clone>`, which now runs both passes and records them.
+and made live apart"). Greg's measured runs before and after the supervisor's
+prompt change (merges) were made Oct 16, 2026, on his Mac, with `npm run eval:discovery
+-- --run --library <clone>` (DESIGN.md, same entry, "After Greg's measured run" and
+"After Greg's second measured run").
 
 Not before Step 3 has shipped: until the interview plans against the live catalog, a
 live catalog that drops a starter module would refuse every plan the interview writes
@@ -254,7 +257,9 @@ Juniper Mutual's live catalog 3, its Terraform modules treated as built in the e
 not in it (Greg). Tue Oct 20, 2026 (DESIGN.md, "The eval plans against what the server
 builds"): the snapshot is catalog 8, the eval's organization is given a placeholder
 platform value for each required input, and the real executor decides; a fourth sample
-app, `orders-api`, connects a table, and the eval grades what a plan connects.
+app, `orders-api`, connects a table, and the eval grades what a plan connects. Oct 21,
+2026: the snapshot is catalog 9 (`test/fixtures/juniper-catalog-9.json`), with the
+database, and a fifth app, `account-notes-api`, connects it.
 
 ### Step 9. A Terraform executor (D8)
 
@@ -276,8 +281,8 @@ one module, the one that takes the app's code (`http-api`, `static-site`); the
 organization's platform values on both surfaces (`sealeye platform`, the Platform page);
 the Terraform deploy role and the foundation network (`deploy/terraform-role.yaml`,
 `deploy/foundation.yaml`); a stand-in `tofu` in `npm test` and the real one in
-`.github/workflows/tofu.yml`. The first real build is on the pilot, after the steps in
-deploy/README.md, "The Terraform executor". The second pull request: each module's
+`.github/workflows/tofu.yml`. The first real build was made on the pilot on Oct 17,
+2026, after the steps in deploy/README.md, "The Terraform executor". The second pull request: each module's
 version from the library's tags, and connecting modules through what the library offers
 (a module's access outputs to another's inputs), with the sample library given both.
 
@@ -331,7 +336,9 @@ security model, the decision index and the known limits); ROADMAP Phase 4 marked
 but for what is owed before the first customer (6c was built the same day, after it:
 DESIGN.md, "Discovery reads again only what changed"); BUILD-OUT's table and Phase 4
 pictures marked built. Each decision went into DESIGN.md as it was made, and CLAUDE.md
-with the code that made it true.
+with the code that made it true. Oct 23, 2026: ARCHITECTURE.md's diagrams redrawn at
+2.48.1 for the Terraform executor, connected modules and the private network, and the
+other documents brought up to the same code.
 
 ## Order and rough effort
 
@@ -360,5 +367,8 @@ request.
 | **A new account per customer, and a paid run** (D2) | The first customer run. |
 | **The Bedrock route** (Phase 3 Step 8) | When the account has model access; then an organization's code can stay in its own account. |
 | **Admin onboarding** (identity provider, repositories, which automation is strategic) | With Phase 5's Cognito sign-in, since both need an organization's administrator. Until then the platform team names repositories in a setting. |
-| **The discovery screens' rough edges** (Greg, Oct 16) | Built Oct 16, 2026, with Q21's rule for platform words (DESIGN.md, "What a platform term is" and "The discovery screens' rough edges"). |
+| **Settings and costs by organization** | An app's settings and costs are kept by team, so any organization but `default` is answered 409 NOT_FOR_THIS_ORGANIZATION (CLAUDE.md, "Current limits"). Before a second real organization keeps settings or reads costs. |
+| **The approver is not whoever started the run** | Any organization-wide token approves today (DESIGN.md, "A catalog goes live through a self-test, approved and made live apart"). With Cognito groups (Q16). |
+| **Discovery's smoke test on seaLeye's own templates** | `--smoke` grades the starter against itself. Before discovery's prompts change again. |
+| **How discovery writes an answer into an entry** | Catalog 3's postgres entry said both "all six stages" and "below staging only" (DESIGN.md, "The front door plans from a discovered catalog", "Seen while building it"). Before a customer run. |
 | **Public module libraries at scale** | After Step 7, for cost caps and scale; no answer key, checked by hand. |
