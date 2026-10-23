@@ -1,7 +1,9 @@
 # seaLeye: architecture
 
 First written Oct 12, 2026, at 2.20.0 (main at PR #31); brought up to date Oct 22,
-2026, at 2.46.9, as Phase 4's build ended (PHASE4-PLAN Step 11). This file describes the
+2026, at 2.46.9, as Phase 4's build ended (PHASE4-PLAN Step 11); diagrams redrawn Oct 23,
+2026, at 2.48.1, for the Terraform executor, connected modules and the private network.
+This file describes the
 system as it is built today. Why each part is the way it is lives in [DESIGN.md](../DESIGN.md);
 where it is going lives in [VISION.md](VISION.md) and [ROADMAP.md](ROADMAP.md). When a
 change makes a diagram here wrong, fix the diagram in the same commit.
@@ -47,15 +49,16 @@ that the catalog cannot build.
 | Goal | What it means for the architecture |
 |---|---|
 | **Parity** | One API; the command and the portal are thin clients of it. An operation is an endpoint first. |
-| **Only the certified platform** | The API builds only from `templates/`, through a role scoped to seaLeye's names and a permissions boundary on every function. |
+| **Only the certified platform** | The API builds only from `templates/` (CloudFormation) or the organization's own released modules in a live catalog (OpenTofu), each through a role scoped to seaLeye's names and a permissions boundary on every function. |
 | **Refuse, never shrink** | The plan contract (`core/schema.js`) decides ready or drafted; the API refuses drafted plans itself, whatever the client says. |
 | **Real status** | A deployment's status mirrors its stack, polled by the API every few seconds; pause state, logs, readings and costs are read from AWS when asked. Nothing is assumed. |
 | **No secrets anywhere** | Secret files never leave the developer's machine with contents; setting values go to the organization's store and are never kept, logged or shown. |
 | **The developer's code is theirs** | The app is never changed. What the platform needs is injected into the packaged copy. |
 | **Cheap to run and to change** | One small server, plain SQL migrations, the AWS CLI instead of an SDK, tests that need no AWS and no model. |
 
-Constraints today: one cloud (AWS), one region (ca-central-1), one backend
-(CloudFormation), one runtime (Node 20), one API process.
+Constraints today: one cloud (AWS), one region (ca-central-1), two backends
+(CloudFormation for the starter's modules, OpenTofu for an organization's own), one stage
+(dev), one runtime (Node 20), one API process.
 
 ## 3. Context (C4 level 1)
 
@@ -64,30 +67,32 @@ Who uses seaLeye and what it depends on.
 ```mermaid
 flowchart TB
   dev["<b>Developer</b><br/>[Person]<br/>Brings an app, wants an environment"]
-  admin["<b>Platform administrator</b><br/>[Person]<br/>Issues tokens, releases seaLeye,<br/>reads the needs ledger"]
+  admin["<b>seaLeye administrator</b><br/>[Person]<br/>Issues tokens, releases seaLeye,<br/>parks and unparks the pilot"]
+  platform["<b>Platform team</b><br/>[Person, organization-wide token]<br/>Runs discovery, approves and makes<br/>catalogs live, sets platform values,<br/>reads the gap report"]
   control["<b>Control partners</b><br/>[Person]<br/>Read evidence and records"]
 
   sealeye["<b>seaLeye</b><br/>[Software system]<br/>Interviews the app, plans, refuses or builds,<br/>and manages the environment over time"]
 
-  aws["<b>The organization's AWS</b><br/>[External system]<br/>Where environments are built<br/>and app settings are stored"]
+  aws["<b>The organization's AWS</b><br/>[External system]<br/>Where environments are built,<br/>Terraform state is kept<br/>and app settings are stored"]
   anthropic["<b>Anthropic</b><br/>[External system]<br/>The model behind the interview"]
   langfuse["<b>LangFuse</b><br/>[External system]<br/>Interview traces and scores<br/>(optional)"]
   github["<b>GitHub</b><br/>[External system]<br/>Source, tests, image builds"]
-  library["<b>The organization's platform library</b><br/>[External system, on GitHub]<br/>Its Terraform modules and pipeline"]
+  library["<b>The organization's platform library</b><br/>[External system, on GitHub]<br/>Its Terraform modules, released by tag,<br/>and its pipeline"]
 
   dev -- "sealeye run, or the portal" --> sealeye
   admin -- "tokens, releases" --> sealeye
+  platform -- "sealeye discover, catalog, platform,<br/>gaps, or the portal" --> sealeye
   control -- "evidence, history" --> sealeye
   sealeye -- "builds and reads environments" --> aws
   sealeye -- "model calls" --> anthropic
   sealeye -. "traces, no file contents" .-> langfuse
   github -- "tested image" --> sealeye
-  sealeye -- "reads one commit, read-only<br/>(discovery)" --> library
+  sealeye -- "reads one commit or a module's release,<br/>read-only (discovery and every build)" --> library
 
   classDef person fill:#08427b,stroke:#052e56,color:#fff
   classDef system fill:#1168bd,stroke:#0b4884,color:#fff
   classDef external fill:#999,stroke:#6b6b6b,color:#fff
-  class dev,admin,control person
+  class dev,admin,platform,control person
   class sealeye system
   class aws,anthropic,langfuse,github,library external
 ```
