@@ -232,6 +232,11 @@ prompt, and public module libraries at scale (PHASE4-PLAN, "Owed after this plan
 app's, and a failed setup step's last lines in its reason). Step 10, the gap report, with discovery saying which needs each
   module meets, built Oct 22, 2026. Step 6c, reading again only what changed since the
   live catalog, built Oct 22, 2026. Step 11, written down Oct 22, 2026.
+- After Phase 4 (Oct 23, 2026, 2.48.2 to 2.50.0): the command's package loses code it
+  never ran; the portal's sections are grouped (Platform holds Discovery, Platform values
+  and Gaps; Team holds Team and Costs; Health sits beside the person); a catalog is shown
+  with the run that wrote it and named by its status (`sealeye catalog show`); long lists
+  page and filter by status; and the catalog says which apps use each module.
 - LangFuse self-hosted in ca-central-1 (answers Q13; moved here from Phase 3 on Oct 13,
   2026), before the first run on an organization's real code (Greg, Oct 14, 2026:
   Phase 4's own runs read seaLeye's templates, a made-up organization and public
@@ -361,28 +366,28 @@ and does nothing real. A blank is not started.
 | Tear down | `sealeye teardown` (`destroy` still works) | `DELETE /deployments/{id}` | built | built (Control) | 1 |
 | Evidence | `sealeye evidence` | `GET /deployments/{id}/evidence` | built | built (Evidence, in Control) | 2 |
 | Plan and report for a deployment | `sealeye plan` (`--report`, `--out <folder>`) | `GET /deployments/{id}/plan` | built | built (Plan and report, in Control) | 2 (added Oct 14, 2026, 2.27.0) |
-| Needs ledger | `sealeye needs` | `GET /needs` | built | built (in Catalog) | 1 |
-| Health check | `sealeye doctor` | `GET /health`, `GET /whoami` | built | built (Health) | 2 |
-| Catalog | `sealeye catalog` | `GET /catalog` | built | built | 1 |
-| Discovery (organization-wide token only) | `sealeye discover` (`--all`), `discover answers`, `discover status` | `POST /discoveries`, `GET /discoveries`, `GET /discoveries/{id}`, `/events`, `/catalog`, `/answers` | built | built (Discovery) | 4 |
-| Catalogs: self-test, edit words, approve, make live (organization-wide token only) | `sealeye catalog versions`, `catalog test`, `catalog edit`, `catalog approve`, `catalog live` | `GET /catalogs`, `GET /catalogs/{v}`, `GET /catalogs/{v}/self-test`, `POST /catalogs/{v}/edits`, `POST /catalogs/{v}/approve`, `POST /catalogs/{v}/live` | built | built (Catalogs and Edit words, on the Discovery page) | 4 |
+| Needs ledger | `sealeye needs` | `GET /needs` (each app's portal `path` where the caller may open it) | built | built (in Catalog; each need opens to the apps waiting) | 1 |
+| Health check | `sealeye doctor` | `GET /health`, `GET /whoami` | built | built (Health, beside the person, with a status mark) | 2 |
+| Catalog, with which apps use each module | `sealeye catalog` | `GET /catalog` (each module's `usedBy`, added Oct 23, 2026, 2.50.0) | built | built (Catalog; each module opens to the apps using it) | 1 |
+| Discovery (organization-wide token only) | `sealeye discover` (`--all`), `discover answers`, `discover status` | `POST /discoveries`, `GET /discoveries`, `GET /discoveries/{id}`, `/events`, `/catalog`, `/answers` | built | built (Discovery, under Platform) | 4 |
+| Catalogs: show one with its run, self-test, edit words, approve, make live (organization-wide token only) | `sealeye catalog versions`, `catalog show` (added Oct 23, 2026, 2.49.0), `catalog test`, `catalog edit`, `catalog approve`, `catalog live` | `GET /catalogs`, `GET /catalogs/{v}`, `GET /discoveries/{id}` (the run that wrote it, each answer's `usedIn`), `GET /catalogs/{v}/self-test`, `POST /catalogs/{v}/edits`, `POST /catalogs/{v}/approve`, `POST /catalogs/{v}/live` | built | built (Catalogs and Edit words, on the Discovery page; a chosen catalog at `/discovery?catalog=<v>`) | 4 |
 | Fix what blocks a draft's approval, field by field, offered from a refused approval (organization-wide token only) | `sealeye catalog fix`, and `catalog approve` offers it | `GET /catalogs/{v}/self-test` (each field to change), `POST /catalogs/{v}/edits` | built | built (Fix what blocks approval, on the Discovery page's Catalogs card) | 4 |
 | Pause and resume | `sealeye pause`, `resume` | `GET /deployments/{id}/paused`, `POST .../pause`, `.../resume` | built | built (Pause, in Control) | 2 |
 | Configure | `sealeye config` (and `sealeye settings`) | `POST /deployments` (`fromDeployment` with the plan changed); the settings endpoints | built | built (Configure and Settings, in Control) | 2 |
 | Logs | `sealeye logs` (`--from app\|door\|database`) | `GET /deployments/{id}/logs` | built | built (Logs, in Control) | 2 |
 | Performance | `sealeye perf` | `GET /deployments/{id}/performance` | built | built (Performance, in Control) | 2 |
-| Costs | `sealeye costs` | `GET /costs` (by tag, a day behind) | built | built (Costs) | 2 |
+| Costs | `sealeye costs` | `GET /costs` (by tag, a day behind) | built | built (Costs, under Team) | 2 |
 | Team and access | `sealeye team` | `GET /team` (issuing stays with the administrator) | built | built (Team) | 2 |
 | Integrations | `sealeye integrations` | | | mock-up (report) | 5 |
 | Open the portal | `sealeye online` (also `portal`, `open`), with an app for its page | `GET /deployments` (which page) | built | n/a: it is the portal | 2 |
 | Sign in | `sealeye login` | tokens; `POST /sessions`, `DELETE /sessions` for the portal; `GET /whoami` | built | built (token paste, then a session) | 1 |
 | Settings in the secret store | `sealeye settings`, `settings set`, `settings unset` | `GET /apps/{app}/settings`, `PUT` and `DELETE /apps/{app}/settings/{name}` | built | built (Settings, in Control) | 1 (item 10) |
-| Platform values (organization-wide token only) | `sealeye platform`, `platform set`, `platform unset` (`--stage`) | `GET /platform`, `PUT` and `DELETE /platform/values/{name}` | built | built (Platform) | 4 |
+| Platform values (organization-wide token only) | `sealeye platform`, `platform set`, `platform unset` (`--stage`) | `GET /platform`, `PUT` and `DELETE /platform/values/{name}` | built | built (Platform values, under Platform) | 4 |
 | Interviews still open | `sealeye interviews` | `GET /interviews`, `DELETE /interviews/{id}` | built | built (in New environment, with Continue and Drop) | 2 |
 | Admin onboarding (identity provider, repositories) | | | | | 5 (with sign-in; reading the library is Discovery, above) |
 | Promote | `sealeye promote` | | | | 5 |
 | Approve an agent's plan | | | | | 6 (a queue in the portal) |
-| Gap report (organization-wide token only) | `sealeye gaps` | `GET /gaps` | built | built (Gaps) | 4 |
+| Gap report (organization-wide token only) | `sealeye gaps` | `GET /gaps` | built | built (Gaps, under Platform) | 4 |
 | Raise a gap ticket | `sealeye needs --request` | | prints text only | | 5 |
 
 Pause and resume, configure, settings and performance are built for the starter's

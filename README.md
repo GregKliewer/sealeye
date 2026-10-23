@@ -8,8 +8,10 @@ code that shows it, and builds nothing.
 - **seaLeye.run** is the `sealeye` command.
 - **seaLeye.online** is the web portal (`portal/`): a new environment from a folder,
   each environment's state, history, logs, evidence, plan and report and tear down, a
-  plan's check, the catalog and the needs ledger, costs, the team and health; for an
-  organization-wide token, discovery, the platform values and the gap report too.
+  plan's check, the catalog (with which apps use each module) and the needs ledger,
+  the team and costs, and health beside your name; for an organization-wide token, a
+  Platform section with discovery (every catalog with the run that wrote it), the
+  platform values and the gap report.
 - Both are clients of the seaLeye API in `api/`, which runs at https://api.sealeye.online.
 
 ## Use it

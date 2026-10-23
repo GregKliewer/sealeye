@@ -28,7 +28,7 @@ Phases 3, 6 and 8 were added on Oct 13, 2026; the old Phases 3, 4 and 5 became 4
 
 ## Phases 0 to 2, as built (v2.21.0)
 
-At v2.21.0 (Oct 13, 2026) one agent built only from four certified templates. Phases 0 to 2 were built Sept 20 to Oct 12, 2026. The system today, v2.48.1, is Phase 4's picture on Phase 3's backbone; [ARCHITECTURE.md](ARCHITECTURE.md) draws it in full. One agent, one model, every run traced.
+At v2.21.0 (Oct 13, 2026) one agent built only from four certified templates. Phases 0 to 2 were built Sept 20 to Oct 12, 2026. The system today, v2.50.0, is Phase 4's picture on Phase 3's backbone; [ARCHITECTURE.md](ARCHITECTURE.md) draws it in full. One agent, one model, every run traced.
 
 ```mermaid
 flowchart TB

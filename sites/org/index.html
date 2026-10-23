@@ -31,7 +31,7 @@
 </header>
 
 <dl class="facts">
-<dt>Version</dt><dd data-version>2.48.1, October 2026</dd>
+<dt>Version</dt><dd data-version>2.50.0, October 2026</dd>
 <dt>License</dt><dd>AGPL-3.0, free to use, change and run yourself</dd>
 <dt>Runs on</dt><dd>Node.js 20, AWS (ca-central-1 by default): CloudFormation for the starter modules, OpenTofu for an organization's own Terraform modules</dd>
 <dt>Status</dt><dd>Working pilot, Phases 0 to 4 of the <a href="https://github.com/GregKliewer/sealeye/blob/main/docs/ROADMAP.md">roadmap</a> built. The author is stepping back; a maintainer is welcome.</dd>
@@ -58,9 +58,10 @@ npm test</pre>
 <ul>
 <li>The interview, the plan and the refusal</li>
 <li>Learning an organization's own platform from its Terraform library, with a platform engineer's answers</li>
-<li>A self-test every catalog passes before it goes live</li>
+<li>A self-test every catalog passes before it goes live, and every catalog kept with the run that wrote it and the answers it was given</li>
 <li>Building from the organization's own modules, connected to each other, a database in the private network included</li>
 <li>A gap report: what developers asked for that the platform can't build yet, and how often</li>
+<li>A catalog that says which apps use each module, and at which release</li>
 <li>Deploy, deploy again, pause, tear down</li>
 <li>Settings in the organization's own store</li>
 <li>Logs in plain words, the app's beside its front door's and its database's; performance, costs and evidence</li>

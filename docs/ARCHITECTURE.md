@@ -2,7 +2,8 @@
 
 First written Oct 12, 2026, at 2.20.0 (main at PR #31); brought up to date Oct 22,
 2026, at 2.46.9, as Phase 4's build ended (PHASE4-PLAN Step 11); diagrams redrawn Oct 23,
-2026, at 2.48.1, for the Terraform executor, connected modules and the private network.
+2026, at 2.48.1, for the Terraform executor, connected modules and the private network;
+checked again Oct 23, 2026, at 2.50.0 (which apps use each module, `api/module-use.js`).
 This file describes the
 system as it is built today. Why each part is the way it is lives in [DESIGN.md](../DESIGN.md);
 where it is going lives in [VISION.md](VISION.md) and [ROADMAP.md](ROADMAP.md). When a
@@ -184,7 +185,7 @@ flowchart LR
     tokens["<b>tokens.js</b><br/>Tokens and portal sessions,<br/>stored as hashes"]
     interview["<b>interview/</b><br/>graph.js, model.js, tools.js,<br/>service.js, pgstore.js"]
     discovery["<b>discovery/</b><br/>library, terraform, readers,<br/>draft, service, store"]
-    validate["<b>validate.js, needs.js</b><br/>The plan contract,<br/>the needs ledger"]
+    validate["<b>validate.js, needs.js,<br/>module-use.js</b><br/>The plan contract,<br/>the needs ledger, which apps<br/>use each module"]
     gaps["<b>gaps.js, self-test.js</b><br/>The gap report;<br/>a catalog's self-test"]
     catalogs["<b>catalogs.js, catalog-use.js</b><br/>Each organization's catalog,<br/>or the starter; what a new live<br/>catalog would stop building"]
     executor["<b>executor/</b><br/>compose, package, uploads,<br/>settings, report, evidence, resume"]
