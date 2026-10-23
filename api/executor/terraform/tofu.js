@@ -24,9 +24,6 @@ export const IMAGE_CLI_CONFIG = "/etc/sealeye/tofu.tfrc";
 /** The lock file for the one provider, written when the image was built. */
 export const IMAGE_LOCK_FILE = "/usr/share/sealeye/tofu/.terraform.lock.hcl";
 
-/** The profile the Terraform deploy role is reached through (deploy/settings.mjs). */
-export const TERRAFORM_PROFILE = "sealeye-deploy-terraform";
-
 /**
  * The AWS profile a Terraform environment acts through: the Terraform deploy role's, on
  * the server; whatever the API itself has on a laptop.

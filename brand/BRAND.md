@@ -25,7 +25,7 @@ Chosen September 20, 2026. Everything the developer sees comes from this file.
 Two colours only in the terminal: phosphor for the product and for good news, amber for anything that asks the developer something. Failures are amber, not red; the brand does not add a third colour under stress.
 
 ## The mark
-A rounded terminal window with a phosphor `>` and an amber cursor block. Files: `sealeye-mark.svg`, `sealeye-mark.png`. Sits to the left of the wordmark at cap height; alone as the deck icon and README hero.
+A rounded terminal window with a phosphor `>` and an amber cursor block. File: `sealeye-mark.svg`. Sits to the left of the wordmark at cap height; alone as the deck icon and README hero.
 
 ## Rules
 - The banner prints once at the top of every command: the figlet block in phosphor, then the tagline line in Dim with optional meta (version, region).

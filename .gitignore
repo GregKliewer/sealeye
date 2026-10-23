@@ -11,6 +11,5 @@ DEPLOYMENT_PLAN.md
 sealeye.yaml
 deployme.yaml
 .claude/
-qa/
 eval-results/
 npm-shrinkwrap.json

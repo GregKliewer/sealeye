@@ -7,14 +7,7 @@ const rgb = (r, g, b) => (enabled ? `\x1b[38;2;${r};${g};${b}m` : "");
 const RESET = enabled ? "\x1b[0m" : "";
 const BOLD = enabled ? "\x1b[1m" : "";
 
-export const palette = {
-  ground: "#13181D",   // terminal background (set in the terminal app, not printed)
-  fg: "#D9E0E6",       // default text
-  accent: "#7FD8C2",   // phosphor: wordmark, success, values the developer chose
-  prompt: "#E8B04B",   // amber: the $ prompt and every question
-  dim: "#8A96A3",      // secondary text, timestamps, "what the platform is doing"
-};
-
+// The colours below are brand/BRAND.md's palette, as RGB.
 export const c = {
   accent: (s) => `${rgb(127, 216, 194)}${s}${RESET}`,
   prompt: (s) => `${rgb(232, 176, 75)}${s}${RESET}`,
