@@ -1,7 +1,9 @@
 # seaLeye: architecture
 
 First written Oct 12, 2026, at 2.20.0 (main at PR #31); brought up to date Oct 22,
-2026, at 2.46.9, as Phase 4's build ended (PHASE4-PLAN Step 11). This file describes the
+2026, at 2.46.9, as Phase 4's build ended (PHASE4-PLAN Step 11); diagrams redrawn Oct 23,
+2026, at 2.48.1, for the Terraform executor, connected modules and the private network.
+This file describes the
 system as it is built today. Why each part is the way it is lives in [DESIGN.md](../DESIGN.md);
 where it is going lives in [VISION.md](VISION.md) and [ROADMAP.md](ROADMAP.md). When a
 change makes a diagram here wrong, fix the diagram in the same commit.
@@ -47,15 +49,16 @@ that the catalog cannot build.
 | Goal | What it means for the architecture |
 |---|---|
 | **Parity** | One API; the command and the portal are thin clients of it. An operation is an endpoint first. |
-| **Only the certified platform** | The API builds only from `templates/`, through a role scoped to seaLeye's names and a permissions boundary on every function. |
+| **Only the certified platform** | The API builds only from `templates/` (CloudFormation) or the organization's own released modules in a live catalog (OpenTofu), each through a role scoped to seaLeye's names and a permissions boundary on every function. |
 | **Refuse, never shrink** | The plan contract (`core/schema.js`) decides ready or drafted; the API refuses drafted plans itself, whatever the client says. |
 | **Real status** | A deployment's status mirrors its stack, polled by the API every few seconds; pause state, logs, readings and costs are read from AWS when asked. Nothing is assumed. |
 | **No secrets anywhere** | Secret files never leave the developer's machine with contents; setting values go to the organization's store and are never kept, logged or shown. |
 | **The developer's code is theirs** | The app is never changed. What the platform needs is injected into the packaged copy. |
 | **Cheap to run and to change** | One small server, plain SQL migrations, the AWS CLI instead of an SDK, tests that need no AWS and no model. |
 
-Constraints today: one cloud (AWS), one region (ca-central-1), one backend
-(CloudFormation), one runtime (Node 20), one API process.
+Constraints today: one cloud (AWS), one region (ca-central-1), two backends
+(CloudFormation for the starter's modules, OpenTofu for an organization's own), one stage
+(dev), one runtime (Node 20), one API process.
 
 ## 3. Context (C4 level 1)
 
@@ -64,30 +67,32 @@ Who uses seaLeye and what it depends on.
 ```mermaid
 flowchart TB
   dev["<b>Developer</b><br/>[Person]<br/>Brings an app, wants an environment"]
-  admin["<b>Platform administrator</b><br/>[Person]<br/>Issues tokens, releases seaLeye,<br/>reads the needs ledger"]
+  admin["<b>seaLeye administrator</b><br/>[Person]<br/>Issues tokens, releases seaLeye,<br/>parks and unparks the pilot"]
+  platform["<b>Platform team</b><br/>[Person, organization-wide token]<br/>Runs discovery, approves and makes<br/>catalogs live, sets platform values,<br/>reads the gap report"]
   control["<b>Control partners</b><br/>[Person]<br/>Read evidence and records"]
 
   sealeye["<b>seaLeye</b><br/>[Software system]<br/>Interviews the app, plans, refuses or builds,<br/>and manages the environment over time"]
 
-  aws["<b>The organization's AWS</b><br/>[External system]<br/>Where environments are built<br/>and app settings are stored"]
+  aws["<b>The organization's AWS</b><br/>[External system]<br/>Where environments are built,<br/>Terraform state is kept<br/>and app settings are stored"]
   anthropic["<b>Anthropic</b><br/>[External system]<br/>The model behind the interview"]
   langfuse["<b>LangFuse</b><br/>[External system]<br/>Interview traces and scores<br/>(optional)"]
   github["<b>GitHub</b><br/>[External system]<br/>Source, tests, image builds"]
-  library["<b>The organization's platform library</b><br/>[External system, on GitHub]<br/>Its Terraform modules and pipeline"]
+  library["<b>The organization's platform library</b><br/>[External system, on GitHub]<br/>Its Terraform modules, released by tag,<br/>and its pipeline"]
 
   dev -- "sealeye run, or the portal" --> sealeye
   admin -- "tokens, releases" --> sealeye
+  platform -- "sealeye discover, catalog, platform,<br/>gaps, or the portal" --> sealeye
   control -- "evidence, history" --> sealeye
   sealeye -- "builds and reads environments" --> aws
   sealeye -- "model calls" --> anthropic
   sealeye -. "traces, no file contents" .-> langfuse
   github -- "tested image" --> sealeye
-  sealeye -- "reads one commit, read-only<br/>(discovery)" --> library
+  sealeye -- "reads one commit or a module's release,<br/>read-only (discovery and every build)" --> library
 
   classDef person fill:#08427b,stroke:#052e56,color:#fff
   classDef system fill:#1168bd,stroke:#0b4884,color:#fff
   classDef external fill:#999,stroke:#6b6b6b,color:#fff
-  class dev,admin,control person
+  class dev,admin,platform,control person
   class sealeye system
   class aws,anthropic,langfuse,github,library external
 ```
@@ -111,17 +116,21 @@ flowchart TB
 
   subgraph server["Pilot server (one EC2 instance)"]
     caddy["<b>Caddy</b><br/>[Reverse proxy]<br/>TLS for every domain; serves the portal,<br/>seaLeye.run and the installer"]
-    api["<b>seaLeye API</b><br/>[Node 20, Express, api/ + core/]<br/>Interview, plan contract, executor,<br/>day-two operations"]
+    api["<b>seaLeye API</b><br/>[Node 20, Express, api/ + core/,<br/>OpenTofu in the image]<br/>Interview, discovery, plan contract,<br/>both executors, day-two operations"]
     pg[("<b>Postgres 16</b><br/>[Database]<br/>Records, tokens, sessions,<br/>setting changes, interviews")]
     gw["<b>Model gateway</b><br/>[agentgateway, deploy/gateway.yaml]<br/>Holds the model key; the API's key<br/>and the 30-day money budget"]
   end
 
   subgraph aws["The organization's AWS account"]
-    cfn["<b>CloudFormation</b><br/>One stack per environment"]
-    s3a[("<b>Artifact bucket</b><br/>Packaged app zips")]
+    cfn["<b>CloudFormation</b><br/>One stack per starter environment"]
+    s3a[("<b>Artifact bucket</b><br/>Packaged app zips;<br/>tofu-state/org/environment.tfstate<br/>and its lock file")]
     ssm[("<b>Parameter Store</b><br/>App setting values,<br/>/sealeye-apps/team/app/")]
-    envs["<b>Environments</b><br/>Lambda + HTTP API,<br/>or an S3 static site"]
-    cw["<b>CloudWatch, Cost Explorer</b><br/>Logs, readings, costs"]
+    envs["<b>Starter environments</b><br/>Lambda + HTTP API,<br/>or an S3 static site"]
+    subgraph net["Foundation network (platform-sealeye-foundation)"]
+      tfenvs["<b>Environments from the organization's modules</b><br/>The app's module (an API or a site)<br/>and the parts it uses: table, bucket,<br/>queue, Postgres with IAM sign-in"]
+      vpce["<b>Private endpoints</b><br/>tables and buckets (free, foundation);<br/>Secrets Manager (platform-sealeye-endpoints)"]
+    end
+    cw["<b>CloudWatch, Cost Explorer</b><br/>Logs (the app's, the front door's,<br/>the database's), readings, costs"]
   end
 
   anthropic["<b>Anthropic API</b>"]
@@ -135,15 +144,17 @@ flowchart TB
   caddy -- "HTTP :3000" --> api
   api -- "SQL" --> pg
   api -- "AWS CLI, as the deploy role" --> cfn
-  api -- "upload" --> s3a
+  api -- "tofu init, plan, apply, destroy,<br/>as the Terraform role" --> tfenvs
+  api -- "upload; Terraform state" --> s3a
   api -- "put, list names" --> ssm
   api -- "read" --> cw
   cfn -- "creates" --> envs
   envs -- "read own settings at start" --> ssm
+  tfenvs -- "no NAT: through" --> vpce
   api -- "model calls, the API's key<br/>and a token it signs per call" --> gw
   gw -- "model calls, the model key" --> anthropic
   api -. "traces" .-> langfuse
-  api -- "one commit as an archive,<br/>GitHub App or read-only token" --> libgh
+  api -- "one commit or a module's release<br/>as an archive, GitHub App<br/>or read-only token" --> libgh
 
   classDef person fill:#08427b,stroke:#052e56,color:#fff
   classDef container fill:#438dd5,stroke:#2e6295,color:#fff
@@ -152,15 +163,15 @@ flowchart TB
   class dev person
   class cli,portal,caddy,api,gw container
   class pg store
-  class cfn,s3a,ssm,envs,cw,anthropic,langfuse,libgh external
+  class cfn,s3a,ssm,envs,tfenvs,vpce,cw,anthropic,langfuse,libgh external
 ```
 
 | Container | Code | Talks to | Notes |
 |---|---|---|---|
 | `sealeye` command | `cli/`, `core/` | the API only | Holds a token (`~/.sealeye/config`, 0600), never a model key or AWS credentials for deploying. Installed from seaLeye.run. |
 | Portal | `portal/` | the API only, at `/api` on its own origin | Imports a few browser-safe `core/` files so both surfaces say the same words. Every value on a page comes from an API call. |
-| Caddy | `deploy/Caddyfile` | the API, static files Certificates for sealeye.online, api.sealeye.online and sealeye.run (sealeye.org is GitHub Pages). Passes the interview's event stream through unbuffered. |
-| API | `api/`, `core/`, `prompts/`, `templates/` | Postgres, AWS (CLI), the model gateway, LangFuse | The only part that reaches AWS. One process. On the server it holds a key for the gateway, not a model key; on a laptop, with no `SEALEYE_GATEWAY_KEY`, it calls Anthropic with its own key. |
+| Caddy | `deploy/Caddyfile` | the API, static files | Certificates for sealeye.online, api.sealeye.online and sealeye.run (sealeye.org is GitHub Pages). Passes the interview's event stream through unbuffered. |
+| API | `api/`, `core/`, `prompts/`, `templates/` | Postgres, AWS (CLI and OpenTofu), the model gateway, LangFuse, GitHub | The only part that reaches AWS: the AWS CLI as the deploy role for the starter's templates, `tofu` (pinned in the image, providers from the image only) as the Terraform role for an organization's modules. One process. On the server it holds a key for the gateway, not a model key; on a laptop, with no `SEALEYE_GATEWAY_KEY`, it calls Anthropic with its own key. |
 | Model gateway | `deploy/gateway.yaml`, `deploy/gateway.sh` | Anthropic | agentgateway, pinned by digest. The only part on the server that holds the model key. Lets through only the API's key with a token the API signed for that call (person, team, run, worker, surface), and logs those names; keeps a money budget for each 30-day period and a record of every call (90 days, read by `deploy/server.sh gateway-calls`) in its own SQLite file, and a per-run token limit in memory; logs no prompts or replies. On a network of its own that only the API joins; no published port. |
 | Postgres | `api/migrations/` | | Reachable only from the API, on the server's own network. |
 
@@ -169,23 +180,24 @@ flowchart TB
 ```mermaid
 flowchart LR
   subgraph api["seaLeye API (api/)"]
-    server["<b>server.js</b><br/>Routes, auth, scoping<br/>by organization and team"]
+    server["<b>server.js, busy.js</b><br/>Routes, auth, scoping<br/>by organization and team;<br/>one change at a time per environment"]
     tokens["<b>tokens.js</b><br/>Tokens and portal sessions,<br/>stored as hashes"]
     interview["<b>interview/</b><br/>graph.js, model.js, tools.js,<br/>service.js, pgstore.js"]
     discovery["<b>discovery/</b><br/>library, terraform, readers,<br/>draft, service, store"]
     validate["<b>validate.js, needs.js</b><br/>The plan contract,<br/>the needs ledger"]
     gaps["<b>gaps.js, self-test.js</b><br/>The gap report;<br/>a catalog's self-test"]
-    catalogs["<b>catalogs.js</b><br/>Each organization's catalog,<br/>or the starter"]
+    catalogs["<b>catalogs.js, catalog-use.js</b><br/>Each organization's catalog,<br/>or the starter; what a new live<br/>catalog would stop building"]
     executor["<b>executor/</b><br/>compose, package, uploads,<br/>settings, report, evidence, resume"]
-    terraform["<b>executor/terraform/</b><br/>the organization's module,<br/>root module, OpenTofu"]
+    terraform["<b>executor/terraform/</b><br/>index (lifecycle, interface sweep),<br/>library (the module at its release),<br/>versions, root (main.tf.json),<br/>tofu.js (the only file that spawns tofu)"]
+    gwtoken["<b>gateway-token.js, model-routes.js</b><br/>A signed token on every model call;<br/>discovery's small and frontier routes"]
     platform["<b>platform.js</b><br/>Each organization's<br/>platform values"]
-    cfn["<b>executor/cfn.js</b><br/>Every AWS call but the<br/>artifact upload"]
+    cfn["<b>executor/cfn.js</b><br/>The only file that spawns aws:<br/>stacks, artifacts, site sync,<br/>logs, interfaces"]
     dayTwo["<b>logs, performance, costs,<br/>pause, team, setting-changes</b>"]
     store["<b>store.js, db.js</b><br/>Records in memory,<br/>written through to Postgres"]
     scan["<b>secret-scan.js</b><br/>The shared rules again,<br/>then gitleaks"]
   end
 
-  core["<b>core/</b><br/>schema, catalog, names, upload rules,<br/>secrets, secret scan rules, tracing,<br/>plan, gap and platform-line words"]
+  core["<b>core/</b><br/>schema, catalog, terraform-modules,<br/>module-versions, names, upload rules,<br/>secrets, secret scan rules, tracing,<br/>plan, gap, discovery, developer<br/>and platform-line words"]
   prompts["<b>prompts/, templates/</b><br/>System prompt, contract,<br/>module catalog, CloudFormation"]
 
   server --> tokens
@@ -215,6 +227,10 @@ flowchart LR
   terraform --> cfn
   terraform --> discovery
   terraform --> platform
+  terraform --> store
+  dayTwo --> terraform
+  interview --> gwtoken
+  discovery --> gwtoken
   validate --> platform
   server --> platform
   platform --> store
@@ -265,7 +281,7 @@ flowchart TB
 
   subgraph mac["Administrator's Mac"]
     release["<b>deploy/release.sh</b><br/>Builds the portal and package,<br/>sends the release"]
-    serversh["<b>deploy/server.sh</b><br/>backup, restore-check, import,<br/>restart, logs, token add/revoke/list,<br/>gateway-restart, gateway-logs,<br/>gateway-calls"]
+    serversh["<b>deploy/server.sh</b><br/>backup, restore-check, import,<br/>restart, logs, disk, settings-sources,<br/>token add/revoke/list (--org, --org-wide),<br/>gateway-restart, gateway-logs, gateway-calls,<br/>library-check, tofu-unlock,<br/>park, unpark"]
   end
 
   subgraph acct["AWS account, ca-central-1"]
@@ -281,8 +297,15 @@ flowchart TB
         c4["gateway :4000<br/>(network: model)"]
       end
     end
-    deployRole["<b>sealeye-deploy-pilot</b><br/>role + function permissions boundary"]
-    stacks["<b>Environment stacks</b><br/>sealeye-team-app-hash"]
+    artifacts[("<b>Artifact bucket</b><br/>app zips; tofu-state/ and lock files")]
+    deployRole["<b>sealeye-deploy-pilot</b><br/>role + function permissions boundary<br/>(platform-sealeye-deploy-role)"]
+    tfRole["<b>sealeye-deploy-terraform-*</b><br/>role, function boundary, setup boundary,<br/>logs policy (platform-sealeye-terraform-role)"]
+    stacks["<b>Starter environments</b><br/>stacks sealeye-team-app-hash"]
+    subgraph foundation["platform-sealeye-foundation"]
+      vpc["VPC, private subnets, database<br/>and cache subnet groups,<br/>apps / databases / caches groups,<br/>free endpoints for tables and buckets"]
+      tfenvs["<b>Environments from the<br/>organization's modules</b><br/>and their parts"]
+    end
+    endpoints["<b>platform-sealeye-endpoints</b><br/>Secrets Manager endpoint;<br/>deleted by park, made by unpark"]
   end
 
   c1 -- "HTTP" --> c2
@@ -298,14 +321,27 @@ flowchart TB
   c2 -- "read settings at start,<br/>never gateway/" --> ssmp
   ec2 -- "gateway.sh: model key,<br/>gateway key, budget" --> ssmp
   c2 -- "assume role" --> deployRole
+  c2 -- "assume role (tofu)" --> tfRole
   deployRole -- "create, update, delete" --> stacks
+  tfRole -- "apply, destroy,<br/>sweep detached interfaces" --> tfenvs
+  tfRole -- "state, artifacts" --> artifacts
+  serversh -- "park, unpark" --> endpoints
+  tfenvs -. "Secrets Manager<br/>(database setup only)" .-> endpoints
   dns -- "A records" --> ec2
 ```
 
-- **Platform stacks** are named `platform-sealeye-*` (server, deploy role, CI role, one
-  DNS stack per domain). The deploy role cannot touch them.
+- **Platform stacks** are named `platform-sealeye-*`: server, deploy role, Terraform
+  role, CI role, foundation (the network), endpoints (its paid endpoints), and one DNS
+  stack per domain. Neither deploy role can touch them; the Terraform role may change
+  only security groups an environment made.
+- **Parking** (`deploy/server.sh park`, refused while any environment stands) keeps a
+  backup in `parked/`, deletes `platform-sealeye-endpoints` and stops the server;
+  `unpark` reverses it. The foundation network is kept, since the platform values name
+  its ids.
 - **The server's own role** can read its settings, pull its image, use its config
-  bucket and assume a `sealeye-deploy-*` role. It cannot build anything itself.
+  bucket and assume a `sealeye-deploy-*` role (the deploy role, or the Terraform role
+through the `sealeye-deploy-terraform` profile `deploy/settings.mjs` writes). It cannot
+build anything itself.
 - **The API's settings** come from Parameter Store under `/sealeye/` at start
   (`deploy/settings.mjs`), including LangFuse keys, the key it calls the model gateway
   with and the database password. The API then drops the database password from its
@@ -329,7 +365,8 @@ sequenceDiagram
   participant API as seaLeye API
   participant M as Anthropic model<br/>(through the gateway on the server)
   participant DB as Postgres
-  participant AWS as AWS (as deploy role)
+  participant AWS as AWS (deploy role or Terraform role)
+  participant Lib as Platform library (GitHub)
 
   Dev->>CLI: sealeye run (in the app folder)
   CLI->>API: GET /deployments (is this app already live?)
@@ -370,10 +407,21 @@ sequenceDiagram
     API-->>CLI: 201, deploymentId
     par in the API, in the background
       API->>API: packaging: npm install --ignore-scripts<br/>in dist/stage, add run.sh, zip
-      API->>AWS: s3 cp the artifact, then cloudformation deploy
-      loop every 5 seconds until final
-        API->>AWS: describe-stacks
-        API->>DB: record: running, then succeeded or failed, with outputs
+      alt the starter's modules (CloudFormation, as the deploy role)
+        API->>AWS: s3 cp the artifact, then cloudformation deploy
+        loop every 5 seconds until final
+          API->>AWS: describe-stacks
+          API->>DB: record: running, then succeeded or failed, with outputs
+        end
+      else the organization's modules (OpenTofu, as the Terraform role)
+        API->>Lib: each module at the live catalog's release,<br/>read-only, checked again for anything it would run
+        API->>API: main.tf.json: module.app, module per part,<br/>inputs from the plan, the platform values<br/>and the parts' outputs (connect), state key
+        opt a part in the private network
+          API->>AWS: sweep detached network interfaces
+        end
+        API->>AWS: tofu init, plan, apply (step shown live)
+        API->>AWS: tofu output, and a site's files synced
+        API->>DB: record: succeeded or failed, outputs,<br/>versions built and the change in versions
       end
     and in the command
       CLI->>API: GET /deployments/{id}, for a few seconds
@@ -383,15 +431,52 @@ sequenceDiagram
   end
 ```
 
-A static site follows the same path without the package: the stack makes the bucket and
-the API copies the files into it before calling the deploy a success. On a re-run, the
+A static site follows the same path without the package: the stack (or the
+organization's module) makes the bucket and the API copies the files into it before
+calling the deploy a success. A plan from the organization's catalog is planVersion 0.6
+when it connects modules: each part says in `connect` which setting each value it offers
+reaches the app under, and code wires the rest. An app's module joins the network only
+when a part it uses is in it. On a re-run, the
 first call finds the live environment, and the plan card is a difference against it.
 
 The portal's New environment page runs the same flow from a folder chosen in the
 browser, using the same upload rules (`core/upload-rules.js`). An interview started on
 one surface can be finished on the other.
 
-### 7.2 Portal sign-in
+### 7.2 Tearing an environment down
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor Dev as Developer
+  participant CLI as sealeye command (or the portal's Tear down)
+  participant API as seaLeye API
+  participant DB as Postgres
+  participant AWS as AWS
+
+  Dev->>CLI: sealeye teardown [app]
+  CLI->>API: GET /deployments/{id}
+  CLI->>Dev: what the environment holds ("This also deletes ...,<br/>and everything in it"), and in the private network,<br/>that it can take up to 20 minutes
+  CLI->>Dev: Tear down app, and everything it holds? [y/N]
+  Dev->>CLI: y
+  CLI->>API: DELETE /deployments/{id}
+  API->>API: one change at a time (409 ENVIRONMENT_BUSY)
+  API->>DB: record: destroying
+  alt a starter environment
+    API->>AWS: empty a site's bucket, delete-stack, poll
+  else from the organization's modules
+    API->>AWS: empty each bucket it holds, tofu destroy
+    opt in the private network
+      API->>AWS: sweep the detached interfaces its functions left
+    end
+  end
+  API->>DB: record: destroyed (stack gone, or the state empty)
+  CLI->>Dev: destroyed
+```
+
+A script with no terminal reads the same words and goes on without asking.
+
+### 7.3 Portal sign-in
 
 ```mermaid
 sequenceDiagram
@@ -421,7 +506,7 @@ sequenceDiagram
   Note over B,API: Any change made with the cookie must also carry x-sealeye-portal: 1
 ```
 
-### 7.3 An app reads its settings when it starts
+### 7.4 An app reads its settings when it starts
 
 ```mermaid
 sequenceDiagram
@@ -438,7 +523,7 @@ sequenceDiagram
   Note over R,A: The app's code is unchanged: it reads process.env as it always did
 ```
 
-### 7.4 One model call
+### 7.5 One model call
 
 Every turn of an interview is one of these (PHASE3-PLAN Steps 3 to 7). On a laptop, with
 no gateway key, the API calls Anthropic directly with its own key and steps 2 to 4 and
@@ -468,7 +553,7 @@ sequenceDiagram
   Note over API,G: A refusal is never retried. The developer reads that the run reached<br/>its limit, or that seaLeye has used its model budget for this period.
 ```
 
-### 7.5 Release
+### 7.6 Release
 
 ```mermaid
 sequenceDiagram
@@ -653,6 +738,7 @@ LangGraph's own checkpoint tables also live in `interview_state`.
 |---|---|---|
 | App setting values | Parameter Store, `/sealeye-apps/<team>/<app>/` | until unset; never copied into seaLeye |
 | Packaged app zips | artifact bucket, `<name>/<deploymentId>.zip` | reused by Deploy again |
+| Terraform state | artifact bucket, `tofu-state/<org>/<environment>.tfstate`, with its lock file | until the environment is torn down |
 | Uploaded copies | `~/.sealeye/deploy-uploads/<deploymentId>/` on the server | until the deployment ends |
 | Interview scratch folders | on the server | until the interview ends, or a day |
 | Backups | config bucket, `backups/` | 30 days |
@@ -661,13 +747,19 @@ LangGraph's own checkpoint tables also live in `interview_state`.
 
 ### 8.3 The plan contract
 
-planVersion 0.5, in `core/schema.js` (`contractSchema`). A plan names the catalog it
+planVersion 0.5, or 0.6 when it connects modules, in `core/schema.js` (`contractSchema`). A plan names the catalog it
 was written against (`catalog: starter`, or the version of one of the organization's
 own that is or was live), and its module ids and need kinds are checked against that
 catalog (`schemaFor` in `core/catalog.js`, `api/validate.js`). A module is buildable
-when the catalog marks it available and the platform has an executor for what its
-`builds_with` names: today CloudFormation, which builds the starter's four
-(`static_site_edge`, `http_api_serverless`, `observability_basic`, `config_basic`).
+when the catalog marks it available, no question it rests on is still open, and the
+platform has an executor for what its `builds_with` names: CloudFormation, which builds
+the starter's four (`static_site_edge`, `http_api_serverless`, `observability_basic`,
+`config_basic`), or Terraform, for a module whose every required input has a source
+(seaLeye, the plan or the organization's platform values), that takes the app's code or
+offers it access, and runs no commands (`terraformBuilds` in
+`core/terraform-modules.js`). A module the app uses (`isPart`) says in `connect` which
+setting each value it offers reaches the app under; that makes the plan 0.6
+(`connectionProblems`).
 Anything else an app needs is a NEED from that catalog's need kinds, or `unlisted`,
 with evidence naming the file. A plan with needs is `drafted`; a plan without is
 `ready`. 0.2, 0.3 and 0.4 plans are read as 0.5 against the starter. The interview plans
@@ -691,16 +783,26 @@ flowchart LR
     auth["Token or session check,<br/>team and org scoping"]
     sandbox["Interview tools: read-only,<br/>inside the copy, secret files and<br/>files with a finding refused"]
     pkg["Packaging: --ignore-scripts,<br/>scrubbed environment"]
+    tofu["OpenTofu: released modules only,<br/>checked for anything they run;<br/>providers from the image only"]
+  end
+  subgraph libside["Platform library (GitHub)"]
+    lib["Read-only, one repository,<br/>token revoked after use"]
   end
   subgraph cloud["AWS"]
     role["Deploy role: seaLeye's templates<br/>and names only"]
     boundary["Function boundary: logs<br/>and its own settings only"]
+    tfrole["Terraform role: sealeye-* names,<br/>never platform-sealeye-*;<br/>logs through its own policy"]
+    tfboundary["Function boundary: logs; dev tables,<br/>buckets and queues named for seaLeye;<br/>joining the network; rds-db:connect"]
+    setup["Setup boundary: the database's<br/>one-time setup function alone<br/>reads the kept master password"]
   end
   subgraph modelside["Model gateway (its own network)"]
     gw["Only the API's key and a token<br/>the API signed; budget and run limit;<br/>holds the model key; logs no content"]
   end
   files -- "filtered zip" --> caddy --> auth --> sandbox
   auth --> pkg --> role --> boundary
+  pkg --> tofu --> tfrole --> tfboundary
+  tfrole --> setup
+  lib -- "scanned again" --> tofu
   sandbox -- "model calls" --> gw
 ```
 
