@@ -333,3 +333,19 @@ export function builtWords(result) {
   const versions = result.versions || {};
   return `Built from this catalog: ${built.map(id => withVersion(id, versions[id])).join(", ")}.`;
 }
+
+/**
+ * One app that uses a module, as both surfaces say it: its name, the release it was built
+ * at where there is one, and its team (Greg, Oct 23, 2026).
+ * @param {{ app: string, team: string, version: string | null }} u
+ */
+export function moduleUserWords(u) {
+  return `${u.app}${u.version ? ` at ${u.version}` : ""} (team ${u.team})`;
+}
+
+/** Which apps use a module, in a line: "used by no app yet", or each app. */
+export function usedByWords(usedBy) {
+  const list = Array.isArray(usedBy) ? usedBy : [];
+  if (!list.length) return "used by no app yet";
+  return `used by ${list.map(moduleUserWords).join(", ")}`;
+}

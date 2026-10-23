@@ -4801,3 +4801,30 @@ request.
   with a phosphor rule, who and when and where it stands on a dim line below, a divider
   between pairs, and "asked in an earlier run" on a question carried from one.
 
+## Long lists page, filter by status, and the Catalog page says which apps use what
+
+Decided Fri Oct 23, 2026. Greg asked for shorter lists with paging (an app's history, a
+catalog's entries, Catalogs, Answered), status filters (an app's history, Catalogs), and
+for the Catalog page to say which apps use each module and which apps wait on each need.
+
+- **A page at a time, the size each card remembers** (Greg chose (a) of three): a
+  picker of 10, 25 or 50 rows, kept in this browser per card, 10 to begin with. A code
+  constant would need a release to change, and an organization setting would need an
+  endpoint and a page of its own for what is a reader's preference. Nothing pages a
+  list that fits ten rows.
+- **Status chips with counts** (Greg's choice over a dropdown): every status a list
+  holds, all on to begin with, several at once; paging counts only what is shown.
+- **Paging and chips are the portal's, as display** (Greg agreed): every row still comes
+  from the API, and the command prints the whole list, which a terminal scrolls and
+  pipes. Lists are small enough to page in the browser; server-side paging waits until
+  one is not.
+- **Which apps use a module** comes from the API first (parity): GET /catalog gives each
+  module `usedBy`, each app standing on it (a deploy has succeeded since it was last torn
+  down; its newest one says what it runs) with its team and the release it was built at,
+  none for the starter's own modules (`api/module-use.js`). `sealeye catalog` prints
+  "used by ..." under each module, in the words the page uses (`usedByWords`).
+- **Who sees which apps** (Greg chose (a)): as the needs ledger does, every app in the
+  organization by name and team, with its page linked only where the viewer may open it.
+  A module's reach across teams is worth knowing to a team too. GET /needs now gives each
+  app's `path` on the same rule, for the need rows that open to their apps.
+

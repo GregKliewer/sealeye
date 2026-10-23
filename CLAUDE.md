@@ -35,7 +35,8 @@ cli/        the sealeye command: bin/sealeye, client.js (talks to the API), inte
 api/        the API: server.js, store.js, db.js, migrations/, catalogs.js (each organization's
             catalog, or the starter), gaps.js (the gap report), self-test.js (what a catalog passes before it is
             approved and made live), catalog-use.js (the environments a catalog would
-            stop building), needs.js, mappings.js, validate.js,
+            stop building), needs.js, module-use.js (which apps use each module, at
+            which release), mappings.js, validate.js,
             secret-scan.js and gitleaks.toml (the API's scan of what arrives),
             gateway-token.js (the token on every model call), model-routes.js (the
             gateway's named routes, small and frontier), discovery/ (reading a platform
@@ -241,10 +242,10 @@ POST /plans/validate, POST /deployments ({ plan, appPath, zip?, settings? }, or
 GET /deployments/events (server-sent events: the id of each deployment the caller can see
 whenever what GET /deployments shows of it changes; five minutes a stream), GET /deployments/{id}, GET /deployments/{id}/plan (the plan as approved and the report), GET /deployments/{id}/evidence, GET /deployments/{id}/logs (masked; a line the platform wrote carries `platform: { kind, words }`, the developer's reading of it, `core/platform-lines.js`; with the front door's and a module's own lines beside the app's, `sources` and each line's `from`, and `?from=` reads one place), GET /deployments/{id}/performance (readings), GET /deployments/{id}/paused and POST
 /deployments/{id}/pause and /resume (APIs only), DELETE /deployments/{id},
-GET /needs, GET /gaps (the gap report: what developers asked for that the live catalog cannot build, judged by which needs its modules meet; an organization-wide token's only), GET /health, GET /interviews (your own still open), POST /interviews ({ app, zip, findings? },
+GET /needs (each app with its portal `path` where the caller may open it), GET /gaps (the gap report: what developers asked for that the live catalog cannot build, judged by which needs its modules meet; an organization-wide token's only), GET /health, GET /interviews (your own still open), POST /interviews ({ app, zip, findings? },
 answered with the interview and its findings), POST
 /interviews/{id}/answers ({ answer }), GET /interviews/{id}/events (server-sent events),
-DELETE /interviews/{id}, GET /whoami, GET /team (people with tokens, never a token), GET /costs (by tag), GET /catalog (the organization's live catalog, or the starter, and which; ?version= the one a plan names; `document` is it as clients draw a plan from it, only what the platform builds), GET /apps/{app}/settings, PUT
+DELETE /interviews/{id}, GET /whoami, GET /team (people with tokens, never a token), GET /costs (by tag), GET /catalog (the organization's live catalog, or the starter, and which; ?version= the one a plan names; `document` is it as clients draw a plan from it, only what the platform builds; each module's `usedBy`, the apps standing on it and their release, `api/module-use.js`), GET /apps/{app}/settings, PUT
 /apps/{app}/settings/{name} ({ value }) and DELETE /apps/{app}/settings/{name} (an app's
 settings in the store: names out, values in, never back), POST /sessions ({ token }) and
 DELETE /sessions (the portal's sign-in and sign-out), GET /platform (?stage=; the
@@ -463,7 +464,11 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   `/discovery?catalog=<v>`, as `sealeye catalog show <v>` does), Platform (the organization's platform values) and Gaps (the
   gap report), shown only to an organization-wide token. Control shows only what an environment offers. Costs and the Settings card are shown only to an
   organization whose settings and costs are kept (`hasSettingsAndCosts` in
-  `core/token.js`); the header names the token's own organization. Integrations is
+  `core/token.js`); the header names the token's own organization. Long lists (an
+  app's history, a catalog's entries, Catalogs, Answered) show a page at a time with a
+  rows picker each card remembers in the browser, and an app's history and Catalogs have
+  status chips (`portal/src/components/Paging.tsx`); Catalog's modules open to the apps
+  using them, and its needs to the apps waiting, linked where the viewer may open them. Integrations is
   drawn in the archived mock-up only (Phase 5); the portal shows nothing it cannot do.
 
 ## Working here

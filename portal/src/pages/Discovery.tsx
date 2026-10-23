@@ -22,6 +22,7 @@ import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
+import { Chips, NOTHING_CHOSEN, Pager, useChips, usePaged } from "../components/Paging";
 
 export function DiscoveryPage() {
   const { person } = useSession();
@@ -141,6 +142,7 @@ function Discovery() {
   const questions = run?.questions || [];
   const open = questions.filter(isOpen);
   const answered = questions.filter(q => !isOpen(q));
+  const answeredPaged = usePaged(answered, "answered", run?.discoveryId ?? null);
   // The catalog the cards show: the chosen one, or the run's own draft.
   const shownVersion = chosen ?? run?.catalog?.version;
   const shownStatus = catalogList.data?.catalogs.find(c => c.version === shownVersion)?.status || null;
@@ -227,7 +229,7 @@ function Discovery() {
           </CardHeader>
           <CardContent>
             <ul className="divide-y divide-rule">
-              {answered.map(q => (
+              {answeredPaged.shown.map(q => (
                 <li key={q.id} className="py-3 first:pt-0 last:pb-0 text-sm" data-testid="answered-question">
                   <div className="font-medium">{q.question}</div>
                   {/* The answer as a reply to the question: set in, under a phosphor rule. */}
@@ -240,6 +242,7 @@ function Discovery() {
                 </li>
               ))}
             </ul>
+            <Pager paged={answeredPaged} className="mt-4" />
           </CardContent>
         </Card>
       ) : null}
@@ -324,6 +327,7 @@ function DraftTable({ draft, version, questions, tick, onChanged }: { draft: Dra
     return () => { live = false; };
   }, [version, tick]);
   const editable = status === "draft" && typeof version === "number";
+  const modulesPaged = usePaged(draft.modules, "catalog-entries", version ?? null);
   return (
     <Card className="mt-8" data-testid="draft">
       <CardHeader><CardTitle data-testid="draft-title">{typeof version === "number" ? catalogTitleWords(version, status) : "Draft catalog"}</CardTitle></CardHeader>
@@ -337,7 +341,7 @@ function DraftTable({ draft, version, questions, tick, onChanged }: { draft: Dra
             <TableRow><TableHead>Module</TableHead><TableHead>Folder</TableHead><TableHead>Offered</TableHead><TableHead>What it gives an app</TableHead>{editable ? <TableHead><span className="sr-only">{label("catalog-edit")}</span></TableHead> : null}</TableRow>
           </TableHeader>
           <TableBody>
-            {draft.modules.map(m => {
+            {modulesPaged.shown.map(m => {
               const resting = (m.open || []).filter(id => openIds.has(id));
               return (
                 <Fragment key={m.id}>
@@ -365,6 +369,7 @@ function DraftTable({ draft, version, questions, tick, onChanged }: { draft: Dra
             })}
           </TableBody>
         </Table>
+        <Pager paged={modulesPaged} className="mt-3" />
       </CardContent>
     </Card>
   );
@@ -407,6 +412,9 @@ function CatalogsCard({ tick, runDraft, chosen }: { tick: number; runDraft?: num
   // Any draft's words, as `sealeye catalog edit <v>` reaches any draft; the latest run's
   // draft is already on the page above (Greg, Oct 16, 2026).
   const [wording, setWording] = useState<number | null>(null);
+  // By status with the chips, then a page at a time (Greg, Oct 23, 2026).
+  const chips = useChips(list?.catalogs || [], x => ({ key: x.status, label: catalogStatusWords(x.status) }));
+  const catalogsPaged = usePaged(chips.shown, "catalogs", chips.filterKey);
 
   useEffect(() => {
     let live = true;
@@ -448,13 +456,15 @@ function CatalogsCard({ tick, runDraft, chosen }: { tick: number; runDraft?: num
         </p>
         {list.catalogs.length ? <p className="mb-3 text-sm text-dim">Choose a catalog to see what it holds, and the questions its run asked with how each was answered.</p> : null}
         {problem ? <div className="mb-3"><Problem message={problem} /></div> : null}
-        {list.catalogs.length ? (
+        <Chips chips={chips} className="mb-3" />
+        {list.catalogs.length && !chips.shown.length ? <p className="text-sm text-dim" data-testid="nothing-chosen">{NOTHING_CHOSEN}</p> : null}
+        {chips.shown.length ? (
           <Table>
             <TableHeader>
               <TableRow><TableHead>Catalog</TableHead><TableHead>Status</TableHead><TableHead>About it</TableHead><TableHead className="text-right">Next</TableHead></TableRow>
             </TableHeader>
             <TableBody>
-              {list.catalogs.map(x => {
+              {catalogsPaged.shown.map(x => {
                 const next = nextCatalogStep(x.status);
                 return (
                   <TableRow key={x.version} data-testid="catalog-row" aria-current={chosen === x.version ? "true" : undefined}
@@ -484,7 +494,8 @@ function CatalogsCard({ tick, runDraft, chosen }: { tick: number; runDraft?: num
               })}
             </TableBody>
           </Table>
-        ) : <p className="text-sm text-dim">No catalog of its own yet: a discovery run writes a draft.</p>}
+        ) : !list.catalogs.length ? <p className="text-sm text-dim">No catalog of its own yet: a discovery run writes a draft.</p> : null}
+        <Pager paged={catalogsPaged} className="mt-3" />
         {confirming !== null ? (
           <div className="mt-4 rounded-md border border-rule bg-ground p-4 text-sm" role="alertdialog" aria-label={`Make catalog ${confirming} live`} data-testid="confirm-live">
             <p>Make catalog {confirming} live? Every developer in your organization plans against it from now on, and the live one is retired. Its self-test runs again first.</p>

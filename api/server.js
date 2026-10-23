@@ -22,6 +22,7 @@ import { resumeInFlight } from "./executor/resume.js";
 import { unsupportedNeeds } from "../core/catalog.js";
 import { assembleEvidence, renderEvidence } from "./executor/evidence.js";
 import { rollupNeeds } from "./needs.js";
+import { modulesInUse } from "./module-use.js";
 import { gapReport } from "./gaps.js";
 import { environmentLogGroup, readLogs } from "./logs.js";
 import { busyRefusal, changeUnderWay } from "./busy.js";
@@ -285,6 +286,8 @@ app.get("/catalog", (req, res) => {
   }
   const catalog = chosen.document;
   const view = buildableView(catalog);
+  // Which apps use each module now, and at which release (api/module-use.js).
+  const used = modulesInUse(orgDeployments(req), { viewer: req.caller });
   return res.status(200).json({
     catalog: { version: chosen.version, source: chosen.source, approvedBy: chosen.approvedBy, approvedAt: chosen.approvedAt, live: chosen.version === live.version },
     catalogVersion: catalog.catalogVersion,
@@ -296,7 +299,8 @@ app.get("/catalog", (req, res) => {
       line: String(m.line || "").trim(),
       shortLine: String(m.short_line || "").trim() || null,
       // The release the platform builds, where the library releases it.
-      ...(m.version ? { version: m.version } : {})
+      ...(m.version ? { version: m.version } : {}),
+      usedBy: used[m.id] || []
     })),
     needs: needKinds(catalog).map(n => ({ kind: n.key, line: String(n.line || "").trim() })),
     document: view
