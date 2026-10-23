@@ -49,9 +49,9 @@ shows what is really there.
 *Status Oct 13, 2026:* the second and fourth lines are met. Each team now sees only its
 own environments, and an organization-wide token sees every team's (PHASE2-PLAN Step 1).
 Each team's environments also have names of their own, so two teams can use the same
-app name (Step 2). The second-person test (PHASE2-PLAN Step 6) is ready, and runs
-alongside Phase 3 rather than before it (decided Oct 13, 2026); the first and third
-lines stay open until it does.
+app name (Step 2). The second-person test (PHASE2-PLAN Step 6) is ready and paused by Greg; it was
+to run alongside Phase 3 (decided Oct 13, 2026) and has not run yet. The first and
+third lines stay open until it does.
 
 **Work:**
 1. **The app reaches the API without a shared disk.** Today `POST /deployments` takes an
@@ -94,15 +94,20 @@ lines stay open until it does.
 9. **Observability**: every interview is a LangFuse trace, joined to the deployment it
    produced and scored on how it turned out (`core/tracing.js`, DESIGN.md "Tracing the
    interview with LangFuse"). It moved to the API with the interview on Oct 10, 2026,
-   one trace across the interview's pauses; where an organization's traces live is Q13.
+   one trace across the interview's pauses; where an organization's traces live was Q13, answered Oct 13, 2026: LangFuse
+   self-hosted in ca-central-1 (Phase 4, owed).
 10. **Setting values move to the organization's secret store.** *Done Oct 12, 2026
     (PHASE2-PLAN Part B; DESIGN.md, "Settings live in the organization's store").*
     Until then the command sent an app's setting values from its `.env` with each
     deploy (DESIGN.md, "Setting values travel with the deploy, for now"). Now each
     value lives in the organization's own store, the plan says so, the app reads its
     values when it starts without being modified, and `sealeye settings` and the
-    portal's Settings page put values in. The sent-values path stays for dev and the
-    sample apps.
+    Settings card in Control put values in. The sent-values path stays for dev and the
+    sample apps. **Still owed for an environment built from the organization's own
+    modules:** a plan that gives one settings is refused before anything is built,
+    since a value passed to a module is kept in its state in plain text (DESIGN.md,
+    "What a Terraform module needs before seaLeye builds it": settings do not travel
+    to a Terraform environment yet).
 
 ### Phase 2: Day-two parity
 
@@ -140,14 +145,21 @@ through one governed door before Phase 4 adds a swarm of agents.
   seaLeye's cap (DESIGN.md, "Phase 3, settled after review"). The cap is close, not
   exact: a run can spend past it by one reply, or by more if a price changes before
   seaLeye's table does (DESIGN.md, "A run's cap is close, not exact"). **The cap per run
-  is built (Oct 14, 2026, 2.26.0)**, a dollar by default (`SEALEYE_RUN_CAP`).
+  is built (Oct 14, 2026, 2.26.0)**, a dollar by default (`SEALEYE_RUN_CAP`). **The
+  caps per worker and per discovery run are built with discovery (Oct 15, 2026;
+  `SEALEYE_DISCOVERY_WORKER_CAP`, `SEALEYE_DISCOVERY_RUN_CAP`).**
 - Routing by task and by data class: the frontier model for plans and rules, a small
   model for bulk reading, and an organization's code only to an endpoint in its own
   account (Claude on Bedrock). Bedrock serves Claude in Canada only through profiles
   that may run inference in other regions: it is disclosed, not kept in Canada
-  (DESIGN.md, "Inference from Canada: disclosed, on the US profile").
-- Gateway spans join the run's trace in LangFuse Cloud, as today. Self-hosting
-  LangFuse in Canada moves to Phase 4 (DESIGN.md, "Phase 3, settled after review");
+  (DESIGN.md, "Inference from Canada: disclosed, on the US profile"). **Routing by
+  task is built (Oct 15, 2026, PHASE4-PLAN Step 5):** the named routes `small` and
+  `frontier`, both on the Anthropic route for now. Not built: routing by data class and
+  the Bedrock route (PHASE4-PLAN, "Owed after this plan").
+- The gateway's own span in the run's trace waits for LangFuse self-hosted in Canada
+  (DESIGN.md, "The gateway's span waits for LangFuse in Canada"); until then every
+  gateway log line and record of calls carries the run's trace id. Self-hosting
+  LangFuse in Canada moved to Phase 4 (DESIGN.md, "Phase 3, settled after review");
   until then tracing stays off for any pilot on real code.
 - A record of every model call that outlives a restart, read from the gateway's own
   database: who, which run, tokens and cost, never content (PHASE3-PLAN Step 7).
@@ -170,7 +182,8 @@ holds file contents.
 shown refusing on the server (Step 7), are done. Gateway logs and the record of calls
 hold no content (Steps 5 to 7). Every call names its caller in the gateway's log and
 record, with the run's trace id (Step 6), which joins a call to its trace; the
-gateway's own span in that trace moved to Phase 4. Routes come with Step 8.*
+gateway's own span in that trace moved to Phase 4. Named routes came with PHASE4-PLAN
+Step 5 (Oct 15, 2026); routing by data class and the Bedrock route are still owed.*
 
 ### Phase 4: Learn the platform
 
@@ -181,10 +194,13 @@ made-up Juniper Mutual: discovery, the self-test and making a catalog live, plan
 it, the Terraform executor with connected modules and a database in the private network,
 the gap report, and reading again only what changed since the live catalog (Step 6c).
 **Not built:** LangFuse
-self-hosted in Canada and discovery in a paid account per customer, both owed before the
-first customer's real code (PHASE4-PLAN, "Owed after this plan").
+self-hosted in Canada, discovery in a paid account per customer and the Bedrock route,
+all owed before the first customer's real code; a catalog too large for the interview's
+prompt, and public module libraries at scale (PHASE4-PLAN, "Owed after this plan").
 
-- Admin onboarding: identity provider, repositories, which automation is strategic.
+- Admin onboarding (identity provider, repositories, which automation is strategic):
+  not built; it comes with Phase 5's sign-in through an identity provider. Until then
+  the platform team names its repositories in `SEALEYE_LIBRARY_REPOS`.
 - The discovery agent is a swarm, built on Phase 3 from the start: a LangGraph
   supervisor fans work out to parallel workers, one module each, gathers their findings,
   and settles anything ambiguous with a platform engineer without ever waiting for one:
@@ -194,7 +210,9 @@ first customer's real code (PHASE4-PLAN, "Owed after this plan").
   model. Each flagged line is replaced by one that says why, as in an interview, and the
   rest of the file is read (Greg, Oct 15, 2026).
 - Spend: small models read, the frontier model writes the usage rules; hard caps per run
-  and per worker; only modules changed since the last run are read again.
+  and per worker; only modules changed since the last run are read again. **Built:**
+  readers on the `small` route, the supervisor on `frontier`, both caps, and reading
+  again only what changed since the live catalog's run (Step 6c, Oct 22, 2026).
 - Where it runs: a new account opened for the prospect or customer, and the run is paid
   (decided Oct 13, 2026). Until the first customer, the seaLeye account (PHASE4-PLAN D2).
 - Progress (PHASE4-PLAN.md): Step 1, the catalog as data, built Oct 14, 2026. Step 2,
@@ -212,7 +230,8 @@ first customer's real code (PHASE4-PLAN, "Owed after this plan").
   Oct 17 to 22, 2026 (its first database Oct 21; its tear-down, its logs and what the
   platform saw Oct 22, and then the front door's and the database's lines beside the
 app's, and a failed setup step's last lines in its reason). Step 10, the gap report, with discovery saying which needs each
-  module meets, built Oct 22, 2026. Step 11, written down Oct 22, 2026.
+  module meets, built Oct 22, 2026. Step 6c, reading again only what changed since the
+  live catalog, built Oct 22, 2026. Step 11, written down Oct 22, 2026.
 - LangFuse self-hosted in ca-central-1 (answers Q13; moved here from Phase 3 on Oct 13,
   2026), before the first run on an organization's real code (Greg, Oct 14, 2026:
   Phase 4's own runs read seaLeye's templates, a made-up organization and public
@@ -224,18 +243,22 @@ app's, and a failed setup step's last lines in its reason). Step 10, the gap rep
 - What it learns is the organization's catalog: each module, what it is for, its usage
   rules and what must be refused. The front door agent plans from that catalog. No model
   is fine-tuned.
-- Self-test: plans that must be refused, and are. It starts from the interview
-  regression set (`npm run eval:interview`): three sample apps, each graded on its
-  outcome, building blocks and needs, compared run against run in LangFuse. Phase 4
-  grows it to the organization's own apps and modules, and a catalog goes live only
-  when it passes.
+- Self-test: plans that must be refused, and are. **Built (Step 7):** a catalog is
+  approved and made live only when its self-test passes (`api/self-test.js`, plain
+  code: its shape, a plan refused for each module that must be refused and accepted for
+  each it builds, and plain words). The interview regression set (`npm run
+  eval:interview`) has five sample apps, each graded on its outcome, building blocks,
+  needs and connections, in two sets: the starter's, and Juniper Mutual's live catalog;
+  compared run against run in LangFuse.
 - The catalog becomes the organization's, and a need becomes buildable when a module
   supports it.
 - A second backend: Terraform, since that is what most platform libraries are. Built
   Oct 17, 2026 for a plan of one module, with OpenTofu (PHASE4-PLAN Step 9); versions and
-  connecting modules Oct 17 to 20 (a table, a bucket, a queue, then a database in the
-  private network, which the app signs in to with its own identity).
-- A gap report (added Oct 13, 2026): what developers asked for that the catalog cannot
+  connecting modules Oct 17 to 21 (a table, a bucket, a queue, then a database in the
+  private network, which the app signs in to with its own identity); its tear-down, its
+  logs (the app's, the front door's and the database's) and parking the network's paid
+  endpoints between bursts, Oct 20 to 22.
+- A gap report (added Oct 13, 2026; **built Oct 22, 2026**, Step 10): what developers asked for that the catalog cannot
   build, taken from the needs ledger, with how often and by which teams. Read-only, from
   what discovery and the ledger already hold. Gaps come from demand first; a generic
   best-practice checklist only breaks ties.
@@ -263,6 +286,9 @@ app's, and a failed setup step's last lines in its reason). Step 10, the gap rep
 ### Phase 5: The path to production
 
 **Goal:** a developer can ask to promote, and the organization's process decides.
+
+*Planned in [PHASE5-PLAN.md](PHASE5-PLAN.md) (Oct 22, 2026); its decisions wait on Greg.
+Nothing built.*
 
 - `sealeye promote` and the Promote button: check what the next stage is missing, then
   request it.
@@ -338,12 +364,12 @@ and does nothing real. A blank is not started.
 | Needs ledger | `sealeye needs` | `GET /needs` | built | built (in Catalog) | 1 |
 | Health check | `sealeye doctor` | `GET /health`, `GET /whoami` | built | built (Health) | 2 |
 | Catalog | `sealeye catalog` | `GET /catalog` | built | built | 1 |
-| Discovery (organization-wide token only) | `sealeye discover`, `discover answers`, `discover status` | `POST /discoveries`, `GET /discoveries/{id}`, `/events`, `/catalog`, `/answers` | built | built (Discovery) | 4 |
+| Discovery (organization-wide token only) | `sealeye discover` (`--all`), `discover answers`, `discover status` | `POST /discoveries`, `GET /discoveries`, `GET /discoveries/{id}`, `/events`, `/catalog`, `/answers` | built | built (Discovery) | 4 |
 | Catalogs: self-test, edit words, approve, make live (organization-wide token only) | `sealeye catalog versions`, `catalog test`, `catalog edit`, `catalog approve`, `catalog live` | `GET /catalogs`, `GET /catalogs/{v}`, `GET /catalogs/{v}/self-test`, `POST /catalogs/{v}/edits`, `POST /catalogs/{v}/approve`, `POST /catalogs/{v}/live` | built | built (Catalogs and Edit words, on the Discovery page) | 4 |
 | Fix what blocks a draft's approval, field by field, offered from a refused approval (organization-wide token only) | `sealeye catalog fix`, and `catalog approve` offers it | `GET /catalogs/{v}/self-test` (each field to change), `POST /catalogs/{v}/edits` | built | built (Fix what blocks approval, on the Discovery page's Catalogs card) | 4 |
 | Pause and resume | `sealeye pause`, `resume` | `GET /deployments/{id}/paused`, `POST .../pause`, `.../resume` | built | built (Pause, in Control) | 2 |
 | Configure | `sealeye config` (and `sealeye settings`) | `POST /deployments` (`fromDeployment` with the plan changed); the settings endpoints | built | built (Configure and Settings, in Control) | 2 |
-| Logs | `sealeye logs` | `GET /deployments/{id}/logs` | built | built (Logs, in Control) | 2 |
+| Logs | `sealeye logs` (`--from app\|door\|database`) | `GET /deployments/{id}/logs` | built | built (Logs, in Control) | 2 |
 | Performance | `sealeye perf` | `GET /deployments/{id}/performance` | built | built (Performance, in Control) | 2 |
 | Costs | `sealeye costs` | `GET /costs` (by tag, a day behind) | built | built (Costs) | 2 |
 | Team and access | `sealeye team` | `GET /team` (issuing stays with the administrator) | built | built (Team) | 2 |
@@ -351,11 +377,19 @@ and does nothing real. A blank is not started.
 | Open the portal | `sealeye online` (also `portal`, `open`), with an app for its page | `GET /deployments` (which page) | built | n/a: it is the portal | 2 |
 | Sign in | `sealeye login` | tokens; `POST /sessions`, `DELETE /sessions` for the portal; `GET /whoami` | built | built (token paste, then a session) | 1 |
 | Settings in the secret store | `sealeye settings`, `settings set`, `settings unset` | `GET /apps/{app}/settings`, `PUT` and `DELETE /apps/{app}/settings/{name}` | built | built (Settings, in Control) | 1 (item 10) |
-| Onboard and ingest | `sealeye admin ingest` | | | | 4 |
+| Platform values (organization-wide token only) | `sealeye platform`, `platform set`, `platform unset` (`--stage`) | `GET /platform`, `PUT` and `DELETE /platform/values/{name}` | built | built (Platform) | 4 |
+| Interviews still open | `sealeye interviews` | `GET /interviews`, `DELETE /interviews/{id}` | built | built (in New environment, with Continue and Drop) | 2 |
+| Admin onboarding (identity provider, repositories) | | | | | 5 (with sign-in; reading the library is Discovery, above) |
 | Promote | `sealeye promote` | | | | 5 |
 | Approve an agent's plan | | | | | 6 (a queue in the portal) |
 | Gap report (organization-wide token only) | `sealeye gaps` | `GET /gaps` | built | built (Gaps) | 4 |
 | Raise a gap ticket | `sealeye needs --request` | | prints text only | | 5 |
+
+Pause and resume, configure, settings and performance are built for the starter's
+environments only. An environment built from the organization's own modules offers
+deploy again, state, tear down, evidence, plan and report, and logs when its module says
+where they are (`environmentOperations` in `core/operations.js`); the API answers 409
+NOT_FOR_THIS_ENVIRONMENT to the rest.
 
 Built names live in `core/operations.js`, which both surfaces read. Command names not yet built are proposals; settle each one in DESIGN.md before
 building it.

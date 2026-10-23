@@ -1,7 +1,8 @@
 # seaLeye documentation
 
 Start here. This page says what seaLeye is in a few paragraphs, then points each reader
-to what they need. Every other document is linked from the map below.
+to what they need. Every document a reader needs is linked from the map below; sample-app, spike and test
+notes sit beside what they describe.
 
 ## seaLeye in two minutes
 
@@ -17,8 +18,9 @@ the app needs something the platform cannot build, seaLeye says so, shows the co
 shows the need, saves the draft, and builds nothing. Each of those refusals tells the
 platform team what to build next.
 
-After that, the developer manages the environment from either surface: settings, logs,
-performance, costs, pausing, evidence for the control partners, and tearing it down.
+After that, the developer manages the environment from either surface: its state and
+history, logs, evidence for the control partners, deploying again, and tearing it down;
+for the starter's modules also settings, performance, pausing and costs.
 
 There are two surfaces and one product:
 
@@ -42,7 +44,8 @@ There are two surfaces and one product:
   made-up Juniper Mutual.
 - **Owed before the first customer's real code** (PHASE4-PLAN, "Owed after this
   plan"): LangFuse self-hosted in Canada, a new paid account per customer for
-  discovery, the Bedrock route, a catalog too large for the prompt, and public
+  discovery, the Bedrock route, a catalog too large for the prompt, admin onboarding
+  (an organization naming its own libraries, today one server setting), and public
   libraries at scale.
 - **Next:** the path to production (Phase 5), planned in
   [PHASE5-PLAN.md](PHASE5-PLAN.md), its decisions waiting on Greg, then seaLeye for

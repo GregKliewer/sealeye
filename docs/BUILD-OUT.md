@@ -15,20 +15,20 @@ When ROADMAP.md changes what a phase holds, fix its picture here in the same com
 | Phase | Name | State | What it adds |
 |---|---|---|---|
 | 0 | Foundation | Done Oct 8, 2026 | The demo becomes a product repo: cli, api and core, tests, CLAUDE.md, the roadmap |
-| 1 | Team release | Mostly done Oct 11, 2026 | Hosted API, tokens, Postgres, the live portal, CI. Open: the second-person test, which runs alongside Phase 3 |
+| 1 | Team release | Mostly done Oct 11, 2026 | Hosted API, tokens, Postgres, the live portal, CI. Open: the second-person test, paused by Greg (PHASE2-PLAN Step 6), and the store for settings in an environment built from the organization's own modules (item 10) |
 | 2 | Day-two parity | Built Oct 12, 2026 | Logs, performance, costs, pause, configure, the settings store and evidence, on both surfaces |
-| 3 | Governed backbone | Built Oct 14, 2026, all but routing ([PHASE3-PLAN.md](PHASE3-PLAN.md)) | agentgateway in front of every model call, identity per caller, spend caps, the secret scanner. Open: routing and the Bedrock route (Step 8). The gateway's span in the trace moved to Phase 4 |
-| 4 | Learn the platform | Built Oct 22, 2026, all but what runs in a customer's account ([PHASE4-PLAN.md](PHASE4-PLAN.md)) | A discovery swarm reads the organization's library into its catalog, with must-refuse tests and Terraform; a gap report. Open: LangFuse self-hosted in Canada and discovery in a customer's own account (both before the first customer) |
-| 5 | The path to production | Planned | Promote, approvals in ServiceNow, Jira gap tickets with options and a recommendation, team accounts, Cognito sign-in |
+| 3 | Governed backbone | Built Oct 14, 2026; routing by task (`small`, `frontier`) Oct 15 ([PHASE3-PLAN.md](PHASE3-PLAN.md), PHASE4-PLAN Step 5) | agentgateway in front of every model call, identity per caller, spend caps, the secret scanner. Open: routing by data class and the Bedrock route. The gateway's span in the trace waits for LangFuse in Canada |
+| 4 | Learn the platform | Built Oct 22, 2026, all but what runs in a customer's account ([PHASE4-PLAN.md](PHASE4-PLAN.md)) | A discovery swarm reads the organization's library into its catalog, with a self-test before it goes live; the Terraform executor (OpenTofu, at each module's released version) builds an app's module and the modules it uses, connected, a database in the private network among them; logs from the app, the front door and the database; a gap report; a run reads again only what changed. Open: LangFuse self-hosted in Canada, discovery in a customer's own account, and the Bedrock route (all before the first customer) |
+| 5 | The path to production | Planned in [PHASE5-PLAN.md](PHASE5-PLAN.md) (Oct 22, 2026), decisions waiting on Greg; nothing built | Promote, approvals in ServiceNow, Jira gap tickets with options and a recommendation, team accounts, Cognito sign-in |
 | 6 | seaLeye for agents | **New**, planned | seaLeye's tools as MCP behind the gateway, for coding agents |
 | 7 | Delivery and breadth | Planned | In-network or single tenant, the organization's own model, more clouds and regions, Windows |
 | 8 | seaLeye drafts modules | **New**, last | A chosen gap arrives as a module in a pull request to the platform team; seaLeye never merges it |
 
 Phases 3, 6 and 8 were added on Oct 13, 2026; the old Phases 3, 4 and 5 became 4, 5 and 7.
 
-## Today: Phases 0 to 2, as built (v2.21.0)
+## Phases 0 to 2, as built (v2.21.0)
 
-Today one agent builds only from four certified templates. Phases 0 to 2, v2.21.0, built Sept 20 to Oct 12, 2026. One agent, one model, every run traced.
+At v2.21.0 (Oct 13, 2026) one agent built only from four certified templates. Phases 0 to 2 were built Sept 20 to Oct 12, 2026. The system today, v2.48.1, is Phase 4's picture on Phase 3's backbone; [ARCHITECTURE.md](ARCHITECTURE.md) draws it in full. One agent, one model, every run traced.
 
 ```mermaid
 flowchart TB
@@ -63,7 +63,7 @@ flowchart TB
   modelurl ~~~ models
 ```
 
-Key flow today: one `sealeye run`. A plan with needs is refused; only a ready plan is built. Every step is traced in LangFuse, file names but never contents.
+Key flow at v2.21.0: one `sealeye run`. A plan with needs is refused; only a ready plan is built. Every step is traced in LangFuse, file names but never contents.
 
 ```mermaid
 flowchart LR
@@ -81,7 +81,7 @@ flowchart LR
 
 Phase 3 puts one governed door in front of every model call, and a secret scanner in front of the model. Built before discovery, so the swarm runs on both from day one. The second-person test (Phase 1) can run alongside it.
 
-**Built Oct 14, 2026** (green below): the secret scanner, each run's cap, and agentgateway on the server. The gateway holds the model key, checks a token the API signs for each call, writes its person, team and run into its log and its record of calls, and holds the $20 budget and a per-run limit. **Still to come** (blue): routing by task and data class, and the Bedrock route (waiting on the account's model access). The gateway's own span in the run's trace moved to Phase 4, with self-hosted LangFuse; until then each gateway line carries the run's trace id.
+**Built Oct 14, 2026** (green below): the secret scanner, each run's cap, and agentgateway on the server. The gateway holds the model key, checks a token the API signs for each call, writes its person, team and run into its log and its record of calls, and holds the $20 budget and a per-run limit. **Built since** (Oct 15, PHASE4-PLAN Step 5): routing by task, the named routes `small` and `frontier`. **Still to come** (blue): routing by data class and the Bedrock route (waiting on the account's model access). The gateway's own span in the run's trace moved to Phase 4, with self-hosted LangFuse; until then each gateway line carries the run's trace id.
 
 ```mermaid
 flowchart TB
@@ -140,16 +140,16 @@ flowchart LR
   gw -. trace .-> lf["<b>LangFuse</b><br/>span joins run trace"]
   classDef new fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#111
   classDef built fill:#dcfce7,stroke:#16a34a,stroke-width:2px,color:#111
-  class router,inacct,small,lf new
-  class upload,cap,stop,gw,budget,outer built
+  class inacct,lf new
+  class upload,cap,stop,gw,budget,outer,router,small,frontier built
 ```
 
 ## Phase 4: Learn the platform
 
 Phase 4 teaches seaLeye the platform the organization already has. A discovery swarm reads the library overnight, in a new account opened for that customer, not on seaLeye's own server; the front door agent then works from the catalog it writes.
 
-**Built Oct 22, 2026** (green below): discovery reads the library, asks its questions without ever waiting and writes a draft that a self-test checks before an organization-wide token approves it and makes it live; the interview plans from that catalog; the Terraform executor builds the organization's own modules (an app's module, and a table, a bucket, a queue or a database connected to it), reads their logs back (the app's, the front door's and the
-database's, in one stream, in the developer's words), and tears them down; the gap report says what developers asked for that the catalog cannot build. All of it was proven on the pilot with the made-up Juniper Mutual. **Still to come** (blue): LangFuse self-hosted in Canada, and discovery in a paid account per customer, both before the first customer's real code; until then discovery runs in seaLeye's own account on made-up and public libraries.
+**Built Oct 22, 2026** (green below): discovery reads the library, asks its questions without ever waiting and writes a draft that a self-test checks before an organization-wide token approves it and makes it live; the interview plans from that catalog; the Terraform executor builds the organization's own modules with OpenTofu, through its own deploy role, at the version its library released (an app's module, and a table, a bucket, a queue or a database connected to it), reads their logs back (the app's, the front door's and the
+database's, in one stream, in the developer's words), and tears them down; a platform engineer gives modules the organization's platform values; the private network's paid endpoints are removed between bursts by `deploy/server.sh park`; a run reads again only what changed since the live catalog; the gap report says what developers asked for that the catalog cannot build. All of it was proven on the pilot with the made-up Juniper Mutual. **Still to come** (blue): LangFuse self-hosted in Canada, discovery in a paid account per customer, and the Bedrock route, all before the first customer's real code; until then discovery runs in seaLeye's own account on made-up and public libraries.
 
 ```mermaid
 flowchart TB
@@ -173,7 +173,7 @@ flowchart TB
     caps["<b>Run caps</b><br/>per run, per worker,<br/>in seaLeye's graph"]
     catalog["<b>Org catalog</b><br/>modules, usage rules,<br/>what must be refused"]
   end
-  subgraph discoveryacct["Discovery: a paid account per customer"]
+  subgraph discoveryacct["Discovery: seaLeye's account today, a paid account per customer later"]
     discovery["<b>Discovery swarm</b><br/>LangGraph fan-out,<br/>people in the loop"]
   end
   frontdoor ~~~ records
@@ -215,8 +215,8 @@ flowchart TB
   person --> synth
   unclear -- no --> synth["<b>Write the rules</b><br/>frontier model"]
   synth --> catalog["<b>Org catalog</b><br/>usage and refusals"]
-  catalog --> evals["<b>Must-refuse evals</b><br/>in LangFuse"]
-  evals -- pass --> use["<b>Front door agent</b><br/>plans from the catalog"]
+  catalog --> evals["<b>Self-test</b><br/>must-refuse plans,<br/>approve, make live"]
+  evals -- passes --> use["<b>Front door agent</b><br/>plans from the catalog"]
   classDef new fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#111
   classDef built fill:#dcfce7,stroke:#16a34a,stroke-width:2px,color:#111
   class start new

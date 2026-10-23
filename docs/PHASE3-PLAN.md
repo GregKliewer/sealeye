@@ -2,7 +2,9 @@
 
 Written Tue Oct 13, 2026, at 2.21.1, after the roadmap gained Phase 3 and a review the
 same day settled its shape (DESIGN.md, "The roadmap gains a governed backbone and a door
-for agents" and "Phase 3, settled after review"). Nothing in it is built yet.
+for agents" and "Phase 3, settled after review"). Built Oct 14, 2026, apart from
+Step 8: its named routes `small` and `frontier` were built Oct 15 in PHASE4-PLAN Step 5,
+and the Bedrock route waits on the account's Bedrock access (owed in PHASE4-PLAN).
 
 The plan has two parts, in the order the dependencies force.
 
@@ -252,6 +254,10 @@ was put back.*
 
 ### Step 8. Routing (D6; DESIGN.md, "Inference from Canada")
 
+*Status (Oct 23): the routes `small` and `frontier` are built (PHASE4-PLAN Step 5,
+`api/model-routes.js`); the Bedrock route and routing by data class are not, waiting on
+Bedrock access.*
+
 - Named routes in the gateway: the frontier model for plans (the interview today), a
   small model for bulk reading (defined now, first used by Phase 4's workers), and an
   in-account route to Claude on Bedrock.
@@ -315,7 +321,7 @@ around a false finding.
 | **LangFuse in Canada** (Q13's answer) | LangFuse Cloud; tracing off for any pilot on real code. Moved to Phase 4 on Oct 13. | Before the first discovery run reads an organization's code, or any pilot that wants traces on real code. |
 | **Inference in Canada** | Decided Oct 14: disclosed, not kept in Canada (US profile: Canada or the US). | A bank that will not grant an exception: then a Canadian profile, or a model of the organization's own (Phase 7). |
 | **Agents as callers** (Phase 6) | The token in D1 has room for a second issuer. | Phase 6, after Cognito (Phase 5). |
-| **The small model** | Routed (Step 8), not used. | Phase 4's workers. |
+| **The small model** | Routed (Step 8), used by discovery's workers since Oct 15, 2026. | Done with Phase 4's workers. |
 | **Checking prices against the bill** | The cap's prices are checked by hand and dated (Step 3); the eval compares them with LangFuse's. A monthly script comparing a month of the platform's own totals with Anthropic's Cost API (an Admin key, kept off the server) and, once Bedrock carries traffic, Cost Explorer. It only finds drift where there is traffic. | Once an organization is using seaLeye every week. |
 | **Telling an organization what a cap guarantees** | Worded in DESIGN.md, "A run's cap is close, not exact". | In the material the first organization reads before it starts (Phase 4's first paid discovery run, or the first pilot, whichever comes first). |
 | **PHASE2-PLAN's owed list** | Unchanged by this plan; it still stands. | As it says. |
