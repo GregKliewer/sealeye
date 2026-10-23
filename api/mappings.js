@@ -8,8 +8,6 @@ export const backendMappings = {
   }
 };
 
-// observability_basic contributes a parameter (retention_days -> RetentionDays) to
-// whichever core template is used. config_basic is written into the template as
-// environment variables by compose(), so it maps to no template of its own either.
-export const parameterOnlyModules = ["observability_basic"];
-export const ignoredModules = [];
+// observability_basic and config_basic map to no template of their own:
+// observability_basic becomes a parameter (retention_days -> RetentionDays) of whichever
+// template is used, and compose() writes config_basic into it as environment variables.

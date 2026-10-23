@@ -228,15 +228,6 @@ export function promptVersionOf(text) {
   return crypto.createHash("sha256").update(String(text), "utf8").digest("hex").slice(0, 12);
 }
 
-/** A short, stable id for a prompt file's content (the template, before it is filled in). */
-export function promptVersion(file = path.join(repoRoot, "prompts", "interview-system.md")) {
-  try {
-    return crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex").slice(0, 12);
-  } catch {
-    return "unknown";
-  }
-}
-
 // ---------------------------------------------------------------------------------
 // Starting and flushing.
 

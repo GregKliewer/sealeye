@@ -384,8 +384,6 @@ export function kindOf(rule) {
   return "a secret";
 }
 
-export const isOwnRule = rule => RULE_IDS.has(rule);
-
 // ---------------------------------------------------------------------------------
 // The words. Both surfaces say exactly these (PHASE3-PLAN Step 2: "the words live in
 // core/ so both surfaces say the same thing"). No value, ever: a file, a line and a kind.

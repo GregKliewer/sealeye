@@ -283,10 +283,6 @@ export function catalogModuleIds(catalog = loadCatalog()) {
   return (catalog.modules || []).map(m => m?.id).filter(Boolean);
 }
 
-export function profileEntry(id, catalog = loadCatalog()) {
-  return (catalog.profiles || []).find(p => p.id === id) || null;
-}
-
 /** A catalog line, on one line: the card and the refusal both want the first sentence. */
 export function firstSentence(text) {
   const whole = String(text || "").replace(/\s+/g, " ").trim();
@@ -311,13 +307,6 @@ export function unsupportedNeeds(plan) {
     evidence: need.evidence || [],
     profile_expects: need.profile_expects || null
   }));
-}
-
-/** The evidence for a need, as one phrase, for places that show it beside the line. */
-export function evidencePhrase(need) {
-  return (need?.evidence || [])
-    .map(e => (e.file ? `${e.shows} (${e.file})` : e.shows))
-    .join("; ");
 }
 
 /** The fixed need kinds, as the interview and the renderer read them. */

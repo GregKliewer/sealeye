@@ -24,15 +24,6 @@ const CORE_MODULE_KINDS = {
 // safeName() lives in core/names.js so the CLI and the API name things the same way.
 export { safeName };
 
-/**
- * What stacks were called before teams had names of their own: sealeye-<app>, with
- * everything in them named after the bare app. Environments made then keep these names
- * (see namingFor); nothing new is named this way.
- */
-export function stackNameFor(appName) {
-  return `sealeye-${safeName(appName)}`;
-}
-
 /** <name>/<deploymentId>.zip: a new key every deploy, so S3Key always changes. */
 export function artifactKeyFor(resourceName, deploymentId) {
   return `${safeName(resourceName)}/${deploymentId}.zip`;
