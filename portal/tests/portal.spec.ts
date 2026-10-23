@@ -555,7 +555,8 @@ test("Performance shows readings, in tiles, a chart and a table, never a capacit
 
 test("Costs lists what each app has cost, says it is a day behind, and what is counted", async ({ page }) => {
   await signIn(page);
-  await page.getByRole("link", { name: "Costs" }).click();
+  await page.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: "Team" }).click();
+  await page.getByRole("navigation", { name: "Team" }).getByRole("link", { name: "Costs" }).click();
   const rows = page.getByTestId("cost-row");
   await expect(rows).toHaveCount(2);
   await expect(rows.first()).toContainText("payments-api");
@@ -673,7 +674,8 @@ test("a team's token sees no Discovery page, and is sent home from its address",
 
 test("Discovery shows the run, its open question, and the draft resting on it; an answer is taken", async ({ page }) => {
   await signInOrgWide(page);
-  await page.getByRole("navigation", { name: "Sections" }).getByText("Discovery").click();
+  await page.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: "Platform" }).click();
+  await expect(page.getByRole("navigation", { name: "Platform" }).getByRole("link", { name: "Discovery" })).toBeVisible();
   await expect(page.getByTestId("run")).toContainText("Finished, draft catalog 1");
   await expect(page.getByTestId("run")).toContainText("northwind/platform-library at 5e63aa5");
   await expect(page.getByTestId("command-hint").first()).toContainText("sealeye discover");
@@ -837,7 +839,8 @@ test("another organization's token sees its own name, and no Costs", async ({ pa
   await page.click("button[type=submit]");
   await expect(page.getByTestId("person")).toHaveText("Other Org");
   await expect(page.getByTestId("organization")).toHaveText("other-org");
-  await expect(page.getByRole("navigation", { name: "Sections" }).getByText("Costs")).toHaveCount(0);
+  await page.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: "Team" }).click();
+  await expect(page.getByRole("link", { name: "Costs" })).toHaveCount(0);
   await page.goto("/costs");
   await expect(page.getByTestId("not-kept")).toContainText("Costs are not available to your organization yet");
 });
@@ -845,7 +848,8 @@ test("another organization's token sees its own name, and no Costs", async ({ pa
 test("the first organization keeps its name and its Costs", async ({ page }) => {
   await signIn(page);
   await expect(page.getByTestId("organization")).not.toHaveText("default");
-  await expect(page.getByRole("navigation", { name: "Sections" }).getByText("Costs")).toHaveCount(1);
+  await page.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: "Team" }).click();
+  await expect(page.getByRole("navigation", { name: "Team" }).getByRole("link", { name: "Costs" })).toHaveCount(1);
 });
 
 test("Edit words reaches any draft from the Catalogs card, not only the latest run's", async ({ page }) => {
@@ -889,6 +893,7 @@ test("a team's token sees no Platform page, and is sent home from its address", 
 test("Platform lists the values at a stage and what each module still needs", async ({ page }) => {
   await signInAs(page, JUNIPER_WIDE, "Pat Juniper");
   await page.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: "Platform" }).click();
+  await page.getByRole("navigation", { name: "Platform" }).getByRole("link", { name: "Platform values" }).click();
   await expect(page.getByRole("heading", { name: "Platform" })).toBeVisible();
   await expect(page.getByTestId("developer-stage")).toContainText("built as dev, so only dev's values are used today");
   await expect(page.getByLabel("Stage")).toHaveValue("dev");
@@ -994,7 +999,8 @@ test("an environment built from the organization's own modules shows only what i
 // The gap report (PHASE4-PLAN Step 10): a platform engineer's page, as `sealeye gaps` is.
 test("Gaps lists what developers asked for that the catalog cannot build, for an organization-wide token only", async ({ page }) => {
   await signInOrgWide(page);
-  await page.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: "Gaps" }).click();
+  await page.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: "Platform" }).click();
+  await page.getByRole("navigation", { name: "Platform" }).getByRole("link", { name: "Gaps" }).click();
   await expect(page.getByRole("heading", { name: "Gaps" })).toBeVisible();
   await expect(page.getByText("What developers asked for that the starter catalog cannot build")).toBeVisible();
   await expect(page.getByTestId("command-hint")).toContainText("sealeye gaps");
@@ -1007,7 +1013,8 @@ test("Gaps lists what developers asked for that the catalog cannot build, for an
 
 test("a team's token sees no Gaps page, and is sent home from its address", async ({ page }) => {
   await signIn(page);
-  await expect(page.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: "Gaps" })).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: "Platform" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Gaps" })).toHaveCount(0);
   await page.goto("/gaps");
   await expect(page).toHaveURL(/\/$/);
 });
@@ -1021,4 +1028,28 @@ test("a page following a change keeps one Logs card, however long it is watched"
   await page.waitForTimeout(3500);
   await expect(page.getByTestId("logs")).toHaveCount(1);
   await expect(page.getByTestId("evidence")).toHaveCount(1);
+});
+
+// The navigation, grouped by whose work it is (Greg, Oct 23, 2026).
+test("an organization-wide token sees four sections, Platform's pages as tabs, and Health beside the person", async ({ page }) => {
+  await signInOrgWide(page);
+  const sections = page.getByRole("navigation", { name: "Sections" }).getByRole("link");
+  await expect(sections).toHaveText(["Environments", "Validate", "Catalog", "Platform", "Team"]);
+  await expect(page.getByRole("navigation", { name: "Platform" })).toHaveCount(0);
+  await sections.filter({ hasText: "Platform" }).click();
+  await expect(page).toHaveURL(/\/discovery$/);
+  await expect(page.getByRole("navigation", { name: "Platform" }).getByRole("link")).toHaveText(["Discovery", "Platform values", "Gaps"]);
+  await page.getByRole("navigation", { name: "Platform" }).getByRole("link", { name: "Gaps" }).click();
+  await expect(sections.filter({ hasText: "Platform" })).toHaveClass(/border-phosphor/);
+  await page.getByTestId("health-link").click();
+  await expect(page.getByRole("heading", { name: "Health" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Platform" })).toHaveCount(0);
+});
+
+test("a team's token sees no Platform section, and Environments stays underlined on an environment's page", async ({ page }) => {
+  await signIn(page);
+  const sections = page.getByRole("navigation", { name: "Sections" }).getByRole("link");
+  await expect(sections).toHaveText(["Environments", "Validate", "Catalog", "Team"]);
+  await page.getByRole("link", { name: "payments-api", exact: true }).click();
+  await expect(sections.filter({ hasText: "Environments" })).toHaveClass(/border-phosphor/);
 });

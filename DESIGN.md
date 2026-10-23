@@ -4745,3 +4745,29 @@ Decided Thu Oct 22, 2026, at the end of Phase 4, when the project's home still s
   updated when a phase is built, in the same pull request as the roadmap's line; the
   first of Not yet is what an evaluator most needs: that seaLeye is not yet for an
   organization's real code until what PHASE4-PLAN owes is built.
+
+## The portal's sections are grouped by whose work they are
+
+Decided Fri Oct 23, 2026. An organization-wide token in `default` saw nine items in the top bar
+(Environments, Validate, Catalog, Costs, Team, Discovery, Platform, Gaps, Health), more
+than the bar holds. Greg asked for them grouped; he chose a second row of tabs over menus
+(option B of three: menus hid pages behind a hover, a sidebar changed the whole layout).
+
+- **Five sections at most.** Environments, Validate, Catalog, Platform and Team. A team
+  token sees four: Platform is shown only to an organization-wide token, as its pages were.
+- **A section of several pages shows them as tabs under the bar**, in the same underline,
+  and only while you are in it. Platform holds Discovery, Platform values and Gaps; Team
+  holds Team and, where the organization has them, Costs. A section's link goes to the
+  first page this person may see. Nothing sits behind a menu.
+- **Health moved beside the person**, with a mark that says whether the platform answers
+  and this page matches its version (phosphor when both, amber otherwise). It is a check on
+  the browser, not a section of work.
+- **Environments stays underlined** on a new environment and on an environment's own
+  page, which the old bar did not do.
+- **Validate stays a section.** Folding it into Environments as a button was offered;
+  Greg did not choose it, so it waits.
+- **Addresses do not change**, and labels still come from `core/operations.js`, so the
+  command and any bookmark are unaffected. On a narrow screen each row scrolls sideways
+  rather than wrapping or widening the page. Phase 5's pages (promotion, integrations)
+  go into these sections rather than adding to the bar.
+
