@@ -69,6 +69,7 @@ test("a catalog is titled by its status: a draft is a draft, a live one never is
   assert.equal(catalogTitleWords(8, "live"), "Catalog 8, live");
   assert.equal(catalogTitleWords(7, "approved"), "Catalog 7, approved, not live");
   assert.equal(catalogTitleWords(3, "retired"), "Catalog 3, retired");
+  assert.equal(catalogTitleWords(3, null), "Catalog 3", "never a guess before its status is read");
 });
 
 test("an answer read against a chosen catalog says where it went", () => {

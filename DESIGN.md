@@ -4787,7 +4787,10 @@ request.
   catalog names its run, and GET /discoveries/{id} returns any run.
 - **A catalog is titled by its status**: "Draft catalog 9", "Catalog 8, live",
   "Catalog 7, approved, not live" (`catalogTitleWords`), and a run says it "wrote"
-  catalog N, never "draft catalog N", since that catalog may since be live.
+  catalog N, never "draft catalog N", since that catalog may since be live. Until the
+  page has read a catalog's status it says only "Catalog N", never a guess (added the
+  same day, after GitHub's run on main caught the page saying "Draft" for a moment
+  before it knew).
 - **An answer read against a chosen catalog says where it went** (`answerStateWords`
   with the shown catalog): "in catalog 3", or "written into catalog 4, after this one"
   for an answer given later. GET /discoveries/{id} now carries each question's `usedIn`.
