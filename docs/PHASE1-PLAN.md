@@ -3,7 +3,8 @@
 Written Thu Oct 8, 2026. Part A was built on the branch `langfuse-tracing` and merged to
 `main` on Fri Oct 9 (pull request #4), when Greg decided tracing stays in the product
 (DESIGN.md, "Tracing stays in the product"). The plan first held that decision for a few
-days; it did not need to wait.
+days; it did not need to wait. Part B, Steps 8 to 14, was built Oct 10 and 11, 2026.
+Step 15, the second-person test, became PHASE2-PLAN Step 6 and is still open.
 
 The plan has two parts. **Part A** (Steps 0 to 7) adds LangFuse to the interview as it runs
 today, on Greg's machine, and can be finished in a few days. **Part B** (Steps 8 to 15) is

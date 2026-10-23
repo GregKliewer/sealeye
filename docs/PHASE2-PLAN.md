@@ -1,7 +1,8 @@
 # Phase 2 plan: a team release, the secret store, then day-two parity
 
 Written Sun Oct 11, 2026, after PHASE1-PLAN Steps 8 to 14 shipped (pull requests #8 to
-#16). Nothing in it is built yet.
+#16). Built Oct 12, 2026, all but Step 6, the second-person test, which is paused and
+still open; "Owed after this plan" still stands.
 
 The plan has three parts, in the order the dependencies force.
 
