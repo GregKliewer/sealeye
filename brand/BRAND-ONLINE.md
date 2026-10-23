@@ -56,7 +56,9 @@ seaLeye.run has no navigation because there is nowhere to go. seaLeye.online has
 - A top bar on the surface colour: the mark and `seaLeye.online` wordmark left, then a
   navigation row (Environments, Catalog, Team) with the current section underlined
   in phosphor, then the org name and a user chip right ("Greg K." with a phosphor initial
-  disc). All three are pages. Activity was a fourth, inert because a console has one, and
+  disc). Since Oct 23, 2026 a section of several pages shows them as a second row of tabs
+  under the bar, in the same underline, and Health sits beside the org name (DESIGN.md,
+  "The portal's sections are grouped by whose work they are"). All three are pages. Activity was a fourth, inert because a console has one, and
   it was dropped on Sept 23: a nav item that goes nowhere is a question asked in the demo.
 - A page title with a one-line subtitle in Dim, and a right-aligned primary action button
   (phosphor fill, white text): "New environment". Inert. It is there because management means
