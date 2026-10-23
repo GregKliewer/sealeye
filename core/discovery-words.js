@@ -176,15 +176,20 @@ export function answerStateWords(q, run, shown = null) {
   return { words: `waiting to be written into ${draft}`, moving: false };
 }
 
-/** A catalog's card title: a draft is "Draft catalog 9"; any other, "Catalog 8, live". */
+/**
+ * A catalog's card title: a draft is "Draft catalog 9"; any other, "Catalog 8, live".
+ * Until its status is read, only "Catalog 9", never a guess.
+ */
 export function catalogTitleWords(version, status) {
-  if (!status || status === "draft") return `Draft catalog ${version}`;
+  if (!status) return `Catalog ${version}`;
+  if (status === "draft") return `Draft catalog ${version}`;
   return `Catalog ${version}, ${catalogStatusWords(status).toLowerCase()}`;
 }
 
 /** What a catalog's card says under its title, by its status. */
 export function catalogAboutWords(version, status) {
-  if (!status || status === "draft") return "What the run wrote, as it stands with the answers so far. A draft goes live only after its self-test, once a platform engineer approves it and makes it live.";
+  if (!status) return "";
+  if (status === "draft") return "What the run wrote, as it stands with the answers so far. A draft goes live only after its self-test, once a platform engineer approves it and makes it live.";
   const now = status === "live" ? " Developers in your organization plan against it." : "";
   return `What catalog ${version} holds, as it was approved. It no longer changes: an answer to one of its run's questions is written into a new draft.${now}`;
 }

@@ -1075,7 +1075,9 @@ test("choosing a catalog shows it, its run's questions and how each was answered
   await expect(page.getByTestId("catalog-row").filter({ hasText: "from run dsc_0000000000000000" })).toHaveAttribute("aria-current", "true");
   await page.getByTestId("back-to-latest").click();
   await expect(page).toHaveURL(/\/discovery$/);
-  await expect(page.getByTestId("draft-title")).toHaveText("Draft catalog 1");
+  // Catalog 1 is a draft, or approved if the Catalogs test ran first: the test API's
+  // records are shared by every test. Either way it is titled by its status, once read.
+  await expect(page.getByTestId("draft-title")).toHaveText(/^(Draft catalog 1|Catalog 1, approved, not live)$/);
   await expect(page.getByTestId("answered-question").filter({ hasText: "Which database is for perf?" })).toHaveCount(1);
 });
 
