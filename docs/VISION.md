@@ -3,7 +3,8 @@
 First written Oct 8, 2026, from the Oct 2 product dry run and the code as it
 stood at 2.16.0. This file changes rarely. When a decision changes it, the same commit
 records the decision in DESIGN.md. "The surfaces" was brought up to date with what is
-built on Oct 12, 2026; how each part is built is in ARCHITECTURE.md.
+built on Oct 12, 2026, and again on Oct 23, 2026, when the principles gained the three
+CLAUDE.md already held; how each part is built is in ARCHITECTURE.md.
 
 ## In one sentence
 
@@ -41,13 +42,16 @@ The platform is not the bottleneck. Access to it is.
 
 1. **Gets an environment in minutes.** seaLeye reads the app, asks at most a few
    questions, writes a plan a person can read and audit, and on yes builds the
-   environment from the platform's own modules. Built today, for four modules on AWS.
+   environment from the platform's own modules. Built today on AWS: four starter modules,
+   and an organization's own Terraform modules once its catalog is live.
 2. **Manages it over time.** Running seaLeye again on a changed app updates the same
    environment rather than creating a second one. Settings, logs, performance, cost,
    pausing and tearing down are all in seaLeye.
 3. **Learns the organization's platform.** A discovery agent ingests the organization's
    own automation (modules, pipelines, legacy templates), the platform team chooses what
-   is strategic, and seaLeye is trained to build only from that. It stops on hardcoded
+   is strategic, and seaLeye builds only from the catalog it writes and the platform team
+   approves; no model is fine-tuned. Built today for a library on GitHub; choosing what
+   is strategic comes with admin onboarding. It stops on hardcoded
    secrets, flags ambiguity for a person, and proves itself by being asked for plans it
    must refuse.
 4. **Runs the path to production.** A developer asks to promote; seaLeye checks what the
@@ -86,8 +90,20 @@ the moment, never typed in.
 
 **The developer's code is theirs.** seaLeye reads it and never changes it.
 
+**Developers build dev.** seaLeye builds only the first stage; promotion to later
+stages goes through the organization's pipeline and approvals.
+
+**Plain language.** A developer reads what the platform does for the app, never a
+product name, one cloud's own noun or a size: words every cloud uses the same way are
+fine, an acronym is spelled out, and capacity is set by a load test (DESIGN.md, "What a
+platform term is").
+
 **Nothing sensitive is kept.** No secret values in any record, file, log or screen.
 seaLeye keeps the least it needs to do its job and says what that is.
+
+**Every model call through one governed door.** Each call goes through the platform's
+model gateway, named for the person, team and run, under a cap, and carries no content
+out: its log holds who, which run, tokens and cost, never a prompt or a reply.
 
 **The model is the organization's choice.** A frontier model by default, or one the
 organization runs itself. Priced per app under management with model costs included,
@@ -96,7 +112,7 @@ so the bill follows the value, not the tokens.
 ## The surfaces
 
 - **seaLeye.run**: the `sealeye` command, where a developer already is. Dark, terminal,
-  typed. Today's product.
+  typed.
 - **seaLeye.online**: the portal at the seaLeye.online domain, where the platform team
   and anyone who prefers a browser works. Light, scannable. Built: every operation the
   command has today, including a new environment through the interview.
@@ -107,8 +123,8 @@ so the bill follows the value, not the tokens.
 ## How it is delivered
 
 As SaaS, as a single tenant, or inside the organization's own network, with the model
-of the organization's choosing. Adoption starts with a pilot: ingest the platform, train
-the front door, open it to one team with the platform team reviewing every plan, then
+of the organization's choosing. Adoption starts with a pilot: ingest the platform, teach
+the front door its catalog, open it to one team with the platform team reviewing every plan, then
 scale out on the pilot's evidence.
 
 ## What seaLeye is not
