@@ -6,7 +6,9 @@ rewritten the same day, when Greg widened principle 9: seaLeye builds and manage
 stage, not only dev, each applied the way the organization chose for it (DESIGN.md,
 "seaLeye builds every stage, the way the organization chose for each"). A draft for
 Greg: the decisions below are recommendations until he answers them. Nothing in it is
-built yet. The decisions were renumbered in the rewrite.
+built yet. The decisions were renumbered in the rewrite. D1 was widened the same
+afternoon to the three ways infrastructure changes from stage to stage (Greg asked what
+is typical), and Juniper Mutual's library gained a module a stage adds.
 
 **Goal** (ROADMAP Phase 5): a developer can ask to promote, the organization's process
 decides, and the approved stage is built and managed from then on, as the same app with
@@ -113,8 +115,8 @@ The plan has six parts.
 
 | # | Decision | Recommendation | Needed by | Decided |
 |---|---|---|---|---|
-| D1 | How a plan names a different module at a later stage (Q20) | **The catalog carries the stage map; the plan is unchanged.** Each entry gains `stages` (which stages it is for, from the catalog's path) and, where another module takes over, `instead: { from: staging, module: postgres_cluster }`. A plan keeps naming the dev module, and the module at any stage is resolved from the catalog by code. No new planVersion: the plan the developer approved is the plan built at every stage, word for word. Alternatives: (b) planVersion 0.7, a plan naming needs that the catalog fills per stage, about four more days; (c) a plan per stage, written at promotion, so what reaches production is no longer what was approved | Step 1 | |
-| D2 | Who writes the stage map | **Discovery's supervisor writes `stages` and `instead`, code checks them, a platform engineer corrects them.** Code refuses an `instead` it cannot prove: the later module takes the same required inputs, offers every output the earlier one offers (so `connect` still holds), meets the same needs, and the two cover the path with no stage left over. A pair it cannot prove becomes a question with a guess. Alternatives: code alone infers pairs (brittle: two caches meet the same need); or engineers write the map by hand | Step 2 | |
+| D1 | How a plan's modules change at a later stage (Q20) | **The catalog says how each module changes by stage, in the three ways libraries do it; the plan is unchanged.** (1) **Inputs by stage**, the most common: the same module, told its stage, with the stage's platform values (Juniper's `postgres-cluster` keeps one instance below staging and two from staging up). Nothing new in the catalog beyond each entry's `stages`; the executor stops giving every module `dev`. (2) **`instead`**, where a later stage needs a different kind of resource: `instead: { from: staging, module: postgres_cluster }` on `postgres`. (3) **`with`**, a module the stage adds beside what the plan names, never one an app asks for: `with: [{ from: staging, module: backup_plan, beside: relational_database }]` in the catalog's path. A plan keeps naming what dev runs; the plan at any stage is resolved from the catalog by code, as the plan plus its `instead`s and the stage's `with`s. No new planVersion: the plan the developer approved is what is built at every stage. A module's release is not a stage rule: dev running a newer release than prod happens only while an upgrade is promoted (D7). Alternatives: (b) planVersion 0.7, a plan naming needs that the catalog fills per stage, about four more days; (c) a plan per stage, written at promotion, so what reaches production is no longer what was approved | Step 1 | |
+| D2 | Who writes the stage map | **Discovery's supervisor writes `stages`, `instead` and the path's `with`, code checks them, a platform engineer corrects them.** A `with` must name a module the catalog has that meets no need an app asks for, beside a need some module meets; one it cannot place is a question. Code refuses an `instead` it cannot prove: the later module takes the same required inputs, offers every output the earlier one offers (so `connect` still holds), meets the same needs, and the two cover the path with no stage left over. A pair it cannot prove becomes a question with a guess. Alternatives: code alone infers pairs (brittle: two caches meet the same need); or engineers write the map by hand | Step 2 | |
 | D3 | Who applies each stage, and how that is set | **Per stage, in the catalog's path, beside its gate: `applies: sealeye` or `applies: pipeline` (with the pipeline named).** Discovery proposes it from the library's pipelines and README; the platform team approves it with the catalog, and can change it with an edit like any word. dev is always seaLeye's. For Juniper: sit and uat seaLeye, staging and prod its pipeline, as its library says. Until 5b, a stage its pipeline applies is never applied by seaLeye instead: the request is made and approved, and the developer is told plainly that the platform team's pipeline builds it. For the 5a proof, Greg may set Juniper's staging to `sealeye` for a while, to prove a gated stage with a cluster | Step 1 | |
 | D4 | Which changes at a later stage need its gate | **Every change to what runs or holds data**: deploy again, configure, a setting, pause and resume, tear down. Never reading: status, logs, evidence, performance. A stage with no gate (Juniper's sit and uat) takes changes as dev does. Tearing down a stage held to production's rules (staging up) also needs the app's name typed, as the data warning does now. Alternative: only promotion needs the gate, and later changes are the team's (simpler, but a change to prod would skip the change process) | Step 8 | |
 | D5 | What an environment at a stage is | **One app, one environment per stage.** A record gains `stage` (dev when absent, so every record today stays as it is). A later stage's name is `sealeye-<team>-<app>-<stage>-<hash>`, its hash over the stage too, and dev keeps today's name so nothing standing is renamed; its state is `tofu-state/<org>/<stage>/<environment>.tfstate`. `sealeye list` and Environments keep one row per app, with its stages and each one's state; commands that act on an environment take `--stage` (dev by default); the portal's environment page has a stage picker. Alternative: a later stage as a separate app (`account-notes-api-staging`), simpler and wrong: the vision says one app | Step 3 | |
@@ -137,9 +139,14 @@ The plan has six parts.
 ### Step 0. Close Phase 4
 
 Not code, or very little, about an hour on Greg's Mac:
+- Apply the library patch that adds `backup-plan` (pattern 3: from staging up, beside
+  every app that keeps a relational database; its README and the library's say so),
+  merge it, and tag `backup-plan/v1.0.0`. seaLeye's answer key already has its entry and
+  grades it as `addition`.
 - Check that Juniper's live catalog reads `postgres-cluster` at 1.1.0 (`SEALEYE_TOKEN=$JT
   sealeye catalog show`). If it is still at 1.0.0, run discovery again and make its
-  catalog live: the stage map cannot be proven against 1.0.0.
+  catalog live: the stage map cannot be proven against 1.0.0. Run it again anyway once
+  `backup-plan` is tagged, so the live catalog has it.
 - Refresh the Juniper eval's snapshot to that catalog (`test/fixtures/juniper-catalog-9.json`
   today), a small pull request.
 - Run `npm run eval:interview -- --set juniper` and `--set starter`: the "before" for
@@ -152,25 +159,30 @@ Not code, or very little, about an hour on Greg's Mac:
   stage its `gate` (D11) and who `applies` it (D3). The starter's path is `[dev]` only,
   so nothing a starter organization sees changes.
 - An entry gains `stages` and, optionally, `instead: { from, module }`.
-  `resolveForStage(plan, catalog, stage)` in `core/catalog.js` returns each module as it
-  would be built at that stage, the `connect` carried over, or why it cannot be.
-- The self-test proves each `instead` (D2), refuses a path with a stage no one applies,
+  The path gains `with` (D1). `resolveForStage(plan, catalog, stage)` in
+  `core/catalog.js` returns the plan as it would be built at that stage: each module told
+  that stage (inputs by stage need nothing more), each `instead` taken, each `with`
+  added beside what it stands beside, the `connect` carried over, or why it cannot be.
+- The self-test proves each `instead` and `with` (D2), refuses a path with a stage no one applies,
   and checks the words a developer reads.
 - Shown wherever a catalog is: `sealeye catalog` and `catalog show`, the Catalog page
   and the Discovery page's catalog view, each module's stages and "from staging, the
-  platform uses the clustered database", beside its `usedBy`; and the path, its gates and
-  who applies each stage, on the Catalog page and in `sealeye catalog`.
+  platform uses the clustered database", beside its `usedBy`; and the path, its gates,
+  who applies each stage and what each stage adds ("from staging, a daily copy of what
+  your app stores, kept apart from it"), on the Catalog page and in `sealeye catalog`.
 - A DESIGN.md entry, "A module per stage, in the catalog", answers Q20.
 
-About three days.
+About three and a half days.
 
 ### Step 2. Discovery writes it; the interview plans for dev (D2, D3)
 
 - The supervisor writes each entry's `stages` and `instead`, and the library reader's
-  path gains each stage's `applies`, read from the pipelines (Juniper's `app-promote.yml`
+  path gains each stage's `with` (Juniper's `backup-plan`, from its README and the
+  library's) and `applies`, read from the pipelines (Juniper's `app-promote.yml`
   applies every stage past dev); code checks them; what it cannot prove is a question
   with a guess.
-- The answer key's `overlap` and `stages` are graded (`stages_mapped`, `path_mapped`).
+- The answer key's `overlap`, `addition` and `stages` are graded (`stages_mapped`,
+  `path_mapped`), each pattern of D1 by its own case.
 - The interview's passages offer only modules whose stages include dev, and say of one
   with an `instead` that the platform uses the other from that stage. `npm run
   eval:interview` before (Step 0) and after.
@@ -178,7 +190,7 @@ About three days.
   the pull request. The prompts' hash (`readerVersion`) changes, so the next run reads
   every module.
 
-About two to three days, with the review.
+About two and a half to three and a half days, with the review.
 
 ## Part B: an environment at a stage
 
@@ -201,7 +213,8 @@ About four to five days.
 - A role per later stage, in `deploy/` (one template, a stage as its parameter), each
   from a managed policy: sit and uat as the Terraform role has today, staging and prod
   also able to build and delete a cluster, protected against deletion as the library
-  asks. Named per stage as a platform value; the API assumes it for that stage's builds,
+  asks, and able to make a stage's backup plan (Juniper's `backup-plan`). Named per stage
+  as a platform value; the API assumes it for that stage's builds,
   reads and tear-downs.
 - The pilot's foundation network gains what a later stage's modules need, by stage, as
   platform values (on the pilot the same network, kept apart by security groups).
@@ -230,8 +243,9 @@ read-only:
 - each module as it will be built there (`resolveForStage`, at the release D7 says), and
   any that cannot be;
 - what that stage is missing, in the developer's words: a platform value not set for it
-  ("the staging database network is not set yet; your platform team sets it"), a
-  setting dev has and it lacks, a module the live catalog no longer builds;
+  ("the staging database network is not set yet; your platform team sets it"),
+  including what a module the stage adds needs ("staging's backup vault is not set
+  yet"), a setting dev has and it lacks, a module the live catalog no longer builds;
 - what dev must show first: standing and succeeded.
 
 About two days.
@@ -261,6 +275,10 @@ About four days, with the review.
   package dev ran (D8), the plan resolved for the stage, the stage's role (D6), values
   and settings. Its status is the build's, as dev's is; a failure says why and leaves
   the promotion `failed`, never `approved` and silent.
+- A stage's `with` modules are built in the same root module, beside what they stand
+  beside, and torn down with it. They neither run the app nor are used by it, which the
+  executor does not build today (`terraformBuilds`): it learns a third kind, a module the
+  stage adds, whose inputs come only from seaLeye and the stage's platform values.
 - A stage the organization's pipeline applies is not built by seaLeye: until 5b the
   request ends `approved`, saying the platform team's pipeline builds it (D3).
 - Every change to a gated stage goes through the same gate (D4): deploy again,
@@ -268,8 +286,8 @@ About four days, with the review.
   on approval. A tear-down of a stage held to production's rules also asks for the app's
   name.
 - Proven on the pilot: a Juniper app promoted to sit (no gate) and to staging with the
-  stand-in's approval and its database a cluster (with D3's staging set to `sealeye` for
-  the proof), across a parked and restarted pilot, then torn down through its gate.
+  stand-in's approval, its database a cluster with a backup plan beside it, all three
+  patterns of D1 in one build (with D3's staging set to `sealeye` for the proof), across a parked and restarted pilot, then torn down through its gate.
 
 About five to six days.
 
@@ -399,16 +417,16 @@ seven days then.
 | Steps | What | Effort |
 |---|---|---|
 | 0 | Close Phase 4 | an hour or two |
-| 1 to 2 | The stage map, gates and appliers; discovery writes them | five to six days |
+| 1 to 2 | The stage map (inputs by stage, `instead`, `with`), gates and appliers; discovery writes them | six to seven days |
 | 3 to 5 | An environment at a stage, a role per stage, settings by stage | nine to eleven days |
 | 6 to 9 | Ask, wait, approve, seaLeye applies, both surfaces | fifteen to seventeen days |
 | 10 to 11 | Integrations and ServiceNow | five to seven days |
-| | **5a** | **thirty-four to forty-one days** |
+| | **5a** | **thirty-five to forty-two days** |
 | 12 to 13 | The pipeline adapter, Juniper's pipeline for real | six to eight days |
 | | **5b** | **six to eight days** |
 | 14 to 16 | Gap advice and Jira, notifications, writing it down | seven to nine days |
 
-About forty-seven to fifty-eight working days, nine and a half to twelve weeks of full
+About forty-eight to fifty-nine working days, nine and a half to twelve weeks of full
 days, and longer in bursts. That is about four and a half weeks more than the plan that
 stopped at a request, and more than the two to three weeks first guessed on Oct 24: the
 stage has to reach names, state, roles, settings and every operation, not only
