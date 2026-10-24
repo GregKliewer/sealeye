@@ -70,10 +70,12 @@ core/       what cli/ and api/ must agree on: schema.js (the plan contract), cat
             discovery-words.js (what both surfaces say about a discovery run, a
             catalog's status and its self-test), developer-words.js (the cloud's
             names, and sizes and counts, that a developer never reads), catalog-edits.js
-            (which words of a draft's entry a person may change, and keeping them).
+            (which words of a draft's entry a person may change, and keeping them),
+            stages.js (a catalog's path to production, each module's stages, a plan
+            resolved for a stage, and the words for them).
             secrets.js, scan.js, upload-rules.js, plan-words.js, evidence-summary.js,
             plan-report-words.js, platform-lines.js, gap-words.js, retention.js, setting-names.js, environments.js,
-            operations.js, discovery-words.js, developer-words.js and catalog-edits.js run in a browser,
+            operations.js, discovery-words.js, developer-words.js, catalog-edits.js and stages.js run in a browser,
             so the portal imports them too
 prompts/    system prompt and the starter's passages for it (interview-starter.yaml), plan
             contract, plan, report and evidence templates, catalog
@@ -234,8 +236,15 @@ while any environment of the organization runs on a module it would not build (4
 CATALOG_IN_USE, `api/catalog-use.js`). The self-test is plain code: the catalog's shape,
 no question about the whole catalog open, a plan for each module that must be refused
 refused and one for each it builds accepted (by the same check as POST
-/plans/validate), and no product name, unspelled acronym, setting, size or count in the words a developer reads
-(`core/developer-words.js`). A deploy whose plan names a replaced
+/plans/validate), no product name, unspelled acronym, setting, size or count in the words a developer reads
+(`core/developer-words.js`), and a stage map that holds together (`stageMapGaps`). A catalog may describe its path to production
+(`stages`: the path, dev first, each later stage applied by `sealeye` or a named
+`pipeline` and waiting on its `gate`; stages set `aside`; and what a stage adds beside a
+need, `with`), and each module the stages it is for (`stages`) and what takes its place
+from a later stage (`instead`); `resolveForStage` in `core/stages.js` gives the plan as
+it would be built at a stage, the approved plan itself unchanged (DESIGN.md, "A module
+per stage, in the catalog"). A catalog that says nothing has dev alone, as before.
+Nothing is built past dev yet (PHASE5-PLAN Step 8). A deploy whose plan names a replaced
 catalog that no longer builds a module it uses is refused with 409 CATALOG_CHANGED. The
 command draws its card and DEPLOYMENT_PLAN.md from `GET /catalog?version=`, never its
 own copy (`catalogForPlan` in `cli/client.js`).
@@ -250,7 +259,7 @@ whenever what GET /deployments shows of it changes; five minutes a stream), GET 
 GET /needs (each app with its portal `path` where the caller may open it), GET /gaps (the gap report: what developers asked for that the live catalog cannot build, judged by which needs its modules meet; an organization-wide token's only), GET /health, GET /interviews (your own still open), POST /interviews ({ app, zip, findings? },
 answered with the interview and its findings), POST
 /interviews/{id}/answers ({ answer }), GET /interviews/{id}/events (server-sent events),
-DELETE /interviews/{id}, GET /whoami, GET /team (people with tokens, never a token), GET /costs (by tag), GET /catalog (the organization's live catalog, or the starter, and which; ?version= the one a plan names; `document` is it as clients draw a plan from it, only what the platform builds; each module's `usedBy`, the apps standing on it and their release, `api/module-use.js`), GET /apps/{app}/settings, PUT
+DELETE /interviews/{id}, GET /whoami, GET /team (people with tokens, never a token), GET /costs (by tag), GET /catalog (the organization's live catalog, or the starter, and which; ?version= the one a plan names; `document` is it as clients draw a plan from it, only what the platform builds; each module's `usedBy`, the apps standing on it and their release, `api/module-use.js`; `stages`, the path to production when it goes past dev, and each module's `stages` and `instead`, a module named only by its line, `stageMapView` in `core/stages.js`), GET /apps/{app}/settings, PUT
 /apps/{app}/settings/{name} ({ value }) and DELETE /apps/{app}/settings/{name} (an app's
 settings in the store: names out, values in, never back), POST /sessions ({ token }) and
 DELETE /sessions (the portal's sign-in and sign-out), GET /platform (?stage=; the

@@ -296,7 +296,8 @@ own pipeline, whichever the catalog says applies that stage (Greg, Oct 24, 2026;
 DESIGN.md, "seaLeye builds every stage, the way the organization chose for each").
 
 *Planned in [PHASE5-PLAN.md](PHASE5-PLAN.md) (Oct 22, 2026; rewritten Oct 24 for every
-stage); its decisions wait on Greg. Nothing built.*
+stage). Decided so far: D1 to D3, D5, D6 and D12 (Oct 24). Progress: Step 1, the stage map
+in the catalog, built Oct 24, 2026 (2.51.0); nothing is built past dev yet.*
 
 - A module per stage, each stage's gate, and who applies it, in the catalog (Q20).
 - An app has an environment per stage, each with its own role, settings and state.

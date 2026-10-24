@@ -212,6 +212,11 @@ export function developerTexts(doc) {
     for (const [profile, text] of Object.entries(n.profile_expects || {})) add(`need ${n.key}: what ${profile} expects`, text);
   }
   for (const p of Array.isArray(doc?.profiles) ? doc.profiles : []) if (p?.id) add(`profile ${p.id}`, p.line);
+  // What a stage waits on is read by the developer who asks to promote (PHASE5-PLAN).
+  const st = doc?.stages && typeof doc.stages === "object" ? doc.stages : {};
+  for (const s of [...(Array.isArray(st.path) ? st.path : []), ...(Array.isArray(st.aside) ? st.aside : [])]) {
+    if (s && typeof s.name === "string") (Array.isArray(s.gate) ? s.gate : []).forEach((g, i) => add(`stage ${s.name}: gate ${i + 1}`, g));
+  }
   for (const [profile, block] of Object.entries(doc?.patterns && typeof doc.patterns === "object" ? doc.patterns : {})) {
     add(`patterns for ${profile}`, block?.line);
     for (const [id, text] of Object.entries(block?.modules || {})) add(`patterns for ${profile}: ${id}`, text, id);

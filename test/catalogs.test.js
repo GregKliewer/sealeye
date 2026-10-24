@@ -183,6 +183,10 @@ const port = await freePort();
 const api = `http://localhost:${port}`;
 const apiHome = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-catalogs-api-"));
 const ownLine = "a store for the files your app keeps, in acme's words";
+const ACME_STAGES = {
+  path: [{ name: "dev" }, { name: "staging", applies: "pipeline", pipeline: "release.yml", gate: ["a platform team approval"] }],
+  with: [{ from: "staging", module: "acme_queue", beside: "file_storage" }]
+};
 let server, ours, theirs;
 
 const apiEnv = () => {
@@ -202,7 +206,8 @@ const call = (route, token, body) => fetch(`${api}${route}`, {
 before(async () => {
   ours = issue("dev@example.com");
   theirs = issue("dev@acme.example", "--org", "acme");
-  process.env.DOC = JSON.stringify(ownCatalog(ownLine));
+  // Acme's path goes past dev (PHASE5-PLAN Step 1): what GET /catalog says of it.
+  process.env.DOC = JSON.stringify({ ...ownCatalog(ownLine), stages: ACME_STAGES });
   try {
     await inChild(apiHome, `
       import { openCatalogs, addCatalog, approveCatalog, makeLive } from "./api/catalogs.js";
@@ -250,6 +255,31 @@ test("GET /catalog: the starter for an organization with none, word for word, an
   assert.equal(acme.body.catalog.approvedBy, "pat@acme.example");
   assert.ok(!acme.body.modules.some(m => m.id === "static_site_edge"));
   assert.equal(acme.body.needs.find(n => n.kind === "file_storage").line, ownLine);
+});
+
+test("GET /catalog says the path to production when it goes past dev, naming no module it cannot build", async () => {
+  const mine = await call("/catalog", ours);
+  assert.equal(mine.body.stages, undefined, "the starter has dev alone: nothing is said");
+  assert.ok(mine.body.modules.every(m => m.stages === undefined && m.instead === undefined));
+
+  const acme = await call("/catalog", theirs);
+  assert.deepEqual(acme.body.stages.path, [
+    { name: "dev", applies: "sealeye", gate: [] },
+    { name: "staging", applies: "pipeline", gate: ["a platform team approval"] }
+  ], "who applies a stage, never which pipeline file");
+  // What staging adds is one the platform does not build: said by its line, never its id.
+  assert.deepEqual(acme.body.stages.with, [{ from: "staging", beside: ownLine, line: "Acme's own queue." }]);
+  assert.ok(!JSON.stringify(acme.body.stages).includes("acme_queue"));
+  assert.deepEqual(acme.body.document.stages, acme.body.stages);
+
+  // sealeye catalog prints it, in the words the Catalog page uses.
+  const out = execFileSync(process.execPath, ["cli/bin/sealeye", "catalog"], {
+    cwd: root, encoding: "utf8",
+    env: { ...apiEnv(), SEALEYE_API: api, SEALEYE_TOKEN: theirs, NO_COLOR: "1" }
+  });
+  assert.match(out, /The path to production\n\s+dev: you build it yourself, whenever you like\.\n\s+staging: built by your platform team's pipeline, after a platform team approval\./);
+  assert.match(out, /From staging, beside a store for the files your app keeps, in acme's words, the platform adds: acme's own queue\./);
+  assert.ok(!out.includes("acme_queue"));
 });
 
 test("POST /plans/validate reads each need in the words of the catalog the plan names", async () => {

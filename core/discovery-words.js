@@ -213,7 +213,8 @@ export const SELF_TEST_CHECKS = Object.freeze({
   questions: "No question about the whole catalog is waiting",
   refused: "Plans using what it must not build are refused",
   accepted: "Plans using what it builds are accepted",
-  words: "Nothing a developer reads uses a word they never should"
+  words: "Nothing a developer reads uses a word they never should",
+  stages: "Every stage on the path has a module for each one an app uses"
 });
 
 /** A self-test's result in one line. */

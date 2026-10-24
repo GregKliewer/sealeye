@@ -157,6 +157,14 @@ Not code, or very little, about an hour on Greg's Mac:
 
 ### Step 1. The stage map, the gates and the appliers in the catalog (D1, D3)
 
+Built Sat Oct 24, 2026 (2.51.0): `core/stages.js` (the path, `resolveForStage`,
+`stageMapProblems` in the catalog's shape, `stageMapGaps` as the self-test's sixth
+check, `stages`, and the words both surfaces say); GET /catalog's `stages`; `sealeye
+catalog` and `catalog show`, the Catalog page and the Discovery page's catalog view; the
+answer key's stage map for Juniper Mutual. As written below, except that the answer key
+says the library's pipeline applies sit and uat too, since its pipeline and README say
+so; D3's "sit and uat seaLeye" would be an edit by the platform team.
+
 - A catalog's path becomes data: `path` (the stages in order), `aside` (perf), and per
   stage its `gate` (D11) and who `applies` it (D3). The starter's path is `[dev]` only,
   so nothing a starter organization sees changes.
@@ -172,7 +180,7 @@ Not code, or very little, about an hour on Greg's Mac:
   platform uses the clustered database", beside its `usedBy`; and the path, its gates,
   who applies each stage and what each stage adds ("from staging, a daily copy of what
   your app stores, kept apart from it"), on the Catalog page and in `sealeye catalog`.
-- A DESIGN.md entry, "A module per stage, in the catalog", answers Q20.
+- DESIGN.md, "A module per stage, in the catalog" (Oct 24, 2026), answers Q20.
 
 About three and a half days.
 
@@ -378,8 +386,8 @@ link, never a setting, a value or a token. About two days.
 
 DESIGN.md as each decision is made; ARCHITECTURE.md's containers, deployment (a role per
 stage), the promotion flow and the data section; CLAUDE.md's API, executor and current
-limits; ROADMAP Phase 5 ticked; BUILD-OUT's pictures; OPEN-QUESTIONS without Q20, Q25 and
-Q26. About one to two days.
+limits; ROADMAP Phase 5 ticked; BUILD-OUT's pictures; OPEN-QUESTIONS without Q25 (Q20 and
+Q26 left it on Oct 24). About one to two days.
 
 ## Planned, not built
 
@@ -404,10 +412,12 @@ seven days then.
 
 ## Open questions this plan answers, and leaves
 
-- **Q20** (a module per stage): answered by D1 and D2, in Step 1.
+- **Q20** (a module per stage): answered Oct 24, 2026 by D1 and D2 (DESIGN.md, "A module
+  per stage, in the catalog"); built in Steps 1 and 2.
 - **Q25** (how a pipeline that applies a stage gets what to build): opened Oct 24, 2026,
   to be settled before Step 12.
-- **Q26** (an app's settings at a later stage): answered by D12 (Greg, Oct 24, 2026), in Step 5.
+- **Q26** (an app's settings at a later stage): answered Oct 24, 2026 by D12 (DESIGN.md, "An
+  app's settings are kept by stage"); built in Step 5.
 - **Q16** (Cognito sign-in): planned, not built. D10 answers its newest part, whether
   one person may ask and approve, "no" for a promotion.
 - **Q13** (where traces live): answered Oct 13, 2026; its build is owed before the

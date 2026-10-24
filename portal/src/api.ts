@@ -126,8 +126,17 @@ export interface ModuleUser { app: string; team: string; version: string | null;
 export interface Catalog {
   // Which catalog this is (planVersion 0.5): the starter, or one of the organization's.
   catalog?: { version: number | "starter"; source: "starter" | "organization"; approvedBy: string | null; approvedAt: string | null; live?: boolean };
-  modules: { id: string; line: string; shortLine: string | null; availability: string; role: string; version?: string; usedBy?: ModuleUser[] }[];
+  modules: { id: string; line: string; shortLine: string | null; availability: string; role: string; version?: string; usedBy?: ModuleUser[]; stages?: string[]; instead?: { from: string; line: string } }[];
   needs: { kind: string; line: string }[];
+  // The path to production, when the catalog's goes past dev (core/stages.js).
+  stages?: StageMap;
+}
+
+/** A catalog's path to production as a client reads it (stageMapView in core/stages.js). */
+export interface StageMap {
+  path: { name: string; applies: "sealeye" | "pipeline"; gate: string[] }[];
+  aside: { name: string; applies: "sealeye" | "pipeline"; gate: string[]; from: string }[];
+  with: { from: string; beside: string; line: string }[];
 }
 
 export interface NeedsLedger {

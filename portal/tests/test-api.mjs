@@ -197,7 +197,11 @@ const juniperCatalog = {
         inputs: { name: { required: true, line: "Your app's name." }, subnet_ids: { required: true, line: "The subnets the database runs in." } }
       })
     ],
-    need_kinds: starter.need_kinds, profiles: starter.profiles
+    need_kinds: starter.need_kinds, profiles: starter.profiles,
+    // Its path past dev (PHASE5-PLAN Step 1), for the Catalog page.
+    stages: {
+      path: [{ name: "dev" }, { name: "sit", applies: "sealeye" }, { name: "prod", applies: "pipeline", pipeline: "release.yml", gate: ["a platform team approval", "an approved change ticket"] }]
+    }
   }
 };
 // One value Juniper's platform team has set already, a list of subnets for dev.
