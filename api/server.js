@@ -300,9 +300,14 @@ app.get("/catalog", (req, res) => {
       shortLine: String(m.short_line || "").trim() || null,
       // The release the platform builds, where the library releases it.
       ...(m.version ? { version: m.version } : {}),
+      // Which stages it is for, and what takes its place later (PHASE5-PLAN Step 1).
+      ...(m.stages ? { stages: m.stages } : {}),
+      ...(m.instead ? { instead: m.instead } : {}),
       usedBy: used[m.id] || []
     })),
     needs: needKinds(catalog).map(n => ({ kind: n.key, line: String(n.line || "").trim() })),
+    // The path to production, when the catalog's goes past dev.
+    ...(view.stages ? { stages: view.stages } : {}),
     document: view
   });
 });

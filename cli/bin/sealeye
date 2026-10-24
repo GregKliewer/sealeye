@@ -56,6 +56,7 @@ import { discover } from "../discover.js";
 import { catalogs } from "../catalogs.js";
 import { platform } from "../platform.js";
 import { usedByWords, withVersion } from "../../core/discovery-words.js";
+import { moduleStageWords, stageMapWords } from "../../core/stages.js";
 
 // Statuses that are history rather than something you can still open: one was torn
 // down, the other was never built because the platform said so.
@@ -1179,6 +1180,15 @@ async function main() {
       console.log(`  ${c.accent(withVersion(m.id, m.version))}  ${c.dim(m.shortLine || m.line)}`);
       // Which apps use it now, and at which release (an API from before 2.50.0 sends none).
       if (Array.isArray(m.usedBy)) console.log(`      ${c.dim(usedByWords(m.usedBy))}`);
+      // Which stages it is for, and what takes its place later (PHASE5-PLAN Step 1).
+      if (moduleStageWords(m)) console.log(`      ${c.dim(moduleStageWords(m))}`);
+    }
+    // The path to production, when the catalog's goes past dev.
+    const path = stageMapWords(catalog.stages);
+    if (path.length) {
+      console.log("");
+      console.log(c.fg("The path to production"));
+      for (const line of path) console.log(`  ${c.dim(line)}`);
     }
     console.log("");
     console.log(c.fg("What apps can need that it does not build yet"));

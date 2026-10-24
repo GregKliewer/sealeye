@@ -23,6 +23,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 import { Input } from "../components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { Chips, NOTHING_CHOSEN, Pager, useChips, usePaged } from "../components/Paging";
+import { moduleStageView, moduleStageWords, stageMapView, stageMapWords } from "../../../core/stages.js";
 
 export function DiscoveryPage() {
   const { person } = useSession();
@@ -352,7 +353,10 @@ function DraftTable({ draft, version, questions, tick, onChanged }: { draft: Dra
                     <Badge tone={m.availability === "available" ? "phosphor" : "amber"}>{m.availability === "available" ? "Offered" : m.availability === "deprecated" ? "Deprecated" : "Not read"}</Badge>
                     {resting.length ? <Badge tone="amber" className="ml-2" data-testid="rests-on-question" title={RESTS_ON_QUESTION}>never built until answered</Badge> : null}
                   </TableCell>
-                  <TableCell className="text-sm text-dim">{m.line}{m.edited ? <Badge tone="neutral" className="ml-2">edited</Badge> : null}</TableCell>
+                  <TableCell className="text-sm text-dim">
+                    {m.line}{m.edited ? <Badge tone="neutral" className="ml-2">edited</Badge> : null}
+                    {moduleStageWords(moduleStageView(m, draft)) ? <span className="mt-1 block text-xs" data-testid="draft-module-stages">{moduleStageWords(moduleStageView(m, draft))}</span> : null}
+                  </TableCell>
                   {editable ? (
                     <TableCell className="text-right">
                       <Button size="sm" variant="ghost" onClick={() => setEditing(editing === m.id ? null : m.id)} data-testid="edit-words" className="whitespace-nowrap">{editing === m.id ? "Close" : label("catalog-edit")}</Button>
@@ -370,6 +374,14 @@ function DraftTable({ draft, version, questions, tick, onChanged }: { draft: Dra
           </TableBody>
         </Table>
         <Pager paged={modulesPaged} className="mt-3" />
+        {stageMapWords(stageMapView(draft)).length ? (
+          <div className="mt-6" data-testid="draft-stage-map">
+            <h3 className="mb-2 text-sm font-semibold">The path to production</h3>
+            <ul className="space-y-1 text-sm text-dim">
+              {stageMapWords(stageMapView(draft)).map(line => <li key={line}>{line}</li>)}
+            </ul>
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );
