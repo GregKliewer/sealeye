@@ -157,6 +157,14 @@ Not code, or very little, about an hour on Greg's Mac:
 
 ### Step 1. The stage map, the gates and the appliers in the catalog (D1, D3)
 
+Built Sat Oct 24, 2026 (2.51.0): `core/stages.js` (the path, `resolveForStage`,
+`stageMapProblems` in the catalog's shape, `stageMapGaps` as the self-test's sixth
+check, `stages`, and the words both surfaces say); GET /catalog's `stages`; `sealeye
+catalog` and `catalog show`, the Catalog page and the Discovery page's catalog view; the
+answer key's stage map for Juniper Mutual. As written below, except that the answer key
+says the library's pipeline applies sit and uat too, since its pipeline and README say
+so; D3's "sit and uat seaLeye" would be an edit by the platform team.
+
 - A catalog's path becomes data: `path` (the stages in order), `aside` (perf), and per
   stage its `gate` (D11) and who `applies` it (D3). The starter's path is `[dev]` only,
   so nothing a starter organization sees changes.
