@@ -4873,3 +4873,40 @@ What follows:
 
 VISION.md ("What it does" and the principles) and CLAUDE.md principle 9 changed in the
 same commit.
+
+## A module per stage, in the catalog
+
+Decided Sat Oct 24, 2026 (PHASE5-PLAN D1 and D2; Greg: as recommended, D1 revised after
+he asked how libraries usually change a module from stage to stage). Answers Q20. Built
+in PHASE5-PLAN Steps 1 and 2.
+
+Libraries change what is built at a later stage in three ways, and the catalog says each:
+
+- **Inputs by stage**, the most common, and the one to prefer: the same module, told its
+  stage, given that stage's platform values. Juniper Mutual's `postgres-cluster` keeps
+  one instance below staging and two from staging up. The catalog says only which
+  stages a module is for (`stages`); the executor gives a module the stage it is built
+  for instead of `dev` by rule.
+- **`instead`**, where a later stage needs a different kind of resource: on `postgres`,
+  `instead: { from: staging, module: postgres_cluster }`.
+- **`with`**, a module a stage adds beside what the plan names, never one an app asks
+  for: in the catalog's path, `{ from: staging, module: backup_plan, beside:
+  relational_database }`. Juniper's library gained `backup-plan` the same day to plant it.
+
+A plan keeps naming what dev runs, and the plan at any stage is resolved from the catalog
+by code: the plan, each `instead` taken, each `with` added beside what it stands beside,
+the plan's `connect` carried over. No new planVersion: the plan the developer approved
+is what is built at every stage, word for word. A module's release is not a stage rule;
+dev runs a newer release than prod only while an upgrade is promoted (PHASE5-PLAN D7).
+
+Discovery's supervisor writes `stages`, `instead` and the path's `with`; code checks them
+and a platform engineer corrects them. The self-test refuses what it cannot prove: an
+`instead` whose later module does not take the same required inputs, offer every output
+the earlier one offers (so `connect` still holds) and meet the same needs, or a pair that
+leaves a stage of the path without a module; a `with` naming a module that meets a need
+an app asks for, or beside a need no module meets. What it cannot prove is a question
+with a guess, as an overlap is now.
+
+Rejected: a plan that names needs and is filled per stage (planVersion 0.7, about four
+days more, and every fixture changes); a plan per stage written at promotion, since what
+reached production would no longer be what was approved.
