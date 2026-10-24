@@ -13,3 +13,4 @@ deployme.yaml
 .claude/
 eval-results/
 npm-shrinkwrap.json
+qa/

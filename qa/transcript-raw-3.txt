@@ -1,1004 +1,0 @@
-[38;2;127;216;194m                __
-  ___ ___ ___ _/ /  ___ __ _____
- (_-</ -_) _ `/ /__/ -_) // / -_)
-/___/\__/\_,_/____/\__/\_, /\__/
-                      /___/[0m
-[38;2;138;150;163mseaLeye.run  ·  cd your-app && sealeye init   v1.0.0[0m
-
-[38;2;138;150;163m  Reading your app[0m
-[38;2;138;150;163m  ⠋ reading your app[0m[38;2;138;150;163m  ⠙ reading your app[0m[38;2;138;150;163m  ⠹ reading your app[0m[38;2;138;150;163m  ⠸ reading your app[0m[38;2;138;150;163m  ⠼ reading your app[0m[38;2;138;150;163m  ⠴ reading your app[0m[38;2;138;150;163m  ⠦ reading your app[0m[38;2;138;150;163m  ⠧ reading your app[0m[38;2;138;150;163m  ⠇ reading your app[0m[38;2;138;150;163m  ⠏ reading your app[0m[38;2;138;150;163m  ⠋ reading your app[0m[38;2;138;150;163m  ⠙ reading your app[0m[38;2;138;150;163m  ⠹ reading your app[0m[38;2;138;150;163m  ⠸ reading your app[0m[38;2;138;150;163m  ⠼ reading your app[0m[38;2;138;150;163m  ⠴ reading your app[0m[38;2;138;150;163m  ⠦ reading your app[0m[38;2;138;150;163m  ⠧ reading your app[0m[38;2;138;150;163m  ⠇ reading your app[0m[38;2;138;150;163m  ⠏ reading your app[0m[38;2;138;150;163m  ⠋ reading your app[0m[38;2;138;150;163m  ⠙ reading your app[0m[38;2;138;150;163m  ⠹ reading your app[0m[38;2;138;150;163m  ⠸ reading your app[0m[38;2;138;150;163m  ⠼ reading your app[0m[38;2;138;150;163m  ⠴ reading your app[0m[38;2;138;150;163m  ⠦ reading your app[0m[38;2;138;150;163m  ⠧ reading your app[0m[38;2;138;150;163m  ⠇ reading your app[0m                    [38;2;138;150;163m  Reading index.js[0m
-[38;2;138;150;163m  Reading README.md[0m
-[38;2;138;150;163m  ⠋ Reading README.md[0m[38;2;138;150;163m  ⠙ Reading README.md[0m[38;2;138;150;163m  ⠹ Reading README.md[0m[38;2;138;150;163m  ⠸ Reading README.md[0m[38;2;138;150;163m  ⠼ Reading README.md[0m[38;2;138;150;163m  ⠴ Reading README.md[0m[38;2;138;150;163m  ⠦ Reading README.md[0m[38;2;138;150;163m  ⠧ Reading README.md[0m[38;2;138;150;163m  ⠇ Reading README.md[0m[38;2;138;150;163m  ⠏ Reading README.md[0m[38;2;138;150;163m  ⠋ Reading README.md[0m[38;2;138;150;163m  ⠙ Reading README.md[0m[38;2;138;150;163m  ⠹ Reading README.md[0m[38;2;138;150;163m  ⠸ Reading README.md[0m[38;2;138;150;163m  ⠼ Reading README.md[0m[38;2;138;150;163m  ⠴ Reading README.md[0m[38;2;138;150;163m  ⠦ Reading README.md[0m[38;2;138;150;163m  ⠧ Reading README.md[0m[38;2;138;150;163m  ⠇ Reading README.md[0m[38;2;138;150;163m  ⠏ Reading README.md[0m[38;2;138;150;163m  ⠋ Reading README.md[0m[38;2;138;150;163m  ⠙ Reading README.md[0m[38;2;138;150;163m  ⠹ Reading README.md[0m[38;2;138;150;163m  ⠸ Reading README.md[0m[38;2;138;150;163m  ⠼ Reading README.md[0m[38;2;138;150;163m  ⠴ Reading README.md[0m[38;2;138;150;163m  ⠦ Reading README.md[0m[38;2;138;150;163m  ⠧ Reading README.md[0m[38;2;138;150;163m  ⠇ Reading README.md[0m[38;2;138;150;163m  ⠏ Reading README.md[0m[38;2;138;150;163m  ⠋ Reading README.md[0m[38;2;138;150;163m  ⠙ Reading README.md[0m[38;2;138;150;163m  ⠹ Reading README.md[0m[38;2;138;150;163m  ⠸ Reading README.md[0m[38;2;138;150;163m  ⠼ Reading README.md[0m[38;2;138;150;163m  ⠴ Reading README.md[0m[38;2;138;150;163m  ⠦ Reading README.md[0m[38;2;138;150;163m  ⠧ Reading README.md[0m[38;2;138;150;163m  ⠇ Reading README.md  3s[0m[38;2;138;150;163m  ⠏ Reading README.md  3s[0m[38;2;138;150;163m  ⠋ Reading README.md  3s[0m[38;2;138;150;163m  ⠙ Reading README.md  3s[0m[38;2;138;150;163m  ⠹ Reading README.md  3s[0m[38;2;138;150;163m  ⠸ Reading README.md  3s[0m[38;2;138;150;163m  ⠼ Reading README.md  3s[0m[38;2;138;150;163m  ⠴ Reading README.md  3s[0m[38;2;138;150;163m  ⠦ Reading README.md  3s[0m[38;2;138;150;163m  ⠧ Reading README.md  3s[0m[38;2;138;150;163m  ⠇ Reading README.md  3s[0m[38;2;138;150;163m  ⠏ Reading README.md  3s[0m[38;2;138;150;163m  ⠋ Reading README.md  4s[0m[38;2;138;150;163m  ⠙ Reading README.md  4s[0m[38;2;138;150;163m  ⠹ Reading README.md  4s[0m[38;2;138;150;163m  ⠸ Reading README.md  4s[0m[38;2;138;150;163m  ⠼ Reading README.md  4s[0m[38;2;138;150;163m  ⠴ Reading README.md  4s[0m[38;2;138;150;163m  ⠦ Reading README.md  4s[0m[38;2;138;150;163m  ⠧ Reading README.md  4s[0m[38;2;138;150;163m  ⠇ Reading README.md  4s[0m[38;2;138;150;163m  ⠏ Reading README.md  4s[0m[38;2;138;150;163m  ⠋ Reading README.md  4s[0m[38;2;138;150;163m  ⠙ Reading README.md  4s[0m[38;2;138;150;163m  ⠹ Reading README.md  5s[0m[38;2;138;150;163m  ⠸ Reading README.md  5s[0m[38;2;138;150;163m  ⠼ Reading README.md  5s[0m[38;2;138;150;163m  ⠴ Reading README.md  5s[0m[38;2;138;150;163m  ⠦ Reading README.md  5s[0m[38;2;138;150;163m  ⠧ Reading README.md  5s[0m[38;2;138;150;163m  ⠇ Reading README.md  5s[0m[38;2;138;150;163m  ⠏ Reading README.md  5s[0m[38;2;138;150;163m  ⠋ Reading README.md  5s[0m[38;2;138;150;163m  ⠙ Reading README.md  5s[0m[38;2;138;150;163m  ⠹ Reading README.md  5s[0m[38;2;138;150;163m  ⠸ Reading README.md  5s[0m[38;2;138;150;163m  ⠼ Reading README.md  5s[0m[38;2;138;150;163m  ⠴ Reading README.md  6s[0m[38;2;138;150;163m  ⠦ Reading README.md  6s[0m[38;2;138;150;163m  ⠧ Reading README.md  6s[0m[38;2;138;150;163m  ⠇ Reading README.md  6s[0m[38;2;138;150;163m  ⠏ Reading README.md  6s[0m[38;2;138;150;163m  ⠋ Reading README.md  6s[0m[38;2;138;150;163m  ⠙ Reading README.md  6s[0m[38;2;138;150;163m  ⠹ Reading README.md  6s[0m[38;2;138;150;163m  ⠸ Reading README.md  6s[0m[38;2;138;150;163m  ⠼ Reading README.md  6s[0m[38;2;138;150;163m  ⠴ Reading README.md  6s[0m[38;2;138;150;163m  ⠦ Reading README.md  6s[0m[38;2;138;150;163m  ⠧ Reading README.md  7s[0m[38;2;138;150;163m  ⠇ Reading README.md  7s[0m[38;2;138;150;163m  ⠏ Reading README.md  7s[0m[38;2;138;150;163m  ⠋ Reading README.md  7s[0m[38;2;138;150;163m  ⠙ Reading README.md  7s[0m[38;2;138;150;163m  ⠹ Reading README.md  7s[0m[38;2;138;150;163m  ⠸ Reading README.md  7s[0m[38;2;138;150;163m  ⠼ Reading README.md  7s[0m[38;2;138;150;163m  ⠴ Reading README.md  7s[0m[38;2;138;150;163m  ⠦ Reading README.md  7s[0m[38;2;138;150;163m  ⠧ Reading README.md  7s[0m[38;2;138;150;163m  ⠇ Reading README.md  7s[0m[38;2;138;150;163m  ⠏ Reading README.md  8s[0m[38;2;138;150;163m  ⠋ Reading README.md  8s[0m[38;2;138;150;163m  ⠙ Reading README.md  8s[0m[38;2;138;150;163m  ⠹ Reading README.md  8s[0m[38;2;138;150;163m  ⠸ Reading README.md  8s[0m[38;2;138;150;163m  ⠼ Reading README.md  8s[0m[38;2;138;150;163m  ⠴ Reading README.md  8s[0m[38;2;138;150;163m  ⠦ Reading README.md  8s[0m[38;2;138;150;163m  ⠧ Reading README.md  8s[0m[38;2;138;150;163m  ⠇ Reading README.md  8s[0m[38;2;138;150;163m  ⠏ Reading README.md  8s[0m[38;2;138;150;163m  ⠋ Reading README.md  8s[0m[38;2;138;150;163m  ⠙ Reading README.md  8s[0m[38;2;138;150;163m  ⠹ Reading README.md  9s[0m[38;2;138;150;163m  ⠸ Reading README.md  9s[0m[38;2;138;150;163m  ⠼ Reading README.md  9s[0m[38;2;138;150;163m  ⠴ Reading README.md  9s[0m[38;2;138;150;163m  ⠦ Reading README.md  9s[0m                         
-[38;2;138;150;163m  This is an Express API with two routes (a root status check and a beneficiary lookup by reference), reading only `PORT` from its environment, so no other settings to configure. The README mentions it's used by branch staff reviewing real payments before they're released.[0m
-[1G[0J[38;2;232;176;75m?[0m Is this something Northline Bank relies on day to day, or is it a proof of concept you're trying out? [105Gpoc
-[1A[0J[38;2;232;176;75m?[0m Is this something Northline Bank relies on day to day, or is it a proof of concept you're trying out? [38;2;127;216;194mpoc[0m
-[38;2;138;150;163m  ⠋ Reading README.md[0m[38;2;138;150;163m  ⠙ Reading README.md[0m[38;2;138;150;163m  ⠹ Reading README.md[0m[38;2;138;150;163m  ⠸ Reading README.md[0m[38;2;138;150;163m  ⠼ Reading README.md[0m[38;2;138;150;163m  ⠴ Reading README.md[0m[38;2;138;150;163m  ⠦ Reading README.md[0m[38;2;138;150;163m  ⠧ Reading README.md[0m[38;2;138;150;163m  ⠇ Reading README.md[0m[38;2;138;150;163m  ⠏ Reading README.md[0m[38;2;138;150;163m  ⠋ Reading README.md[0m[38;2;138;150;163m  ⠙ Reading README.md[0m[38;2;138;150;163m  ⠹ Reading README.md[0m[38;2;138;150;163m  ⠸ Reading README.md[0m[38;2;138;150;163m  ⠼ Reading README.md[0m[38;2;138;150;163m  ⠴ Reading README.md[0m[38;2;138;150;163m  ⠦ Reading README.md[0m[38;2;138;150;163m  ⠧ Reading README.md[0m[38;2;138;150;163m  ⠇ Reading README.md[0m[38;2;138;150;163m  ⠏ Reading README.md[0m[38;2;138;150;163m  ⠋ Reading README.md[0m[38;2;138;150;163m  ⠙ Reading README.md[0m[38;2;138;150;163m  ⠹ Reading README.md[0m[38;2;138;150;163m  ⠸ Reading README.md[0m[38;2;138;150;163m  ⠼ Reading README.md[0m[38;2;138;150;163m  ⠴ Reading README.md[0m[38;2;138;150;163m  ⠦ Reading README.md[0m[38;2;138;150;163m  ⠧ Reading README.md[0m[38;2;138;150;163m  ⠇ Reading README.md[0m[38;2;138;150;163m  ⠏ Reading README.md[0m[38;2;138;150;163m  ⠋ Reading README.md[0m[38;2;138;150;163m  ⠙ Reading README.md[0m[38;2;138;150;163m  ⠹ Reading README.md[0m[38;2;138;150;163m  ⠸ Reading README.md[0m[38;2;138;150;163m  ⠼ Reading README.md[0m[38;2;138;150;163m  ⠴ Reading README.md[0m[38;2;138;150;163m  ⠦ Reading README.md[0m[38;2;138;150;163m  ⠧ Reading README.md[0m[38;2;138;150;163m  ⠇ Reading README.md  3s[0m[38;2;138;150;163m  ⠏ Reading README.md  3s[0m[38;2;138;150;163m  ⠋ Reading README.md  3s[0m[38;2;138;150;163m  ⠙ Reading README.md  3s[0m[38;2;138;150;163m  ⠹ Reading README.md  3s[0m[38;2;138;150;163m  ⠸ Reading README.md  3s[0m[38;2;138;150;163m  ⠼ Reading README.md  3s[0m[38;2;138;150;163m  ⠴ Reading README.md  3s[0m[38;2;138;150;163m  ⠦ Reading README.md  3s[0m[38;2;138;150;163m  ⠧ Reading README.md  3s[0m[38;2;138;150;163m  ⠇ Reading README.md  3s[0m[38;2;138;150;163m  ⠏ Reading README.md  3s[0m[38;2;138;150;163m  ⠋ Reading README.md  4s[0m[38;2;138;150;163m  ⠙ Reading README.md  4s[0m[38;2;138;150;163m  ⠹ Reading README.md  4s[0m[38;2;138;150;163m  ⠸ Reading README.md  4s[0m[38;2;138;150;163m  ⠼ Reading README.md  4s[0m[38;2;138;150;163m  ⠴ Reading README.md  4s[0m[38;2;138;150;163m  ⠦ Reading README.md  4s[0m[38;2;138;150;163m  ⠧ Reading README.md  4s[0m[38;2;138;150;163m  ⠇ Reading README.md  4s[0m[38;2;138;150;163m  ⠏ Reading README.md  4s[0m[38;2;138;150;163m  ⠋ Reading README.md  4s[0m[38;2;138;150;163m  ⠙ Reading README.md  4s[0m[38;2;138;150;163m  ⠹ Reading README.md  5s[0m[38;2;138;150;163m  ⠸ Reading README.md  5s[0m[38;2;138;150;163m  ⠼ Reading README.md  5s[0m[38;2;138;150;163m  ⠴ Reading README.md  5s[0m[38;2;138;150;163m  ⠦ Reading README.md  5s[0m[38;2;138;150;163m  ⠧ Reading README.md  5s[0m[38;2;138;150;163m  ⠇ Reading README.md  5s[0m[38;2;138;150;163m  ⠏ Reading README.md  5s[0m[38;2;138;150;163m  ⠋ Reading README.md  5s[0m[38;2;138;150;163m  ⠙ Reading README.md  5s[0m[38;2;138;150;163m  ⠹ Reading README.md  5s[0m[38;2;138;150;163m  ⠸ Reading README.md  5s[0m[38;2;138;150;163m  ⠼ Reading README.md  5s[0m[38;2;138;150;163m  ⠴ Reading README.md  6s[0m[38;2;138;150;163m  ⠦ Reading README.md  6s[0m[38;2;138;150;163m  ⠧ Reading README.md  6s[0m[38;2;138;150;163m  ⠇ Reading README.md  6s[0m[38;2;138;150;163m  ⠏ Reading README.md  6s[0m[38;2;138;150;163m  ⠋ Reading README.md  6s[0m[38;2;138;150;163m  ⠙ Reading README.md  6s[0m[38;2;138;150;163m  ⠹ Reading README.md  6s[0m[38;2;138;150;163m  ⠸ Reading README.md  6s[0m[38;2;138;150;163m  ⠼ Reading README.md  6s[0m[38;2;138;150;163m  ⠴ Reading README.md  6s[0m[38;2;138;150;163m  ⠦ Reading README.md  6s[0m[38;2;138;150;163m  ⠧ Reading README.md  7s[0m[38;2;138;150;163m  ⠇ Reading README.md  7s[0m[38;2;138;150;163m  ⠏ Reading README.md  7s[0m[38;2;138;150;163m  ⠋ Reading README.md  7s[0m[38;2;138;150;163m  ⠙ Reading README.md  7s[0m[38;2;138;150;163m  ⠹ Reading README.md  7s[0m[38;2;138;150;163m  ⠸ Reading README.md  7s[0m[38;2;138;150;163m  ⠼ Reading README.md  7s[0m[38;2;138;150;163m  ⠴ Reading README.md  7s[0m[38;2;138;150;163m  ⠦ Reading README.md  7s[0m[38;2;138;150;163m  ⠧ Reading README.md  7s[0m[38;2;138;150;163m  ⠇ Reading README.md  7s[0m[38;2;138;150;163m  ⠏ Reading README.md  8s[0m[38;2;138;150;163m  ⠋ Reading README.md  8s[0m[38;2;138;150;163m  ⠙ Reading README.md  8s[0m[38;2;138;150;163m  ⠹ Reading README.md  8s[0m[38;2;138;150;163m  ⠸ Reading README.md  8s[0m[38;2;138;150;163m  ⠼ Reading README.md  8s[0m[38;2;138;150;163m  ⠴ Reading README.md  8s[0m[38;2;138;150;163m  ⠦ Reading README.md  8s[0m[38;2;138;150;163m  ⠧ Reading README.md  8s[0m[38;2;138;150;163m  ⠇ Reading README.md  8s[0m[38;2;138;150;163m  ⠏ Reading README.md  8s[0m[38;2;138;150;163m  ⠋ Reading README.md  8s[0m[38;2;138;150;163m  ⠙ Reading README.md  8s[0m[38;2;138;150;163m  ⠹ Reading README.md  9s[0m[38;2;138;150;163m  ⠸ Reading README.md  9s[0m[38;2;138;150;163m  ⠼ Reading README.md  9s[0m[38;2;138;150;163m  ⠴ Reading README.md  9s[0m[38;2;138;150;163m  ⠦ Reading README.md  9s[0m[38;2;138;150;163m  ⠧ Reading README.md  9s[0m[38;2;138;150;163m  ⠇ Reading README.md  9s[0m[38;2;138;150;163m  ⠏ Reading README.md  9s[0m[38;2;138;150;163m  ⠋ Reading README.md  9s[0m[38;2;138;150;163m  ⠙ Reading README.md  9s[0m[38;2;138;150;163m  ⠹ Reading README.md  9s[0m[38;2;138;150;163m  ⠸ Reading README.md  9s[0m[38;2;138;150;163m  ⠼ Reading README.md  10s[0m[38;2;138;150;163m  ⠴ Reading README.md  10s[0m[38;2;138;150;163m  ⠦ Reading README.md  10s[0m[38;2;138;150;163m  ⠧ Reading README.md  10s[0m[38;2;138;150;163m  ⠇ Reading README.md  10s[0m[38;2;138;150;163m  ⠏ Reading README.md  10s[0m[38;2;138;150;163m  ⠋ Reading README.md  10s[0m[38;2;138;150;163m  ⠙ Reading README.md  10s[0m[38;2;138;150;163m  ⠹ Reading README.md  10s[0m[38;2;138;150;163m  ⠸ Reading README.md  10s[0m[38;2;138;150;163m  ⠼ Reading README.md  10s[0m[38;2;138;150;163m  ⠴ Reading README.md  10s[0m[38;2;138;150;163m  ⠦ Reading README.md  11s[0m[38;2;138;150;163m  ⠧ Reading README.md  11s[0m[38;2;138;150;163m  ⠇ Reading README.md  11s[0m[38;2;138;150;163m  ⠏ Reading README.md  11s[0m[38;2;138;150;163m  ⠋ Reading README.md  11s[0m[38;2;138;150;163m  ⠙ Reading README.md  11s[0m[38;2;138;150;163m  ⠹ Reading README.md  11s[0m[38;2;138;150;163m  ⠸ Reading README.md  11s[0m[38;2;138;150;163m  ⠼ Reading README.md  11s[0m[38;2;138;150;163m  ⠴ Reading README.md  11s[0m[38;2;138;150;163m  ⠦ Reading README.md  11s[0m[38;2;138;150;163m  ⠧ Reading README.md  11s[0m[38;2;138;150;163m  ⠇ Reading README.md  11s[0m[38;2;138;150;163m  ⠏ Reading README.md  12s[0m[38;2;138;150;163m  ⠋ Reading README.md  12s[0m[38;2;138;150;163m  ⠙ Reading README.md  12s[0m[38;2;138;150;163m  ⠹ Reading README.md  12s[0m[38;2;138;150;163m  ⠸ Reading README.md  12s[0m[38;2;138;150;163m  ⠼ Reading README.md  12s[0m[38;2;138;150;163m  ⠴ Reading README.md  12s[0m[38;2;138;150;163m  ⠦ Reading README.md  12s[0m[38;2;138;150;163m  ⠧ Reading README.md  12s[0m                          [38;2;138;150;163m  Checking the plan against the seaLeye.run plan contract[0m
-
-[38;2;138;150;163m  ┌──────────────────────────────────────────────────────────────────────────────────────────────┐[0m
-  [38;2;138;150;163m│[0m [38;2;138;150;163mYour app:[0m                                                                                    [38;2;138;150;163m│[0m
-  [38;2;138;150;163m│[0m   [38;2;127;216;194mbeneficiary-lookup-api[0m[38;2;217;224;230m, a [0m[38;2;127;216;194mNode.js API[0m[38;2;217;224;230m that starts with [0m[38;2;127;216;194mindex.js[0m                            [38;2;138;150;163m│[0m
-[38;2;138;150;163m  ├──────────────────────────────────────────────────────────────────────────────────────────────┤[0m
-  [38;2;138;150;163m│[0m [38;2;138;150;163mWe will provision this infrastructure to run it:[0m                                             [38;2;138;150;163m│[0m
-  [38;2;138;150;163m│[0m   [38;2;217;224;230mhttp_api_serverless[0m  [38;2;138;150;163mRuns your code on demand behind an HTTPS endpoint.[0m                    [38;2;138;150;163m│[0m
-  [38;2;138;150;163m│[0m   [38;2;217;224;230mobservability_basic[0m  [38;2;138;150;163mCollects your app's logs and tracks requests, errors and response[0m     [38;2;138;150;163m│[0m
-  [38;2;138;150;163m│[0m                        [38;2;138;150;163mtimes.[0m                                                                [38;2;138;150;163m│[0m
-[38;2;138;150;163m  ├──────────────────────────────────────────────────────────────────────────────────────────────┤[0m
-  [38;2;138;150;163m│[0m [38;2;138;150;163mYou will get back:[0m                                                                           [38;2;138;150;163m│[0m
-  [38;2;138;150;163m│[0m   [38;2;217;224;230mA public HTTPS address, as soon as it is live[0m                                              [38;2;138;150;163m│[0m
-  [38;2;138;150;163m│[0m   [38;2;217;224;230mYour logs and basic metrics, kept for 30 days[0m                                              [38;2;138;150;163m│[0m
-[38;2;138;150;163m  └──────────────────────────────────────────────────────────────────────────────────────────────┘[0m
-
-[38;2;138;150;163m  Full plan, and every assumption seaLeye.run made: DEPLOYMENT_PLAN.md[0m
-[38;2;138;150;163m  Wrote /Users/gregkliewer/dev/deployme-demo/qa/beneficiary-lookup-api/DEPLOYMENT_PLAN.md[0m
-[38;2;138;150;163m  Wrote /Users/gregkliewer/dev/deployme-demo/qa/beneficiary-lookup-api/deployme.yaml[0m
-
-[1G[0J[38;2;232;176;75m?[0m Deploy this? [y/N] [22Gy
-[1A[0J[38;2;232;176;75m?[0m Deploy this? [y/N] [38;2;127;216;194my[0m
-[38;2;138;150;163m  Handing /Users/gregkliewer/dev/deployme-demo/qa/beneficiary-lookup-api to seaLeye.run to build your environment[0m
-[38;2;138;150;163m  ⠋ handing your app to seaLeye.run[0m                                   
-Deployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mpackaging[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: packaging.[0m
-[38;2;138;150;163m  ⠋ Copying your app into a staging folder (your folder is not modified)[0m[38;2;138;150;163m  ⠙ Copying your app into a staging folder (your folder is not modified)[0m[38;2;138;150;163m  ⠹ Copying your app into a staging folder (your folder is not modified)[0m[38;2;138;150;163m  ⠸ Copying your app into a staging folder (your folder is not modified)[0m[38;2;138;150;163m  ⠼ Copying your app into a staging folder (your folder is not modified)[0m[38;2;138;150;163m  ⠴ Copying your app into a staging folder (your folder is not modified)[0m[38;2;138;150;163m  ⠦ Copying your app into a staging folder (your folder is not modified)[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mpackaging[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: packaging..[0m
-                                                                        [38;2;138;150;163m  ⠧ Installing production dependencies[0m[38;2;138;150;163m  ⠇ Installing production dependencies[0m[38;2;138;150;163m  ⠏ Installing production dependencies[0m[38;2;138;150;163m  ⠋ Installing production dependencies[0m[38;2;138;150;163m  ⠙ Installing production dependencies[0m[38;2;138;150;163m  ⠹ Installing production dependencies[0m[38;2;138;150;163m  ⠸ Installing production dependencies[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mpackaging[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: packaging...[0m
-                                      [38;2;138;150;163m  ⠼ Uploading the artifact to s3://deployme-artifacts-682542496821-ca-central-1/beneficiary-lookup-api/dep_bf161fdc6732.zip[0m[38;2;138;150;163m  ⠴ Uploading the artifact to s3://deployme-artifacts-682542496821-ca-central-1/beneficiary-lookup-api/dep_bf161fdc6732.zip[0m[38;2;138;150;163m  ⠦ Uploading the artifact to s3://deployme-artifacts-682542496821-ca-central-1/beneficiary-lookup-api/dep_bf161fdc6732.zip[0m[38;2;138;150;163m  ⠧ Uploading the artifact to s3://deployme-artifacts-682542496821-ca-central-1/beneficiary-lookup-api/dep_bf161fdc6732.zip[0m[38;2;138;150;163m  ⠇ Uploading the artifact to s3://deployme-artifacts-682542496821-ca-central-1/beneficiary-lookup-api/dep_bf161fdc6732.zip[0m[38;2;138;150;163m  ⠏ Uploading the artifact to s3://deployme-artifacts-682542496821-ca-central-1/beneficiary-lookup-api/dep_bf161fdc6732.zip[0m[38;2;138;150;163m  ⠋ Uploading the artifact to s3://deployme-artifacts-682542496821-ca-central-1/beneficiary-lookup-api/dep_bf161fdc6732.zip[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mpackaging[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: packaging.[0m
-[38;2;138;150;163m  ⠙ Uploading the artifact to s3://deployme-artifacts-682542496821-ca-central-1/beneficiary-lookup-api/dep_bf161fdc6732.zip[0m[38;2;138;150;163m  ⠹ Uploading the artifact to s3://deployme-artifacts-682542496821-ca-central-1/beneficiary-lookup-api/dep_bf161fdc6732.zip[0m[38;2;138;150;163m  ⠸ Uploading the artifact to s3://deployme-artifacts-682542496821-ca-central-1/beneficiary-lookup-api/dep_bf161fdc6732.zip[0m[38;2;138;150;163m  ⠼ Uploading the artifact to s3://deployme-artifacts-682542496821-ca-central-1/beneficiary-lookup-api/dep_bf161fdc6732.zip[0m[38;2;138;150;163m  ⠴ Uploading the artifact to s3://deployme-artifacts-682542496821-ca-central-1/beneficiary-lookup-api/dep_bf161fdc6732.zip[0m[38;2;138;150;163m  ⠦ Uploading the artifact to s3://deployme-artifacts-682542496821-ca-central-1/beneficiary-lookup-api/dep_bf161fdc6732.zip[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mpackaging[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: packaging..[0m
-[38;2;138;150;163m  ⠧ Uploading the artifact to s3://deployme-artifacts-682542496821-ca-central-1/beneficiary-lookup-api/dep_bf161fdc6732.zip[0m[38;2;138;150;163m  ⠇ Uploading the artifact to s3://deployme-artifacts-682542496821-ca-central-1/beneficiary-lookup-api/dep_bf161fdc6732.zip[0m[38;2;138;150;163m  ⠏ Uploading the artifact to s3://deployme-artifacts-682542496821-ca-central-1/beneficiary-lookup-api/dep_bf161fdc6732.zip[0m[38;2;138;150;163m  ⠋ Uploading the artifact to s3://deployme-artifacts-682542496821-ca-central-1/beneficiary-lookup-api/dep_bf161fdc6732.zip[0m[38;2;138;150;163m  ⠙ Uploading the artifact to s3://deployme-artifacts-682542496821-ca-central-1/beneficiary-lookup-api/dep_bf161fdc6732.zip[0m[38;2;138;150;163m  ⠹ Uploading the artifact to s3://deployme-artifacts-682542496821-ca-central-1/beneficiary-lookup-api/dep_bf161fdc6732.zip[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running...[0m
-                                                                                                                           [38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running.[0m
-[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running..[0m
-[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running...[0m
-[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running.[0m
-[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running..[0m
-[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running...[0m
-[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  3s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  3s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  3s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  3s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  3s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  3s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running.[0m
-[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  3s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  3s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  3s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  3s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  3s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  3s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running..[0m
-[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  4s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  4s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  4s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  4s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  4s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  4s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  4s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running...[0m
-[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  4s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  4s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  4s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  4s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  4s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  5s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running.[0m
-[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  5s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  5s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  5s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  5s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  5s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  5s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (REVIEW_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running..[0m
-[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  5s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  5s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  5s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  5s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  5s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  5s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (REVIEW_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running...[0m
-[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  6s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  6s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  6s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  6s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  6s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  6s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (REVIEW_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running.[0m
-[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  6s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  6s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  6s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  6s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  6s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  6s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  7s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (REVIEW_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running..[0m
-[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  7s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  7s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  7s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  7s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  7s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  7s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (REVIEW_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running...[0m
-[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  7s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  7s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  7s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  7s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  7s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  8s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (REVIEW_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running.[0m
-[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  8s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  8s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  8s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  8s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  8s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  8s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (REVIEW_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running..[0m
-[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  8s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  8s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  8s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  8s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  8s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  8s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  9s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (REVIEW_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running...[0m
-[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  9s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  9s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  9s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  9s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  9s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  9s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (REVIEW_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running.[0m
-[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  9s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  9s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  9s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  9s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  9s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  10s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (REVIEW_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running..[0m
-[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  10s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  10s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  10s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  10s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  10s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  10s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (REVIEW_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running...[0m
-[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  10s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  10s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  10s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  10s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  10s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  11s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running.[0m
-[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  11s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  11s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  11s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  11s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  11s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  11s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  11s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running..[0m
-[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  11s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  11s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  11s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  11s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  11s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  12s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running...[0m
-[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  12s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  12s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  12s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  12s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  12s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  12s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running.[0m
-[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  12s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  12s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  12s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  12s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  12s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  13s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running..[0m
-[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  13s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  13s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  13s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  13s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  13s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  13s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running...[0m
-[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  13s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  13s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  13s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  13s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  13s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  14s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  14s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running.[0m
-[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  14s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  14s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  14s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  14s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  14s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  14s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running..[0m
-[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  14s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  14s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  14s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  14s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  14s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  15s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running...[0m
-[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  15s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  15s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  15s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  15s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  15s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  15s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running.[0m
-[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  15s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  15s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  15s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  15s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  15s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  16s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running..[0m
-[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  16s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  16s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  16s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  16s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  16s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  16s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  16s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running...[0m
-[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  16s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  16s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  16s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  16s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  17s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  17s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running.[0m
-[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  17s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  17s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  17s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  17s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  17s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  17s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running..[0m
-[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  17s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  17s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  17s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  17s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  17s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  18s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running...[0m
-[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  18s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  18s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  18s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  18s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  18s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  18s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  18s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running.[0m
-[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  18s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  18s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  18s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  18s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  19s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  19s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running..[0m
-[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  19s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  19s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  19s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  19s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  19s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  19s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running...[0m
-[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  19s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  19s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  19s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  19s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  20s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  20s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running.[0m
-[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  20s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  20s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  20s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  20s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  20s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  20s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running..[0m
-[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  20s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  20s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  20s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  20s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  20s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  21s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  21s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running...[0m
-[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  21s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  21s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  21s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  21s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  21s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  21s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running.[0m
-[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  21s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  21s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  21s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  21s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  22s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  22s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running..[0m
-[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  22s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  22s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  22s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  22s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  22s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  22s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running...[0m
-[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  22s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  22s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  22s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  22s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  23s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  23s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running.[0m
-[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  23s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  23s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  23s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  23s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  23s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  23s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  23s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running..[0m
-[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  23s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  23s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  23s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  23s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  24s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  24s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running...[0m
-[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  24s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  24s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  24s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  24s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  24s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  24s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running.[0m
-[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  24s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  24s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  24s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  24s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  25s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  25s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running..[0m
-[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  25s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  25s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  25s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  25s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  25s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  25s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running...[0m
-[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  25s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  25s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  25s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  25s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  25s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  26s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  26s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running.[0m
-[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  26s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  26s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  26s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  26s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  26s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  26s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running..[0m
-[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  26s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  26s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  26s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  26s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  27s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  27s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running...[0m
-[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  27s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  27s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  27s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  27s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  27s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  27s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running.[0m
-[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  27s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  27s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  27s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  27s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  28s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  28s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  28s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running..[0m
-[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  28s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  28s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  28s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  28s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  28s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  28s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running...[0m
-[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  28s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  28s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  28s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  28s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  29s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  29s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running.[0m
-[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  29s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  29s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  29s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  29s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  29s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  29s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running..[0m
-[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  29s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  29s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  29s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  29s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  30s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  30s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running...[0m
-[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  30s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  30s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  30s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  30s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  30s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  30s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  30s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running.[0m
-[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  30s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  30s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  30s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  31s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  31s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  31s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running..[0m
-[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  31s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  31s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  31s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  31s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  31s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  31s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running...[0m
-[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  31s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  31s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  31s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  31s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  32s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  32s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running.[0m
-[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  32s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  32s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  32s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  32s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  32s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  32s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running..[0m
-[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  32s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  32s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  32s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  32s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  33s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  33s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  33s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running...[0m
-[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  33s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  33s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  33s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  33s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  33s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  33s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running.[0m
-[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  33s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  33s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  33s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  34s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  34s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  34s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running..[0m
-[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  34s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  34s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  34s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  34s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  34s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  34s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running...[0m
-[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  34s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  34s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  34s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  34s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  35s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  35s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running.[0m
-[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  35s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  35s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  35s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  35s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  35s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  35s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  35s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running..[0m
-[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  35s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  35s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  35s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  36s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  36s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  36s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running...[0m
-[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  36s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  36s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  36s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  36s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  36s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  36s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running.[0m
-[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  36s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  36s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  36s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  37s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  37s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  37s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running..[0m
-[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  37s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  37s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  37s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  37s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  37s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  37s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  37s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running...[0m
-[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  37s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  37s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  37s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  38s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  38s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  38s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running.[0m
-[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  38s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  38s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  38s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  38s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  38s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  38s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running..[0m
-[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  38s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  38s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  38s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  39s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  39s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  39s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running...[0m
-[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  39s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  39s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  39s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  39s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  39s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  39s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running.[0m
-[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  39s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  39s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  39s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  40s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  40s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  40s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  40s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running..[0m
-[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  40s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  40s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  40s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  40s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  40s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  40s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running...[0m
-[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  40s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  40s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  40s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  41s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  41s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  41s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running.[0m
-[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  41s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  41s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  41s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  41s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  41s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  41s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running..[0m
-[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  41s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  41s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  41s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  42s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  42s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  42s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running...[0m
-[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  42s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  42s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  42s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  42s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  42s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  42s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  42s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running.[0m
-[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  42s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  42s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  42s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  43s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  43s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  43s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running..[0m
-[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  43s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  43s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  43s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  43s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  43s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  43s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running...[0m
-[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  43s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  43s[0m[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  43s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  44s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  44s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  44s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running.[0m
-[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  44s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  44s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  44s[0m[38;2;138;150;163m  ⠼ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  44s[0m[38;2;138;150;163m  ⠴ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  44s[0m[38;2;138;150;163m  ⠦ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  44s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;138;150;163mrunning[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_IN_PROGRESS)[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: running..[0m
-[38;2;138;150;163m  ⠧ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  44s[0m[38;2;138;150;163m  ⠇ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  44s[0m[38;2;138;150;163m  ⠏ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  44s[0m[38;2;138;150;163m  ⠋ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  45s[0m[38;2;138;150;163m  ⠙ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  45s[0m[38;2;138;150;163m  ⠹ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  45s[0m[38;2;138;150;163m  ⠸ Creating your AWS environment (stack sealeye-beneficiary-lookup-api)  45s[0m[10A[0JDeployment: dep_bf161fdc6732
-Status:     [38;2;127;216;194msucceeded[0m
-App:        beneficiary-lookup-api (api)
-Stack:      [38;2;138;150;163msealeye-beneficiary-lookup-api (CREATE_COMPLETE)[0m
-URL:        [38;2;127;216;194mhttps://thykaw0bth.execute-api.ca-central-1.amazonaws.com[0m
-Logs:       [38;2;127;216;194m/aws/lambda/beneficiary-lookup-api[0m
-Started:    [38;2;138;150;163m2026-09-22T12:28:49.180Z[0m
-Finished:   [38;2;138;150;163m2026-09-22T12:29:36.550Z[0m
-You asked for:
-  [38;2;127;216;194mhttp_api_serverless[0m
-  [38;2;127;216;194mobservability_basic[0m
-
-[38;2;138;150;163mStatus: succeeded...[0m
-                                                                             
-[38;2;127;216;194m✓ Your app is live at https://thykaw0bth.execute-api.ca-central-1.amazonaws.com[0m
-[38;2;138;150;163m  Wrote /Users/gregkliewer/dev/deployme-demo/qa/beneficiary-lookup-api/DEPLOYMENT_REPORT.md[0m
