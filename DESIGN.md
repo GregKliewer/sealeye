@@ -4947,3 +4947,17 @@ PHASE5-PLAN Steps 3 and 4.
   the staging and prod roles may build a cluster. An independent review before the pull
   request that adds them. A second account for staging and prod waits until a pilot asks;
   the role per stage already allows it.
+
+## An app's settings are kept by stage
+
+Decided Sat Oct 24, 2026 (PHASE5-PLAN D12; Greg: as recommended). Answers Q26. Built in
+PHASE5-PLAN Step 5.
+
+A later stage's settings live in the same store, by stage:
+`/sealeye-apps/<team>/<app>/<stage>/`, dev keeping today's path, so nothing stored moves.
+They are set on both surfaces with a stage, and at a gated stage a change to one waits on
+the gate (PHASE5-PLAN D4). The check before a promotion names, by name only, any setting
+dev has that the next stage lacks. Settings stay the `default` organization's until they
+are kept by organization, which is owed and not in Phase 5; Juniper Mutual's plans read
+none. Rejected: the organization's own store for that stage, which seaLeye would only
+name, and leaving them to the pipeline, which a stage seaLeye applies does not have.
