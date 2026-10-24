@@ -188,6 +188,19 @@ export function gradeCatalog(candidate, key, { questions = null, selfTest = null
     pending.push({ case: "overlap", waits: "Q20 (a module per stage in a plan)", what: hc.overlap.rule });
   }
 
+  // A module the stage adds beside the app's (PHASE5-PLAN D1, pattern 3): caught when its
+  // entry says from which stage, and beside what. Its `with` waits on Phase 5 Step 2.
+  if (hc.addition) {
+    const m = bySource.get(hc.addition.module);
+    const missing = (hc.addition.must_mention || []).filter(w => !text(m).includes(norm(w)));
+    hardCases.push({
+      case: "addition (part)",
+      ok: Boolean(m) && missing.length === 0,
+      why: !m ? "not in the catalog" : missing.length ? `its entry does not say ${missing.join(", ")}` : "it says from which stage, and beside what"
+    });
+    pending.push({ case: "addition", waits: "Phase 5 Step 2 (a stage's additions, `with`)", what: hc.addition.rule });
+  }
+
   // What the library leaves unclear must be asked, and the entry rest on the question.
   if (hc.ambiguous) {
     const m = bySource.get(hc.ambiguous.module);
