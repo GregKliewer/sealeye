@@ -21,36 +21,6 @@ self-test, approved and made live apart").
 Moved to Phase 5 on Oct 13, 2026. PHASE5-PLAN Part E plans it, waiting on a bank pilot;
 nothing is built. Blocks a wider pilot, not the friendly team or the rest of Phase 5.
 
-### Q20. How does a plan name a different module for a later stage?
-
-Raised Oct 15, 2026, building the made-up organization (PHASE4-PLAN Step 4). A plan names
-one set of modules, and its profile says which patterns later stages apply to them. Real
-libraries also change the module itself on the way to production: Juniper Mutual's
-`postgres` is for dev, sit and uat only, and from staging up the same app's database is
-a `postgres-cluster`, which takes the same inputs. Today's contract cannot say that, so
-a plan written in dev is either wrong for production or not buildable in dev.
-
-**Options:**
-- **One module per need, a stage map in the catalog.** The plan names what the app
-  needs ("a relational database") and the catalog says which module serves it at each
-  stage. Plans stay short and stage-free; the catalog carries the rule, which is where
-  the platform team wrote it.
-- **Modules per stage in the plan.** A plan lists, for each module, which stages it is
-  for. Explicit and reviewable, but every plan repeats the platform team's rule, and a
-  rule that changes means every plan changes.
-- **A plan per stage.** Promotion writes the next stage's plan from the last one. Each
-  plan stays as simple as today's, but a developer's one plan becomes several, and
-  what was approved in dev is no longer what reaches production word for word.
-
-**Leaning:** the first: the rule is the platform team's, and it belongs in their
-catalog; the plan the developer approved stays the plan that is promoted. It changes
-the plan contract, so it is a DESIGN.md decision when it is made. PHASE5-PLAN D1 and
-D2 recommend this, widened Oct 24, 2026 to the three ways libraries change a module by
-stage: inputs by stage (the most common, and the one to prefer), a different module
-(`instead`, this question's case), and a module the stage adds (`with`; Juniper's
-`backup-plan` from staging up), with the catalog also saying who applies each stage (D3). Blocks Phase 5
-(`sealeye promote`), not Phase 4: until then, plans are for dev.
-
 ### Q25. How does an organization's pipeline get what to build a stage from?
 
 Raised Oct 24, 2026, when seaLeye was widened to every stage (DESIGN.md, "seaLeye builds
@@ -77,16 +47,6 @@ repository, under `stages/<stage>/`.
 **Leaning:** none yet (Greg, Oct 24: to discuss while the plan is revised). The artifact
 keeps principle 5 whole and needs no repository; a pull request is likely what a
 strong platform's auditors ask for. Blocks PHASE5-PLAN Step 12 (5b), not 5a.
-
-### Q26. Where are an app's settings for a later stage kept?
-
-Raised Oct 24, 2026, with Q25. Settings are kept by team and app, not by stage, and only
-for the `default` organization. A later stage needs its own values (another database
-name, another key). **Options:** by stage in the same store
-(`/sealeye-apps/<team>/<app>/<stage>/`, dev keeping today's path); in the organization's
-own store for that stage, which seaLeye only names; or the pipeline's to supply.
-**Leaning:** by stage in the same store, set on both surfaces with a stage, and a change
-behind the stage's gate (PHASE5-PLAN D12). Blocks PHASE5-PLAN Step 5.
 
 ## Later
 
