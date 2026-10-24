@@ -819,7 +819,8 @@ test("Catalogs: the self-test, approving a draft, and making live refused while 
 
   await one.getByRole("button", { name: "Self-test" }).click();
   await expect(card.getByTestId("self-test-summary")).toHaveText("Catalog 1 passed its self-test.");
-  await expect(card.getByTestId("self-test-check")).toHaveCount(5);
+  await expect(card.getByTestId("self-test-check")).toHaveCount(6);
+  await expect(card.getByTestId("self-test")).toContainText("Every stage on the path has a module for each one an app uses");
   await expect(card.getByTestId("self-test")).toContainText("postgres: its code has not been checked for commands it would run");
   await expect(card.getByTestId("self-test")).toContainText("It builds nothing yet");
 
@@ -1188,4 +1189,21 @@ test("a need shows the apps waiting on it, each linked to its page where you may
   await expect(need.getByTestId("need-toggle")).toHaveAttribute("aria-expanded", "true");
   await need.getByTestId("need-app").getByRole("link", { name: "ledger-sync" }).click();
   await expect(page).toHaveURL(/\/environments\/default%3Aledger-sync$/);
+});
+
+test("Catalog shows the path to production when it goes past dev, and nothing for the starter", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/catalog");
+  await expect(page.getByTestId("module-card").first()).toBeVisible();
+  await expect(page.getByTestId("stage-map")).toHaveCount(0);
+
+  await signInAs(page, JUNIPER_WIDE, "Pat Juniper");
+  await page.goto("/catalog");
+  const lines = page.getByTestId("stage-map").getByTestId("stage-line");
+  await expect(lines).toHaveText([
+    "dev: you build it yourself, whenever you like.",
+    "sit: built by seaLeye, when your team asks.",
+    "prod: built by your platform team's pipeline, after a platform team approval and an approved change ticket."
+  ]);
+  expect(await page.content()).not.toContain("release.yml");
 });

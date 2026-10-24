@@ -15,6 +15,7 @@ import { editableFieldsOf, fieldForPlace } from "../core/catalog-edits.js";
 import { SELF_TEST_CHECKS } from "../core/discovery-words.js";
 import { checkAgainst } from "./validate.js";
 import { acceptsOf, isPart, terraformBuilds } from "../core/terraform-modules.js";
+import { stageMapGaps } from "../core/stages.js";
 
 /** Why the platform will not build a module from this catalog, in words, or null when it will. */
 export function whyRefused(m, document) {
@@ -147,7 +148,10 @@ export function selfTest({ document, version, questionText = () => null }) {
     check("questions", questions),
     check("refused", refusedProblems),
     check("accepted", acceptedProblems),
-    check("words", words, wordFixes(document, byPlace))
+    check("words", words, wordFixes(document, byPlace)),
+    // The path to production holds together (DESIGN.md, "A module per stage, in the
+    // catalog"): passes at once for a catalog with dev alone.
+    check("stages", stageMapGaps(document))
   ];
   // Each module's release, by id, where its library releases it (core/module-versions.js).
   const versions = Object.fromEntries(modules.filter(m => typeof m.version === "string" && m.version).map(m => [m.id, m.version]));
