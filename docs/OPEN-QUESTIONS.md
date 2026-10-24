@@ -44,8 +44,46 @@ a plan written in dev is either wrong for production or not buildable in dev.
 
 **Leaning:** the first: the rule is the platform team's, and it belongs in their
 catalog; the plan the developer approved stays the plan that is promoted. It changes
-the plan contract, so it is a DESIGN.md decision when it is made. Blocks Phase 5
+the plan contract, so it is a DESIGN.md decision when it is made. PHASE5-PLAN D1 and
+D2 recommend this, with the catalog also saying who applies each stage (D3). Blocks Phase 5
 (`sealeye promote`), not Phase 4: until then, plans are for dev.
+
+### Q25. How does an organization's pipeline get what to build a stage from?
+
+Raised Oct 24, 2026, when seaLeye was widened to every stage (DESIGN.md, "seaLeye builds
+every stage, the way the organization chose for each"). Where a stage is applied by the
+organization's own pipeline (PHASE5-PLAN 5b), the pipeline needs the stage's root module
+(the plan resolved for that stage, its modules at their releases, the stage's values)
+and the package. seaLeye does not know an app's repository today: an app reaches it as
+an uploaded folder. Juniper Mutual's library keeps each stage's root module in the app's
+repository, under `stages/<stage>/`.
+
+**Options:**
+- **A pull request into the app's repository**, which the team merges before the run.
+  The root module lives in version control, as many auditors expect, and the developer's
+  code is changed only by the team's own merge. But seaLeye must learn each app's
+  repository and be allowed to open pull requests there, and the run waits on a merge.
+- **An artifact handed to the run.** seaLeye writes the root module and the package's
+  checksum to a place the run fetches from (named in its inputs, readable only with a
+  short-lived credential), and keeps it on the promotion's record. Nothing touches the
+  app's repository; the record, not the repository, is the history.
+- **The run asks seaLeye for it.** The pipeline's first step calls the API with the
+  promotion's id and gets the root module. Close to the third way (the pipeline calling
+  seaLeye's executor), and needs a token for the pipeline.
+
+**Leaning:** none yet (Greg, Oct 24: to discuss while the plan is revised). The artifact
+keeps principle 5 whole and needs no repository; a pull request is likely what a
+strong platform's auditors ask for. Blocks PHASE5-PLAN Step 12 (5b), not 5a.
+
+### Q26. Where are an app's settings for a later stage kept?
+
+Raised Oct 24, 2026, with Q25. Settings are kept by team and app, not by stage, and only
+for the `default` organization. A later stage needs its own values (another database
+name, another key). **Options:** by stage in the same store
+(`/sealeye-apps/<team>/<app>/<stage>/`, dev keeping today's path); in the organization's
+own store for that stage, which seaLeye only names; or the pipeline's to supply.
+**Leaning:** by stage in the same store, set on both surfaces with a stage, and a change
+behind the stage's gate (PHASE5-PLAN D12). Blocks PHASE5-PLAN Step 5.
 
 ## Later
 

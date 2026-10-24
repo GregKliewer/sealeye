@@ -888,13 +888,13 @@ The decisions that shaped the architecture, by DESIGN.md heading.
 | Limit today | Why it is acceptable now | What changes it |
 |---|---|---|
 | One API process; the store reads from memory | One pilot server | Staged hosting (PHASE2-PLAN, "Owed after this plan"): a managed database, then containers when downtime matters |
-| One shared AWS account and deploy role | The pilot is one organization | Phase 5: a role per team, in the team's account |
+| One shared AWS account and deploy role | The pilot is one organization, building only dev | Phase 5: a role per stage (PHASE5-PLAN Step 4); a role per team, in the team's account, when a bank pilot asks |
 | Tokens instead of sign-in | A handful of people | Phase 5: Cognito (Q16) |
-| An organization's environment is built at the dev stage, from one module that runs the app and the modules it uses, with no settings of its own | Developers deploy to dev; settings would be kept in plain text in state | Phase 5 for later stages; ROADMAP Phase 1 item 10 for settings |
+| An organization's environment is built at the dev stage, from one module that runs the app and the modules it uses, with no settings of its own | Phase 5 is not built yet; settings would be kept in plain text in state | Phase 5: every stage, by seaLeye or the organization's pipeline (DESIGN.md, "seaLeye builds every stage, the way the organization chose for each"); ROADMAP Phase 1 item 10 for settings |
 | A module that only runs beside something else (a service that runs continuously, an internal front door) is not built | The executor builds what takes an app's code or offers it access | Each in its own step, as a gap report asks for them |
 | Which needs a module meets is the model's judgment, fixed only by discovering again | A wrong one costs a wrong line in the gap report, never a build (Greg, Oct 22) | When a platform team needs to correct one by hand |
 | ca-central-1, Node 20, no CloudFront from seaLeye's own templates | The pilot's scope | Phase 7 |
 | Traces in LangFuse Cloud (US) | Sample apps and a made-up organization only; off for any pilot on real code | Self-hosted in ca-central-1, owed before the first customer's real code (ROADMAP Phase 4, PHASE4-PLAN "Owed after this plan") |
-| No promotion past dev | Developers deploy to dev | Phase 5 |
+| No promotion past dev | Phase 5 is planned, not built | Phase 5: ask, approve, then build and manage each stage (PHASE5-PLAN 5a and 5b) |
 | The gateway's own span is not in a run's trace | Traces are on LangFuse Cloud, which the gateway holds no keys to | With LangFuse in Canada (owed before the first customer's real code) |
 | The interview and discovery send code to the Anthropic API, in the US, through the gateway | Sample apps, a made-up organization and public libraries | The Bedrock route, when the account has model access (Phase 3 Step 8, owed); disclosed, not kept in Canada (DESIGN.md, "Inference from Canada") |

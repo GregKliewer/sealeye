@@ -145,8 +145,13 @@ in `core/` or behind an endpoint.
    Cloud (VPC)"); a configuration choice is said as what it does for the app ("keeps
    running if one data centre fails", never "multi-AZ"). `core/developer-words.js`
    holds the rule (DESIGN.md, "What a platform term is").
-9. **Developers deploy to dev.** The profile describes what the plan is designed for;
-   promotion to later stages goes through the organization's pipeline and approvals.
+9. **Developers deploy to dev; the organization decides the rest.** A developer builds
+   dev without asking. A later stage is built only after its gate approves, and by
+   whoever the catalog says applies that stage: seaLeye's executor, or the
+   organization's own pipeline, which seaLeye drives and reads back (DESIGN.md, "seaLeye
+   builds every stage, the way the organization chose for each"; PHASE5-PLAN). Until
+   Phase 5 is built, seaLeye builds only dev. The profile describes what the plan is
+   designed for.
 10. **Never hard-code an organization.** The org name comes from `ORG=` in
     `~/.sealeye/config`, default "your organization".
 11. **Every model call goes through the gateway, named, and carries no content out.** On
