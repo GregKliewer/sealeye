@@ -292,7 +292,7 @@ app's, and a failed setup step's last lines in its reason). Step 10, the gap rep
 
 **Goal:** a developer can ask to promote, and the organization's process decides.
 
-*Planned in [PHASE5-PLAN.md](PHASE5-PLAN.md) (Oct 22, 2026); its decisions wait on Greg.
+*Planned in [PHASE5-PLAN.md](PHASE5-PLAN.md) (Oct 22, 2026, revised Oct 24 after 2.50.0); its decisions wait on Greg.
 Nothing built.*
 
 - `sealeye promote` and the Promote button: check what the next stage is missing, then

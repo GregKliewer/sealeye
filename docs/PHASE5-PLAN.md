@@ -4,6 +4,13 @@ Written Thu Oct 22, 2026, evening, after Phase 4 was built and released (2.48.1)
 for Greg: the decisions below are recommendations until he answers them. Nothing in it
 is built yet.
 
+Revised Sat Oct 24, 2026, after 2.50.0: the portal's sections (DESIGN.md, "The portal's
+sections are grouped by whose work they are"), a catalog shown with its run, long lists
+paged with status chips, and which apps use each module. The revisions: where
+promotion's pages go (D13), that a promotion builds each module at the release dev
+built (D3), the stage map shown wherever a catalog is, no approving your own request
+(D8), Step 0 checking the live catalog's `postgres-cluster` release, and the effort.
+
 **Goal** (ROADMAP Phase 5): a developer can ask to promote, and the organization's
 process decides. seaLeye still builds only dev (principle 9). What it adds is the ask:
 what the next stage would be built from, what that stage is missing, a request a person
@@ -56,7 +63,8 @@ The plan has five parts, in the order the dependencies force.
 - **The made-up library plants the case.** Juniper's `postgres` is for dev, sit and
   uat; `postgres-cluster` is for staging up and takes the same required inputs; from
   its 1.1.0 release (Oct 22, 2026) it offers what `postgres` offers and a reader address
-  besides, though live catalog 9 read 1.0.0, which offers no access policy. Its pipeline builds a package once and
+  besides, though live catalog 9 read 1.0.0, which offers no access policy and only an
+  address and a reader address, so D2's check would rightly refuse the pair there. Its pipeline builds a package once and
   promotes it by checksum, one stage at a time (`app-promote.yml`). The answer key grades
   the overlap as "caught when each entry names the other"; how a plan names a module per
   stage "still waits on Q20".
@@ -70,6 +78,19 @@ The plan has five parts, in the order the dependencies force.
 - **Waiting in Postgres is already done once.** The interview's graph is checkpointed
   in Postgres (`api/interview/pgstore.js`) and each `interrupt()` survives a restart.
   Discovery chose never to pause (PHASE4-PLAN D7).
+- **The portal has sections, and new pages join them** (2.49 to 2.50). Five sections at
+  most: Environments, Validate, Catalog, Platform and Team; a section of several pages
+  shows them as a second row of tabs. Platform (an organization-wide token's only)
+  holds Discovery, Platform values and Gaps. Environments has no tabs yet.
+- **Long lists already page.** `portal/src/components/Paging.tsx` gives a list a rows
+  picker and status chips with counts, as an app's history and Catalogs have. A list of
+  promotions takes it as it is.
+- **Which apps stand on each module, at which release, is already read**
+  (`api/module-use.js`, `usedBy` in GET /catalog): the newest succeeded deploy of each
+  standing environment says what it runs. That is the release a promotion must carry
+  forward (D3), and the list of apps a stage map changes.
+- **A catalog is shown with the run that wrote it** (`sealeye catalog show`,
+  `/discovery?catalog=<v>`), titled by its status. The stage map is shown there too.
 - **Nothing talks to another system yet.** "Raise a gap ticket" (`sealeye needs
   --request`) prints text only. Integrations is drawn only in the archived mock-up.
 - **The Terraform role is near IAM's limit.** Its inline policy is about 9,100 of
@@ -82,23 +103,28 @@ The plan has five parts, in the order the dependencies force.
 |---|---|---|---|---|
 | D1 | How a plan names a different module at a later stage (Q20) | **The catalog carries the stage map; the plan is unchanged.** Each entry gains `stages` (which stages it is for, from the catalog's own path) and, where another module takes over, `instead: { from: staging, module: postgres_cluster }`. A plan keeps naming the dev module, and the module at any stage is resolved from the catalog by code. No new planVersion: the plan the developer approved is the plan that is promoted, word for word. The catalog's shape changes, so it is still a DESIGN.md decision. Alternatives: (b) planVersion 0.7, where a plan names a need ("a relational database") and the catalog fills it per stage: cleaner on paper, but the interview, the validator, the executor and every fixture change, about four more days; (c) a plan per stage, written at promotion: simple to build, but what reaches production is no longer what was approved in dev | Step 1 | |
 | D2 | Who writes the stage map | **Discovery's supervisor writes `stages` and `instead`, code checks them, a platform engineer corrects them.** The supervisor already judges which needs a module meets; the stages are said in each README. Code refuses an `instead` the self-test cannot prove: the later module must take the same required inputs, offer every output the earlier one offers (so a plan's `connect` still holds), meet the same needs, and the two must cover the path with no stage left over. A pair it cannot prove becomes a question with a guess, as an overlap does now. Alternatives: code alone infers pairs from `meets` and stages (brittle: two caches meet the same need); or a platform engineer writes the map by hand on both surfaces (no model risk, more work for them, and a new kind of edit beyond words) | Step 2 | |
-| D3 | Which catalog resolves a promotion | **The live catalog, checked against the plan's own.** A promotion resolves each module through the live catalog; if the plan's catalog is no longer live and the live one does not build a module the plan uses, the request is refused with the same words as CATALOG_CHANGED, and the developer runs `sealeye run` again in dev. Alternative: the plan's own catalog version always (what was approved in dev, but a retired module could be promoted) | Step 3 | |
+| D3 | Which catalog resolves a promotion, at which release | **The live catalog, checked against the plan's own, and each module at the release dev built.** A promotion resolves each module through the live catalog; if the plan's catalog is no longer live and the live one does not build a module the plan uses, the request is refused with the same words as CATALOG_CHANGED, and the developer runs `sealeye run` again in dev. A module the plan keeps is promoted at the release its dev environment was built at (read as `api/module-use.js` reads it), never a newer one dev has not run; a module that takes over (`instead`) is at the live catalog's release, and the request says it was never built in dev. Alternative: the plan's own catalog version always (what was approved in dev, but a retired module could be promoted) | Step 3 | |
 | D4 | What "request" means before any integration exists | **A promotion record, and three things written by code from it, no model:** the change description (what changes, from what evidence, with what risk, said from the plan, the dev evidence and the stage map); the plan as it would be built at that stage; and that stage's root module (`main.tf.json` with the stage's modules and platform values), checked offline with `tofu validate`. The team carries them to its own pipeline. Alternatives: a model writes the change description from the same evidence (reads better, one capped call, a prompt to evaluate); or seaLeye triggers the organization's pipeline itself (a CI/CD integration, which the roadmap does not have yet) | Step 4 | |
 | D5 | Which package is promoted | **seaLeye's dev package, by the checksum it already records.** This is what Juniper's pipeline asks for: built once, promoted by checksum. A bank may instead require its own build from a commit in its repository; that waits on a bank pilot and changes only what the request names | Step 4 | |
 | D6 | Does seaLeye build anything past dev in this phase | **No.** The stage's root module is written and validated offline, never applied, so the Terraform role is not widened and nothing past dev costs money. Alternative: a stand-in pipeline on the pilot applies staging for Juniper, proving the cluster builds: it needs the role widened for clusters (`cluster:`, `rds!cluster-*`) in a managed policy, an independent review, and a two-instance cluster built and torn down for each proof | Step 4 | |
 | D7 | How a promotion waits for days | **A plain record with a status and a poller, no graph.** A promotion makes no model call (D4), so it is a state machine: `checking`, `missing` (it says what), `requested`, `waiting` (on whom), `approved` or `refused` (by whom, read from the change tool), `handed_off`. A poller in the API reads each waiting request's approval from its tool every few minutes and on start. Alternative: the LangGraph graph waiting with `interrupt()` in Postgres, as ROADMAP Phase 5 says: proven in the interview, but a graph with no model in it adds a checkpoint schema and resumption code for what one table and a loop do. Either way the ROADMAP line changes or stands with this decision | Step 4 | |
-| D8 | Where an approval comes from first | **A stand-in change tool inside seaLeye first, then a ServiceNow developer instance behind the same interface.** The stand-in: an organization-wide token approves or refuses on both surfaces, recorded by who and when. The interface: open a change, read its state, read who decided. ServiceNow's free developer instance next, read by polling outward from the API (no door into the pilot for it); a webhook later, if a bank wants it. A developer instance sleeps when idle and is reclaimed after a period unused, so the eval and the pilot proof wake it first | Step 6 | |
+| D8 | Where an approval comes from first | **A stand-in change tool inside seaLeye first, then a ServiceNow developer instance behind the same interface.** The stand-in: an organization-wide token approves or refuses on both surfaces, recorded by who and when. The interface: open a change, read its state, read who decided. ServiceNow's free developer instance next, read by polling outward from the API (no door into the pilot for it); a webhook later, if a bank wants it. A developer instance sleeps when idle and is reclaimed after a period unused, so the eval and the pilot proof wake it first. **The person who asked never approves their own request**, in the stand-in or any tool; Q16 asks the same of a catalog's approver | Step 6 | |
 | D9 | Who may ask, and which gates apply | **Anyone on the app's team may ask for the next stage, one stage at a time; the gates are the catalog's.** The gates discovery read (`path_to_production.gates`) become data in the catalog, approved with it like any entry: Juniper's sit and uat need no approval, staging needs a platform team approval, prod also an approved change ticket. A stage with no gate is requested and handed off at once. Alternative: gates set by hand on the Platform page, apart from discovery | Step 3 | |
 | D10 | Where an integration's credentials live | **The organization's store, by organization:** `/sealeye-integrations/<org>/<integration>/`, put in by an organization-wide token on both surfaces, names out and values in, never back (as an app's settings are). The API reads them only to call that system. Integrations are by organization, so they work for `juniper`, unlike settings and costs today | Step 7 | |
 | D11 | How gap advice is written | **The frontier route writes it, capped, from what seaLeye already holds:** the gap report's demand, the evidence lines developers' plans gave, and the library's catalog. Two or three ways to fill the gap, the effort and trade-offs of each, a recommendation, marked as advice. A cap per gap set from a measured run, as discovery's were (placeholder: ten cents a gap, a dollar a report). Shown on both surfaces first; a ticket in Jira after. Alternative: code-only advice from a fixed table per need kind (no model, but generic) | Step 9 | |
 | D12 | What is notified, and where first | **Slack first, by an incoming webhook per organization; Teams after, by the same interface.** Only what a person must act on: a promotion waiting on them, a promotion decided, a discovery question asked. A deploy's own progress stays in the command and the portal | Step 10 | |
+| D13 | Where promotion lives in the portal | **Three places, in the sections that exist.** A Promote card in Control, shown when the environment offers it; a Promotions tab in Environments (the section's first tabs: Environments and Promotions), a team's own requests, paged with status chips; and an Approvals tab in Platform, the stand-in's queue for an organization-wide token. Integrations is a Platform tab too (Step 7), so Platform holds five. Alternatives: Promotions as a sixth section (the bar holds five, by the Oct 23 decision); or everything on the environment's page, with no list across apps | Step 5 | |
 
 ## Part A: what Phase 4 left, then one module per need
 
 ### Step 0. Close Phase 4
 
 Not code, or very little. Before anything else, about an hour on Greg's Mac:
-- Refresh the Juniper eval's catalog snapshot to the live catalog
+- Check that Juniper's live catalog reads `postgres-cluster` at 1.1.0 (`SEALEYE_TOKEN=$JT
+  sealeye catalog show`). Catalog 9 read 1.0.0, which offers no access policy, so the
+  stage map in Steps 1 and 2 cannot be proven against it; if the live one is still at
+  1.0.0, run discovery again and make its catalog live.
+- Refresh the Juniper eval's catalog snapshot to that live catalog
   (`test/fixtures/juniper-catalog-9.json` today), a small pull request.
 - Run `npm run eval:interview -- --set juniper` and `--set starter`, the first since the
   database and the logs work. They are the "before" every prompt change in Step 2 is
@@ -116,6 +142,11 @@ Not code, or very little. Before anything else, about an hour on Greg's Mac:
   the reason it cannot be.
 - The self-test proves each `instead` (D2's checks), and refuses a catalog whose map
   leaves a stage of the path without a module for a module that ends.
+- Shown wherever a catalog is: under each module in `sealeye catalog` and `catalog
+  show`, on the Catalog page and in the Discovery page's catalog view, the stages it is
+  for and, where another takes over, "from staging, the platform uses the clustered
+  database"; and beside its `usedBy`, which standing apps that changes. The words pass
+  the developer-words check, and a stage is named as the organization names it.
 - The plan contract does not change (D1). A DESIGN.md entry, "A module per stage, in the
   catalog", answers Q20 and removes it from OPEN-QUESTIONS.
 
@@ -146,7 +177,8 @@ An endpoint first: `GET /deployments/{id}/promotion?to=<stage>` (the next stage 
 `to` is left out). Read-only, it answers with:
 - the next stage, from the catalog's path, or why there is none (dev is the only stage;
   perf is built from staging and never promoted to);
-- each module as it would be built there (`resolveForStage`), and any that cannot be;
+- each module as it would be built there (`resolveForStage`), at the release D3 says,
+  and any that cannot be;
 - what that stage is missing, in the developer's words: a platform value a module
   needs at that stage that is not set ("the staging database network is not set yet;
   your platform team sets it"), a module the live catalog no longer builds (D3);
@@ -184,13 +216,15 @@ About three to four days.
   to promote to sit? [y/N]"; then the request, and what it waits on.
   `sealeye promote status` lists the caller's promotions. Names settled in DESIGN.md
   before building, and added to `core/operations.js`.
-- The portal: a Promote card on an environment's page (Control), shown only when the
-  environment offers it (`environmentOperations`), with the same check, the same
-  question and the same request; a Promotions list.
+- The portal (D13): a Promote card on an environment's page (Control), shown only when
+  the environment offers it (`environmentOperations`), with the same check, the same
+  question and the same request; and a Promotions tab in the Environments section, the
+  team's requests paged with status chips (`Paging.tsx`), each opening its record and
+  its three files. Environments gains its row of tabs here.
 - Parity: both surfaces released together. The parity backlog's Promote row is built
   in the same commit.
 
-About two to three days.
+About three to four days, with the Environments tabs.
 
 ## Part C: the organization's process
 
@@ -199,8 +233,10 @@ About two to three days.
 - A change-tool interface in `api/integrations/`: open a change from a promotion, read
   its state, read who decided. The stand-in implements it inside seaLeye.
 - `POST /promotions/{id}/decision` ({ decision, reason }), an organization-wide token's
-  only, for the stand-in. On both surfaces: `sealeye promote approve|refuse <id>` and
-  the Promotions page's Approve and Refuse. The person on the record is the token's.
+  only, for the stand-in, refused for the person who asked (403 OWN_REQUEST, D8). On
+  both surfaces: `sealeye promote approve|refuse <id>` and the Approvals tab in the
+  Platform section (D13), paged with status chips. The person on the record is the
+  token's.
 - A refused promotion says why, and stays as a record; asking again makes a new one.
 - Proven on the pilot: a Juniper app promoted to sit with no gate, and to staging with
   the stand-in's approval, across a parked and restarted pilot.
@@ -213,7 +249,7 @@ About three days.
   values in, never back), an organization-wide token's only, with a check that
   connects and says in words whether it worked (`POST /integrations/{name}/check`).
 - `sealeye integrations` and an Integrations page (a tab in the Platform section, as
-  the Promotions page joins a section rather than the top bar; DESIGN.md, "The
+  Approvals is and Promotions is in Environments (D13), rather than the top bar; DESIGN.md, "The
   portal's sections are grouped by whose work they are"): each job (approvals, gap tickets,
   notifications), what is connected for it, when it last worked, and what seaLeye does
   without it. The archived mock-up's design, showing only what is real.
@@ -249,7 +285,8 @@ About three to four days.
   scheduled work) each get advice that names a real way to fill it. A small eval, run
   before and after any change to its prompt.
 - Then Jira: a ticket per gap in the platform team's project, through the integrations
-  registry, carrying the advice and updated, never duplicated, when demand grows. The
+  registry, carrying the advice and the apps waiting on it (linked by the `path` GET
+  /needs now gives), and updated, never duplicated, when demand grows. The
   `sealeye needs --request` row of the parity backlog becomes this.
 
 About two to three days for advice, two for Jira.
@@ -294,12 +331,18 @@ then.
 ## Open questions this plan answers, and leaves
 
 - **Q20** (a module per stage): answered by D1 and D2, in Step 1's DESIGN.md entry.
-- **Q16** (Cognito sign-in): planned in Part E, not built.
+- **Q16** (Cognito sign-in): planned in Part E, not built. Its newest part, whether
+  a catalog's approver may be the person who started its run, is the question D8
+  answers "no" for a promotion; Q16 may take the same answer.
 - **Q3** (sign-in): answered Oct 9, 2026 by choosing Cognito; what is left of it is
   Q16. ROADMAP's Phase 1 lines still name Q3, and Step 11 points them at Q16.
 - **Q13** (where traces live): answered Oct 13, 2026 (LangFuse in ca-central-1). Its
   build is owed before the first customer's real code, not in this plan.
 - **Q10** (publishing the command): left. The installer works for a friendly team.
+- **Q24** (Configure and Performance's command names): left, and not repeated: this
+  plan's new names are the same on both surfaces (`promote` and Promote, `integrations`
+  and Integrations), and the tabs (Promotions, Approvals) are pages, whose commands are
+  `promote status` and `promote approve|refuse`, settled in DESIGN.md before building.
 - **A new one, to raise in Step 3:** an app's settings at a later stage. Today they are
   kept by team and app, not by stage, so the check can name them but not say whether
   the next stage has them. Leaning: the pipeline's, until a bank pilot shows how its
@@ -311,7 +354,7 @@ then.
 |---|---|---|
 | 0 | Close Phase 4: the evals, the snapshot, park | an hour or two |
 | 1 to 2 | The stage map, discovery writes it, the interview plans for dev | four to six days |
-| 3 to 5 | The check, the request, both surfaces | seven to nine days |
+| 3 to 5 | The check, the request, both surfaces, the Environments tabs | eight to ten days |
 | 6 | Approvals with a stand-in | three days |
 | 7 | Integrations on both surfaces | two to three days |
 | 8 | ServiceNow | three to four days |
@@ -319,7 +362,7 @@ then.
 | 10 | Notifications | two days |
 | 11 | Write it down | one day |
 
-About twenty-six to thirty-three working days, so five and a half to seven weeks of full
+About twenty-seven to thirty-four working days, so five and a half to seven weeks of full
 days, and longer in bursts. Parts A and B are worth having alone: a developer can ask to
 promote and get a request a person can carry to the pipeline. Steps 2 and 7 need an
 independent review before their pull requests (discovery, and a role widened); Step 4
