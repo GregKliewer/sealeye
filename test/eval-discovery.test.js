@@ -19,10 +19,10 @@ const bySource = (doc, source) => doc.modules.find(m => m.source === source);
 
 test("the answer key is a catalog by seaLeye's own rules, and passes its own grading", () => {
   assert.deepEqual(catalogProblems(key.catalog), []);
-  assert.equal(key.catalog.modules.length, 14);
+  assert.equal(key.catalog.modules.length, 15);
   const graded = gradeCatalog(key.catalog, key);
   assert.equal(graded.correct, true, gradeLines(graded).join("\n"));
-  assert.deepEqual(graded.pending.map(p => p.case), ["overlap", "unclear module asked", "stages"], "what waits is listed, never counted as passed");
+  assert.deepEqual(graded.pending.map(p => p.case), ["overlap", "addition", "unclear module asked", "stages"], "what waits is listed, never counted as passed");
   assert.equal(graded.needs.ok, true, "the key's meets leave exactly its gaps unmet");
   assert.deepEqual(graded.needs.gaps.unmet, ["event_stream", "scheduled_task", "user_sign_in"]);
   assert.ok(key.catalog.modules.every(m => !isBuildable(m.id, key.catalog)), "nothing builds Terraform until Step 9");

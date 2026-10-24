@@ -45,7 +45,10 @@ a plan written in dev is either wrong for production or not buildable in dev.
 **Leaning:** the first: the rule is the platform team's, and it belongs in their
 catalog; the plan the developer approved stays the plan that is promoted. It changes
 the plan contract, so it is a DESIGN.md decision when it is made. PHASE5-PLAN D1 and
-D2 recommend this, with the catalog also saying who applies each stage (D3). Blocks Phase 5
+D2 recommend this, widened Oct 24, 2026 to the three ways libraries change a module by
+stage: inputs by stage (the most common, and the one to prefer), a different module
+(`instead`, this question's case), and a module the stage adds (`with`; Juniper's
+`backup-plan` from staging up), with the catalog also saying who applies each stage (D3). Blocks Phase 5
 (`sealeye promote`), not Phase 4: until then, plans are for dev.
 
 ### Q25. How does an organization's pipeline get what to build a stage from?
