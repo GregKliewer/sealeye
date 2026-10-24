@@ -301,6 +301,29 @@ catalog:
         alarms go to the on-call topic, oncall-pager, and nowhere else; an app still
         alarming to a team channel is stopped at the change review before production.
 
+    # Added Oct 24, 2026 (PHASE5-PLAN D1, pattern 3): a module a stage adds beside an
+    # app's database, never one an app asks for. It meets no need an app has, so no plan
+    # in dev names it; from staging up the stage's root module has it (hard_cases.addition).
+    - id: backup_plan
+      source: modules/backup-plan
+      availability: available
+      meets: []
+      builds_with: terraform
+      role: shared
+      line: Keeps a copy of everything your app stores, once a day, apart from your app.
+      when: From staging up, beside every app that keeps a relational database.
+      signals: []
+      inputs:
+        name: { required: true, line: Your app's name. }
+        stage: { required: true, line: Which stage on the path to production. }
+        vault_name: { required: true, line: Where the stage's copies are kept, which the platform team keeps. }
+        backup_role_arn: { required: true, line: What the copying acts as in this stage, which the platform team keeps. }
+        tags: { default: {}, line: Extra labels on everything it makes. }
+      guidance: >-
+        From staging up, every app that keeps a relational database has one beside it, and
+        the change review stops a staging or prod change without it. Below staging it is
+        allowed but not needed. Copies are kept for five weeks, and for a year in prod.
+
     - id: cache_redis
       source: modules/cache-redis
       availability: deprecated
@@ -367,6 +390,15 @@ hard_cases:
       The library settles it, so it is not a question (Greg, Oct 15, 2026): caught when
       each entry says which stages it is for and names the other, so a planner sees the
       pair. How a plan names a module per stage still waits on Q20.
+  # Added Oct 24, 2026: a module the stage adds, not one the app asks for (PHASE5-PLAN
+  # D1, pattern 3). Until discovery writes `with` (Phase 5 Step 2), it is caught when the
+  # entry says it is from staging up and beside a database.
+  addition:
+    module: modules/backup-plan
+    beside: modules/postgres-cluster
+    from: staging
+    rule: From staging up, every app that keeps a relational database has a backup-plan beside it, said in its README and the library's.
+    must_mention: [staging, database]
   ambiguous:
     module: modules/cache-valkey
     # The ambiguity spans both: cache-redis says there is no cache for new apps until it
@@ -426,6 +458,9 @@ stages:
   gates:
     staging: [a platform team approval]
     prod: [a platform team approval, an approved change ticket]
+  # What a stage adds beside what the plan names (PHASE5-PLAN D1, pattern 3).
+  with:
+    - { from: staging, module: backup_plan, beside: relational_database }
   evidence:
     - .github/workflows/app-build.yml
     - .github/workflows/app-promote.yml
