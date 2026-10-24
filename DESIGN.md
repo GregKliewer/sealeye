@@ -4926,3 +4926,24 @@ Until the pipeline is driven (PHASE5-PLAN 5b), a stage the pipeline applies is n
 applied by seaLeye in its place: the request is made and approved, and the developer is
 told plainly that the platform team's pipeline builds it. To prove a gated stage with a
 cluster in 5a, Greg may set Juniper's staging to `sealeye` for a while.
+
+## An environment per stage, and a role per stage
+
+Decided Sat Oct 24, 2026 (PHASE5-PLAN D5 and D6; Greg: as recommended). Built in
+PHASE5-PLAN Steps 3 and 4.
+
+- **One app, one environment per stage.** A record gains `stage`, dev when absent, so
+  every record made before is dev and unchanged. A later stage's environment is named
+  `sealeye-<team>-<app>-<stage>-<hash>`, its hash over the stage too; dev keeps today's
+  name, so nothing standing is renamed. Its state is
+  `tofu-state/<org>/<stage>/<environment>.tfstate`. `sealeye list` and Environments keep
+  one row per app, with its stages; commands that act on an environment take `--stage`,
+  dev by default; an environment's page picks its stage. Rejected: a later stage as an
+  app of its own (`account-notes-api-staging`), since the vision says one app.
+- **A role per stage**, named as that stage's platform value (`deploy_role`) and assumed
+  by the API for that stage's builds, reads and tear-downs. On the pilot, one account,
+  with a role for each later stage and state kept apart by stage. Each new role starts
+  from a managed policy, so the Terraform role's inline limit stops mattering, and only
+  the staging and prod roles may build a cluster. An independent review before the pull
+  request that adds them. A second account for staging and prod waits until a pilot asks;
+  the role per stage already allows it.
