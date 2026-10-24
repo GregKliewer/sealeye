@@ -4910,3 +4910,19 @@ with a guess, as an overlap is now.
 Rejected: a plan that names needs and is filled per stage (planVersion 0.7, about four
 days more, and every fixture changes); a plan per stage written at promotion, since what
 reached production would no longer be what was approved.
+
+## Who applies each stage is in the catalog
+
+Decided Sat Oct 24, 2026 (PHASE5-PLAN D3; Greg: as recommended). Built in PHASE5-PLAN
+Steps 1 and 2.
+
+Each stage of a catalog's path says who applies it, beside its gate: `applies: sealeye`,
+or `applies: pipeline` with the pipeline named. dev is always seaLeye's. Discovery
+proposes it from the library's pipelines and README; the platform team approves it with
+the catalog and may change it as it changes any word. For Juniper Mutual: sit and uat
+seaLeye, staging and prod its own pipeline, as its library describes.
+
+Until the pipeline is driven (PHASE5-PLAN 5b), a stage the pipeline applies is never
+applied by seaLeye in its place: the request is made and approved, and the developer is
+told plainly that the platform team's pipeline builds it. To prove a gated stage with a
+cluster in 5a, Greg may set Juniper's staging to `sealeye` for a while.
