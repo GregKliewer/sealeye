@@ -4828,3 +4828,48 @@ for the Catalog page to say which apps use each module and which apps wait on ea
   A module's reach across teams is worth knowing to a team too. GET /needs now gives each
   app's `path` on the same rule, for the need rows that open to their apps.
 
+
+## seaLeye builds every stage, the way the organization chose for each
+
+Decided Sat Oct 24, 2026, reading the first Phase 5 plan. Greg: it was always the vision
+for seaLeye to build and manage later stages as well as dev. Principle 9, written Oct 8,
+had narrowed that to "seaLeye builds only the first stage", and the first PHASE5-PLAN
+followed it, so promotion stopped at a request a person carried to a pipeline. The
+archived demo had said the wider thing ("Dev, test, staging and production for one app
+are one app").
+
+Who buys seaLeye is a platform team that wants its hands off both onboarding and the
+management of every stage. Platforms differ in what they already have, so seaLeye
+supports three ways a later stage is applied, chosen by the organization, per stage:
+
+- **A. seaLeye applies the stage**, with its own executor, once the stage's gate has
+  approved. For a platform with no pipeline that builds infrastructure: seaLeye is its
+  path, and is certified as one.
+- **B. The organization's pipeline applies it, and seaLeye drives it.** seaLeye starts
+  the run with what the stage needs and reads its result back as the stage's status.
+  For a platform whose certified pipeline is already its control point.
+- **C. The organization's pipeline calls seaLeye's executor** as one of its steps, the
+  pipeline keeping the gate and the record. For a platform with a pipeline and a change
+  process but nothing that builds infrastructure well. Built only when an organization
+  asks for it; it is thin once A exists.
+
+What follows:
+
+- **The choice is per stage, and lives in the catalog**, beside the path and its gates:
+  a stage says who applies it. Discovery proposes it from the library's pipelines and the
+  platform team approves it with the catalog, as it approves every entry. One
+  organization may mix them (seaLeye for sit and uat, its pipeline for staging and prod,
+  as Juniper Mutual's library describes).
+- **One core under all three**: the stage map, the promotion record, the gate, the
+  evidence and real status are the same whoever applies; only the applier differs.
+- **Developers still build dev themselves**, without a gate. No later stage is built
+  before its gate approves (principle 9, reworded the same day).
+- **Order:** A, then B with GitHub Actions (the made-up organization's pipeline), then C
+  when asked. PHASE5-PLAN splits Phase 5 into 5a (the stage map, asking, gates, A) and
+  5b (B).
+- **Open:** how a pipeline that applies a stage gets that stage's root module without
+  seaLeye changing the developer's code (OPEN-QUESTIONS Q25), and where an app's
+  settings for a later stage are kept (Q26).
+
+VISION.md ("What it does" and the principles) and CLAUDE.md principle 9 changed in the
+same commit.
