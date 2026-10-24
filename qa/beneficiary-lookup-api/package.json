@@ -1,0 +1,22 @@
+{
+  "name": "beneficiary-lookup-api",
+  "version": "1.0.0",
+  "description": "Beneficiary reference lookup for branch payment review",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git.northline.internal/payments-product/beneficiary-lookup-api"
+  },
+  "author": "Payments Product, Northline Bank",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">= 18"
+  },
+  "dependencies": {
+    "express": "^5.1.0"
+  }
+}
