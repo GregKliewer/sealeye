@@ -10,8 +10,8 @@ OPEN-QUESTIONS.md.
 2 (done Oct 12, 2026, all but Step 6, the second-person test); its last section, "Owed
 after this plan", still stands. `docs/PHASE3-PLAN.md` built Phase 3 (Oct 14, 2026).
 `docs/PHASE4-PLAN.md` built Phase 4 (Oct 22, 2026); its "Owed after this plan" still
-stands. `docs/PHASE5-PLAN.md` plans Phase 5 (written Oct 22, 2026; its decisions wait
-on Greg). The second-person test is still open.
+stands. `docs/PHASE5-PLAN.md` plans Phase 5 (written Oct 22, 2026, rewritten Oct 24 for
+every stage; its decisions wait on Greg). The second-person test is still open.
 
 **Renumbered Oct 13, 2026.** Phase 3 (governed backbone) and Phase 6 (seaLeye for agents)
 are new; the old Phases 3, 4 and 5 are now 4, 5 and 7. DESIGN.md entries and the two
@@ -290,26 +290,36 @@ app's, and a failed setup step's last lines in its reason). Step 10, the gap rep
 
 ### Phase 5: The path to production
 
-**Goal:** a developer can ask to promote, and the organization's process decides.
+**Goal:** a developer can ask to promote, the organization's process decides, and the
+approved stage is built and managed from then on, by seaLeye or by the organization's
+own pipeline, whichever the catalog says applies that stage (Greg, Oct 24, 2026;
+DESIGN.md, "seaLeye builds every stage, the way the organization chose for each").
 
-*Planned in [PHASE5-PLAN.md](PHASE5-PLAN.md) (Oct 22, 2026, revised Oct 24 after 2.50.0); its decisions wait on Greg.
-Nothing built.*
+*Planned in [PHASE5-PLAN.md](PHASE5-PLAN.md) (Oct 22, 2026; rewritten Oct 24 for every
+stage); its decisions wait on Greg. Nothing built.*
 
+- A module per stage, each stage's gate, and who applies it, in the catalog (Q20).
+- An app has an environment per stage, each with its own role, settings and state.
 - `sealeye promote` and the Promote button: check what the next stage is missing, then
   request it.
-- Approvals through the organization's change tool (ServiceNow first). The interview
-  graph waits on an approval as an `interrupt()` held in Postgres, for days if need be.
-- Gap tickets from the needs ledger into the platform team's queue (Jira first).
-- Each gap ticket carries two or three ways to fill the gap, the effort and trade-offs of
-  each, and a recommendation (added Oct 13, 2026). Advice only: the platform team
-  chooses.
-- Notifications where people are (Teams and Slack).
+- Approvals through the organization's change tool (a stand-in first, then ServiceNow).
+  A request waits for days, as a record the API polls; the person who asked never
+  approves it.
+- **5a**: seaLeye applies an approved stage itself, and every later change to a gated
+  stage goes through its gate.
+- **5b**: the organization's own pipeline applies it, started and read back by seaLeye
+  (GitHub Actions first).
+- A third way, the organization's pipeline calling seaLeye's executor, when an
+  organization asks.
+- Gap tickets from the needs ledger into the platform team's queue (Jira first), each
+  carrying two or three ways to fill the gap, the effort and trade-offs of each, and a
+  recommendation (added Oct 13, 2026). Advice only: the platform team chooses.
+- Notifications where people are (Slack, then Teams).
 - `sealeye integrations` and its portal page: which of these are connected (moved from
   Phase 2, PHASE2-PLAN D8).
-- AWS access per team: the executor assumes a role in each team's account (Phase 1
-  item 5, moved here Oct 13, 2026).
-- Sign-in through Cognito replaces tokens (Phase 1 item 3 and Q16, moved here Oct 13,
-  2026). Both wait on the same thing: a bank pilot.
+- Planned, not built, waiting on a bank pilot: AWS access per team (Phase 1 item 5,
+  moved here Oct 13, 2026), on the role-per-stage shape; and sign-in through Cognito
+  (Phase 1 item 3 and Q16).
 
 ### Phase 6: seaLeye for agents
 

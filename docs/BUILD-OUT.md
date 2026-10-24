@@ -19,7 +19,7 @@ When ROADMAP.md changes what a phase holds, fix its picture here in the same com
 | 2 | Day-two parity | Built Oct 12, 2026 | Logs, performance, costs, pause, configure, the settings store and evidence, on both surfaces |
 | 3 | Governed backbone | Built Oct 14, 2026; routing by task (`small`, `frontier`) Oct 15 ([PHASE3-PLAN.md](PHASE3-PLAN.md), PHASE4-PLAN Step 5) | agentgateway in front of every model call, identity per caller, spend caps, the secret scanner. Open: routing by data class and the Bedrock route. The gateway's span in the trace waits for LangFuse in Canada |
 | 4 | Learn the platform | Built Oct 22, 2026, all but what runs in a customer's account ([PHASE4-PLAN.md](PHASE4-PLAN.md)) | A discovery swarm reads the organization's library into its catalog, with a self-test before it goes live; the Terraform executor (OpenTofu, at each module's released version) builds an app's module and the modules it uses, connected, a database in the private network among them; logs from the app, the front door and the database; a gap report; a run reads again only what changed. Open: LangFuse self-hosted in Canada, discovery in a customer's own account, and the Bedrock route (all before the first customer) |
-| 5 | The path to production | Planned in [PHASE5-PLAN.md](PHASE5-PLAN.md) (Oct 22, 2026), decisions waiting on Greg; nothing built | Promote, approvals in ServiceNow, Jira gap tickets with options and a recommendation, team accounts, Cognito sign-in |
+| 5 | The path to production | Planned in [PHASE5-PLAN.md](PHASE5-PLAN.md) (Oct 22, 2026; rewritten Oct 24 for every stage), decisions waiting on Greg; nothing built | Promote, approvals in ServiceNow, every later stage built and managed by seaLeye (5a) or by the organization's pipeline, which seaLeye drives (5b), a role per stage, Jira gap tickets with options and a recommendation; team accounts and Cognito sign-in planned |
 | 6 | seaLeye for agents | **New**, planned | seaLeye's tools as MCP behind the gateway, for coding agents |
 | 7 | Delivery and breadth | Planned | In-network or single tenant, the organization's own model, more clouds and regions, Windows |
 | 8 | seaLeye drafts modules | **New**, last | A chosen gap arrives as a module in a pull request to the platform team; seaLeye never merges it |
@@ -225,7 +225,7 @@ flowchart TB
 
 ## Phase 5: The path to production
 
-Phase 5 hands promotion to the process the organization already runs. Promote asks; the change tool decides. Approvals are graph interrupts that can wait for days.
+Phase 5 takes an app past dev, through the process the organization already runs. Promote asks; the change tool decides; then the stage is built and managed from then on, by seaLeye or by the organization's own pipeline, whichever the catalog says applies that stage (DESIGN.md, "seaLeye builds every stage, the way the organization chose for each"). An approval can wait for days, kept as a record a poller reads (PHASE5-PLAN D9 recommends this over a graph interrupt).
 
 ```mermaid
 flowchart TB
@@ -242,13 +242,13 @@ flowchart TB
   subgraph api["seaLeye API: one small server in ca-central-1"]
     frontdoor["<b>Front door agent</b><br/>LangGraph interview,<br/>uses the org catalog"]
     contract["<b>Plan contract</b><br/>refuse, never shrink<br/>must-refuse tests"]
-    executor["<b>Executor</b><br/>the org's modules<br/>role per team account"]
+    executor["<b>Executor</b><br/>the org's modules<br/>a role per stage"]
     daytwo["<b>Day-two operations</b><br/>logs, perf, costs,<br/>pause, settings"]
     records["<b>Records</b><br/>Postgres, per team<br/>tokens, evidence"]
     scanner["<b>Secret scanner</b><br/>before any model,<br/>findings as names"]
     caps["<b>Run caps</b><br/>per run, per worker,<br/>in seaLeye's graph"]
     catalog["<b>Org catalog</b><br/>modules, usage rules,<br/>what must be refused"]
-    promote["<b>Promote, approvals</b><br/>approvals wait days<br/>as graph interrupts"]
+    promote["<b>Promote, approvals</b><br/>every stage, by seaLeye<br/>or the org's pipeline"]
   end
   subgraph discoveryacct["Discovery: a paid account per customer"]
     discovery["<b>Discovery swarm</b><br/>LangGraph fan-out,<br/>people in the loop"]
@@ -268,28 +268,31 @@ flowchart TB
     models["<b>Models</b><br/>frontier and small<br/>Claude on Bedrock"]
     cloud["<b>Cloud and IaC</b><br/>AWS, ca-central-1<br/>CloudFormation, TF"]
     library["<b>Platform library</b><br/>modules, pipelines<br/>in the org's repos"]
-    tools["<b>Enterprise tools</b><br/>ServiceNow, Jira,<br/>Teams, Slack"]
+    tools["<b>Enterprise tools</b><br/>ServiceNow, Jira, Slack,<br/>the org's pipelines"]
   end
   gateway ~~~ models
   classDef new fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#111
   class executor,portal,promote,tools new
 ```
 
-Key flow: one promotion, dev to the next stage. Promotion asks; the change process decides, even if it takes days. The graph waits as an interrupt while the change is reviewed.
+Key flow: one promotion, dev to the next stage. Promotion asks; the change process decides, even if it takes days; then whoever the catalog names for that stage builds it, and seaLeye reads its status back either way.
 
 ```mermaid
 flowchart LR
   ask["<b>sealeye promote</b><br/>developer asks"] --> check["<b>Check next stage</b><br/>what is missing?"]
-  check --> gaps{"Any gaps?"}
-  gaps -- yes --> jira["<b>Gap ticket in Jira</b><br/>developer told what"]
-  gaps -- no --> snow["<b>Change request</b><br/>in ServiceNow"]
-  snow --> wait["<b>Graph waits</b><br/>interrupt, for days"]
+  check --> gaps{"Anything missing?"}
+  gaps -- yes --> told1["<b>Told what</b><br/>and who sets it"]
+  gaps -- no --> snow["<b>Change request</b><br/>stand-in, then ServiceNow"]
+  snow --> wait["<b>Waits</b><br/>a record, for days"]
   wait --> cab{"Approved?"}
-  cab -- yes --> build["<b>Builds there</b><br/>team account role"]
-  build --> ev["<b>Evidence, report</b><br/>change number on it"]
   cab -- no --> told["<b>Told why</b><br/>nothing is built"]
+  cab -- yes --> who{"Who applies<br/>this stage?"}
+  who -- seaLeye --> build["<b>seaLeye builds it</b><br/>the stage's role, 5a"]
+  who -- "the org's pipeline" --> pipe["<b>Pipeline run started</b><br/>status read back, 5b"]
+  build --> ev["<b>Evidence, report</b><br/>change number on it"]
+  pipe --> ev
   classDef new fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#111
-  class ask,check,gaps,jira,snow,wait,cab,build new
+  class ask,check,gaps,told1,snow,wait,cab,who,build,pipe,ev new
 ```
 
 ## Phase 6: seaLeye for agents
@@ -319,7 +322,7 @@ flowchart TB
     scanner["<b>Secret scanner</b><br/>before any model,<br/>findings as names"]
     caps["<b>Run caps</b><br/>per run, per worker,<br/>in seaLeye's graph"]
     catalog["<b>Org catalog</b><br/>modules, usage rules,<br/>what must be refused"]
-    promote["<b>Promote, approvals</b><br/>approvals wait days<br/>as graph interrupts"]
+    promote["<b>Promote, approvals</b><br/>every stage, by seaLeye<br/>or the org's pipeline"]
   end
   subgraph discoveryacct["Discovery: a paid account per customer"]
     discovery["<b>Discovery swarm</b><br/>LangGraph fan-out,<br/>people in the loop"]
@@ -391,7 +394,7 @@ flowchart TB
     scanner["<b>Secret scanner</b><br/>before any model,<br/>findings as names"]
     caps["<b>Run caps</b><br/>per run, per worker,<br/>in seaLeye's graph"]
     catalog["<b>Org catalog</b><br/>modules, usage rules,<br/>what must be refused"]
-    promote["<b>Promote, approvals</b><br/>approvals wait days<br/>as graph interrupts"]
+    promote["<b>Promote, approvals</b><br/>every stage, by seaLeye<br/>or the org's pipeline"]
   end
   subgraph discoveryacct["Discovery: a paid account per customer"]
     discovery["<b>Discovery swarm</b><br/>LangGraph fan-out,<br/>people in the loop"]
