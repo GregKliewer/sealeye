@@ -4968,3 +4968,37 @@ dev has that the next stage lacks. Settings stay the `default` organization's un
 are kept by organization, which is owed and not in Phase 5; Juniper Mutual's plans read
 none. Rejected: the organization's own store for that stage, which seaLeye would only
 name, and leaving them to the pipeline, which a stage seaLeye applies does not have.
+
+## Discovery writes the stage map
+
+Decided Sun Nov 1, 2026, building PHASE5-PLAN Step 2 (D2), with an independent review
+whose findings were all fixed before the pull request.
+
+- **What reads what.** The library reader writes the path as data: each stage as the
+  library names it (lowercased, hyphens for spaces), whether the library's pipeline
+  builds it and which file, and what it waits on; stages set aside, and from where. The
+  supervisor writes, for the few modules that change by stage, which stages each is for,
+  the folder of the one that takes its place and from when, and whether a stage adds it
+  beside a need. Code turns folders into ids and makes the map.
+- **Who builds a stage the library says nothing about** is seaLeye, by D3, and the
+  self-test's notes say so for whoever approves ("The library does not say who builds
+  staging, so seaLeye would."). A path seaLeye cannot use (a first stage not called dev)
+  is left out with a note: the catalog builds dev alone, as before.
+- **A guess never goes live.** What the shape check refuses, or the proof does not hold,
+  is taken out, only that field and never the module's other stage fields, since a
+  module with no `stages` is for every stage, which is a claim of its own (the review).
+  It is listed in `discovery.unproven` and asked about, the reading as the guess.
+  While anything is unproven, the self-test's stages check fails: the catalog is not
+  approved, whatever the draft says meanwhile.
+- **A question about the map holds back the catalog, not the module.** It is marked
+  `stageMap`, and no entry rests on it, so a database stays buildable in dev while its
+  later stages are settled. The self-test is the gate instead.
+- **The interview plans from `forDev`**: a module not for dev, or one a stage adds, is
+  marked not offered rather than taken out, so every guard that the interview never
+  names a module it cannot plan still knows its name (the review). The interview is not
+  told that another module takes a place later: the platform resolves later stages from
+  the catalog. Catalogs with no path past dev are unchanged, the starter's pins included.
+- **Owed:** a platform engineer cannot yet change who applies a stage, or a module's
+  stages, by hand; an answer can only reach the map through the supervisor, so a reading
+  the library itself cannot support stays unproven until the library changes or the
+  answer says otherwise. PHASE5-PLAN Step 2b.

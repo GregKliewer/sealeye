@@ -187,6 +187,22 @@ About three and a half days.
 
 ### Step 2. Discovery writes it; the interview plans for dev (D2, D3)
 
+Built Sun Nov 1, 2026 (2.52.0; DESIGN.md, "Discovery writes the stage map"), with an
+independent review whose findings were all fixed before the pull request. Different from
+below: the interview is not told of a module that takes another's place (it plans dev,
+and a later stage is the platform's to resolve), and a question about the map does not
+make its module unbuildable in dev; the self-test holds the whole catalog back instead
+while anything is unproven. Owed, found in the review: a platform engineer cannot yet
+change who applies a stage or a module's stages by hand, and a stage's applier is read
+from the library again on every run (Step 2b, below).
+
+### Step 2b. Who applies a stage, changed by hand (added Nov 1, 2026)
+
+An edit, on both surfaces, of who applies a stage on a draft (`sealeye catalog edit`
+and Edit words), kept when the library is read again, as an edited word is kept
+(`keepEdits`). It is what lets Juniper's platform team set sit and uat to seaLeye (Greg,
+Nov 1). About a day and a half.
+
 - The supervisor writes each entry's `stages` and `instead`, and the library reader's
   path gains each stage's `with` (Juniper's `backup-plan`, from its README and the
   library's) and `applies`, read from the pipelines (Juniper's `app-promote.yml`
