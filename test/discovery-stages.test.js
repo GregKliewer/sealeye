@@ -358,3 +358,11 @@ test("several stages written as one are those stages; words that are not stages 
   assert.equal(byId(d, "db_cluster").stages, undefined);
   assert.equal(stagesCheck(d).passed, false);
 });
+
+test("a module said to be for every stage there is is a module for every stage", () => {
+  const doc = holding();
+  doc.modules[2].stages = ["dev", "staging", "prod"];
+  const d = provenStageMap(withStageMap(doc, reviewPath));
+  assert.equal(byId(d, "backup").stages, undefined);
+  assert.equal(d.discovery.unproven, undefined);
+});

@@ -305,7 +305,7 @@ export function gradeCatalog(candidate, key, { questions = null, selfTest = null
     const unasked = (candidate?.modules || []).filter(c => {
       const k = keyIdOf(c);
       return k && ((Array.isArray(c.stages) && !Array.isArray(k.stages)) || (c.instead && !k.instead));
-    }).map(c => c.id);
+    }).map(c => `${c.id} (${[Array.isArray(c.stages) ? `stages ${c.stages.join(", ")}` : "", c.instead ? `in its place from ${c.instead.from}, ${c.instead.module}` : ""].filter(Boolean).join("; ")})`);
     const keyWith = new Set((keyPath.with || []).map(w => keyModules.find(k => k.id === w.module)?.source));
     const extraWith = (got?.with || []).filter(w => !keyWith.has(pairs.find(p => p.found?.id === w.module)?.key?.source)).map(w => w.module);
     hardCases.push({ case: "no stage map the library does not give", ok: !unasked.length && !extraWith.length, why: unasked.length || extraWith.length ? [unasked.length ? `stages or a replacement on ${unasked.join(", ")}` : "", extraWith.length ? `added by a stage: ${extraWith.join(", ")}` : ""].filter(Boolean).join("; ") : "none" });

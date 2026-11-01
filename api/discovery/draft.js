@@ -396,6 +396,9 @@ export function withStageMap(doc, library) {
       return parts.length > 1 && parts.every(x => known.has(x)) ? parts : [s];
     });
     m.stages = [...new Set(split)];
+    // Every stage there is says no more than saying none: a module for every stage
+    // (Greg's runs of Step 2, Nov 1, 2026: custom-domain, "the same at every stage").
+    if (names.every(n => m.stages.includes(n)) && m.stages.every(s => known.has(s))) delete m.stages;
   }
   const before = from => names.filter(n => reach(n) >= 0 && reach(n) < at(from));
   const fromOn = from => names.filter(n => reach(n) >= at(from));
