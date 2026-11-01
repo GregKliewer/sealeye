@@ -302,6 +302,7 @@ app.get("/catalog", (req, res) => {
       ...(m.version ? { version: m.version } : {}),
       // Which stages it is for, and what takes its place later (PHASE5-PLAN Step 1).
       ...(m.stages ? { stages: m.stages } : {}),
+      ...(m.every ? { every: true } : {}),
       ...(m.instead ? { instead: m.instead } : {}),
       usedBy: used[m.id] || []
     })),

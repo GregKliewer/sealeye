@@ -144,7 +144,9 @@ test("both surfaces say a module's stages and the path in the same words, naming
   ]);
   assert.equal(moduleStageWords(moduleStageView(byId(doc, "postgres"), doc)),
     "For dev, sit and uat. From staging, the platform uses another in its place: a relational database for your app that survives losing a zone, from staging up.");
-  assert.equal(moduleStageWords(moduleStageView(byId(doc, "http_api"), doc)), "");
+  // Said every time: a module with nothing written is for every stage (Greg, Nov 1, 2026).
+  assert.equal(moduleStageWords(moduleStageView(byId(doc, "http_api"), doc)), "For every stage.");
+  assert.match(moduleStageWords(moduleStageView(byId(doc, "backup_plan"), doc)), /^No app asks for it: from staging, the platform adds it beside every app that needs a relational database/);
   assert.ok(!JSON.stringify(view).includes("backup_plan") && !JSON.stringify(view).includes("app-promote"), "no id, no pipeline file");
   assert.equal(stageMapView(starterCatalog()), null);
   assert.deepEqual(moduleStageView(starterCatalog().modules[0], starterCatalog()), {});

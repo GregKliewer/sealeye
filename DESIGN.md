@@ -5022,3 +5022,9 @@ whose findings were all fixed before the pull request.
   as for every stage, as a catalog says of a module when it says nothing, in a note
   (custom-domain, read as staging and up from "anything below staging uses the address
   the platform generates", where its README also says any stage may have a name).
+- **Every module says its stages** (Greg, Sun Nov 1, 2026, reviewing Juniper's draft: "I
+  don't know how to determine which stages modules are available for"). Where a catalog
+  goes past dev, both surfaces print a stage line under every module: "For dev, sit and
+  uat.", "For every stage." when nothing is written, and for a module a stage adds, "No
+  app asks for it: from staging, the platform adds it beside every app that needs ...".
+  Silence had meant every stage, which no one could tell from a line left out.
