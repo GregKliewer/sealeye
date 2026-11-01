@@ -51,6 +51,8 @@ import { environmentsDropped } from "./catalog-use.js";
 import { selfTestSummary } from "../core/discovery-words.js";
 import { organizationInWords } from "../core/token.js";
 import { environmentOperations } from "../core/operations.js";
+import { environmentStage } from "../core/environments.js";
+import { FIRST_STAGE } from "../core/stages.js";
 import { openPlatform, platformValues, removePlatformValue, setPlatformValue, stageOf, withPlatform, PlatformValueRefused } from "./platform.js";
 import { DEVELOPER_STAGE, STAGES as PLATFORM_STAGES, platformWanted } from "../core/terraform-modules.js";
 
@@ -367,6 +369,11 @@ async function deployAgain(req, res) {
   if (!canSee(req, source)) return refuse(404, "NOT_FOUND", "deploymentId not found");
   if (req.caller && teamOf(source) !== req.caller.team) {
     return refuse(403, "NOT_YOUR_TEAM", `${source.app?.name || "This app"} is team ${teamOf(source)}'s. Deploying it again is for that team.`);
+  }
+  // A stage past dev changes only behind its gate (principle 9, PHASE5-PLAN D4), which
+  // nothing asks yet (Step 8), so nothing past dev is built again from here.
+  if (environmentStage(source) !== FIRST_STAGE) {
+    return refuse(409, "STAGE_WAITS_ON_ITS_GATE", `The ${environmentStage(source)} environment of ${source.app?.name || "this app"} changes only once that stage's approval is given, and the platform cannot ask for it yet, so nothing was built.`);
   }
   if (source.kind === "static") {
     return refuse(409, "NOTHING_TO_DEPLOY_AGAIN", "A static site's files are not kept after it is deployed, so it cannot be deployed again from here. Run sealeye run in its folder.");
@@ -860,6 +867,8 @@ app.get("/deployments", (req, res) => {
     // The environment a deployment is for, from the moment it is queued (stackName comes
     // once its stack is composed). Lists group by stackName, else by this.
     environment: dep.stackName || dep.environment || null,
+    // The stage it is for, dev for every record made before stages (PHASE5-PLAN D5).
+    stage: environmentStage(dep),
     startedAt: dep.startedAt || null,
     finishedAt: dep.finishedAt || null,
     failureReason: dep.failureReason || null,
@@ -1011,7 +1020,7 @@ app.get("/deployments/:deploymentId", (req, res) => {
   // The plan's files are served at /plan, not here: this route is polled every few
   // seconds while a change is watched.
   const { planFiles: _files, ...withFiles } = dep;
-  const shown = { ...withFiles, operations: environmentOperations(dep.backend, { logs: Boolean(environmentLogGroup(dep, listDeployments())) }) };
+  const shown = { ...withFiles, stage: environmentStage(dep), operations: environmentOperations(dep.backend, { logs: Boolean(environmentLogGroup(dep, listDeployments())) }) };
   if (!replacedBy) return res.status(200).json(shown);
   return res.status(200).json({ ...shown, replaced: true, replacedBy: canSee(req, getDeployment(replacedBy)) ? replacedBy : null });
 });

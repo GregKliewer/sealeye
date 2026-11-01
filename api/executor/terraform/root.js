@@ -14,8 +14,9 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { region } from "../../../core/config.js";
-import { safeName } from "../../../core/names.js";
-import { DEVELOPER_STAGE, NETWORK_INPUTS, SEALEYE_INPUTS, codeInputs, doorLogsOutput, inNetwork, partLogsOutputs, platformInputs } from "../../../core/terraform-modules.js";
+import { safeName, stageForName } from "../../../core/names.js";
+import { FIRST_STAGE } from "../../../core/stages.js";
+import { NETWORK_INPUTS, SEALEYE_INPUTS, codeInputs, doorLogsOutput, inNetwork, partLogsOutputs, platformInputs } from "../../../core/terraform-modules.js";
 import { AWS_PROVIDER_VERSION, IMAGE_LOCK_FILE } from "./tofu.js";
 
 /** The function the adapter seaLeye puts into an app's package exports (templates/sealeye-handler.mjs). */
@@ -47,9 +48,17 @@ export function shapedFor(spec, value) {
   return value;
 }
 
-/** Where each environment's state is kept, in the platform's bucket. */
-export function stateKeyFor({ org = "default", environment }) {
-  return `tofu-state/${safeName(org) || "default"}/${environment}.tfstate`;
+/**
+ * Where each environment's state is kept, in the platform's bucket: dev's where it always
+ * was, and a later stage's under the stage, so each stage's state is apart (PHASE5-PLAN
+ * D5) and a stage's role can be given its own stage's alone (D6).
+ */
+export function stateKeyFor({ org = "default", environment, stage = FIRST_STAGE }) {
+  const orgName = safeName(org) || "default";
+  const stageName = stageForName(stage);
+  return stageName === FIRST_STAGE
+    ? `tofu-state/${orgName}/${environment}.tfstate`
+    : `tofu-state/${orgName}/${stageName}/${environment}.tfstate`;
 }
 
 /**
@@ -60,14 +69,15 @@ export function stateKeyFor({ org = "default", environment }) {
  * @param {object} p.planModule     the plan's module ({ id, inputs })
  * @param {string} p.name           the module's name (moduleName in core/names.js)
  * @param {Record<string,string>} p.tags
- * @param {Record<string, string | string[]>} p.platform  the organization's values at dev
+ * @param {string} [p.stage]      the stage it is built for, dev by default: what the module is told
+ * @param {Record<string, string | string[]>} p.platform  the organization's values at that stage
  * @param {{ package?: string }} [p.code]  the packaged app, for a module that takes one
  * @param {{ key: string, entry: object }[]} [p.parts]  the modules the app uses: when one is in
  *        the private network, the app's module joins it with the platform's network values
  * @returns {{ inputs: Record<string, any>, sources: { name: string, source: string, from?: string }[], ignored: string[] }}
  * @throws Error naming what the plan asks that cannot be given
  */
-export function inputsFor({ entry, planModule, name, tags, platform = {}, code = {}, connected = new Set(), parts = [] }) {
+export function inputsFor({ entry, planModule, name, tags, stage = FIRST_STAGE, platform = {}, code = {}, connected = new Set(), parts = [] }) {
   const declared = entry.inputs || {};
   const inputs = {};
   const sources = [];
@@ -77,7 +87,7 @@ export function inputsFor({ entry, planModule, name, tags, platform = {}, code =
   };
 
   if ("name" in declared) give("name", name, "seaLeye");
-  if ("stage" in declared) give("stage", DEVELOPER_STAGE, "seaLeye");
+  if ("stage" in declared) give("stage", stage, "seaLeye");
   if ("tags" in declared) give("tags", tags, "seaLeye");
   const d = entry.delivers || {};
   if (d.kind === "package") {

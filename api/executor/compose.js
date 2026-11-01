@@ -6,6 +6,8 @@ import path from "node:path";
 
 import { backendMappings } from "../mappings.js";
 import { environmentName, safeName } from "../../core/names.js";
+import { environmentStage } from "../../core/environments.js";
+import { FIRST_STAGE } from "../../core/stages.js";
 import { repoRoot, loadEnv, requireSetting } from "../../core/config.js";
 import { settingValues } from "./settings.js";
 import { RETENTION_ALLOWED, retentionOf } from "../../core/retention.js";
@@ -62,7 +64,8 @@ export function resourceNameOf(record) {
  *   own keeps "sealeye-<app>", and nothing is renamed or moved;
  * - otherwise: a new name from environmentName() for the stack and everything in it.
  *
- * Another team's records never count: theirs is another environment. Nor is a stack
+ * Another team's records never count: theirs is another environment. Nor do another
+ * stage's: each stage of an app is an environment of its own (PHASE5-PLAN D5). Nor is a stack
  * reused that another team deployed to last, as a "sealeye-<app>" stack from before
  * teams had names of their own can be: deploying to it would change their environment,
  * so this team gets a name of its own instead. A stack that is being torn down is not
@@ -72,16 +75,18 @@ export function resourceNameOf(record) {
  * @param {string} args.app        the plan's app name
  * @param {string} [args.org]      the caller's organization ("default" without tokens)
  * @param {string} [args.team]     the caller's team
+ * @param {string} [args.stage]    the stage it is for, dev by default
  * @param {object[]} [args.records] every record, newest first
  * @returns {{ stackName: string, resourceName: string, reused: boolean }}
  */
-export function namingFor({ app, org = "default", team = "default", records = [] }) {
+export function namingFor({ app, org = "default", team = "default", stage = FIRST_STAGE, records = [] }) {
   const appName = safeName(app);
   const sameEnvironment = r =>
     Boolean(r.stackName) &&
     safeName(r.app?.name) === appName &&
     (r.orgId || "default") === org &&
-    (r.teamId || "default") === team;
+    (r.teamId || "default") === team &&
+    environmentStage(r) === stage;
 
   const latest = records.find(sameEnvironment);
   const reusable = latest &&
@@ -91,7 +96,7 @@ export function namingFor({ app, org = "default", team = "default", records = []
   if (reusable) {
     return { stackName: latest.stackName, resourceName: resourceNameOf(latest), reused: true };
   }
-  const name = environmentName({ org, team, app });
+  const name = environmentName({ org, team, app, stage });
   return { stackName: name, resourceName: name, reused: false };
 }
 

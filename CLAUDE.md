@@ -174,7 +174,9 @@ in `core/` or behind an endpoint.
   a hidden alias, as `init` is.
 - An environment's name is `sealeye-<team>-<app>-<hash>` (`environmentName` in
   `core/names.js`: lowercase, `[a-z0-9-]` only, at most 49 characters, the hash of the
-  organization, team and app). Its stack, function, log group, API and static site
+  organization, team and app). A stage past dev is an environment of its own,
+  `sealeye-<team>-<app>-<stage>-<hash>`, its hash over the stage too; a record's stage is
+  `environmentStage` in `core/environments.js`, dev when it says none (PHASE5-PLAN D5). Its stack, function, log group, API and static site
   bucket are all named after it, so two teams' apps of the same name are two
   environments; the developer sees only the app name. `namingFor` in
   `api/executor/compose.js` keeps an existing environment's names from its record, so
@@ -353,8 +355,10 @@ Keep existing endpoints and commands working; add, do not break.
   the detached network interfaces the platform leaves behind, named for the
   environment's functions, after a tear-down and before a build (`sweepInterfaces`;
   DESIGN.md, "A tear-down waits for the private network, and sweeps what it leaves"). The module's `name` is `moduleName` in
-  `core/names.js` (at most 31 characters), its stage always dev; settings never travel
-  to it. `npm test` uses a stand-in `tofu` (SEALEYE_TOFU); `.github/workflows/tofu.yml`
+  `core/names.js` (at most 31 characters), its stage the record's (dev unless it says
+  one), with that stage's platform values and its state under
+  `tofu-state/<org>/<stage>/` past dev; settings never travel to it. Nothing builds past
+  dev yet: deploying a record past dev again is refused (409 STAGE_WAITS_ON_ITS_GATE). `npm test` uses a stand-in `tofu` (SEALEYE_TOFU); `.github/workflows/tofu.yml`
   runs the real one (`scripts/tofu-check.js`).
 
 ## Interview

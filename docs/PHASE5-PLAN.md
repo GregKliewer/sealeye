@@ -252,6 +252,10 @@ Decided Sun Nov 1, 2026 (Greg):
 
 About four to five days.
 
+Progress: the API's part built Nov 1, 2026 (records, names, state, the busy rule, the
+executor building the stage a record says; DESIGN.md, "Each stage of an app has a name, a
+state and a busy rule of its own"). Next: `--stage` on the command, then the portal.
+
 ### Step 4. Each stage's account and role (D6)
 
 - A role per later stage, in `deploy/` (one template, a stage as its parameter), each

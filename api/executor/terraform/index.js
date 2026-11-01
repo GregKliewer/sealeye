@@ -14,6 +14,8 @@ import path from "node:path";
 import { requireSetting, sealeyeHome } from "../../../core/config.js";
 import { firstSentence, moduleEntry } from "../../../core/catalog.js";
 import { moduleName } from "../../../core/names.js";
+import { environmentStage } from "../../../core/environments.js";
+import { FIRST_STAGE } from "../../../core/stages.js";
 import { settingNamesFor } from "../../../core/setting-names.js";
 import { connectionProblems, doorLogsOutput, inNetwork, isPart, ownOtherLogGroup, partLogKind, partLogsOutputs, terraformBuilds } from "../../../core/terraform-modules.js";
 import { putDeployment } from "../../store.js";
@@ -198,7 +200,10 @@ async function prepare(record, catalog, { entry, planModule, parts = [], inputs 
   const bucket = requireSetting("BUCKET");
   const team = record.teamId || "default";
   const tags = { "sealeye:app": record.app?.name || "", "sealeye:team": team, "sealeye:environment": record.stackName };
-  const platform = valuesAt(record.orgId || "default");
+  // The stage it is built for: what the module is told, and whose platform values it is
+  // given (PHASE5-PLAN Step 3). Never dev by rule.
+  const stage = environmentStage(record);
+  const platform = valuesAt(record.orgId || "default", stage);
 
   // Each module the app uses, as the record has it when it was built before.
   const builtParts = new Map((record.terraform?.parts || []).map(p => [p.id, p]));
@@ -213,7 +218,7 @@ async function prepare(record, catalog, { entry, planModule, parts = [], inputs 
     let given = was?.inputValues;
     let sources = was?.inputs || [];
     let ignored = was?.ignoredInputs || [];
-    if (!given) ({ inputs: given, sources, ignored } = inputsFor({ entry: partEntry, planModule: part.planModule, name: record.resourceName, tags, platform }));
+    if (!given) ({ inputs: given, sources, ignored } = inputsFor({ entry: partEntry, planModule: part.planModule, name: record.resourceName, tags, stage, platform }));
     given = shapedAll(partEntry, given);
     readyParts.push({
       key: part.entry.id, entry: part.entry, planModule: part.planModule, moduleSource: `./${folder}/${partCode.source}`,
@@ -228,7 +233,7 @@ async function prepare(record, catalog, { entry, planModule, parts = [], inputs 
   let ignored = record.terraform?.ignoredInputs || [];
   if (!given) {
     ({ inputs: given, sources, ignored } = inputsFor({
-      entry: appEntry, planModule, name: record.resourceName, tags, platform, code: { package: codePackage }, connected: new Set(Object.keys(connected.inputs)), parts: readyParts
+      entry: appEntry, planModule, name: record.resourceName, tags, stage, platform, code: { package: codePackage }, connected: new Set(Object.keys(connected.inputs)), parts: readyParts
     }));
     given = { ...given, ...connected.inputs };
     sources = [...sources, ...connected.sources];
@@ -239,7 +244,7 @@ async function prepare(record, catalog, { entry, planModule, parts = [], inputs 
     given = { ...given, [entry.delivers.package]: file };
   }
   given = shapedAll(appEntry, given);
-  const state = { bucket, key: record.terraform?.stateKey || stateKeyFor({ org: record.orgId || "default", environment: record.stackName }) };
+  const state = { bucket, key: record.terraform?.stateKey || stateKeyFor({ org: record.orgId || "default", environment: record.stackName, stage }) };
   const root = rootModule({ moduleSource: `./library/${code.source}`, inputs: given, outputs: outputsWanted(entry), state, tags, parts: readyParts });
   const rootSha256 = writeRoot(dir, { root, libraryDir: code.libraryDir, libraries });
   return {
@@ -288,10 +293,10 @@ export function clientOutputs(entry, raw = {}, { name = null } = {}) {
  * only when it is the environment's own (`ownOtherLogGroup`), as the app's is.
  * @returns {{ from: string, group: string }[]}
  */
-export function otherLogs(entry, parts = [], raw = {}, name = null) {
+export function otherLogs(entry, parts = [], raw = {}, name = null, stage = FIRST_STAGE) {
   const out = [];
   const door = doorLogsOutput(entry);
-  if (door && ownOtherLogGroup(raw[door], name)) out.push({ from: "door", kind: "door", words: "the front door", group: raw[door] });
+  if (door && ownOtherLogGroup(raw[door], name, stage)) out.push({ from: "door", kind: "door", words: "the front door", group: raw[door] });
   // A database is "your database" and read by its phrasebook; another module is named by
   // its catalog line, its lines shown as they are. Two databases go by their ids.
   const kinds = parts.map(p => partLogKind(p.entry));
@@ -302,7 +307,7 @@ export function otherLogs(entry, parts = [], raw = {}, name = null) {
     const words = kind === "database" && !many ? "your database" : lineWords(p.entry, p.key);
     for (const o of partLogsOutputs(p.entry)) {
       const group = raw[`${p.key}__${o}`];
-      if (ownOtherLogGroup(group, name)) out.push({ from, kind, words, group });
+      if (ownOtherLogGroup(group, name, stage)) out.push({ from, kind, words, group });
     }
   }
   return out;
@@ -346,7 +351,7 @@ export async function startTerraformDeployment(record, plan, appPath, catalog, o
     record.backend = "terraform";
     record.kind = entry.delivers.kind === "files" ? "static" : "api";
     record.stackName = record.environment;
-    record.resourceName = record.resourceName || moduleName({ org: record.orgId || "default", team: record.teamId || "default", app: plan.app.name });
+    record.resourceName = record.resourceName || moduleName({ org: record.orgId || "default", team: record.teamId || "default", app: plan.app.name, stage: environmentStage(record) });
     putDeployment(record);
 
     // The app's code, for a module that takes a package: packaged as any other, with the
@@ -442,7 +447,7 @@ export async function startTerraformDeployment(record, plan, appPath, catalog, o
     record.outputs = clientOutputs(entry, read.outputs, { name: record.resourceName });
     // The front door's record of requests and each module's own logs, when the modules
     // say where they keep them, read back beside the app's own lines.
-    record.terraform.logs = otherLogs(entry, ready.parts, read.outputs, record.resourceName);
+    record.terraform.logs = otherLogs(entry, ready.parts, read.outputs, record.resourceName, environmentStage(record));
     if (entry.delivers?.logs && !record.outputs.LogGroup) {
       record.terraform.logsNotKept = typeof read.outputs[entry.delivers.logs] === "string" ? "the module named a group that is not this environment's own" : "the module gave no group";
     }
