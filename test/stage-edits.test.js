@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { applyStageEdit, keepStageEdits, stageEditNotes } from "../core/catalog-edits.js";
+import { applyStageEdit, keepStageEdits, stageEditNotes, whoAppliesWords } from "../core/catalog-edits.js";
 import { provenStageMap, withStageMap } from "../api/discovery/draft.js";
 import { selfTest } from "../api/self-test.js";
 
@@ -74,4 +74,28 @@ test("discovery keeps an edit through a rewrite from the library, and the self-t
   const tested = selfTest({ document: rewritten, version: 2 });
   assert.ok(tested.notes.some(n => n.startsWith("sit: built by seaLeye, as greg@juniper.example chose")));
   assert.equal(tested.checks.find(c => c.id === "stages").passed, true);
+});
+
+// The review of Step 2b.
+const library = (sitPipeline = pipeline, names = ["dev", "sit", "prod"]) => ({ stages: names.map(name => ({ name, built_by: name === "dev" ? "not_said" : "pipeline", ...(name === "dev" ? {} : { pipeline: name === "sit" ? sitPipeline : pipeline }), gate: [] })) });
+
+test("the note that the library overrode a change is kept through later rewrites, and said on the self-test", () => {
+  const edited = applyStageEdit(provenStageMap(withStageMap(draft(), library())), { stage: "sit", applies: "sealeye", by: "greg@juniper.example", at });
+  const overridden = provenStageMap(withStageMap(edited, library(".github/workflows/sit.yml")));
+  assert.equal(sitOf(overridden).applies, "pipeline");
+  const later = provenStageMap(withStageMap(overridden, library(".github/workflows/sit.yml")));
+  assert.deepEqual(later.discovery.stage_overrides, ["The library now says the pipeline .github/workflows/sit.yml builds sit, so it does; this replaces the change greg@juniper.example made on Nov 1, 2026 at 21:40 UTC, which had seaLeye build it."]);
+  assert.ok(selfTest({ document: later, version: 3 }).notes.includes(later.discovery.stage_overrides[0]));
+});
+
+test("a stage the library no longer has takes its change with it, in a note", () => {
+  const edited = applyStageEdit(draft(), { stage: "sit", applies: "sealeye", by: "greg@juniper.example", at });
+  const { notes } = keepStageEdits(edited, { stages: library(pipeline, ["dev", "uat", "prod"]).stages.map(s => ({ name: s.name, applies: s.built_by === "pipeline" ? "pipeline" : "sealeye", ...(s.pipeline ? { pipeline: s.pipeline } : {}), gate: [] })) });
+  assert.deepEqual(notes, ["The library no longer has sit; the change greg@juniper.example made on Nov 1, 2026 at 21:40 UTC, which had seaLeye build it, goes with it."]);
+});
+
+test("a pipeline's name is one plain line, and one seaLeye named itself reads plainly", () => {
+  assert.throws(() => applyStageEdit(draft(), { stage: "sit", applies: "pipeline", pipeline: "a\n\u001b[31mred", by: "x", at }), /one line of plain characters/);
+  assert.equal(whoAppliesWords({ applies: "pipeline", pipeline: "the library's pipeline" }), "the library's pipeline");
+  assert.equal(whoAppliesWords({ applies: "pipeline", pipeline: "p.yml" }), "the pipeline p.yml");
 });

@@ -177,6 +177,12 @@ test("who builds a stage is changed on a draft, on both surfaces, and said on th
   const after = (await api.call("/catalogs/4", { token: LEE })).body.document.stages.path;
   assert.equal(after[1].edited, undefined, "back to what the library said: no edit left");
   assert.equal(after[2].applies, "sealeye");
+  for (const [args, words] of [
+    [["catalog", "edit", "4", "--stage"], /--stage names a stage/],
+    [["catalog", "edit", "4", "--stage", "--json"], /--stage names a stage/],
+    [["catalog", "test", "4", "--stage", "sit"], /--stage goes with sealeye catalog edit/],
+    [["catalog", "--stage", "sit"], /--stage goes with sealeye catalog edit/]
+  ]) assert.match((await run(args)).stderr + (await run(args)).stdout, words, args.join(" "));
   const wrong = await run(["catalog", "edit", "4", "--stage", "sit", "someone"]);
   assert.match(wrong.stdout + wrong.stderr, /sealeye or pipeline <name>, not someone/);
 });

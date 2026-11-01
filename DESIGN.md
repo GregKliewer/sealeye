@@ -4943,15 +4943,18 @@ and what the library said of it then (`read`); a change back to what the library
 takes the mark away. dev is not changed. The self-test's notes say each such stage and
 whose choice it is, beside what the library says.
 
-- **Kept while the library says the same.** A new draft keeps the live catalog's
-  changes, whether the run read every module or only what changed, and a rewrite of a
-  draft (a late answer) keeps the draft's own (`keepStageEdits` in
-  `core/catalog-edits.js`).
+- **Kept while the library says the same.** A new draft keeps the changes of the
+  organization's newest catalog that is not retired (the live one, or a draft after it
+  that never went live), whether the run read every module or only what changed, and a
+  rewrite of a draft (a late answer) keeps the draft's own (`keepStageEdits` in
+  `core/catalog-edits.js`). A stage the library no longer has takes its change with it,
+  in a note.
 - **The library wins when it changes** (Greg: "Do what the library says and note that it
   overrides a previous manual change, on X date and time, by Y person"). Once the library
   says something else of the stage, its reading stands, and a note on the self-test says
   so: "The library now says ... builds sit, so it does; this replaces the change ... made
-  on Nov 1, 2026 at 21:40 UTC, which had seaLeye build it."
+  on Nov 1, 2026 at 21:40 UTC, which had seaLeye build it." The note is kept in
+  `discovery.stage_overrides`, which later rewrites of the draft never clear.
 - **A draft only.** As with words, a live catalog is as it was approved. A run that finds
   nothing changed in the library makes no draft, so changing a live catalog's stage takes
   a run that reads everything (`sealeye discover --all`), then the change, approve and

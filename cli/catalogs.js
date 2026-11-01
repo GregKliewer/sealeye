@@ -177,7 +177,14 @@ async function yes(question) {
  * The catalog subcommands.
  * @param {{ apiBaseUrl: string, sub: string, args: string[], say: (line: string) => void, json: boolean }} p
  */
-export async function catalogs({ apiBaseUrl, sub, args, say, json = false, stage }) {
+export async function catalogs({ apiBaseUrl, sub, args, say, json = false, stage, stageFlag = false }) {
+  // --stage with no stage after it, or on another subcommand, is said, never taken for a
+  // word or let pass (the review of Step 2b).
+  if (stageFlag) {
+    const usage = commandLine("catalog-edit", null, ["<number>", "--stage", "<stage>", "[sealeye | pipeline <name>]"]);
+    if (sub !== "edit") throw userError(`--stage goes with ${usage}.`);
+    if (!stage || stage.startsWith("--")) throw userError(`--stage names a stage: ${usage}.`);
+  }
   const [asked] = args;
 
   if (sub === "versions") {

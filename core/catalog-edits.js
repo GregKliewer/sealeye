@@ -129,7 +129,10 @@ const sameWho = (a, b) => a.applies === b.applies && (a.applies !== "pipeline" |
 
 /** Who applies a stage, as a line a platform engineer reads: "seaLeye", "the pipeline .github/workflows/app-promote.yml". */
 export function whoAppliesWords(s) {
-  return s?.applies === "pipeline" ? `the pipeline ${s.pipeline || "the library names"}` : "seaLeye";
+  if (s?.applies !== "pipeline") return "seaLeye";
+  const name = String(s.pipeline || "").trim();
+  // A name seaLeye put in itself, where the library named no file ("the library's pipeline").
+  return !name ? "the pipeline the library names" : /^the /i.test(name) ? name : `the pipeline ${name}`;
 }
 
 /**
@@ -147,6 +150,8 @@ export function applyStageEdit(document, { stage, applies, pipeline, by, at }) {
   const name = String(pipeline ?? "").trim();
   if (applies === "pipeline" && !name) throw fail("Name the pipeline that builds it, as the library names it");
   if (name.length > PIPELINE_LIMIT) throw fail(`A pipeline's name is at most ${PIPELINE_LIMIT} characters`);
+  // One printable line: the name is printed on the terminal and the self-test as it is.
+  if (/[\u0000-\u001f\u007f]/.test(name)) throw fail("A pipeline's name is one line of plain characters, as the library names it");
   const wanted = applies === "pipeline" ? { applies, pipeline: name } : { applies };
   // What the library said is kept from the first edit, however many follow.
   const read = named.edited?.read || whoOf(named);
@@ -180,6 +185,11 @@ export function keepStageEdits(previous, rewritten) {
     return s;
   };
   const st = rewritten.stages;
+  // A stage the library no longer has takes its change with it, said as any other.
+  const now = new Set(stagesOf(rewritten).map(s => s?.name));
+  for (const [name, old] of before) {
+    if (!now.has(name)) notes.push(`The library no longer has ${name}; the change ${old.edited.by || "someone"} made${old.edited.at ? ` on ${when(old.edited.at)}` : ""}, which had ${whoAppliesWords(old)} build it, goes with it.`);
+  }
   return { document: { ...rewritten, stages: { ...st, path: (st.path || []).map(carry), ...(st.aside ? { aside: st.aside.map(carry) } : {}) } }, notes };
 }
 
@@ -197,4 +207,15 @@ function when(at) {
   const hh = String(d.getUTCHours()).padStart(2, "0");
   const mm = String(d.getUTCMinutes()).padStart(2, "0");
   return `${month} ${d.getUTCDate()}, ${d.getUTCFullYear()} at ${hh}:${mm} UTC`;
+}
+
+/**
+ * A document with notes of stage changes the library overrode added to
+ * `discovery.stage_overrides`, which the stage map's own notes never replace, so a later
+ * rewrite of the draft keeps them for whoever approves (the review of Step 2b).
+ */
+export function withOverrideNotes(document, notes) {
+  if (!notes?.length) return document;
+  const was = Array.isArray(document?.discovery?.stage_overrides) ? document.discovery.stage_overrides : [];
+  return { ...document, discovery: { ...(document.discovery || {}), stage_overrides: [...new Set([...was, ...notes])] } };
 }

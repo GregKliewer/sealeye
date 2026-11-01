@@ -10,7 +10,7 @@
 // else of the starter's, since its modules and rules are seaLeye's own four.
 import { starterCatalog } from "../../core/catalog.js";
 import { forbiddenWord } from "../../core/developer-words.js";
-import { keepEdits, keepStageEdits } from "../../core/catalog-edits.js";
+import { keepEdits, keepStageEdits, withOverrideNotes } from "../../core/catalog-edits.js";
 import { FIRST_STAGE, stageMapFindings, stageMapProblems } from "../../core/stages.js";
 
 const unanswered = q => q.answer === undefined || q.answer === null;
@@ -437,9 +437,8 @@ export function withStageMap(doc, library) {
   // chose, while the library says what it said then (PHASE5-PLAN Step 2b). Read with no
   // library, the path is the draft's own, edits and all.
   const { document: kept, notes: editNotes } = fromLibrary ? keepStageEdits(doc, { stages: base }) : { document: { stages: base }, notes: [] };
-  notes.push(...editNotes);
   if (notes.length) discovery.stage_notes = [...new Set(notes)];
-  return { ...rest, discovery, modules: fixed, stages: { ...kept.stages, ...(adds.length ? { with: adds } : {}) } };
+  return withOverrideNotes({ ...rest, discovery, modules: fixed, stages: { ...kept.stages, ...(adds.length ? { with: adds } : {}) } }, editNotes);
 }
 
 function withoutStageFields(m) {

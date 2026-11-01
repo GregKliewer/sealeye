@@ -164,6 +164,7 @@ export function selfTest({ document, version, questionText = () => null }) {
   for (const note of Array.isArray(document.discovery?.stage_notes) ? document.discovery.stage_notes : []) notes.push(note);
   // Each stage a person changed who builds, for whoever approves (PHASE5-PLAN Step 2b).
   notes.push(...stageEditNotes(document));
+  for (const note of Array.isArray(document.discovery?.stage_overrides) ? document.discovery.stage_overrides : []) notes.push(note);
   // Each module's release, by id, where its library releases it (core/module-versions.js).
   const versions = Object.fromEntries(modules.filter(m => typeof m.version === "string" && m.version).map(m => [m.id, m.version]));
   return { version, passed: checks.every(c => c.passed), checks, refused, built, versions, notes };

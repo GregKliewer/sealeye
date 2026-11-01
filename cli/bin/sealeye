@@ -1169,7 +1169,7 @@ async function main() {
     const stageAt = process.argv.indexOf("--stage");
     const stage = stageAt > 2 ? process.argv[stageAt + 1] : undefined;
     const words = process.argv.slice(3).filter((a, i) => !a.startsWith("--") && a !== getArg("--api") && !(stageAt > 2 && i + 3 === stageAt + 1));
-    if (words.length) return catalogs({ apiBaseUrl, sub: words[0], args: words.slice(1), say, json: jsonOut, stage });
+    if (words.length || stageAt > 2) return catalogs({ apiBaseUrl, sub: words[0], args: words.slice(1), say, json: jsonOut, stage, stageFlag: stageAt > 2 });
     const catalog = await getCatalog({ apiBaseUrl });
     if (jsonOut) {
       console.log(JSON.stringify(catalog, null, 2));

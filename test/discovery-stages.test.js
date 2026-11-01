@@ -399,3 +399,18 @@ test("a run keeps who builds a stage as the platform team chose on the live cata
   assert.equal(again.draft.stages.path.find(s => s.name === "prod").applies, "pipeline", "only the stage changed");
   assert.ok(selfTest({ document: again.draft, version: 9 }).notes.some(n => n.startsWith("staging: built by seaLeye, as pat@acme.example chose")));
 });
+
+test("a change made on a draft that never went live is kept by the next run too (the review of Step 2b)", async () => {
+  const stageFields = {
+    "modules/db": { stages: ["dev"], instead: { from: "staging", source: "modules/db-cluster" } },
+    "modules/db-cluster": { stages: ["staging", "prod"] },
+    "modules/backup": { added: { from: "staging", beside: "relational_database" } }
+  };
+  await run(stageFields, { full: true });
+  const draftVersion = catalogsOf("acme").filter(c => c.status === "draft").at(-1).version;
+  await changeDraft({ org: "acme", version: draftVersion, change: d => applyStageEdit(d, { stage: "prod", applies: "sealeye", by: "pat@acme.example", at: "2026-11-01T22:00:00.000Z" }) });
+  const again = await run(stageFields, { full: true });
+  const prod = again.draft.stages.path.find(s => s.name === "prod");
+  assert.equal(prod.applies, "sealeye");
+  assert.equal(prod.edited.at, "2026-11-01T22:00:00.000Z");
+});
