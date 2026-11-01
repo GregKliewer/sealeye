@@ -4927,6 +4927,13 @@ applied by seaLeye in its place: the request is made and approved, and the devel
 told plainly that the platform team's pipeline builds it. To prove a gated stage with a
 cluster in 5a, Greg may set Juniper's staging to `sealeye` for a while.
 
+Sun Nov 1, 2026, Greg: Juniper Mutual's library says its own pipeline promotes every
+stage past dev, sit and uat included, so the answer key, and a discovery that reads the
+library right, say `pipeline` for each. Once discovery writes the map (PHASE5-PLAN Step
+2), Juniper's platform team (Greg) sets sit and uat to `sealeye` in its live catalog, as
+any platform team chooses where seaLeye builds; the library is not changed to suit the
+proof.
+
 ## An environment per stage, and a role per stage
 
 Decided Sat Oct 24, 2026 (PHASE5-PLAN D5 and D6; Greg: as recommended). Built in

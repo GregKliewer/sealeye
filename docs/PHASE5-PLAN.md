@@ -163,7 +163,8 @@ check, `stages`, and the words both surfaces say); GET /catalog's `stages`; `sea
 catalog` and `catalog show`, the Catalog page and the Discovery page's catalog view; the
 answer key's stage map for Juniper Mutual. As written below, except that the answer key
 says the library's pipeline applies sit and uat too, since its pipeline and README say
-so; D3's "sit and uat seaLeye" would be an edit by the platform team.
+so. Greg, Nov 1, 2026: once Step 2 writes the map, he sets sit and uat to `sealeye` in
+Juniper's live catalog, as its platform team would.
 
 - A catalog's path becomes data: `path` (the stages in order), `aside` (perf), and per
   stage its `gate` (D11) and who `applies` it (D3). The starter's path is `[dev]` only,
