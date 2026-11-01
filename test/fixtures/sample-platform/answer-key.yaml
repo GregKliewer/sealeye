@@ -467,6 +467,12 @@ answers:
     answer: "Yes: cache-valkey is the cache for new apps now, and cache-redis stays deprecated."
     then:
       availability: available
+  # A question about which stages a module is for is answered from this key's own
+  # stages (scripts/eval-discovery.js, answerAboutStages), never by its guess (Greg's run
+  # of Step 2, Nov 1, 2026).
+  stages:
+    when: after_draft
+    answer: from_the_key
   others:
     when: after_draft
     answer: guess

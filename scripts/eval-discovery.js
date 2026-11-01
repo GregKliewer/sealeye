@@ -475,8 +475,22 @@ export function scriptedAnswer(q, key, when) {
   const isUnclear = amb && about.every(s => (q.touches || []).includes(s)) && (q.touches || []).every(t => about.includes(t));
   const a = key.answers || {};
   if (isUnclear && a.ambiguous?.when === when) return a.ambiguous.answer;
+  // Which stages a module is for, answered from the key as a careful engineer would,
+  // never by the reader's guess (Greg's run of Step 2, Nov 1, 2026: a guess that
+  // custom-domain was for staging up only was answered yes, and written in).
+  const stagesAnswer = !isUnclear && a.stages?.when === when ? answerAboutStages(q, key) : null;
+  if (stagesAnswer) return stagesAnswer;
   if (!isUnclear && a.others?.when === when) return a.others.answer === "guess" ? q.guess : a.others.answer;
   return null;
+}
+
+/** A question about which stages its modules are for, answered from the key; or null. */
+export function answerAboutStages(q, key) {
+  if (!/\bstages?\b|\bstaging\b/i.test(String(q.question || "")) || !/\b(which|only|meant|allowed|offered|used|for)\b/i.test(String(q.question || ""))) return null;
+  const touched = (q.touches || []).map(s => (key.catalog.modules || []).find(m => m.source === s)).filter(Boolean);
+  if (!touched.length || touched.length !== (q.touches || []).length) return null;
+  const name = m => m.source.split("/").pop();
+  return touched.map(m => (Array.isArray(m.stages) ? `${name(m)} is for ${m.stages.join(", ")} only` : `${name(m)} is for every stage: the library allows it at any stage`)).join("; ") + ".";
 }
 
 /**

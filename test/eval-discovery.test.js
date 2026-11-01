@@ -279,3 +279,13 @@ test("which needs each module meets is graded apart from the catalog, and the ga
   const g = gradeCatalog(noCache, key);
   assert.ok(g.needs.gaps.unmet.includes("cache"), "the deprecated cache does not fill it");
 });
+
+test("a question about which stages a module is for is answered from the key, never by its guess", async () => {
+  const { scriptedAnswer } = await import("../scripts/eval-discovery.js");
+  const ask = (question, touches, guess = "the guess") => scriptedAnswer({ question, touches, guess }, key, "after_draft");
+  assert.equal(ask("Is custom-domain meant for staging and above only, or may dev, sit and uat apps use it too?", ["modules/custom-domain"], "Staging, perf and prod only"),
+    "custom-domain is for every stage: the library allows it at any stage.");
+  assert.equal(ask("Is this module allowed on staging, or only on dev, sit and uat?", ["modules/postgres", "modules/postgres-cluster"]),
+    "postgres is for dev, sit, uat only; postgres-cluster is for staging, perf, prod only.");
+  assert.equal(ask("Are failed messages kept in every queue?", ["modules/work-queue"], "Yes"), "Yes", "anything else is still answered by its guess");
+});
