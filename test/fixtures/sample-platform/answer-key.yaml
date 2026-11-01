@@ -380,7 +380,11 @@ catalog:
         pipeline: .github/workflows/app-promote.yml
         gate: [a platform team approval, an approved change ticket]
     aside:
-      - { name: perf, from: staging, applies: pipeline, pipeline: .github/workflows/app-promote.yml }
+      # The library says perf is built from staging for a load test, and its pipeline
+      # refuses to promote to it, but never says who builds it: seaLeye, by D3, said in
+      # the self-test's notes (Greg's first run of Step 2, Nov 1, 2026, read it so; the
+      # key had said pipeline).
+      - { name: perf, from: staging, applies: sealeye }
     with:
       - { from: staging, module: backup_plan, beside: relational_database }
 
