@@ -1190,11 +1190,14 @@ test("a module shows which apps use it and at which release, linked where you ma
   await expect(api.getByTestId("module-users")).toHaveCount(0);
   await api.getByTestId("module-toggle").click();
   const users = api.getByTestId("module-user");
-  await expect(users.filter({ hasText: "payments-api" }).getByRole("link")).toHaveText("payments-api");
+  const devPayments = users.filter({ hasText: "payments-api" }).filter({ hasNotText: "in sit" });
+  await expect(devPayments.getByRole("link")).toHaveText("payments-api");
+  // Its sit environment uses it too, and says so; the app is counted once.
+  await expect(users.filter({ hasText: "payments-api" }).filter({ hasText: "in sit" })).toHaveCount(1);
   // Another team's app is named, with its team, and not linked: its page is theirs.
   await expect(users.filter({ hasText: "another-teams-api" })).toContainText("team payments");
   await expect(users.filter({ hasText: "another-teams-api" }).getByRole("link")).toHaveCount(0);
-  await users.filter({ hasText: "payments-api" }).getByRole("link").click();
+  await devPayments.getByRole("link").click();
   await expect(page).toHaveURL(/\/environments\/sealeye-payments-api$/);
 });
 
@@ -1224,4 +1227,32 @@ test("Catalog shows the path to production when it goes past dev, and nothing fo
     "prod: built by your platform team's pipeline, after a platform team approval and an approved change ticket."
   ]);
   expect(await page.content()).not.toContain("release.yml");
+});
+
+test("each stage of an app is an environment of its own: one row per app on Environments, picked on its page, its commands naming the stage", async ({ page }) => {
+  await signIn(page);
+  // Earlier tests tear environments down, so only payments-api's own row is counted.
+  const rows = page.getByTestId("environment-row");
+  const payments = rows.filter({ hasText: "payments-api" });
+  await expect(payments).toHaveCount(1);
+  await expect(payments.getByTestId("other-stages")).toContainText("sit");
+  await expect(payments.getByTestId("other-stages")).toContainText("Live");
+  await expect(rows.filter({ hasText: "marketing-site" }).getByTestId("other-stages")).toHaveCount(0);
+
+  // dev's page picks between the app's stages; its command lines are as they were.
+  await payments.getByRole("link", { name: "payments-api" }).click();
+  const picker = page.getByTestId("stage-picker");
+  await expect(picker.getByRole("link", { name: /dev/ })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByTestId("actions")).toContainText("sealeye teardown payments-api");
+  await expect(page.getByTestId("actions")).not.toContainText("--stage");
+  await expect(page.getByTestId("deploy-again")).toBeVisible();
+
+  // sit's page: its own address, its commands name the stage, and no change waits on a
+  // gate nothing asks yet.
+  await picker.getByRole("link", { name: /sit/ }).click();
+  await expect(page).toHaveURL(/\/environments\/sealeye-default-payments-api-sit-5a1b2c$/);
+  await expect(page.getByTestId("stage-picker").getByRole("link", { name: /sit/ })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByTestId("address")).toContainText("sit123");
+  await expect(page.getByTestId("actions")).toContainText("sealeye teardown payments-api --stage sit");
+  await expect(page.getByTestId("deploy-again")).toHaveCount(0);
 });

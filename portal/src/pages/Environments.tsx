@@ -1,4 +1,4 @@
-// Environments: every app the platform knows about, one row per environment, newest
+// Environments: every app the platform knows about, one row per app with its stages, newest
 // change first, as `sealeye list` shows them. Consoles summarise before they list.
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
@@ -6,7 +6,7 @@ import { api } from "../api";
 import { useChanges } from "../changes";
 import { Address } from "../Address";
 import { useLoad, useSession } from "../session";
-import { addressOf, ago, groupEnvironments, PAST, statusOf, underWay, who } from "../model";
+import { addressOf, ago, groupApps, groupEnvironments, PAST, statusOf, underWay, who } from "../model";
 import { PageTitle, Problem } from "../Layout";
 import { Badge } from "../components/ui/badge";
 import { Card } from "../components/ui/card";
@@ -46,8 +46,8 @@ export function Environments() {
   // An organization-wide token sees every team's, and two teams can share an app name,
   // so then each row says whose it is.
   const severalTeams = new Set(environments.map(e => e.latest.teamId || "default")).size > 1;
-  const shown = environments
-    .filter(env => showPast || !PAST.has(env.latest.status))
+  // One row per app, with its stages (PHASE5-PLAN D5), as `sealeye list` shows them.
+  const shown = groupApps(environments, env => showPast || !PAST.has(env.latest.status))
     .filter(env => {
       const q = search.trim().toLowerCase();
       return !q || env.app.toLowerCase().includes(q) || who(env.latest.requestedBy).toLowerCase().includes(q);
@@ -88,7 +88,7 @@ export function Environments() {
             <input type="checkbox" checked={showPast} onChange={e => setShowPast(e.target.checked)} className="accent-phosphor" />
             Include drafted and torn down
           </label>
-          <span className="ml-auto text-sm text-dim" aria-live="polite">{deployments.data ? `${shown.length} of ${environments.length}` : "Loading"}</span>
+          <span className="ml-auto text-sm text-dim" aria-live="polite">{deployments.data ? `${shown.length} of ${groupApps(environments).length}` : "Loading"}</span>
         </div>
         <Table>
           <TableHeader>
@@ -111,7 +111,17 @@ export function Environments() {
                 <TableRow key={env.key} data-testid="environment-row">
                   <TableCell>
                     <Link to={`/environments/${encodeURIComponent(env.key)}`} className="font-mono font-bold text-ink hover:text-phosphor">{env.app}</Link>
+                    {env.stage !== "dev" ? <span className="ml-2 font-mono text-xs text-dim" data-testid="row-stage">{env.stage}</span> : null}
                     {severalTeams ? <span className="ml-2 text-xs text-dim" data-testid="team">team {env.latest.teamId || "default"}</span> : null}
+                    {env.others.length ? (
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs" data-testid="other-stages">
+                        {env.others.map(o => (
+                          <Link key={o.key} to={`/environments/${encodeURIComponent(o.key)}`} className="inline-flex items-center gap-1.5 font-mono text-dim hover:text-ink">
+                            {o.stage} <Badge tone={statusOf(o.latest).tone}>{statusOf(o.latest).label}</Badge>
+                          </Link>
+                        ))}
+                      </div>
+                    ) : null}
                     {busy ? <div className="mt-1 max-w-sm text-xs text-dim" data-testid="environment-step">{busy.step || "Waiting for the platform's first step"}</div> : null}
                   </TableCell>
                   <TableCell>{who(env.latest.requestedBy)}</TableCell>

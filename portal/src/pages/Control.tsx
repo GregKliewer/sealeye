@@ -12,7 +12,10 @@ import { PlanCard } from "./PlanCard";
 import { RETENTION_CHOICES, retentionOf, withRetention } from "../../../core/retention.js";
 import { useLoad, useSession } from "../session";
 import { useChanges } from "../changes";
-import { addressOf, ago, changedAt, doing, elapsed, goingAway, groupEnvironments, IN_FLIGHT, lockedWhile, statusOf, underWay, when, who } from "../model";
+import { addressOf, ago, changedAt, doing, elapsed, goingAway, groupEnvironments, IN_FLIGHT, lockedWhile, stagesOfApp, statusOf, underWay, when, who, type Environment } from "../model";
+import { environmentStage } from "../../../core/environments.js";
+import { FIRST_STAGE } from "../../../core/stages.js";
+import { StageContext } from "../stage";
 import { PageTitle, Problem } from "../Layout";
 import { Address } from "../Address";
 import { Cmd, CommandHint } from "../Command";
@@ -47,7 +50,8 @@ export function Control() {
   // from the command line shows here without a refresh.
   const changes = useChanges();
   const deployments = useLoad(api.deployments, [key, changes]);
-  const env = useMemo(() => groupEnvironments(deployments.data || []).find(e => e.key === key) || null, [deployments.data, key]);
+  const environments = useMemo(() => groupEnvironments(deployments.data || []), [deployments.data]);
+  const env = useMemo(() => environments.find(e => e.key === key) || null, [environments, key]);
   const latest = env?.latest;
   const [evidenceFor, setEvidenceFor] = useState<string | null>(null);
   const [planFor, setPlanFor] = useState<string | null>(null);
@@ -108,9 +112,16 @@ export function Control() {
   // environmentOperations): a card or button shows only when it is offered. A record from
   // an API older than the list says nothing, and offers everything, as it always did.
   const offers = (id: string) => !Array.isArray(latest.operations) || latest.operations.includes(id);
+  // Each stage of the app is an environment of its own (PHASE5-PLAN D5): this page is
+  // one stage's, and picks between them. Past dev, a change waits on the stage's gate,
+  // which nothing asks yet (Step 8), and settings are kept for dev alone (Step 5), so
+  // neither is offered there: the portal shows nothing it cannot do.
+  const stage = environmentStage(latest);
+  const stages = stagesOfApp(environments, env);
+  const atDev = stage === FIRST_STAGE;
 
   return (
-    <>
+    <StageContext.Provider value={stage}>
       <div className="mb-2 text-sm"><Link to="/" className="text-dim hover:text-ink">Environments</Link></div>
       <PageTitle
         title={<span className="font-mono">{env.app}</span>}
@@ -121,6 +132,7 @@ export function Control() {
           person?.scope === "org" ? `team ${latest.teamId || "default"}` : null
         ].filter(Boolean).join(", ") || undefined}
       />
+      {stages.length > 1 || !atDev ? <StagePicker stages={stages} current={env.key} /> : null}
 
       {deployments.error ? <Problem message={`${deployments.error} Trying again.`} /> : null}
       {busyDep ? <UnderWay dep={busyDep} app={env.app} now={now} /> : null}
@@ -159,7 +171,7 @@ export function Control() {
           <CardHeader><CardTitle>Actions</CardTitle></CardHeader>
           <CardContent className="space-y-5 text-sm">
             {locked ? <Locked text={locked} /> : null}
-            {code && ownTeam && offers("deploy-again") ? (
+            {code && ownTeam && atDev && offers("deploy-again") ? (
               <div className="space-y-1.5" data-testid="deploy-again">
                 <DeployAgain app={env.app} fromDeployment={code.deploymentId} packagedBy={code.packagedBy || code.deploymentId} locked={Boolean(locked)} onDone={deployments.reload} />
                 <CommandHint op="deploy-again" target={env.app} />
@@ -180,9 +192,9 @@ export function Control() {
         </Card>
       </div>
 
-      {latest.kind !== "static" && offers("settings") && hasSettingsAndCosts(person ?? {}) ? <Settings app={env.app} team={latest.teamId || "default"} moving={moving} /> : null}
+      {latest.kind !== "static" && atDev && offers("settings") && hasSettingsAndCosts(person ?? {}) ? <Settings app={env.app} team={latest.teamId || "default"} moving={moving} /> : null}
 
-      {latest.kind !== "static" && code && ownTeam && offers("config") ? (
+      {latest.kind !== "static" && code && ownTeam && atDev && offers("config") ? (
         <Configure app={env.app} fromDeployment={code.deploymentId} locked={locked} onDone={deployments.reload} />
       ) : null}
 
@@ -200,7 +212,30 @@ export function Control() {
       {latest.kind !== "static" && offers("logs") && env.deploys.some(d => d.stackName) ? <LogsCard key={`logs:${(env.deploys.find(d => d.stackName) || latest).deploymentId}`} app={env.app} deploymentId={(env.deploys.find(d => d.stackName) || latest).deploymentId} /> : null}
 
       {offers("evidence") ? <EvidenceCard key={`evidence:${evidenceFor || latest.deploymentId}`} deploymentId={evidenceFor || latest.deploymentId} latest={!evidenceFor || evidenceFor === latest.deploymentId} /> : null}
-    </>
+    </StageContext.Provider>
+  );
+}
+
+/**
+ * The app's stages, each a link to its own environment's page, this one marked: how a
+ * page picks its stage, as `--stage` does on the command line.
+ */
+function StagePicker({ stages, current }: { stages: (Environment & { stage: string })[]; current: string }) {
+  return (
+    <nav aria-label="Stages" className="mb-6 flex flex-wrap items-center gap-2 text-sm" data-testid="stage-picker">
+      <span className="text-dim">Stage</span>
+      {stages.map(s => {
+        const status = statusOf(s.latest);
+        const here = s.key === current;
+        return (
+          <Link key={s.key} to={`/environments/${encodeURIComponent(s.key)}`} aria-current={here ? "page" : undefined}
+            className={`inline-flex items-center gap-2 rounded-md border px-3 py-1 font-mono ${here ? "border-phosphor text-ink" : "border-rule text-dim hover:text-ink"}`}>
+            {s.stage}
+            <Badge tone={status.tone}>{status.label}</Badge>
+          </Link>
+        );
+      })}
+    </nav>
   );
 }
 

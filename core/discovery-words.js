@@ -341,7 +341,7 @@ export function builtWords(result) {
  * @param {{ app: string, team: string, version: string | null }} u
  */
 export function moduleUserWords(u) {
-  return `${u.app}${u.version ? ` at ${u.version}` : ""} (team ${u.team})`;
+  return `${u.app}${u.stage ? ` in ${u.stage}` : ""}${u.version ? ` at ${u.version}` : ""} (team ${u.team})`;
 }
 
 /** Which apps use a module, in a line: "used by no app yet", or each app. */

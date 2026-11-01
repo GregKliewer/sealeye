@@ -2,7 +2,7 @@
 // does (cli/bin/sealeye groupEnvironments), so the portal and the terminal say the same
 // thing about the same environment.
 import type { DeploymentSummary } from "./api";
-import { environmentKey } from "../../core/environments.js";
+import { appKey, compareStages, environmentKey, environmentStage } from "../../core/environments.js";
 
 export interface Environment {
   key: string;
@@ -24,6 +24,41 @@ export function groupEnvironments(deployments: DeploymentSummary[]): Environment
     else groups.set(key, { key, app: dep.app?.name || dep.deploymentId, latest: dep, deploys: [dep] });
   }
   return [...groups.values()];
+}
+
+/** An app's row: its first stage's environment, with its other stages beside it. */
+export interface AppRow extends Environment {
+  stage: string;
+  others: (Environment & { stage: string })[];
+}
+
+/**
+ * One row per app, with its stages (PHASE5-PLAN D5), as `sealeye list` shows them: the
+ * app's first stage (dev, usually) is the row and the rest ride along on it. `keep`
+ * says which environments count (the page leaves out the drafted and torn down unless
+ * asked); an app with none kept goes.
+ */
+export function groupApps(environments: Environment[], keep: (env: Environment) => boolean = () => true): AppRow[] {
+  const apps = new Map<string, (Environment & { stage: string })[]>();
+  for (const env of environments) {
+    if (!keep(env)) continue;
+    const key = appKey(env.latest);
+    if (!apps.has(key)) apps.set(key, []);
+    apps.get(key)!.push({ ...env, stage: environmentStage(env.latest) });
+  }
+  return [...apps.values()].map(envs => {
+    const [row, ...others] = envs.sort((a, b) => compareStages(a.stage, b.stage));
+    return { ...row, others };
+  });
+}
+
+/** Every stage this app has an environment at, in order, this one's included. */
+export function stagesOfApp(environments: Environment[], env: Environment): (Environment & { stage: string })[] {
+  const key = appKey(env.latest);
+  return environments
+    .filter(e => appKey(e.latest) === key)
+    .map(e => ({ ...e, stage: environmentStage(e.latest) }))
+    .sort((a, b) => compareStages(a.stage, b.stage));
 }
 
 export function publicUrl(dep: DeploymentSummary): string | null {

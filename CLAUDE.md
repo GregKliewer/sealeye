@@ -485,7 +485,9 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   `/discovery?catalog=<v>`, as `sealeye catalog show <v>` does), Platform values and Gaps (the
   gap report)), shown only to an organization-wide token. A section of several pages
   shows them as a second row of tabs; addresses are unchanged (`portal/src/Layout.tsx`;
-  DESIGN.md, "The portal's sections are grouped by whose work they are"). Control shows only what an environment offers. Costs and the Settings card are shown only to an
+  DESIGN.md, "The portal's sections are grouped by whose work they are"). Control shows only what an environment offers. Environments keeps one row per app, its
+  other stages under its name, and an environment's page picks its stage, its command
+  lines naming it past dev (PHASE5-PLAN D5). Costs and the Settings card are shown only to an
   organization whose settings and costs are kept (`hasSettingsAndCosts` in
   `core/token.js`); the header names the token's own organization. Long lists (an
   app's history, a catalog's entries, Catalogs, Answered) show a page at a time with a

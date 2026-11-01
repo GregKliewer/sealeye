@@ -70,3 +70,14 @@ test("GET /catalog and sealeye catalog say who uses each module; GET /needs link
     api.stop();
   }
 });
+
+test("an app standing on a module at a stage past dev says its stage, and dev's entry is as it was (PHASE5-PLAN D5)", async () => {
+  const { modulesInUse } = await import("../api/module-use.js");
+  const rec = (id, stage, stackName) => ({
+    deploymentId: id, status: "succeeded", stackName, teamId: "payments", app: { name: "notes" }, startedAt: "2026-10-31T10:00:00Z",
+    ...(stage ? { stage } : {}), plan: plan("http_api"), backend: "terraform", terraform: { module: { id: "http_api", version: "1.3.0" } }
+  });
+  const used = modulesInUse([rec("dep_s", "sit", "sealeye-payments-notes-sit-1"), rec("dep_d", null, "sealeye-payments-notes-2")]);
+  assert.deepEqual(used.http_api.map(u => [u.app, u.stage || null]), [["notes", null], ["notes", "sit"]]);
+  assert.equal(usedByWords(used.http_api), "used by notes at 1.3.0 (team payments), notes in sit at 1.3.0 (team payments)");
+});

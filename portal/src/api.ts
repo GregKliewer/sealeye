@@ -79,6 +79,8 @@ export interface RequestedBy { user?: string; name?: string; host?: string | nul
 
 export interface DeploymentSummary {
   deploymentId: string;
+  // The stage it is for (PHASE5-PLAN D5): dev when the API says none, as before stages.
+  stage?: string;
   app: { name?: string; type?: string } | null;
   status: string;
   outputs: Record<string, string>;
@@ -125,7 +127,7 @@ export interface DeploymentRecord extends DeploymentSummary {
 }
 
 /** An app that uses a module now: its page only where the viewer may open it. */
-export interface ModuleUser { app: string; team: string; version: string | null; path: string | null }
+export interface ModuleUser { app: string; team: string; version: string | null; stage?: string; path: string | null }
 
 export interface Catalog {
   // Which catalog this is (planVersion 0.5): the starter, or one of the organization's.

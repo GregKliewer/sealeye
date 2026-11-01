@@ -4,7 +4,8 @@
 // as the needs ledger shows its apps: every app in the organization by name and team,
 // and the page to open only for an app the viewer may open (its team's, or every team's
 // for an organization-wide token).
-import { environmentKey, environmentPath } from "../core/environments.js";
+import { compareStages, environmentKey, environmentPath, environmentStage } from "../core/environments.js";
+import { FIRST_STAGE } from "../core/stages.js";
 
 /** The modules a record built: its plan's enabled modules, or for an older record, what it resolved. */
 const modulesOf = record =>
@@ -27,7 +28,7 @@ function versionOf(record, id) {
  *
  * @param {object[]} records the organization's records
  * @param {{ viewer?: { team: string, scope: string } | null }} [options]
- * @returns {Record<string, { app: string, team: string, version: string | null, path: string | null }[]>}
+ * @returns {Record<string, { app: string, team: string, version: string | null, stage?: string, path: string | null }[]>}
  */
 export function modulesInUse(records, { viewer = null } = {}) {
   const sees = dep => !viewer || viewer.scope === "org" || (dep.teamId || "default") === viewer.team;
@@ -49,10 +50,12 @@ export function modulesInUse(records, { viewer = null } = {}) {
         app: standing.app?.name || standing.deploymentId,
         team: standing.teamId || "default",
         version: versionOf(standing, id),
+        // Past dev, the stage: each stage of an app is an environment of its own.
+        ...(environmentStage(standing) !== FIRST_STAGE ? { stage: environmentStage(standing) } : {}),
         path: sees(standing) ? environmentPath(standing) : null
       });
     }
   }
-  for (const apps of Object.values(used)) apps.sort((a, b) => a.app.localeCompare(b.app) || a.team.localeCompare(b.team));
+  for (const apps of Object.values(used)) apps.sort((a, b) => a.app.localeCompare(b.app) || a.team.localeCompare(b.team) || compareStages(a.stage || FIRST_STAGE, b.stage || FIRST_STAGE));
   return used;
 }
