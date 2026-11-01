@@ -376,6 +376,42 @@ export function withStageMap(doc, library) {
       delete m.instead;
     }
   }
+  // A replacement says which stages each of the two is for, when neither said (Greg's
+  // runs of Step 2, Nov 1, 2026: the replacement written, each module's stages left out):
+  // the one given way to before the stage, the other from it, an aside going with the
+  // stage it is set aside from. Said in a note, for whoever approves.
+  const at = s => base.path.findIndex(p => p.name === s);
+  const reach = name => { const a = (base.aside || []).find(x => x.name === name); return a ? at(a.from) : at(name); };
+  const names = [...base.path, ...(base.aside || [])].map(s => s.name);
+  const before = from => names.filter(n => reach(n) >= 0 && reach(n) < at(from));
+  const fromOn = from => names.filter(n => reach(n) >= at(from));
+  for (const m of fixed) {
+    if (!m.instead || at(m.instead.from) < 1) continue;
+    const other = fixed.find(o => o.id === m.instead.module);
+    if (!Array.isArray(m.stages) || !m.stages.length) {
+      m.stages = before(m.instead.from);
+      m.stages_read_from = m.id;
+      notes.push(`${m.id}'s stages were not said; as ${m.instead.module} takes its place from ${m.instead.from}, it is for ${m.stages.join(", ")}.`);
+    }
+    if (other && (!Array.isArray(other.stages) || !other.stages.length)) {
+      other.stages = fromOn(m.instead.from);
+      other.stages_read_from = m.id;
+      notes.push(`${other.id}'s stages were not said; as it takes ${m.id}'s place from ${m.instead.from}, it is for ${other.stages.join(", ")}.`);
+    }
+  }
+  // A module a stage adds is not one an app plans: its own stages say nothing (the stage
+  // that adds it does), and the need it stands beside is not one it meets, unless some
+  // module gives way to it, which makes it one an app's plan reaches.
+  const replacing = new Set(fixed.filter(m => m.instead).map(m => m.instead.module));
+  for (const m of fixed) {
+    if (!m.added) continue;
+    delete m.stages;
+    const meets = Array.isArray(m.meets) ? m.meets : [];
+    if (meets.length && !replacing.has(m.id) && meets.every(n => n === m.added.beside)) {
+      m.meets = [];
+      notes.push(`${m.id} is added from ${m.added.from} beside every app that needs ${m.added.beside}, so it is not one an app asks for itself.`);
+    }
+  }
   if (notes.length) discovery.stage_notes = [...new Set(notes)];
   const adds = fixed.filter(m => m.added).map(m => ({ from: m.added.from, module: m.id, beside: m.added.beside }));
   return { ...rest, discovery, modules: fixed, stages: { ...base, ...(adds.length ? { with: adds } : {}) } };
@@ -400,6 +436,12 @@ export function provenStageMap(doc) {
   const unproven = [...(doc.discovery?.unproven || [])];
   const notes = [...(doc.discovery?.stage_notes || [])];
   let d = structuredClone(doc);
+  // Stages read from a replacement go with it, when it does not hold.
+  const unread = id => {
+    const derived = d.modules.filter(m => m.stages_read_from === id);
+    d.modules = d.modules.map(m => (m.stages_read_from === id ? (({ stages: _s, stages_read_from: _r, ...r }) => r)(m) : m));
+    for (let i = notes.length - 1; i >= 0; i--) if (derived.some(m => notes[i].startsWith(`${m.id}'s stages were not said;`))) notes.splice(i, 1);
+  };
   // The path itself: refused, there is no map at all.
   const bare = { ...d, modules: d.modules.map(withoutStageFields), stages: { ...d.stages, with: [] } };
   const pathProblems = stageMapProblems(bare);
@@ -412,6 +454,7 @@ export function provenStageMap(doc) {
   // Only the field that is wrong goes, never the module's other stage fields: a module
   // with no `stages` is for every stage, which is a claim of its own (the review).
   const known = new Set([...(d.stages.path || []), ...(d.stages.aside || [])].map(s => s.name));
+  const dropped = [];
   d.modules = d.modules.map(m => {
     const own = problems.filter(p => p.startsWith(`module ${m.id}:`));
     if (!own.length) return m;
@@ -435,10 +478,12 @@ export function provenStageMap(doc) {
     }
     if (own.some(p => p.includes(": instead "))) {
       delete out.instead;
+      dropped.push(m.id);
       unproven.push({ kind: "instead", module: m.id, other: m.instead?.module, from: m.instead?.from, words: words.filter(w => w.startsWith("instead")).join("; ") || words.join("; ") });
     }
     return out;
   });
+  for (const id of dropped) unread(id);
   const dropWith = (module, words) => {
     const w = (d.stages.with || []).find(x => x.module === module);
     unproven.push({ kind: "with", module, ...(w ? { from: w.from, beside: w.beside } : {}), words });
@@ -454,6 +499,7 @@ export function provenStageMap(doc) {
     if (f.kind === "instead" && d.modules.find(m => m.id === f.module)?.instead) {
       unproven.push({ kind: "instead", module: f.module, other: f.other, from: f.from, words: f.words });
       d.modules = d.modules.map(m => (m.id === f.module ? (({ instead: _i, ...r }) => r)(m) : m));
+      unread(f.module);
     } else if (f.kind === "with" && (d.stages.with || []).some(w => w.module === f.module)) dropWith(f.module, f.words);
   }
   for (const f of stageMapFindings(d)) if (f.kind === "coverage") unproven.push({ kind: "coverage", module: f.module, stages: f.stages, words: f.words });
@@ -462,6 +508,8 @@ export function provenStageMap(doc) {
     d.stages = s;
   }
   d.discovery = { ...d.discovery, ...(unproven.length ? { unproven } : {}), ...(notes.length ? { stage_notes: [...new Set(notes)] } : {}) };
+  if (!notes.length) delete d.discovery.stage_notes;
   if (!unproven.length) delete d.discovery.unproven;
+  d.modules = d.modules.map(({ stages_read_from: _r, ...m }) => m);
   return d;
 }

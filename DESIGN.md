@@ -5002,3 +5002,15 @@ whose findings were all fixed before the pull request.
   stages, by hand; an answer can only reach the map through the supervisor, so a reading
   the library itself cannot support stays unproven until the library changes or the
   answer says otherwise. PHASE5-PLAN Step 2b.
+- **What code reads from what the supervisor wrote** (Greg's eval runs, Sun Nov 1, 2026,
+  where the model's stage fields came and went from run to run). Replacements and
+  additions are two short lists beside the entries, left empty when the library says
+  nothing, not a field on every entry the model felt bound to fill; the plain-words
+  pass keeps each entry's stage fields as first written. A module named in its own
+  place, or given way to from no stage past dev, says nothing, in a note; one written
+  the wrong way round is put on the module used first. A replacement says the stages of
+  the two it names when neither said them (the one before the stage, the other from it,
+  an aside going with the stage it is set aside from), in a note, and they go with it if
+  it does not hold. A module a stage adds keeps no stages of its own, the stage saying
+  when, and is not counted as meeting the need it stands beside, unless another module
+  gives way to it.

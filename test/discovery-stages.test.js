@@ -287,3 +287,63 @@ test("a replacement written the wrong way round is put on the module used first"
   assert.equal(byId(d, "db_cluster").instead, undefined);
   assert.equal(stagesCheck(d).passed, true);
 });
+
+// Greg's fourth round of eval runs of Step 2, Nov 1, 2026.
+const holding = () => {
+  const doc = juniperish();
+  doc.modules[1].inputs = { name: { required: true } };
+  return doc;
+};
+
+test("a replacement says the stages of the two it names, when neither said, in a note", () => {
+  const doc = holding();
+  doc.modules[0].instead = { from: "staging", source: "modules/db-cluster" };
+  const d = provenStageMap(withStageMap(doc, reviewPath));
+  assert.deepEqual(byId(d, "db").stages, ["dev"]);
+  assert.deepEqual(byId(d, "db_cluster").stages, ["staging", "prod"]);
+  assert.equal(byId(d, "db").stages_read_from, undefined, "the mark is code's own and never kept");
+  assert.match(d.discovery.stage_notes.join(" "), /db_cluster's stages were not said; as it takes db's place from staging, it is for staging, prod\./);
+  assert.equal(stagesCheck(d).passed, true);
+});
+
+test("an aside goes with the stage it is set aside from", () => {
+  const doc = holding();
+  doc.modules[0].instead = { from: "staging", source: "modules/db-cluster" };
+  const path = { ...reviewPath, aside: [{ name: "perf", from: "staging", built_by: "not_said" }] };
+  const d = provenStageMap(withStageMap(doc, path));
+  assert.deepEqual(byId(d, "db_cluster").stages, ["staging", "prod", "perf"]);
+  assert.deepEqual(byId(d, "db").stages, ["dev"]);
+});
+
+test("stages read from a replacement that does not hold go with it", () => {
+  const doc = juniperish();
+  doc.modules[0].instead = { from: "staging", source: "modules/db-cluster" };
+  const d = provenStageMap(withStageMap(doc, reviewPath));
+  assert.equal(byId(d, "db").instead, undefined);
+  assert.equal(byId(d, "db").stages, undefined);
+  assert.equal(byId(d, "db_cluster").stages, undefined);
+  assert.doesNotMatch((d.discovery.stage_notes || []).join(" "), /stages were not said/);
+});
+
+test("a module a stage adds keeps no stages of its own, and does not meet the need it stands beside", () => {
+  const doc = holding();
+  doc.modules[2].added = { from: "staging", beside: "relational_database" };
+  doc.modules[2].stages = ["staging", "prod"];
+  doc.modules[2].meets = ["relational_database"];
+  const d = provenStageMap(withStageMap(doc, reviewPath));
+  assert.equal(byId(d, "backup").stages, undefined);
+  assert.deepEqual(byId(d, "backup").meets, []);
+  assert.deepEqual(d.stages.with, [{ from: "staging", module: "backup", beside: "relational_database" }]);
+  assert.match(d.discovery.stage_notes.join(" "), /backup is added from staging beside every app that needs relational_database, so it is not one an app asks for itself\./);
+  assert.equal(stagesCheck(d).passed, true);
+});
+
+test("a module some other gives way to keeps what it meets, and its addition is asked about", () => {
+  const doc = holding();
+  doc.modules[0].instead = { from: "staging", source: "modules/db-cluster" };
+  doc.modules[1].added = { from: "staging", beside: "relational_database" };
+  const d = provenStageMap(withStageMap(doc, reviewPath));
+  assert.deepEqual(byId(d, "db_cluster").meets, ["relational_database"]);
+  assert.equal(d.stages.with, undefined);
+  assert.equal(stagesCheck(d).passed, false);
+});
