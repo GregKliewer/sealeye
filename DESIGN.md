@@ -5122,3 +5122,25 @@ Built Sun Nov 1, 2026 (PHASE5-PLAN Step 3, the command's part; D5).
   they were.
 - **Left for Step 8:** the commands a later stage's report and card print do not carry
   `--stage` yet, since nothing builds past dev to write one.
+
+## The portal names each stage of an app
+
+Built Sun Nov 1, 2026 (PHASE5-PLAN Step 3, the portal's part; D5). This finishes Step 3.
+
+- **Environments keeps one row per app**, as `sealeye list` does (`groupApps` in
+  `portal/src/model.ts`, on `appKey` and `compareStages`): the app's first stage is the
+  row, and its other stages sit under its name, each a link to its own page with its
+  status. A row that is not dev says its stage.
+- **An environment's page picks its stage.** When the app has more than one stage, or
+  this one is past dev, a row of links names each stage with its status, this one
+  marked, as `--stage` does on the command line. Each stage keeps its own address
+  (`/environments/<name>`), so a link to a page still opens that environment.
+- **Every command line a page shows names its stage** past dev
+  (`sealeye teardown payments-api --stage sit`), from the page's stage
+  (`StageContext` in `portal/src/stage.tsx`, read by `Cmd` and `CommandHint`). A
+  deployment id needs no flag; dev's lines are as they were.
+- **Past dev, a page offers no change it cannot make:** no Deploy again and no Configure
+  (each waits on the stage's gate, Step 8), and no Settings card (settings are dev's
+  until Step 5). Tear down stays, as the API allows it (D4 decides with Step 8).
+- **A module's users say their stage** past dev (`stage` in `usedBy`, "notes in sit"),
+  and the Catalog page counts an app once however many of its stages use the module.

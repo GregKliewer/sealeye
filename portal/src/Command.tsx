@@ -4,10 +4,12 @@
 import { useState } from "react";
 import { commandLine } from "../../core/operations.js";
 import { cn } from "./lib/utils";
+import { useStageFlags } from "./stage";
 
 /** A command named inside a sentence: "as `sealeye logs shop-api` shows it". */
 export function Cmd({ op, target, className }: { op: string; target?: string; className?: string }) {
-  return <code className={cn("font-mono text-ink", className)}>{commandLine(op, target)}</code>;
+  const stageFlags = useStageFlags(target);
+  return <code className={cn("font-mono text-ink", className)}>{commandLine(op, target, stageFlags)}</code>;
 }
 
 /**
@@ -16,7 +18,8 @@ export function Cmd({ op, target, className }: { op: string; target?: string; cl
  * refuses leaves the line to be selected by hand.
  */
 export function CommandHint({ op, target, flags, className }: { op: string; target?: string; flags?: string[]; className?: string }) {
-  const line = commandLine(op, target, flags);
+  const stageFlags = useStageFlags(target);
+  const line = commandLine(op, target, [...(flags || []), ...stageFlags]);
   const [copied, setCopied] = useState(false);
 
   async function copy() {

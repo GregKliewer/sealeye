@@ -61,6 +61,8 @@ export function CatalogPage() {
 function ModuleCard({ m }: { m: Catalog["modules"][number] }) {
   const [open, setOpen] = useState(false);
   const users = m.usedBy;
+  // An app counts once, however many of its stages use the module.
+  const apps = new Set((users || []).map(u => `${u.team}/${u.app}`)).size;
   return (
     <Card data-testid="module-card">
       <CardContent>
@@ -74,15 +76,16 @@ function ModuleCard({ m }: { m: Catalog["modules"][number] }) {
           {moduleStageWords(m) ? <p className="mt-2 text-xs text-dim" data-testid="module-stages">{moduleStageWords(m)}</p> : null}
           {users ? (
             <p className={users.length ? "mt-2 text-xs text-phosphor" : "mt-2 text-xs text-dim"} data-testid="module-use-count">
-              {users.length === 0 ? "Used by no app yet" : users.length === 1 ? "Used by 1 app" : `Used by ${users.length} apps`}{users.length ? (open ? ", hide them" : ", show which") : ""}
+              {apps === 0 ? "Used by no app yet" : apps === 1 ? "Used by 1 app" : `Used by ${apps} apps`}{users.length ? (open ? ", hide them" : ", show which") : ""}
             </p>
           ) : null}
         </button>
         {open && users?.length ? (
           <ul className="mt-3 space-y-1 border-t border-rule pt-3 text-sm" data-testid="module-users">
             {users.map(u => (
-              <li key={`${u.team}/${u.app}`} className="flex flex-wrap items-baseline gap-x-2" data-testid="module-user">
+              <li key={`${u.team}/${u.app}/${u.stage || "dev"}`} className="flex flex-wrap items-baseline gap-x-2" data-testid="module-user">
                 {u.path ? <Link to={u.path} className="font-mono text-phosphor hover:underline">{u.app}</Link> : <span className="font-mono">{u.app}</span>}
+                {u.stage ? <span className="font-mono text-xs text-dim" data-testid="module-user-stage">in {u.stage}</span> : null}
                 <span className="text-dim">{u.version ? `at ${u.version}` : null}</span>
                 <span className="text-xs text-dim">team {u.team}</span>
               </li>

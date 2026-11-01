@@ -256,7 +256,8 @@ Progress: the API's part built Nov 1, 2026 (records, names, state, the busy rule
 executor building the stage a record says; DESIGN.md, "Each stage of an app has a name, a
 state and a busy rule of its own"), then the command's `--stage`, one row per app in
 `sealeye list`, and the stage named in the evidence and the report (DESIGN.md, "The
-command names each stage of an app"). Next: the portal.
+command names each stage of an app"), then the portal's rows by app and stage picker
+(DESIGN.md, "The portal names each stage of an app"). Step 3 is built.
 
 ### Step 4. Each stage's account and role (D6)
 

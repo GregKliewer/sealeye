@@ -52,6 +52,11 @@ fs.writeFileSync(path.join(home, "deployments.json"), JSON.stringify([
   { ...base, deploymentId: "dep_aaaaaaaaaaa0", app: { name: "payments-api" }, kind: "api", status: "succeeded", stackName: "sealeye-payments-api",
     plan: { profile: "dev" }, outputs: { ApiUrl: "https://abc123.lambda-url.ca-central-1.on.aws/" }, requestedBy: by("Ana Pereira", "ana@example.com"),
     startedAt: ago(3 * 86400_000), finishedAt: ago(3 * 86400_000 - 80_000) },
+  // payments-api's sit environment (PHASE5-PLAN D5): an environment of its own, shown
+  // beside dev's row and picked on its page. Older than a week, so no count moves.
+  { ...base, deploymentId: "dep_5175175175a1", stage: "sit", app: { name: "payments-api" }, kind: "api", status: "succeeded", stackName: "sealeye-default-payments-api-sit-5a1b2c",
+    plan: apiPlan("payments-api"), artifactKey: "sealeye-default-payments-api-sit-5a1b2c/dep_5175175175a1.zip", outputs: { ApiUrl: "https://sit123.lambda-url.ca-central-1.on.aws/" }, requestedBy: by("Ana Pereira", "ana@example.com"),
+    startedAt: ago(10 * 86400_000), finishedAt: ago(10 * 86400_000 - 90_000) },
   { ...base, deploymentId: "dep_bbbbbbbbbbb1", app: { name: "marketing-site" }, kind: "static", status: "succeeded", stackName: "sealeye-marketing-site",
     plan: { profile: "poc" }, outputs: { WebsiteUrl: "http://sealeye-marketing-site.s3-website.ca-central-1.amazonaws.com" }, requestedBy: by("Greg Kliewer", "greg@example.com"),
     startedAt: ago(26 * 3600_000), finishedAt: ago(26 * 3600_000 - 60_000) },
