@@ -185,7 +185,7 @@ export function gradeCatalog(candidate, key, { questions = null, selfTest = null
       const asked = questions.find(q => (hc.overlap.modules || []).every(s => (q.touches || []).includes(s)));
       hardCases.push({ case: "overlap asked", ok: Boolean(asked), why: asked ? `asked: ${asked.question}` : "no question touches both" });
     }
-    pending.push({ case: "overlap", waits: "Q20 (a module per stage in a plan)", what: hc.overlap.rule });
+    pending.push({ case: "overlap", waits: "Phase 5 Step 2 (discovery writes each module's stages and `instead`)", what: hc.overlap.rule });
   }
 
   // A module the stage adds beside the app's (PHASE5-PLAN D1, pattern 3): caught when its

@@ -161,6 +161,9 @@ catalog:
       source: modules/postgres
       availability: available
       meets: [relational_database]
+      # Which stages it is for, and what takes its place after (PHASE5-PLAN D1).
+      stages: [dev, sit, uat]
+      instead: { from: staging, module: postgres_cluster }
       builds_with: terraform
       role: optional
       line: A relational database for your app, below staging.
@@ -190,6 +193,7 @@ catalog:
       source: modules/postgres-cluster
       availability: available
       meets: [relational_database]
+      stages: [staging, perf, prod]
       builds_with: terraform
       role: optional
       line: A relational database for your app that survives losing a zone, from staging up.
@@ -357,6 +361,28 @@ catalog:
         security_group_ids: { required: true, line: Who may connect. }
         tags: { default: {}, line: Extra labels on everything it makes. }
       guidance: In trial with the payments and lending teams. Whether new apps may use it is the platform team's to say.
+
+  # The path to production as a catalog says it (PHASE5-PLAN Step 1; DESIGN.md, "A
+  # module per stage, in the catalog" and "Who applies each stage is in the catalog"):
+  # the library's pipeline applies every stage past dev, staging and prod behind its
+  # gates, and from staging up a backup plan stands beside every relational database.
+  stages:
+    path:
+      - { name: dev }
+      - { name: sit, applies: pipeline, pipeline: .github/workflows/app-promote.yml }
+      - { name: uat, applies: pipeline, pipeline: .github/workflows/app-promote.yml }
+      - name: staging
+        applies: pipeline
+        pipeline: .github/workflows/app-promote.yml
+        gate: [a platform team approval]
+      - name: prod
+        applies: pipeline
+        pipeline: .github/workflows/app-promote.yml
+        gate: [a platform team approval, an approved change ticket]
+    aside:
+      - { name: perf, from: staging, applies: pipeline, pipeline: .github/workflows/app-promote.yml }
+    with:
+      - { from: staging, module: backup_plan, beside: relational_database }
 
   rules:
     core_modules: [static_site, http_api, container_service]

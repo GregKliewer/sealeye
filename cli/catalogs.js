@@ -18,6 +18,7 @@
 //                                 it offers the walk in a terminal
 //   sealeye catalog live <v>      make an approved or retired catalog live
 import { ask, c, step } from "./brand.js";
+import { moduleStageView, moduleStageWords, stageMapView, stageMapWords } from "../core/stages.js";
 import { approveCatalogVersion, catalogSelfTest, editCatalog, getCatalogVersion, getDiscovery, listCatalogs, makeCatalogLive } from "./client.js";
 import { editableFieldsOf, fieldOf } from "../core/catalog-edits.js";
 import { forbiddenWords, shownWord } from "../core/developer-words.js";
@@ -401,6 +402,15 @@ function printCatalog({ catalog, document, run, say }) {
   for (const m of modules) {
     const offered = m.availability === "available" ? "Offered" : m.availability === "deprecated" ? "Deprecated" : "Not read";
     console.log(`  ${c.accent(String(m.id).padEnd(width))}  ${(m.availability === "available" ? c.accent : c.fg)(offered.padEnd(10))}  ${c.dim(m.line || "")}`);
+    // Which stages it is for, and what takes its place later (PHASE5-PLAN Step 1).
+    const stages = moduleStageWords(moduleStageView(m, document));
+    if (stages) console.log(`  ${"".padEnd(width)}  ${"".padEnd(10)}  ${c.dim(stages)}`);
+  }
+  const path = stageMapWords(stageMapView(document));
+  if (path.length) {
+    console.log("");
+    console.log(c.fg("The path to production"));
+    for (const line of path) console.log(`  ${c.dim(line)}`);
   }
   if (!catalog.discovery) return;
   const questions = run?.questions || [];

@@ -17,6 +17,7 @@ import YAML from "yaml";
 import { repoRoot, loadUserConfig } from "./config.js";
 import { isPart } from "./terraform-modules.js";
 import { environmentOperations } from "./operations.js";
+import { moduleStageView, stageMapProblems, stageMapView } from "./stages.js";
 import { EXECUTORS, LEGACY_MODULE_IDS, MODULE_IDS, STARTER_VERSION, contractSchema, moduleIdSource, normalizeProfile } from "./schema.js";
 
 /**
@@ -158,6 +159,10 @@ export function catalogProblems(doc) {
     }
   }
 
+  // The path to production and each module's stages (core/stages.js, PHASE5-PLAN Step 1):
+  // its shape only; whether the map holds together is the self-test's.
+  problems.push(...stageMapProblems(doc));
+
   if (doc.profiles !== undefined && !Array.isArray(doc.profiles)) problems.push("profiles is a list");
   if (doc.patterns !== undefined && (typeof doc.patterns !== "object" || doc.patterns === null || Array.isArray(doc.patterns))) {
     problems.push("patterns is a set of named profiles");
@@ -252,10 +257,14 @@ export function buildableView(catalog = loadCatalog()) {
     // only what the developer can then do: readings come back only from what seaLeye's
     // own templates build; logs from those, and from a module that says where it keeps
     // them (delivers.logs).
-    modules: modules.map(({ builds_with, guidance, edited, outputs, delivers, runs, offers, accepts, tag, commit, unreleased, meets, ...m }) => ({ ...m, buildable: true, operations: operationsOf({ builds_with, delivers }) })),
+    // A module's stages, and what takes its place later, said by that module's line and
+    // never its id (core/stages.js): it may be one the platform does not build yet.
+    modules: modules.map(({ builds_with, guidance, edited, outputs, delivers, runs, offers, accepts, tag, commit, unreleased, meets, stages, instead, ...m }) => ({ ...m, ...moduleStageView({ stages, instead }, catalog), buildable: true, operations: operationsOf({ builds_with, delivers }) })),
     need_kinds: catalog.need_kinds || [],
     profiles: catalog.profiles || [],
-    patterns
+    patterns,
+    // The path to production, when it goes past dev (PHASE5-PLAN Step 1).
+    ...(stageMapView(catalog) ? { stages: stageMapView(catalog) } : {})
   };
 }
 

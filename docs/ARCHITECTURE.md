@@ -727,7 +727,8 @@ and the person's email, not by a foreign key, so a record outlives a revoked tok
 an organization with none plans against the starter catalog,
 `prompts/module-catalog.yaml`, which is not a row. A draft goes live in two steps, the
 self-test at each (Step 7): approved, by whom and when, then made live, by whom and
-when; a retired catalog may go live again. `DISCOVERIES` and
+when; a retired catalog may go live again. A catalog's document may describe its path
+to production (`stages`) and each module's stages (PHASE5-PLAN Step 1, `core/stages.js`). `DISCOVERIES` and
 `DISCOVERY_QUESTIONS` hold each discovery run and what it asked (PHASE4-PLAN Step 6): a
 finding is lines and evidence pointers (a file and what it shows), never a file's
 contents; the draft a run writes is a `CATALOGS` row.

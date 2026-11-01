@@ -10,6 +10,7 @@ import { PageTitle, Problem } from "../Layout";
 import { Cmd, CommandHint } from "../Command";
 import { label } from "../../../core/operations.js";
 import { catalogSentence } from "../../../core/plan-words.js";
+import { moduleStageWords, stageMapWords } from "../../../core/stages.js";
 import { Badge } from "../components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 
@@ -26,6 +27,17 @@ export function CatalogPage() {
       <div className="grid gap-4 md:grid-cols-2">
         {(catalog.data?.modules || []).map(m => <ModuleCard key={m.id} m={m} />)}
       </div>
+
+      {catalog.data?.stages ? (
+        <Card className="mt-8" data-testid="stage-map">
+          <CardHeader><CardTitle>The path to production</CardTitle></CardHeader>
+          <CardContent>
+            <ul className="space-y-1 text-sm">
+              {stageMapWords(catalog.data.stages).map(line => <li key={line} data-testid="stage-line">{line}</li>)}
+            </ul>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card className="mt-8">
         <CardHeader><CardTitle>What apps need that no module supports yet</CardTitle></CardHeader>
@@ -59,6 +71,7 @@ function ModuleCard({ m }: { m: Catalog["modules"][number] }) {
             <Badge tone="phosphor" className="ml-auto">Available</Badge>
           </div>
           <p className="mt-2 text-sm text-dim">{m.line}</p>
+          {moduleStageWords(m) ? <p className="mt-2 text-xs text-dim" data-testid="module-stages">{moduleStageWords(m)}</p> : null}
           {users ? (
             <p className={users.length ? "mt-2 text-xs text-phosphor" : "mt-2 text-xs text-dim"} data-testid="module-use-count">
               {users.length === 0 ? "Used by no app yet" : users.length === 1 ? "Used by 1 app" : `Used by ${users.length} apps`}{users.length ? (open ? ", hide them" : ", show which") : ""}
