@@ -311,7 +311,7 @@ test("an aside goes with the stage it is set aside from", () => {
   doc.modules[0].instead = { from: "staging", source: "modules/db-cluster" };
   const path = { ...reviewPath, aside: [{ name: "perf", from: "staging", built_by: "not_said" }] };
   const d = provenStageMap(withStageMap(doc, path));
-  assert.deepEqual(byId(d, "db_cluster").stages, ["staging", "prod", "perf"]);
+  assert.deepEqual(byId(d, "db_cluster").stages, ["staging", "perf", "prod"], "in the order an app meets them");
   assert.deepEqual(byId(d, "db").stages, ["dev"]);
 });
 
@@ -345,5 +345,16 @@ test("a module some other gives way to keeps what it meets, and its addition is 
   const d = provenStageMap(withStageMap(doc, reviewPath));
   assert.deepEqual(byId(d, "db_cluster").meets, ["relational_database"]);
   assert.equal(d.stages.with, undefined);
+  assert.equal(stagesCheck(d).passed, false);
+});
+
+test("several stages written as one are those stages; words that are not stages stay a reading that does not fit", () => {
+  const doc = holding();
+  doc.modules[0].stages = ["dev-sit"];
+  doc.modules[1].stages = ["staging-prod-allowed-but-not-needed"];
+  const path = { stages: [{ name: "dev", built_by: "not_said", gate: [] }, { name: "sit", built_by: "not_said", gate: [] }, ...reviewPath.stages.slice(1)] };
+  const d = provenStageMap(withStageMap(doc, path));
+  assert.deepEqual(byId(d, "db").stages, ["dev", "sit"]);
+  assert.equal(byId(d, "db_cluster").stages, undefined);
   assert.equal(stagesCheck(d).passed, false);
 });

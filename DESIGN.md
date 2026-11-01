@@ -5013,4 +5013,7 @@ whose findings were all fixed before the pull request.
   an aside going with the stage it is set aside from), in a note, and they go with it if
   it does not hold. A module a stage adds keeps no stages of its own, the stage saying
   when, and is not counted as meeting the need it stands beside, unless another module
-  gives way to it.
+  gives way to it. Several stages written as one ("dev-sit-uat"), each on the path, are
+  those stages. A question touches every module it names by folder, or by a folder's
+  name of more than one word, so a reader's question about one cache that asks whether
+  the other replaces it touches both, whether or not the supervisor widens it.

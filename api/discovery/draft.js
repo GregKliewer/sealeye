@@ -382,7 +382,21 @@ export function withStageMap(doc, library) {
   // stage it is set aside from. Said in a note, for whoever approves.
   const at = s => base.path.findIndex(p => p.name === s);
   const reach = name => { const a = (base.aside || []).find(x => x.name === name); return a ? at(a.from) : at(name); };
-  const names = [...base.path, ...(base.aside || [])].map(s => s.name);
+  // In the order an app meets them: each stage on the path, an aside after the one it is
+  // set aside from.
+  const names = [...base.path, ...(base.aside || [])].map(s => s.name).sort((a, b) => reach(a) - reach(b) || (base.path.some(s => s.name === a) ? 0 : 1) - (base.path.some(s => s.name === b) ? 0 : 1));
+  // Several stages written as one ("dev-sit-uat"), each a stage on the path, are those
+  // stages (Greg's run of Step 2, Nov 1, 2026).
+  const known = new Set(names);
+  for (const m of fixed) {
+    if (!Array.isArray(m.stages)) continue;
+    const split = m.stages.flatMap(s => {
+      if (known.has(s)) return [s];
+      const parts = String(s).split(/[^a-z0-9]+/).filter(Boolean);
+      return parts.length > 1 && parts.every(x => known.has(x)) ? parts : [s];
+    });
+    m.stages = [...new Set(split)];
+  }
   const before = from => names.filter(n => reach(n) >= 0 && reach(n) < at(from));
   const fromOn = from => names.filter(n => reach(n) >= at(from));
   for (const m of fixed) {

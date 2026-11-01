@@ -102,6 +102,22 @@ const State = Annotation.Root({
  * @param {() => number} [options.now]
  * @param {string} [options.scratchBase]
  */
+/**
+ * The modules a question names in its own words: by folder ("modules/cache-valkey"), or
+ * by a folder's last part when it is more than one word ("cache-valkey"), never a plain
+ * word that prose uses too ("secrets"). A reader's question about cache-redis that asks
+ * whether cache-valkey replaces it touches both (Greg's runs of Step 2, Nov 1, 2026,
+ * where only the supervisor had widened such a question, and not always).
+ */
+export function modulesNamedIn(modules, text) {
+  const t = String(text || "");
+  const word = w => new RegExp(`(?<![\\w/-])${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\w-])`).test(t);
+  return (modules || []).filter(m => {
+    const last = m.source.split("/").pop();
+    return word(m.source) || (/-/.test(last) && word(last));
+  }).map(m => m.source);
+}
+
 export function createDiscoveryService({ client, readLibrary = readFromGitHub, now = Date.now, scratchBase } = {}) {
   // LangChain's own tracer would send each node's whole state out; discovery's state
   // holds what workers found in the library. Off, as for the interview.
@@ -204,7 +220,7 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
   async function raiseOne(run, q, touchesDefault) {
     const s = state(run.id);
     if (!q || typeof q !== "object" || typeof q.question !== "string" || !q.question.trim()) return null;
-    const touches = [...new Set([...(touchesDefault ? [touchesDefault] : []), ...asList(q.touches)].map(t => sourceFor(run, t)).filter(Boolean))];
+    const touches = [...new Set([...(touchesDefault ? [touchesDefault] : []), ...asList(q.touches), ...modulesNamedIn(run.modules, q.question)].map(t => sourceFor(run, t)).filter(Boolean))];
     // The supervisor sees the readers' questions and may ask one again in its own
     // words; the prompt says not to, and code makes sure (Greg, Oct 15, 2026).
     const same = touchesDefault ? null : repeats({ kind: QUESTION_KINDS.includes(q.kind) ? q.kind : "other", question: String(q.question || ""), touches }, store.questionsOf(run.id));

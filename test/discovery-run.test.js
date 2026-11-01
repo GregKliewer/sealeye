@@ -1028,3 +1028,12 @@ test("a module whose nested module changed is read again, and a kept entry takes
   const [entry] = keepEntries(fresh, base, new Set(["modules/db"]), []).modules;
   assert.deepEqual(entry, { source: "modules/db", id: "db", line: "A database.", guidance: "Dev only.", version: "1.0.0", tag: "db/v1.0.0" });
 });
+
+test("a question touches every module it names by folder, or by a name of more than one word", async () => {
+  const { modulesNamedIn } = await import("../api/discovery/service.js");
+  const modules = [{ source: "modules/cache-redis" }, { source: "modules/cache-valkey" }, { source: "modules/secrets" }, { source: "modules/postgres" }, { source: "modules/postgres-cluster" }];
+  assert.deepEqual(modulesNamedIn(modules, "Should new apps use cache-valkey instead of this deprecated module?"), ["modules/cache-valkey"]);
+  assert.deepEqual(modulesNamedIn(modules, "Does an app read its secrets at start, or from modules/secrets?"), ["modules/secrets"]);
+  assert.deepEqual(modulesNamedIn(modules, "From staging up, is postgres-cluster used in its place?"), ["modules/postgres-cluster"], "never postgres, inside postgres-cluster");
+  assert.deepEqual(modulesNamedIn(modules, "Is caching needed at all?"), []);
+});

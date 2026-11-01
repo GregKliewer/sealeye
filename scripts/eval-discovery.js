@@ -297,7 +297,8 @@ export function gradeCatalog(candidate, key, { questions = null, selfTest = null
     // nor any other module taking a place or added by a stage.
     for (const k of keyModules.filter(k => Array.isArray(k.stages))) {
       const c = bySource.get(k.source);
-      const ok2 = Boolean(c) && (c.stages || []).join(",") === k.stages.join(",");
+      // The stages a module is for, in any order.
+      const ok2 = Boolean(c) && [...(c.stages || [])].sort().join(",") === [...k.stages].sort().join(",");
       hardCases.push({ case: `stages of ${k.source}`, ok: ok2, why: !c ? "not in the catalog" : ok2 ? k.stages.join(", ") : `${(c.stages || []).join(", ") || "every stage"}, where the key says ${k.stages.join(", ")}` });
     }
     const keyIdOf = c => pairs.find(p => p.found === c)?.key;
