@@ -109,9 +109,36 @@ export const submitLibraryTool = {
     $defs: defs,
     required: ["stages", "rules", "questions"],
     properties: {
-      stages: { type: "array", items: { type: "string" }, description: "The path to production, in order." },
-      aside: { type: "array", items: { type: "string" }, description: "Stages built aside from that path, each with how." },
-      gates: { type: "array", items: { type: "string" }, description: "What each gate asks for, one per line, naming the stage." },
+      stages: {
+        type: "array",
+        description: "The path to production, in order, each stage as the library names it.",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["name", "built_by", "gate"],
+          properties: {
+            name: { type: "string", description: "The stage, as the library names it." },
+            built_by: { type: "string", enum: ["pipeline", "not_said"], description: "pipeline when the library's own pipeline builds or promotes to this stage; not_said when the library does not say." },
+            pipeline: { type: "string", description: "The pipeline file that does it, as a path in the library, when built_by is pipeline." },
+            gate: { type: "array", items: { type: "string" }, description: "What the stage waits on before it is built, each in a few words (a platform team approval, an approved change ticket). Empty when nothing." }
+          }
+        }
+      },
+      aside: {
+        type: "array",
+        description: "Stages built aside from that path and never promoted to (a load test's, say).",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["name", "from", "built_by"],
+          properties: {
+            name: { type: "string" },
+            from: { type: "string", description: "The stage on the path it is built from." },
+            built_by: { type: "string", enum: ["pipeline", "not_said"] },
+            pipeline: { type: "string" }
+          }
+        }
+      },
       rules: {
         type: "array",
         items: {
@@ -161,11 +188,43 @@ export const writeCatalogTool = {
             guidance: { type: "string" },
             input_lines: { type: "object", additionalProperties: { type: "string" } },
             meets: { type: "array", items: { type: "string", enum: NEED_KEYS }, description: "The needs an app may have, by key from the list given, that this module meets for an app that uses it. Empty when it meets none of them." },
+            stages: { type: "array", items: { type: "string" }, description: "The stages it is for, by the names of the path the library reader found, when the library says it is not for all of them. Leave out when it is for every stage." },
             open: { type: "array", items: { type: "string" }, description: "Ids of unanswered questions this entry rests on." }
           }
         }
       },
       questions: { type: "array", items: { $ref: "#/$defs/question" } },
+      // Written only when there is something to say, so nothing is filled in to fill a
+      // field (Greg's runs of Step 2, Nov 1, 2026: a module replacing itself, a stage
+      // called "na").
+      replacements: {
+        type: "array",
+        description: "Only where the library says one module is used up to a stage and another takes its place from that stage on (a database below staging, a cluster from staging up). Never a deprecated module and its successor. Usually one or none.",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["module", "replaced_by", "from_stage"],
+          properties: {
+            module: { type: "string", description: "The folder of the module used at the earlier stages." },
+            replaced_by: { type: "string", description: "The folder of the module that takes its place." },
+            from_stage: { type: "string", description: "The first stage the second is used, by the path's name." }
+          }
+        }
+      },
+      additions: {
+        type: "array",
+        description: "Only where the library says a stage adds a module beside apps of a kind, which no app asks for (a backup plan beside every database from staging up). Usually one or none.",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["module", "from_stage", "beside"],
+          properties: {
+            module: { type: "string", description: "The folder of the module the stage adds." },
+            from_stage: { type: "string", description: "The first stage that adds it." },
+            beside: { type: "string", enum: NEED_KEYS, description: "The need it stands beside, by key." }
+          }
+        }
+      },
       merges: {
         type: "array",
         description: "Questions so far that ask the same thing in different words: the one to keep, and the ids it covers.",
@@ -438,8 +497,30 @@ async function superviseTraced({ clientFor, credentialIsGateway, budget, org, mo
     ));
     budget.charge("supervisor", model, response.usage || {});
     const use = (response.content || []).find(b => b.type === "tool_use" && b.name === writeCatalogTool.name);
-    if (use) return use.input;
+    if (use) return withStageLists(use.input);
     messages.push({ role: "assistant", content: response.content }, { role: "user", content: "Call write_catalog." });
   }
   throw new Error("the supervisor did not write the catalog");
+}
+
+/**
+ * The supervisor's replacements and additions, as each entry's own `instead` and
+ * `added`, which the draft reads (api/discovery/draft.js). A replacement or addition for
+ * a module this pass does not write is left for the pass that does.
+ */
+export function withStageLists(input) {
+  const out = { ...input, entries: Array.isArray(input?.entries) ? input.entries.map(e => ({ ...e })) : [] };
+  const clean = t => String(t || "").trim().replace(/^\.\/+/, "").replace(/\/+$/, "");
+  const entry = folder => out.entries.find(e => clean(e.source) === clean(folder) || clean(e.source).split("/").pop() === clean(folder));
+  for (const r of Array.isArray(input?.replacements) ? input.replacements : []) {
+    const e = r && entry(r.module);
+    if (e && r.replaced_by && r.from_stage) e.instead = { module: clean(r.replaced_by), stage: r.from_stage };
+  }
+  for (const a of Array.isArray(input?.additions) ? input.additions : []) {
+    const e = a && entry(a.module);
+    if (e && a.from_stage && a.beside) e.added = { stage: a.from_stage, beside: a.beside };
+  }
+  delete out.replacements;
+  delete out.additions;
+  return out;
 }

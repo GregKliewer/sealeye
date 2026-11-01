@@ -342,13 +342,24 @@ test("Juniper Mutual: given good words, the draft passes the answer key's checks
           const k = words.get(source);
           return { content: [{ type: "tool_use", id: "f", name: "submit_finding", input: { line: k.line, when: k.when || "", signals: k.signals || [], role: k.role || "optional", availability: k.availability === "available" ? "available" : "deprecated", stages: "all", rules: [], questions: [] } }], usage };
         }
-        if (tools.includes("submit_library")) return { content: [{ type: "tool_use", id: "l", name: "submit_library", input: { stages: ["dev", "sit", "uat", "staging", "prod"], rules: [], questions: [] } }], usage };
+        // The path as the key's catalog says it, as a library reader writes one (Phase 5 Step 2).
+        if (tools.includes("submit_library")) {
+          const reader = s => ({ name: s.name, built_by: s.applies === "pipeline" ? "pipeline" : "not_said", ...(s.pipeline ? { pipeline: s.pipeline } : {}), gate: s.gate || [], ...(s.from ? { from: s.from } : {}) });
+          return { content: [{ type: "tool_use", id: "l", name: "submit_library", input: { stages: key.catalog.stages.path.map(reader), aside: (key.catalog.stages.aside || []).map(reader), rules: [], questions: [] } }], usage };
+        }
         const sources = opening.match(/Write the entries for these modules: (.+)\./)[1].split(", ");
+        const sourceOf = id => key.catalog.modules.find(m => m.id === id)?.source;
         const entries = sources.map(source => {
           const k = words.get(source);
-          return { source, line: k.line, when: k.when || "", signals: k.signals || [], role: k.role || "optional", availability: k.availability === "available" ? "available" : "deprecated", guidance: k.guidance || "", open: [] };
+          return {
+            source, line: k.line, when: k.when || "", signals: k.signals || [], role: k.role || "optional", availability: k.availability === "available" ? "available" : "deprecated", guidance: k.guidance || "", meets: k.meets || [], open: [],
+            ...(k.stages ? { stages: k.stages } : {})
+          };
         });
-        return { content: [{ type: "tool_use", id: "w", name: "write_catalog", input: { entries, questions: [] } }], usage };
+        // The replacement and the addition as the supervisor writes them: lists beside the entries.
+        const replacements = sources.flatMap(s => (words.get(s).instead ? [{ module: s, replaced_by: sourceOf(words.get(s).instead.module), from_stage: words.get(s).instead.from }] : []));
+        const additions = (key.catalog.stages.with || []).filter(w => sources.includes(sourceOf(w.module))).map(w => ({ module: sourceOf(w.module), from_stage: w.from, beside: w.beside }));
+        return { content: [{ type: "tool_use", id: "w", name: "write_catalog", input: { entries, questions: [], replacements, additions } }], usage };
       }
     }
   };
@@ -1016,4 +1027,13 @@ test("a module whose nested module changed is read again, and a kept entry takes
   const fresh = { modules: [{ source: "modules/db", id: "db", line: "Different words.", version: "1.0.0", tag: "db/v1.0.0" }] };
   const [entry] = keepEntries(fresh, base, new Set(["modules/db"]), []).modules;
   assert.deepEqual(entry, { source: "modules/db", id: "db", line: "A database.", guidance: "Dev only.", version: "1.0.0", tag: "db/v1.0.0" });
+});
+
+test("a question touches every module it names by folder, or by a name of more than one word", async () => {
+  const { modulesNamedIn } = await import("../api/discovery/service.js");
+  const modules = [{ source: "modules/cache-redis" }, { source: "modules/cache-valkey" }, { source: "modules/secrets" }, { source: "modules/postgres" }, { source: "modules/postgres-cluster" }];
+  assert.deepEqual(modulesNamedIn(modules, "Should new apps use cache-valkey instead of this deprecated module?"), ["modules/cache-valkey"]);
+  assert.deepEqual(modulesNamedIn(modules, "Does an app read its secrets at start, or from modules/secrets?"), ["modules/secrets"]);
+  assert.deepEqual(modulesNamedIn(modules, "From staging up, is postgres-cluster used in its place?"), ["modules/postgres-cluster"], "never postgres, inside postgres-cluster");
+  assert.deepEqual(modulesNamedIn(modules, "Is caching needed at all?"), []);
 });

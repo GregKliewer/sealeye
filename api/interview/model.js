@@ -8,6 +8,7 @@ import path from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
 
 import { catalogForPrompt, interviewPassages, orgName, starterCatalog } from "../../core/catalog.js";
+import { forDev } from "../../core/stages.js";
 import { repoRoot, loadEnv, loadUserConfig, setting } from "../../core/config.js";
 import { traceTurn } from "../../core/tracing.js";
 import { spendingLimitWords } from "../../core/model-prices.js";
@@ -122,7 +123,8 @@ export function modelClient(credential) {
  * code.
  */
 export function loadSystemPrompt(catalog, { starter = catalog === undefined } = {}) {
-  const doc = catalog || starterCatalog();
+  // Only what dev builds: a later stage is the platform's to resolve (core/stages.js).
+  const doc = forDev(catalog || starterCatalog());
   let text = fs.readFileSync(path.join(repoRoot, "prompts", "interview-system.md"), "utf8");
   // The passages that speak of the modules are the catalog's (PHASE4-PLAN Step 3). One
   // the catalog has nothing for goes, with its line, rather than leaving a gap.

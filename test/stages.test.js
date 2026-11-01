@@ -149,3 +149,12 @@ test("both surfaces say a module's stages and the path in the same words, naming
   assert.equal(stageMapView(starterCatalog()), null);
   assert.deepEqual(moduleStageView(starterCatalog().modules[0], starterCatalog()), {});
 });
+
+test("a module for later stages only, that nothing reaches, is a gap the self-test names", async () => {
+  const { stageMapGaps } = await import("../core/stages.js");
+  const doc = {
+    stages: { path: [{ name: "dev", applies: "sealeye", gate: [] }, { name: "prod", applies: "sealeye", gate: [] }] },
+    modules: [{ id: "name", availability: "available", line: "A name.", stages: ["prod"] }]
+  };
+  assert.match(stageMapGaps(doc).join(" "), /name is not for dev, and nothing takes it in another's place or adds it at a stage, so no app can use it/);
+});

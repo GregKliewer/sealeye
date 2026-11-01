@@ -38,6 +38,8 @@ export interface DiscoveryQuestion {
   answer: string | null; answeredBy: string | null; answeredAt: string | null; usedAt: string | null; usedIn?: number | null;
   carried?: boolean;
   merged?: { question: string; raisedBy: string }[];
+  // About the path to production, asked by seaLeye where it could not prove what was read.
+  stageMap?: boolean;
 }
 export interface DiscoverySummary {
   discoveryId: string; org: string; status: "running" | "finished" | "stopped" | "failed"; reason?: string; message?: string;

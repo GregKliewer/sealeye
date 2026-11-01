@@ -22,6 +22,28 @@ For each module you are asked to write:
   still says what it meets: seaLeye knows it is not offered. Leave a need out when the
   module only helps with it, or when nothing in the findings says the module does it.
 
+The path to production (the library reader's `stages`): most modules are the same at
+every stage, told which stage they are in, and need nothing more here. For the few that
+are not, say what the library says, by its own folders and stage names:
+- `stages`: the stages a module is for, only when the library says it must not be used
+  at some stage (one database below staging, another from staging up). A module the
+  library allows at every stage ("any stage may", "allowed, but not needed") has none,
+  even when it is only needed at some, and even when a lower stage usually does without
+  it (uses a generated address, say); so does a module a stage adds (`added` places it).
+  When a reader asked which stages a module is for and nobody has answered, write
+  `stages` by the question's guess, as for any question.
+- `replacements`, beside the entries: where two modules serve the same need at
+  different stages, one line: the module used first, the one that takes its place, and
+  the first stage it does; with `stages` on both entries. Never for a deprecated module
+  and its successor: that is availability, not a stage.
+- `additions`, beside the entries: a module a stage adds beside apps of a kind, which no
+  app asks for (a backup plan beside every database from staging up): the module, that
+  first stage, and the need it stands beside, by key. Such a module meets no need itself.
+Leave both lists empty when the library says nothing of the kind; most libraries have
+one of each at most.
+seaLeye checks each against the modules it names, and asks about any it cannot prove;
+leave one out rather than guess.
+
 Words a developer reads (`line`, `when`, `signals`, input lines) are plain: what it gives
 their app, never how the cloud provider builds it. They follow one rule:
 {{plain_words}}

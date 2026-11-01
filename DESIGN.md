@@ -4968,3 +4968,57 @@ dev has that the next stage lacks. Settings stay the `default` organization's un
 are kept by organization, which is owed and not in Phase 5; Juniper Mutual's plans read
 none. Rejected: the organization's own store for that stage, which seaLeye would only
 name, and leaving them to the pipeline, which a stage seaLeye applies does not have.
+
+## Discovery writes the stage map
+
+Decided Sun Nov 1, 2026, building PHASE5-PLAN Step 2 (D2), with an independent review
+whose findings were all fixed before the pull request.
+
+- **What reads what.** The library reader writes the path as data: each stage as the
+  library names it (lowercased, hyphens for spaces), whether the library's pipeline
+  builds it and which file, and what it waits on; stages set aside, and from where. The
+  supervisor writes, for the few modules that change by stage, which stages each is for,
+  the folder of the one that takes its place and from when, and whether a stage adds it
+  beside a need. Code turns folders into ids and makes the map.
+- **Who builds a stage the library says nothing about** is seaLeye, by D3, and the
+  self-test's notes say so for whoever approves ("The library does not say who builds
+  staging, so seaLeye would."). A path seaLeye cannot use (a first stage not called dev)
+  is left out with a note: the catalog builds dev alone, as before.
+- **A guess never goes live.** What the shape check refuses, or the proof does not hold,
+  is taken out, only that field and never the module's other stage fields, since a
+  module with no `stages` is for every stage, which is a claim of its own (the review).
+  It is listed in `discovery.unproven` and asked about, the reading as the guess.
+  While anything is unproven, the self-test's stages check fails: the catalog is not
+  approved, whatever the draft says meanwhile.
+- **A question about the map holds back the catalog, not the module.** It is marked
+  `stageMap`, and no entry rests on it, so a database stays buildable in dev while its
+  later stages are settled. The self-test is the gate instead.
+- **The interview plans from `forDev`**: a module not for dev, or one a stage adds, is
+  marked not offered rather than taken out, so every guard that the interview never
+  names a module it cannot plan still knows its name (the review). The interview is not
+  told that another module takes a place later: the platform resolves later stages from
+  the catalog. Catalogs with no path past dev are unchanged, the starter's pins included.
+- **Owed:** a platform engineer cannot yet change who applies a stage, or a module's
+  stages, by hand; an answer can only reach the map through the supervisor, so a reading
+  the library itself cannot support stays unproven until the library changes or the
+  answer says otherwise. PHASE5-PLAN Step 2b.
+- **What code reads from what the supervisor wrote** (Greg's eval runs, Sun Nov 1, 2026,
+  where the model's stage fields came and went from run to run). Replacements and
+  additions are two short lists beside the entries, left empty when the library says
+  nothing, not a field on every entry the model felt bound to fill; the plain-words
+  pass keeps each entry's stage fields as first written. A module named in its own
+  place, or given way to from no stage past dev, says nothing, in a note; one written
+  the wrong way round is put on the module used first. A replacement says the stages of
+  the two it names when neither said them (the one before the stage, the other from it,
+  an aside going with the stage it is set aside from), in a note, and they go with it if
+  it does not hold. A module a stage adds keeps no stages of its own, the stage saying
+  when, and is not counted as meeting the need it stands beside, unless another module
+  gives way to it. Several stages written as one ("dev-sit-uat"), each on the path, are
+  those stages. A question touches every module it names by folder, or by a folder's
+  name of more than one word, so a reader's question about one cache that asks whether
+  the other replaces it touches both, whether or not the supervisor widens it.
+  A module for no stage an app plans for, that nothing takes in another's place or
+  adds at a stage, is one no app can use: the self-test names it, and discovery reads it
+  as for every stage, as a catalog says of a module when it says nothing, in a note
+  (custom-domain, read as staging and up from "anything below staging uses the address
+  the platform generates", where its README also says any stage may have a name).

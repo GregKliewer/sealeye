@@ -22,7 +22,7 @@ test("the answer key is a catalog by seaLeye's own rules, and passes its own gra
   assert.equal(key.catalog.modules.length, 15);
   const graded = gradeCatalog(key.catalog, key);
   assert.equal(graded.correct, true, gradeLines(graded).join("\n"));
-  assert.deepEqual(graded.pending.map(p => p.case), ["overlap", "addition", "unclear module asked", "stages"], "what waits is listed, never counted as passed");
+  assert.deepEqual(graded.pending.map(p => p.case), ["unclear module asked"], "what waits is listed, never counted as passed");
   assert.equal(graded.needs.ok, true, "the key's meets leave exactly its gaps unmet");
   assert.deepEqual(graded.needs.gaps.unmet, ["event_stream", "scheduled_task", "user_sign_in"]);
   assert.ok(key.catalog.modules.every(m => !isBuildable(m.id, key.catalog)), "nothing builds Terraform until Step 9");
@@ -169,8 +169,16 @@ test("graded twice: no answers, then the key's answers at fixed points; each pas
     // The unclear cache is offered as the answer says, once it has one.
     const valkey = asked.find(q => (q.touches || []).includes("modules/cache-valkey"));
     const availability = k.availability === "available" ? "available" : "deprecated";
-    return { source, line: k.line, when: k.when || "", signals: k.signals || [], role: k.role || "optional", availability: source === "modules/cache-valkey" && valkey?.answer?.startsWith("No") ? "deprecated" : availability, guidance: k.guidance || "", open: [] };
+    // The stage map as the key says (Phase 5 Step 2): which stages, what takes over, and
+    // what a stage adds, by folder.
+    const sourceOf = id => key.catalog.modules.find(m => m.id === id)?.source;
+    // Stages on the entry; the replacement and the addition go in the lists beside it (below).
+    const stageFields = k.stages ? { stages: k.stages } : {};
+    return { source, line: k.line, when: k.when || "", signals: k.signals || [], role: k.role || "optional", availability: source === "modules/cache-valkey" && valkey?.answer?.startsWith("No") ? "deprecated" : availability, guidance: k.guidance || "", meets: k.meets || [], open: [], ...stageFields };
   };
+  // The path as the library reader would write it: each stage, who builds it, its gate.
+  const libraryStages = key.catalog.stages.path.map(s => ({ name: s.name, built_by: s.applies === "pipeline" ? "pipeline" : "not_said", ...(s.pipeline ? { pipeline: s.pipeline } : {}), gate: s.gate || [] }));
+  const libraryAside = (key.catalog.stages.aside || []).map(s => ({ name: s.name, from: s.from, built_by: s.applies === "pipeline" ? "pipeline" : "not_said", ...(s.pipeline ? { pipeline: s.pipeline } : {}) }));
   // A model with the key's words that asks what a careful engineer asks: the unclear
   // cache (the supervisor, naming both), and one question of a reader's own.
   const client = {
@@ -193,7 +201,7 @@ test("graded twice: no answers, then the key's answers at fixed points; each pas
           return { content: [{ type: "tool_use", id: "f", name: "submit_finding", input: { line: k.line, when: k.when || "", signals: k.signals || [], role: k.role || "optional", availability: k.availability === "available" ? "available" : "deprecated", stages: "all", rules: [], questions } }], usage };
         }
         // And a question about the whole catalog, which holds approval until it is answered.
-        if (tools.includes("submit_library")) return { content: [{ type: "tool_use", id: "l", name: "submit_library", input: { stages: ["dev", "sit", "uat", "staging", "prod"], rules: [], questions: [{ kind: "other", question: "How is the perf stage built?", options: ["From the staging package", "Its own pipeline"], guess: "From the staging package", evidence: [{ file: "README.md", shows: "perf has no job" }] }] } }], usage };
+        if (tools.includes("submit_library")) return { content: [{ type: "tool_use", id: "l", name: "submit_library", input: { stages: libraryStages, aside: libraryAside, rules: [], questions: [{ kind: "other", question: "How is the perf stage built?", options: ["From the staging package", "Its own pipeline"], guess: "From the staging package", evidence: [{ file: "README.md", shows: "perf has no job" }] }] } }], usage };
         const sources = opening.match(/Write the entries for these modules: (.+)\./)[1].split(", ");
         const asked = JSON.parse(opening.slice(opening.indexOf("Questions so far, with any answers:") + 35));
         const first = sources.length > 2;
@@ -207,7 +215,10 @@ test("graded twice: no answers, then the key's answers at fixed points; each pas
           ...entryFor(s, asked),
           ...(plain ? { input_lines: Object.fromEntries(Object.entries(words.get(s).inputs || {}).filter(([, v]) => v?.line).map(([n, v]) => [n, v.line])) } : {})
         }));
-        return { content: [{ type: "tool_use", id: "w", name: "write_catalog", input: { entries, questions: plain ? [] : questions } }], usage };
+        const sourceOfId = id => key.catalog.modules.find(m => m.id === id)?.source;
+        const replacements = sources.flatMap(s => (words.get(s).instead ? [{ module: s, replaced_by: sourceOfId(words.get(s).instead.module), from_stage: words.get(s).instead.from }] : []));
+        const additions = (key.catalog.stages.with || []).filter(w => sources.includes(sourceOfId(w.module))).map(w => ({ module: sourceOfId(w.module), from_stage: w.from, beside: w.beside }));
+        return { content: [{ type: "tool_use", id: "w", name: "write_catalog", input: { entries, questions: plain ? [] : questions, replacements, additions } }], usage };
       }
     }
   };
@@ -266,4 +277,15 @@ test("which needs each module meets is graded apart from the catalog, and the ga
   bySource(noCache, "modules/cache-valkey").meets = [];
   const g = gradeCatalog(noCache, key);
   assert.ok(g.needs.gaps.unmet.includes("cache"), "the deprecated cache does not fill it");
+});
+
+test("a question about which stages a module is for is answered from the key, never by its guess", async () => {
+  const { scriptedAnswer } = await import("../scripts/eval-discovery.js");
+  const ask = (question, touches, guess = "the guess") => scriptedAnswer({ question, touches, guess }, key, "after_draft");
+  assert.equal(ask("Is custom-domain meant for staging and above only, or may dev, sit and uat apps use it too?", ["modules/custom-domain"], "Staging, perf and prod only"),
+    "custom-domain is for every stage: the library allows it at any stage.");
+  assert.equal(ask("Is this module allowed on staging, or only on dev, sit and uat?", ["modules/postgres", "modules/postgres-cluster"]),
+    "postgres is for dev, sit, uat only; postgres-cluster is for staging, perf, prod only.");
+  assert.equal(ask("Are failed messages kept in every queue?", ["modules/work-queue"], "Yes"), "Yes", "anything else is still answered by its guess");
+  assert.equal(ask("Are there extra rules for staging and up beyond the stage-naming rule?", ["modules/custom-domain"], "No"), "No", "a question about a stage's rules is not about which stages");
 });

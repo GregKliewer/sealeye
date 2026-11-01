@@ -9,13 +9,16 @@
 // part of the plan, and are dropped before the plan is validated or deployed.
 import { interviewContract } from "../../core/schema.js";
 import { interviewPassages, schemaFor, starterCatalog } from "../../core/catalog.js";
+import { forDev } from "../../core/stages.js";
 
 /**
  * The submit_plan tool's input for one catalog: the plan in the shape the interview
  * writes it, with that catalog's modules and need kinds and its words for the plan
  * (interviewPassages in core/catalog.js). For the starter, exactly what it always was.
  */
-export function submitPlanInputSchemaFor(catalog = starterCatalog(), { starter = false } = {}) {
+export function submitPlanInputSchemaFor(whole = starterCatalog(), { starter = false } = {}) {
+  // Only what dev builds, as the prompt (core/stages.js).
+  const catalog = forDev(whole);
   const schema = schemaFor(catalog);
   return {
     type: "object",

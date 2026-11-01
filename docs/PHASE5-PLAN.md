@@ -187,6 +187,15 @@ About three and a half days.
 
 ### Step 2. Discovery writes it; the interview plans for dev (D2, D3)
 
+Built Sun Nov 1, 2026 (2.52.0; DESIGN.md, "Discovery writes the stage map"), with an
+independent review whose findings were all fixed before the pull request. Different from
+below: the interview is not told of a module that takes another's place (it plans dev,
+and a later stage is the platform's to resolve), and a question about the map does not
+make its module unbuildable in dev; the self-test holds the whole catalog back instead
+while anything is unproven. Owed, found in the review: a platform engineer cannot yet
+change who applies a stage or a module's stages by hand, and a stage's applier is read
+from the library again on every run (Step 2b, below).
+
 - The supervisor writes each entry's `stages` and `instead`, and the library reader's
   path gains each stage's `with` (Juniper's `backup-plan`, from its README and the
   library's) and `applies`, read from the pipelines (Juniper's `app-promote.yml`
@@ -202,6 +211,26 @@ About three and a half days.
   every module.
 
 About two and a half to three and a half days, with the review.
+
+### Step 2b. Who applies a stage, changed by hand (added Nov 1, 2026)
+
+An edit, on both surfaces, of who applies a stage on a draft (`sealeye catalog edit`
+and Edit words), kept when the library is read again, as an edited word is kept
+(`keepEdits`). It is what lets Juniper's platform team set sit and uat to seaLeye (Greg,
+Nov 1). About a day and a half.
+
+Decided Sun Nov 1, 2026 (Greg):
+
+- **Scope: who applies a stage only**, and the pipeline's name when it is a pipeline. A
+  module's stages and replacement already reach the map through discovery's questions.
+  dev is always seaLeye's, and is not edited.
+- **The library wins when it changes.** The edit is kept on each rediscovery while the
+  library says of that stage what it said when the edit was made (the reading is kept
+  with the edit). When the library's reading of the stage changes, the draft takes what
+  the library now says, and the self-test's notes say so: the change it replaces, who
+  made it, and the date and time.
+- **Next, before Step 3**, so Juniper's sit and uat are set in the same pass as the pilot
+  rediscovery.
 
 ## Part B: an environment at a stage
 

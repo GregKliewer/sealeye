@@ -5,6 +5,8 @@
 //
 //   npm run eval:discovery                                  grade the answer key itself
 //   npm run eval:discovery -- --catalog <file.yaml|.json>   grade a catalog discovery wrote
+//     [--reread]                                         its stage map read again by
+//                                                        today's code first: no model, no cost
 //   npm run eval:discovery -- --library <path>              also check the key against
 //                                                           a clone of the library
 //   npm run eval:discovery -- --smoke                       seaLeye's own templates/,
@@ -35,6 +37,7 @@ import YAML from "yaml";
 
 import { repoRoot } from "../core/config.js";
 import { catalogProblems, starterCatalog } from "../core/catalog.js";
+import { provenStageMap, withStageMap } from "../api/discovery/draft.js";
 import { isRedactedLine } from "../core/scan.js";
 import { secretFileReason } from "../core/secrets.js";
 
@@ -95,6 +98,9 @@ function matchModules(keyModules, candidateModules) {
  * @returns {{ modules: object[], extra: string[], problems: string[], hardCases: object[],
  *   pending: object[], correct: boolean }}
  */
+/** The key's own catalog's path, or null when it has none. */
+const keyCatalogStages = key => (key?.catalog?.stages?.path?.length > 1 ? key.catalog.stages : null);
+
 export function gradeCatalog(candidate, key, { questions = null, selfTest = null, scripted = false } = {}) {
   const keyModules = key.catalog.modules || [];
   const { pairs, extra } = matchModules(keyModules, candidate?.modules || []);
@@ -185,7 +191,13 @@ export function gradeCatalog(candidate, key, { questions = null, selfTest = null
       const asked = questions.find(q => (hc.overlap.modules || []).every(s => (q.touches || []).includes(s)));
       hardCases.push({ case: "overlap asked", ok: Boolean(asked), why: asked ? `asked: ${asked.question}` : "no question touches both" });
     }
-    pending.push({ case: "overlap", waits: "Phase 5 Step 2 (discovery writes each module's stages and `instead`)", what: hc.overlap.rule });
+    // Phase 5 Step 2: the overlap is a module per stage, written as data. The first of
+    // the pair says which stages it is for and that the second takes its place, and from
+    // which stage; the second, which stages it is for.
+    const [a, b] = both;
+    const want = keyModules.find(k => k.source === hc.overlap.modules[0])?.instead;
+    const ok = Boolean(a && b && want) && a.instead?.module === b.id && a.instead?.from === want.from;
+    hardCases.push({ case: "overlap: a module per stage", ok, why: !a || !b ? "not both in the catalog" : ok ? `${a.id} for its stages, ${b.id} in its place from ${want.from}` : a.instead ? `${a.id} gives way to ${a.instead.module} from ${a.instead.from}, not ${b.id} from ${want?.from}` : `${a.id} names nothing to take its place` });
   }
 
   // A module the stage adds beside the app's (PHASE5-PLAN D1, pattern 3): caught when its
@@ -198,7 +210,11 @@ export function gradeCatalog(candidate, key, { questions = null, selfTest = null
       ok: Boolean(m) && missing.length === 0,
       why: !m ? "not in the catalog" : missing.length ? `its entry does not say ${missing.join(", ")}` : "it says from which stage, and beside what"
     });
-    pending.push({ case: "addition", waits: "Phase 5 Step 2 (a stage's additions, `with`)", what: hc.addition.rule });
+    // Phase 5 Step 2: what the stage adds, written as data in the path's `with`.
+    const beside = (key.catalog.stages?.with || []).find(w => keyModules.find(k => k.id === w.module)?.source === hc.addition.module)?.beside;
+    const added = (candidate?.stages?.with || []).find(w => w.module === m?.id);
+    const ok = Boolean(m && added) && added.from === hc.addition.from && added.beside === beside;
+    hardCases.push({ case: "addition: what the stage adds", ok, why: !m ? "not in the catalog" : !added ? "the path adds nothing beside what apps use" : ok ? `from ${added.from}, beside ${added.beside}` : `from ${added.from}, beside ${added.beside}, where the key says from ${hc.addition.from}, beside ${beside}` });
   }
 
   // What the library leaves unclear must be asked, and the entry rest on the question.
@@ -267,7 +283,36 @@ export function gradeCatalog(candidate, key, { questions = null, selfTest = null
     }
   }
 
-  if (key.stages) pending.push({ case: "stages", waits: "Phase 5", what: (key.stages.path || []).join(", ") });
+  // Phase 5 Step 2: the path as data, graded against the key's catalog: each stage in
+  // order, who applies it, how many things it waits on, and what is set aside. A gate's
+  // words are the reader's own, so only their number is graded.
+  const keyPath = keyCatalogStages(key);
+  if (keyPath) {
+    const got = candidate?.stages;
+    const line = s => `${s.name}:${s.name === "dev" ? "sealeye" : s.applies}${s.applies === "pipeline" ? `(${s.pipeline})` : ""}:${(s.gate || []).length}`;
+    const want = keyPath.path.map(line).join(" ");
+    const have = (got?.path || []).map(line).join(" ");
+    const asideWant = (keyPath.aside || []).map(s => `${s.name}<${s.from}:${s.applies}`).join(" ");
+    const asideHave = (got?.aside || []).map(s => `${s.name}<${s.from}:${s.applies}`).join(" ");
+    const ok = want === have && asideWant === asideHave;
+    hardCases.push({ case: "path to production", ok, why: !got ? "the catalog has no path past dev" : ok ? `${want}; aside ${asideHave || "none"}` : `${have || "none"}; aside ${asideHave || "none"}, where the key says ${want}; aside ${asideWant || "none"}` });
+    // Which stages each module is for, where the key says; and none where it does not,
+    // nor any other module taking a place or added by a stage.
+    for (const k of keyModules.filter(k => Array.isArray(k.stages))) {
+      const c = bySource.get(k.source);
+      // The stages a module is for, in any order.
+      const ok2 = Boolean(c) && [...(c.stages || [])].sort().join(",") === [...k.stages].sort().join(",");
+      hardCases.push({ case: `stages of ${k.source}`, ok: ok2, why: !c ? "not in the catalog" : ok2 ? k.stages.join(", ") : `${(c.stages || []).join(", ") || "every stage"}, where the key says ${k.stages.join(", ")}` });
+    }
+    const keyIdOf = c => pairs.find(p => p.found === c)?.key;
+    const unasked = (candidate?.modules || []).filter(c => {
+      const k = keyIdOf(c);
+      return k && ((Array.isArray(c.stages) && !Array.isArray(k.stages)) || (c.instead && !k.instead));
+    }).map(c => `${c.id} (${[Array.isArray(c.stages) ? `stages ${c.stages.join(", ")}` : "", c.instead ? `in its place from ${c.instead.from}, ${c.instead.module}` : ""].filter(Boolean).join("; ")})`);
+    const keyWith = new Set((keyPath.with || []).map(w => keyModules.find(k => k.id === w.module)?.source));
+    const extraWith = (got?.with || []).filter(w => !keyWith.has(pairs.find(p => p.found?.id === w.module)?.key?.source)).map(w => w.module);
+    hardCases.push({ case: "no stage map the library does not give", ok: !unasked.length && !extraWith.length, why: unasked.length || extraWith.length ? [unasked.length ? `stages or a replacement on ${unasked.join(", ")}` : "", extraWith.length ? `added by a stage: ${extraWith.join(", ")}` : ""].filter(Boolean).join("; ") : "none" });
+  }
 
   const problems = catalogProblems(candidate);
   const correct = problems.length === 0 && modules.every(m => m.ok) && extra.length === 0 && hardCases.every(h => h.ok);
@@ -434,8 +479,26 @@ export function scriptedAnswer(q, key, when) {
   const isUnclear = amb && about.every(s => (q.touches || []).includes(s)) && (q.touches || []).every(t => about.includes(t));
   const a = key.answers || {};
   if (isUnclear && a.ambiguous?.when === when) return a.ambiguous.answer;
+  // Which stages a module is for, answered from the key as a careful engineer would,
+  // never by the reader's guess (Greg's run of Step 2, Nov 1, 2026: a guess that
+  // custom-domain was for staging up only was answered yes, and written in).
+  const stagesAnswer = !isUnclear && a.stages?.when === when ? answerAboutStages(q, key) : null;
+  if (stagesAnswer) return stagesAnswer;
   if (!isUnclear && a.others?.when === when) return a.others.answer === "guess" ? q.guess : a.others.answer;
   return null;
+}
+
+/** A question about which stages its modules are for, answered from the key; or null. */
+export function answerAboutStages(q, key) {
+  // Only a question about which stages a module is for: "which stages", or "only",
+  // "allowed", "offered" or "meant for" beside a stage's name.
+  const text = String(q.question || "");
+  const stage = "(dev|sit|uat|staging|perf|prod|stages?)";
+  if (!new RegExp(`\\bwhich stages\\b|\\b(only|allowed|offered|meant for)\\b[^?]*\\b${stage}\\b|\\b${stage}\\b[^?]*\\bonly\\b`, "i").test(text)) return null;
+  const touched = (q.touches || []).map(s => (key.catalog.modules || []).find(m => m.source === s)).filter(Boolean);
+  if (!touched.length || touched.length !== (q.touches || []).length) return null;
+  const name = m => m.source.split("/").pop();
+  return touched.map(m => (Array.isArray(m.stages) ? `${name(m)} is for ${m.stages.join(", ")} only` : `${name(m)} is for every stage: the library allows it at any stage`)).join("; ") + ".";
 }
 
 /**
@@ -648,7 +711,10 @@ async function main(args) {
 
   const key = loadAnswerKey();
   const catalogFile = argValue(args, "--catalog");
-  const candidate = catalogFile ? loadCatalogFile(catalogFile) : key.catalog;
+  // A draft from an earlier run, its stage map read again by the code as it is now, so
+  // a change to that code is checked against runs already paid for (Greg, Nov 1, 2026).
+  const loaded = catalogFile ? loadCatalogFile(catalogFile) : key.catalog;
+  const candidate = catalogFile && args.includes("--reread") ? provenStageMap(withStageMap(loaded)) : loaded;
   const graded = gradeCatalog(candidate, key);
 
   console.log(`\nJuniper Mutual (${key.library}): ${catalogFile ? path.basename(catalogFile) : "the answer key itself"}`);

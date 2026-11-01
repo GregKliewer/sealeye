@@ -514,7 +514,17 @@ the plan. No mechanism, no vendor, no date, never "coming soon".
   be written in plain words, before the draft is kept (`inPlainWords`). The supervisor
   also says which need kinds each module meets (`meets`, known keys only, never sent to
   a developer's client), which the gap report reads and the eval grades as
-  `needs_mapped`. A
+  `needs_mapped`. The library reader writes the path to production as data (each
+  stage, whether the library's pipeline builds it, its gate), and the supervisor each
+  module's `stages`, `instead` (by folder) and `added` (a module a stage adds beside a
+  need); code makes the map (`withStageMap` in `api/discovery/draft.js`) and keeps only
+  what it proves (`provenStageMap`), taking out just the field that does not hold and
+  asking about it with the reading as the guess (`askAboutStages`, a question marked
+  `stageMap` that no entry rests on); while anything is unproven (`discovery.unproven`)
+  the self-test's stages check holds the catalog back, and what seaLeye filled in or
+  could not use of the path is said in its notes (`discovery.stage_notes`). The
+  interview plans from `forDev` (`core/stages.js`): a module not for dev, or one a
+  stage adds, is marked not offered, never taken out. A
   run reads again only the modules that changed since the run behind the live catalog,
   keeping the rest's findings, entries and questions as approved (`baselineFor`,
   `keepEntries`, `toWrite`; `sealeye discover --all` reads everything). A

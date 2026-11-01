@@ -102,6 +102,22 @@ const State = Annotation.Root({
  * @param {() => number} [options.now]
  * @param {string} [options.scratchBase]
  */
+/**
+ * The modules a question names in its own words: by folder ("modules/cache-valkey"), or
+ * by a folder's last part when it is more than one word ("cache-valkey"), never a plain
+ * word that prose uses too ("secrets"). A reader's question about cache-redis that asks
+ * whether cache-valkey replaces it touches both (Greg's runs of Step 2, Nov 1, 2026,
+ * where only the supervisor had widened such a question, and not always).
+ */
+export function modulesNamedIn(modules, text) {
+  const t = String(text || "");
+  const word = w => new RegExp(`(?<![\\w/-])${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\w-])`).test(t);
+  return (modules || []).filter(m => {
+    const last = m.source.split("/").pop();
+    return word(m.source) || (/-/.test(last) && word(last));
+  }).map(m => m.source);
+}
+
 export function createDiscoveryService({ client, readLibrary = readFromGitHub, now = Date.now, scratchBase } = {}) {
   // LangChain's own tracer would send each node's whole state out; discovery's state
   // holds what workers found in the library. Off, as for the interview.
@@ -204,7 +220,7 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
   async function raiseOne(run, q, touchesDefault) {
     const s = state(run.id);
     if (!q || typeof q !== "object" || typeof q.question !== "string" || !q.question.trim()) return null;
-    const touches = [...new Set([...(touchesDefault ? [touchesDefault] : []), ...asList(q.touches)].map(t => sourceFor(run, t)).filter(Boolean))];
+    const touches = [...new Set([...(touchesDefault ? [touchesDefault] : []), ...asList(q.touches), ...modulesNamedIn(run.modules, q.question)].map(t => sourceFor(run, t)).filter(Boolean))];
     // The supervisor sees the readers' questions and may ask one again in its own
     // words; the prompt says not to, and code makes sure (Greg, Oct 15, 2026).
     const same = touchesDefault ? null : repeats({ kind: QUESTION_KINDS.includes(q.kind) ? q.kind : "other", question: String(q.question || ""), touches }, store.questionsOf(run.id));
@@ -239,7 +255,9 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
       evidence: asList(q.evidence).slice(0, 6).map(e => (e && typeof e === "object"
         ? { file: String(e.file || ""), ...(Number.isInteger(e.line) ? { line: e.line } : {}), shows: String(e.shows || "") }
         : { file: "", shows: String(e) })),
-      raisedBy: touchesDefault ? `worker:${touchesDefault}` : "supervisor",
+      raisedBy: q.raisedBy === "seaLeye" ? "seaLeye" : touchesDefault ? `worker:${touchesDefault}` : "supervisor",
+      // About the stage map, raised by code: no entry rests on it (draft.js, openFor).
+      ...(q.stageMap === true ? { stageMap: true } : {}),
       answer: null,
       createdAt: new Date(now()).toISOString()
     };
@@ -293,6 +311,9 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
     // Asked in the run behind the live catalog, about a module kept as it was, and carried
     // into this one with its answer (DESIGN.md, "Discovery reads again only what changed").
     ...(q.carriedFrom ? { carried: true } : {}),
+    // About the path to production, asked by seaLeye where it could not prove what was
+    // read: no entry rests on it (PHASE5-PLAN Step 2).
+    ...(q.stageMap ? { stageMap: true } : {}),
     // The questions merged into this one, each as it was asked and by whom.
     ...(q.merged?.length ? { merged: q.merged.map(m => ({ question: m.question, raisedBy: m.raisedBy })) } : {})
   });
@@ -455,7 +476,17 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
       });
       const fresh = new Map((written.entries || []).filter(e => again.includes(e.source)).map(e => [e.source, e]));
       traceEvent("plain words", { entries: fresh.size, words: problems.length });
-      return entries.map(e => fresh.get(e.source) || e).concat([...fresh.values()].filter(e => !entries.some(x => x.source === e.source)));
+      // The pass is about words: each entry keeps its stage fields as first written (Greg's
+      // runs of Step 2, Nov 1, 2026: a second writing lost or scrambled them).
+      const keepStages = (was, now) => {
+        const out = { ...now };
+        for (const f of ["stages", "instead", "added"]) {
+          if (was && f in was) out[f] = was[f];
+          else delete out[f];
+        }
+        return out;
+      };
+      return entries.map(e => (fresh.has(e.source) ? keepStages(e, fresh.get(e.source)) : e)).concat([...fresh.values()].filter(e => !entries.some(x => x.source === e.source)));
     } catch (err) {
       emit(run.id, { type: "plain_words_not_done", sources: again, why: err instanceof SpendingLimit ? "the run reached its spending limit" : "seaLeye could not write them again" });
       return entries;
@@ -585,6 +616,7 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
     const entries = await inPlainWords(run, written.entries || [], sources, list => build(list, asked(run.id)));
     const questions = asked(run.id);
     const document = withoutUnplainInputLines(build(entries, questions));
+    await askAboutStages(run, document);
     const kept = await addCatalog({ org: run.org, document, by: run.startedBy });
     run.catalogVersion = kept.version;
     run.spend = s.budget.spend();
@@ -592,6 +624,43 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
     await markUsed(before.filter(q => q.answer != null && !q.usedAt && (q.touches || []).every(t => sources.includes(t))), kept.version);
     await save(run.id);
     emit(run.id, { type: "draft", catalog: { version: kept.version }, open: questions.filter(q => q.answer == null).length });
+  }
+
+  /**
+   * A question for each part of the stage map code could not prove (provenStageMap in
+   * draft.js), with the supervisor's reading as its guess, so a platform engineer settles
+   * it and a guess never goes live (PHASE5-PLAN D2). Asked once: the same question again
+   * is a repeat. The path itself, when seaLeye cannot read it, is a note on the draft,
+   * since only the library can change it.
+   */
+  async function askAboutStages(run, document) {
+    const sourceOf = id => (run.modules || []).find(m => m.id === id)?.source || id;
+    const name = src => src.split("/").pop();
+    for (const u of document?.discovery?.unproven || []) {
+      const src = u.module ? sourceOf(u.module) : null;
+      const q = u.kind === "instead" ? {
+        kind: "overlap",
+        question: `Does ${name(sourceOf(u.other))} take ${name(src)}'s place from ${u.from}? The draft leaves it out until it holds: ${u.words}.`,
+        options: [`Yes, from ${u.from}`, `No: ${name(src)} is for every stage`],
+        touches: [src, sourceOf(u.other)]
+      } : u.kind === "coverage" ? {
+        kind: "other",
+        question: `What serves ${name(src)} at ${(u.stages || []).join(", ")}? The library says it is not for ${u.stages?.length === 1 ? "that stage" : "those stages"}, and names nothing that takes its place.`,
+        options: ["Another module takes its place", `${name(src)} is for every stage`],
+        touches: [src]
+      } : u.kind === "with" ? {
+        kind: "other",
+        question: `Does ${u.from || "a later stage"} add ${name(src)} beside every app that needs ${u.beside || "it"}? The draft leaves it out until it holds: ${u.words}.`,
+        options: [`Yes, from ${u.from || "that stage"}`, "No: an app asks for it itself"],
+        touches: [src]
+      } : u.kind === "stages" ? {
+        kind: "other",
+        question: `Which stages is ${name(src)} for? What was read does not fit the path: ${u.words}.`,
+        options: ["Only the stages the library names for it", "Every stage"],
+        touches: [src]
+      } : null;
+      if (q) await raiseOne(run, { ...q, guess: q.options[0], raisedBy: "seaLeye", stageMap: true }, null);
+    }
   }
 
   /**
@@ -658,6 +727,7 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
       let version = run.catalogVersion;
       const current = catalogAt(run.org, version);
       const document = withoutUnplainInputLines(rewriteEntries(structuredClone(current), { modules: run.modules, entries, questions: asked(id), library: run.library }));
+      await askAboutStages(run, document);
       const status = catalogsOf(run.org).find(c => c.version === version)?.status;
       // Approved meanwhile (between reading its status and writing it): a new draft, as
       // for one approved earlier, so the answer is not left stuck (the review).

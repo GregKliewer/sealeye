@@ -11,19 +11,25 @@
 import { starterCatalog } from "../../core/catalog.js";
 import { forbiddenWord } from "../../core/developer-words.js";
 import { keepEdits } from "../../core/catalog-edits.js";
+import { FIRST_STAGE, stageMapFindings, stageMapProblems } from "../../core/stages.js";
 
 const unanswered = q => q.answer === undefined || q.answer === null;
 
-/** Every unanswered question that touches a module's folder: what its entry rests on. */
+/**
+ * Every unanswered question that touches a module's folder: what its entry rests on. A
+ * question about the stage map (`stageMap`) is not one: a module stays buildable in dev
+ * while its later stages are asked about, and the self-test holds the catalog back until
+ * the map holds (PHASE5-PLAN Step 2).
+ */
 export function openFor(source, questions) {
-  return questions.filter(q => unanswered(q) && (q.touches || []).includes(source)).map(q => q.id);
+  return questions.filter(q => unanswered(q) && !q.stageMap && (q.touches || []).includes(source)).map(q => q.id);
 }
 
 /**
  * Unanswered questions that touch no one module (the path to production, a rule across
  * the library): the catalog as a whole rests on them, so the draft says so.
  */
-export const openForCatalog = questions => questions.filter(q => unanswered(q) && !(q.touches || []).length).map(q => q.id);
+export const openForCatalog = questions => questions.filter(q => unanswered(q) && !q.stageMap && !(q.touches || []).length).map(q => q.id);
 
 // Words a developer reads never hold an em or en dash (principle 8); the prompt asks,
 // and code makes sure.
@@ -116,7 +122,11 @@ function entryFor(module, written, finding, questions, library) {
     // only, in the list's own order; a module the supervisor did not write has none.
     ...(Array.isArray(written?.meets) ? { meets: meetsOf(written.meets) } : {}),
     // Each rule as found, with where, for whoever approves the catalog (Step 7).
-    ...(rules.length ? { rules } : {})
+    ...(rules.length ? { rules } : {}),
+    // Which stages it is for, what takes its place later, and whether a stage adds it,
+    // as the supervisor read the library (PHASE5-PLAN Step 2): checked by code in
+    // withStageMap and provenStageMap before the draft is kept.
+    ...stageWordsOf(written)
   };
   const open = openFor(module.source, questions);
   if (open.length) entry.open = open;
@@ -137,12 +147,11 @@ function entryFor(module, written, finding, questions, library) {
 export function draftCatalog({ run, modules, library, entries, questions }) {
   const starter = starterCatalog();
   const bySource = new Map((entries || []).map(e => [e.source, e]));
-  return {
+  const doc = {
     catalogVersion: `discovery-${run.id}`,
     discovery: {
       run: run.id,
       library: run.repos.map(r => ({ repo: r.repo, commit: r.commit })),
-      ...(library ? { path_to_production: { stages: library.stages || [], aside: library.aside || [], gates: library.gates || [] } } : {}),
       ...(openForCatalog(questions).length ? { open: openForCatalog(questions) } : {})
     },
     modules: modules.map(m => entryFor(m, bySource.get(m.source), m.finding, questions, library)),
@@ -152,6 +161,7 @@ export function draftCatalog({ run, modules, library, entries, questions }) {
     ...(starter.patterns ? { patterns: starter.patterns } : {}),
     ...(starter.defaults ? { defaults: starter.defaults } : {})
   };
+  return provenStageMap(withStageMap(doc, library));
 }
 
 /**
@@ -171,7 +181,8 @@ const CODE_READ = ["outputs", "delivers", "runs", "offers", "accepts", "version"
 
 export function keepEntries(document, base, sources, questions) {
   const before = new Map((base?.modules || []).map(m => [m.source, m]));
-  return {
+  // A kept entry carries its stage fields as approved, so the map is made again with it.
+  return provenStageMap(withStageMap({
     ...document,
     modules: document.modules.map(m => {
       const was = before.get(m.source);
@@ -186,7 +197,7 @@ export function keepEntries(document, base, sources, questions) {
       const open = openFor(m.source, questions);
       return { ...kept, id: m.id, ...(open.length ? { open } : {}) };
     })
-  };
+  }));
 }
 
 /** The same draft with some entries written again (a late answer), the rest as they were. */
@@ -195,7 +206,7 @@ export function rewriteEntries(document, { modules, entries, questions, library 
   const moduleBySource = new Map(modules.map(m => [m.source, m]));
   const { open: _was, ...discovery } = document.discovery || {};
   const catalogOpen = openForCatalog(questions);
-  return {
+  return provenStageMap(withStageMap({
     ...document,
     discovery: { ...discovery, ...(catalogOpen.length ? { open: catalogOpen } : {}) },
     modules: document.modules.map(old => {
@@ -214,7 +225,7 @@ export function rewriteEntries(document, { modules, entries, questions, library 
       const { open: _gone, ...rest } = old;
       return open.length ? { ...rest, open } : rest;
     })
-  };
+  }, library || undefined));
 }
 
 /**
@@ -243,4 +254,290 @@ export function withoutUnplainInputLines(document) {
       return changed ? { ...m, inputs } : m;
     })
   };
+}
+
+/** A stage's name as a catalog keeps it: lowercase, hyphens for spaces. */
+const stageName = t => String(t || "").trim().toLowerCase().replace(/[\s_]+/g, "-").replace(/[^a-z0-9-]/g, "");
+const STAGE_FIELDS = ["stages", "instead", "added"];
+
+/** The stage fields the supervisor wrote for an entry, in the catalog's shape, or none. */
+function stageWordsOf(written) {
+  const out = {};
+  if (Array.isArray(written?.stages)) {
+    const names = [...new Set(written.stages.map(stageName).filter(Boolean))];
+    if (names.length) out.stages = names;
+  }
+  const i = written?.instead;
+  if (i && typeof i === "object") {
+    // As the supervisor writes it ({ module: folder, stage }), or as the tool had it
+    // first ({ source, from }). A folder
+    // and a stage written the wrong way round are put right (Greg's run, Nov 1, 2026:
+    // { from: "postgres-cluster", source: "staging" }).
+    let place = i.module ?? i.source;
+    let at = i.stage ?? i.from;
+    const looksLikeFolder = t => /\//.test(String(t || ""));
+    if (looksLikeFolder(at) && !looksLikeFolder(place)) [place, at] = [at, place];
+    const folder = String(place || "").trim().replace(/^\.\/+/, "").replace(/\/+$/, "");
+    // By folder here; withStageMap makes it the module's id.
+    if (folder && at) out.instead = { from: stageName(at), source: folder };
+  }
+  const a = written?.added;
+  const addedAt = a?.stage ?? a?.from;
+  if (a && typeof a === "object" && addedAt && a.beside) out.added = { from: stageName(addedAt), beside: String(a.beside) };
+  return out;
+}
+
+/** The path the library reader found, as a catalog's `stages.path` and `aside`, or why not. */
+function pathFrom(library) {
+  const stages = Array.isArray(library?.stages) ? library.stages : [];
+  // A run read before Phase 5 kept the path as words: there is no map to make of it.
+  if (!stages.length || stages.some(s => !s || typeof s !== "object")) return { why: null };
+  const stage = (s, first) => {
+    const name = stageName(s.name);
+    if (first) return { name };
+    const byPipeline = s.built_by === "pipeline";
+    return {
+      name,
+      // What the library's pipeline does not build, seaLeye does (DESIGN.md, "Who
+      // applies each stage is in the catalog"); the platform team may change either.
+      applies: byPipeline ? "pipeline" : "sealeye",
+      ...(byPipeline ? { pipeline: String(s.pipeline || "").trim() || "the library's pipeline" } : {}),
+      ...(Array.isArray(s.gate) && s.gate.filter(g => String(g).trim()).length ? { gate: s.gate.map(g => String(g).trim()).filter(Boolean) } : {})
+    };
+  };
+  const path = stages.map((s, i) => stage(s, i === 0));
+  if (path[0].name !== FIRST_STAGE) return { why: `The path to production was not read: the library's first stage is ${path[0].name || "unnamed"}, and seaLeye calls the stage a developer builds ${FIRST_STAGE}.` };
+  const asideRead = (Array.isArray(library.aside) ? library.aside : []).filter(s => s && typeof s === "object");
+  const aside = asideRead.map(s => ({ ...stage(s, false), from: stageName(s.from) }));
+  // Who builds a stage, where the library does not say: seaLeye, by D3's rule, said
+  // plainly so the platform team sees it before approving.
+  const notes = [...stages.slice(1), ...asideRead].flatMap(s => {
+    const n = stageName(s.name);
+    if (s.built_by !== "pipeline") return [`The library does not say who builds ${n}, so seaLeye would.`];
+    return String(s.pipeline || "").trim() ? [] : [`The library's pipeline builds ${n}, but no pipeline file was named.`];
+  });
+  return { path, ...(aside.length ? { aside } : {}), ...(notes.length ? { notes } : {}) };
+}
+
+/**
+ * The draft's stage map, from the library reader's path (or the draft's own, when no
+ * library is given) and each entry's stage fields: an `instead` named by folder becomes
+ * the module's id, and every entry a stage adds (`added`) becomes a `with` (PHASE5-PLAN
+ * Step 2). Safe to run again on a draft that has one.
+ */
+export function withStageMap(doc, library) {
+  const fromLibrary = library !== undefined ? pathFrom(library) : null;
+  const ids = new Map((doc.modules || []).map(m => [m.source, m.id]));
+  const modules = (doc.modules || []).map(m => {
+    if (!m?.instead?.source) return m;
+    // A module named in its own place says nothing (Greg's runs of Step 2, Nov 1, 2026).
+    const own = m.instead.source === m.source || m.instead.source === m.id || m.instead.source === m.source.split("/").pop();
+    if (own) return (({ instead: _i, ...r }) => r)(m);
+    const byName = [...ids].filter(([src]) => src.split("/").pop() === m.instead.source);
+    // A folder named by its last part counts only when one folder has that name.
+    const id = ids.get(m.instead.source) || ids.get(`modules/${m.instead.source}`) || (byName.length === 1 ? byName[0][1] : undefined);
+    return { ...m, instead: { from: m.instead.from, module: id || m.instead.source } };
+  });
+  const base = fromLibrary ? (fromLibrary.path ? { path: fromLibrary.path, ...(fromLibrary.aside ? { aside: fromLibrary.aside } : {}) } : null) : doc.stages ? { path: doc.stages.path, ...(doc.stages.aside ? { aside: doc.stages.aside } : {}) } : null;
+  const discovery = { ...(doc.discovery || {}) };
+  delete discovery.unproven;
+  // What seaLeye read of the path but could not use, or filled in itself: said on the
+  // self-test for whoever approves, never a reason to hold the catalog back, since a
+  // catalog with no path builds dev alone (the review of Step 2, Nov 1, 2026).
+  if (fromLibrary) {
+    delete discovery.stage_notes;
+    const notes = [...(fromLibrary.why ? [fromLibrary.why] : []), ...(fromLibrary.notes || [])];
+    if (notes.length) discovery.stage_notes = notes;
+  }
+  const { stages: _was, ...rest } = doc;
+  if (!base || base.path.length < 2) return { ...rest, discovery, modules: modules.map(withoutStageFields) };
+  // A replacement from a stage that is not one past dev on the path is not a reading of
+  // the map at all (a deprecated cache "replaced from dev"): left out, with a note.
+  const later = new Set([...base.path.slice(1), ...(base.aside || [])].map(s => s.name));
+  const notes = [...(discovery.stage_notes || [])];
+  const placed = modules.map(m => {
+    if (!m.instead || later.has(m.instead.from)) return m;
+    notes.push(`${m.id} was said to give way to ${m.instead.module} from ${m.instead.from || "no stage"}, which is not a stage past ${FIRST_STAGE}; it is left out.`);
+    return (({ instead: _i, ...r }) => r)(m);
+  });
+  // Written the wrong way round: the module said to give way is the one for the later
+  // stages, and the one it names is for the earlier; the replacement is put on the
+  // earlier one.
+  const order = name => [...base.path, ...(base.aside || [])].findIndex(s => s.name === name);
+  const firstAt = m => (Array.isArray(m?.stages) && m.stages.length ? Math.min(...m.stages.map(order).filter(n => n >= 0)) : null);
+  const fixed = placed.map(m => ({ ...m }));
+  for (const m of fixed) {
+    const other = m.instead && fixed.find(o => o.id === m.instead.module);
+    if (!other || other.instead) continue;
+    const mine = firstAt(m);
+    const theirs = firstAt(other);
+    if (mine !== null && theirs !== null && mine >= order(m.instead.from) && theirs < order(m.instead.from)) {
+      other.instead = { from: m.instead.from, module: m.id };
+      delete m.instead;
+    }
+  }
+  // A replacement says which stages each of the two is for, when neither said (Greg's
+  // runs of Step 2, Nov 1, 2026: the replacement written, each module's stages left out):
+  // the one given way to before the stage, the other from it, an aside going with the
+  // stage it is set aside from. Said in a note, for whoever approves.
+  const at = s => base.path.findIndex(p => p.name === s);
+  const reach = name => { const a = (base.aside || []).find(x => x.name === name); return a ? at(a.from) : at(name); };
+  // In the order an app meets them: each stage on the path, an aside after the one it is
+  // set aside from.
+  const names = [...base.path, ...(base.aside || [])].map(s => s.name).sort((a, b) => reach(a) - reach(b) || (base.path.some(s => s.name === a) ? 0 : 1) - (base.path.some(s => s.name === b) ? 0 : 1));
+  // Several stages written as one ("dev-sit-uat"), each a stage on the path, are those
+  // stages (Greg's run of Step 2, Nov 1, 2026).
+  const known = new Set(names);
+  for (const m of fixed) {
+    if (!Array.isArray(m.stages)) continue;
+    const split = m.stages.flatMap(s => {
+      if (known.has(s)) return [s];
+      const parts = String(s).split(/[^a-z0-9]+/).filter(Boolean);
+      return parts.length > 1 && parts.every(x => known.has(x)) ? parts : [s];
+    });
+    m.stages = [...new Set(split)];
+    // Every stage there is says no more than saying none: a module for every stage
+    // (Greg's runs of Step 2, Nov 1, 2026: custom-domain, "the same at every stage").
+    if (names.every(n => m.stages.includes(n)) && m.stages.every(s => known.has(s))) delete m.stages;
+  }
+  const before = from => names.filter(n => reach(n) >= 0 && reach(n) < at(from));
+  const fromOn = from => names.filter(n => reach(n) >= at(from));
+  for (const m of fixed) {
+    if (!m.instead || at(m.instead.from) < 1) continue;
+    const other = fixed.find(o => o.id === m.instead.module);
+    if (!Array.isArray(m.stages) || !m.stages.length) {
+      m.stages = before(m.instead.from);
+      m.stages_read_from = m.id;
+      notes.push(`${m.id}'s stages were not said; as ${m.instead.module} takes its place from ${m.instead.from}, it is for ${m.stages.join(", ")}.`);
+    }
+    if (other && (!Array.isArray(other.stages) || !other.stages.length)) {
+      other.stages = fromOn(m.instead.from);
+      other.stages_read_from = m.id;
+      notes.push(`${other.id}'s stages were not said; as it takes ${m.id}'s place from ${m.instead.from}, it is for ${other.stages.join(", ")}.`);
+    }
+  }
+  // A module a stage adds is not one an app plans: its own stages say nothing (the stage
+  // that adds it does), and the need it stands beside is not one it meets, unless some
+  // module gives way to it, which makes it one an app's plan reaches.
+  const replacing = new Set(fixed.filter(m => m.instead).map(m => m.instead.module));
+  for (const m of fixed) {
+    if (!m.added) continue;
+    delete m.stages;
+    const meets = Array.isArray(m.meets) ? m.meets : [];
+    if (meets.length && !replacing.has(m.id) && meets.every(n => n === m.added.beside)) {
+      m.meets = [];
+      notes.push(`${m.id} is added from ${m.added.from} beside every app that needs ${m.added.beside}, so it is not one an app asks for itself.`);
+    }
+  }
+  if (notes.length) discovery.stage_notes = [...new Set(notes)];
+  const adds = fixed.filter(m => m.added).map(m => ({ from: m.added.from, module: m.id, beside: m.added.beside }));
+  // Read again with no library (a rewrite, or the eval's --reread), what the map already
+  // says a stage adds stays, for a module whose entry does not say it itself.
+  if (!fromLibrary) for (const w of doc.stages?.with || []) if (w && !adds.some(a => a.module === w.module)) adds.push(w);
+  return { ...rest, discovery, modules: fixed, stages: { ...base, ...(adds.length ? { with: adds } : {}) } };
+}
+
+function withoutStageFields(m) {
+  const out = { ...m };
+  for (const f of STAGE_FIELDS) delete out[f];
+  return out;
+}
+
+/**
+ * A draft whose stage map holds only what code can prove (PHASE5-PLAN D2): what the
+ * shape check refuses, or the self-test's proof does not hold, is taken out and listed in
+ * `discovery.unproven` ({ kind, module?, other?, words }), for the run to ask about with
+ * its guess. A guess never goes live. A module with nothing at a later stage is listed
+ * too, though nothing is taken out: the self-test holds the catalog back until it is
+ * answered.
+ */
+export function provenStageMap(doc) {
+  if (!doc.stages) return doc;
+  const unproven = [...(doc.discovery?.unproven || [])];
+  const notes = [...(doc.discovery?.stage_notes || [])];
+  let d = structuredClone(doc);
+  // Stages read from a replacement go with it, when it does not hold.
+  const unread = id => {
+    const derived = d.modules.filter(m => m.stages_read_from === id);
+    d.modules = d.modules.map(m => (m.stages_read_from === id ? (({ stages: _s, stages_read_from: _r, ...r }) => r)(m) : m));
+    for (let i = notes.length - 1; i >= 0; i--) if (derived.some(m => notes[i].startsWith(`${m.id}'s stages were not said;`))) notes.splice(i, 1);
+  };
+  // The path itself: refused, there is no map at all.
+  const bare = { ...d, modules: d.modules.map(withoutStageFields), stages: { ...d.stages, with: [] } };
+  const pathProblems = stageMapProblems(bare);
+  if (pathProblems.length) {
+    const { stages: _gone, ...rest } = d;
+    return { ...rest, modules: d.modules.map(withoutStageFields), discovery: { ...d.discovery, stage_notes: [...(d.discovery?.stage_notes || []), `The path to production was not used: ${pathProblems.join("; ")}.`] } };
+  }
+  // An entry's own stage fields that do not fit the path.
+  const problems = stageMapProblems(d);
+  // Only the field that is wrong goes, never the module's other stage fields: a module
+  // with no `stages` is for every stage, which is a claim of its own (the review).
+  const known = new Set([...(d.stages.path || []), ...(d.stages.aside || [])].map(s => s.name));
+  const dropped = [];
+  d.modules = d.modules.map(m => {
+    const own = problems.filter(p => p.startsWith(`module ${m.id}:`));
+    if (!own.length) return m;
+    const out = { ...m };
+    const words = own.map(p => p.replace(`module ${m.id}: `, ""));
+    if (own.some(p => / stages /.test(p) || p.includes(": stages "))) {
+      const kept = (m.stages || []).filter(s => known.has(s));
+      const unknown = (m.stages || []).filter(s => !known.has(s));
+      // A stage the path does not have is the library reader's to find, not a guess to
+      // settle here: it is left out, said in the notes, and the rest kept (Greg's run of
+      // Step 2, Nov 1, 2026: a reader left perf out of the path, and the cluster's perf was
+      // asked about with a guess no answer could make true).
+      if (kept.length && unknown.length && Array.isArray(m.stages)) {
+        out.stages = kept;
+        notes.push(`${m.id} names ${unknown.join(" and ")}, which the path to production as read does not have, so it is left out.`);
+      } else {
+        if (kept.length) out.stages = kept;
+        else delete out.stages;
+        unproven.push({ kind: "stages", module: m.id, words: words.filter(w => w.startsWith("stages")).join("; ") || words.join("; ") });
+      }
+    }
+    if (own.some(p => p.includes(": instead "))) {
+      delete out.instead;
+      dropped.push(m.id);
+      unproven.push({ kind: "instead", module: m.id, other: m.instead?.module, from: m.instead?.from, words: words.filter(w => w.startsWith("instead")).join("; ") || words.join("; ") });
+    }
+    return out;
+  });
+  for (const id of dropped) unread(id);
+  const dropWith = (module, words) => {
+    const w = (d.stages.with || []).find(x => x.module === module);
+    unproven.push({ kind: "with", module, ...(w ? { from: w.from, beside: w.beside } : {}), words });
+    d.stages = { ...d.stages, with: (d.stages.with || []).filter(w => w.module !== module) };
+    d.modules = d.modules.map(m => (m.id === module ? (({ added: _a, ...r }) => r)(m) : m));
+  };
+  for (const p of stageMapProblems(d).filter(p => p.startsWith("stages.with"))) {
+    const w = (d.stages.with || []).find(w => p.includes(` ${w.module} `) || p.includes(` ${w.module},`));
+    if (w) dropWith(w.module, p);
+  }
+  // What the self-test proves: an instead or a with that does not hold is taken out.
+  for (const f of stageMapFindings(d)) {
+    if (f.kind === "instead" && d.modules.find(m => m.id === f.module)?.instead) {
+      unproven.push({ kind: "instead", module: f.module, other: f.other, from: f.from, words: f.words });
+      d.modules = d.modules.map(m => (m.id === f.module ? (({ instead: _i, ...r }) => r)(m) : m));
+      unread(f.module);
+    } else if (f.kind === "with" && (d.stages.with || []).some(w => w.module === f.module)) dropWith(f.module, f.words);
+  }
+  // A module read as for later stages only, that no app could reach that way, is for
+  // every stage, as a catalog says of a module when it says nothing: said in a note.
+  for (const f of stageMapFindings(d).filter(f => f.kind === "unreached")) {
+    const m = d.modules.find(x => x.id === f.module);
+    if (!m?.stages) continue;
+    notes.push(`${m.id} was read as for ${m.stages.join(", ")} only, but nothing takes it in another's place or adds it at a stage, so no app could use it; it is for every stage.`);
+    d.modules = d.modules.map(x => (x.id === f.module ? (({ stages: _s, ...r }) => r)(x) : x));
+  }
+  for (const f of stageMapFindings(d)) if (f.kind === "coverage") unproven.push({ kind: "coverage", module: f.module, stages: f.stages, words: f.words });
+  if (!(d.stages.with || []).length) {
+    const { with: _w, ...s } = d.stages;
+    d.stages = s;
+  }
+  d.discovery = { ...d.discovery, ...(unproven.length ? { unproven } : {}), ...(notes.length ? { stage_notes: [...new Set(notes)] } : {}) };
+  if (!notes.length) delete d.discovery.stage_notes;
+  if (!unproven.length) delete d.discovery.unproven;
+  d.modules = d.modules.map(({ stages_read_from: _r, ...m }) => m);
+  return d;
 }
