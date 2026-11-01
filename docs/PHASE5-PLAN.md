@@ -219,6 +219,19 @@ and Edit words), kept when the library is read again, as an edited word is kept
 (`keepEdits`). It is what lets Juniper's platform team set sit and uat to seaLeye (Greg,
 Nov 1). About a day and a half.
 
+Decided Sun Nov 1, 2026 (Greg):
+
+- **Scope: who applies a stage only**, and the pipeline's name when it is a pipeline. A
+  module's stages and replacement already reach the map through discovery's questions.
+  dev is always seaLeye's, and is not edited.
+- **The library wins when it changes.** The edit is kept on each rediscovery while the
+  library says of that stage what it said when the edit was made (the reading is kept
+  with the edit). When the library's reading of the stage changes, the draft takes what
+  the library now says, and the self-test's notes say so: the change it replaces, who
+  made it, and the date and time.
+- **Next, before Step 3**, so Juniper's sit and uat are set in the same pass as the pilot
+  rediscovery.
+
 ## Part B: an environment at a stage
 
 ### Step 3. One app, an environment per stage (D5)
