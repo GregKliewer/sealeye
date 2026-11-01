@@ -431,6 +431,9 @@ export function withStageMap(doc, library) {
   }
   if (notes.length) discovery.stage_notes = [...new Set(notes)];
   const adds = fixed.filter(m => m.added).map(m => ({ from: m.added.from, module: m.id, beside: m.added.beside }));
+  // Read again with no library (a rewrite, or the eval's --reread), what the map already
+  // says a stage adds stays, for a module whose entry does not say it itself.
+  if (!fromLibrary) for (const w of doc.stages?.with || []) if (w && !adds.some(a => a.module === w.module)) adds.push(w);
   return { ...rest, discovery, modules: fixed, stages: { ...base, ...(adds.length ? { with: adds } : {}) } };
 }
 

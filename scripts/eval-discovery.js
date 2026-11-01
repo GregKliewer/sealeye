@@ -5,6 +5,8 @@
 //
 //   npm run eval:discovery                                  grade the answer key itself
 //   npm run eval:discovery -- --catalog <file.yaml|.json>   grade a catalog discovery wrote
+//     [--reread]                                         its stage map read again by
+//                                                        today's code first: no model, no cost
 //   npm run eval:discovery -- --library <path>              also check the key against
 //                                                           a clone of the library
 //   npm run eval:discovery -- --smoke                       seaLeye's own templates/,
@@ -35,6 +37,7 @@ import YAML from "yaml";
 
 import { repoRoot } from "../core/config.js";
 import { catalogProblems, starterCatalog } from "../core/catalog.js";
+import { provenStageMap, withStageMap } from "../api/discovery/draft.js";
 import { isRedactedLine } from "../core/scan.js";
 import { secretFileReason } from "../core/secrets.js";
 
@@ -708,7 +711,10 @@ async function main(args) {
 
   const key = loadAnswerKey();
   const catalogFile = argValue(args, "--catalog");
-  const candidate = catalogFile ? loadCatalogFile(catalogFile) : key.catalog;
+  // A draft from an earlier run, its stage map read again by the code as it is now, so
+  // a change to that code is checked against runs already paid for (Greg, Nov 1, 2026).
+  const loaded = catalogFile ? loadCatalogFile(catalogFile) : key.catalog;
+  const candidate = catalogFile && args.includes("--reread") ? provenStageMap(withStageMap(loaded)) : loaded;
   const graded = gradeCatalog(candidate, key);
 
   console.log(`\nJuniper Mutual (${key.library}): ${catalogFile ? path.basename(catalogFile) : "the answer key itself"}`);
