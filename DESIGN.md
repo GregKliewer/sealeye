@@ -5017,3 +5017,8 @@ whose findings were all fixed before the pull request.
   those stages. A question touches every module it names by folder, or by a folder's
   name of more than one word, so a reader's question about one cache that asks whether
   the other replaces it touches both, whether or not the supervisor widens it.
+  A module for no stage an app plans for, that nothing takes in another's place or
+  adds at a stage, is one no app can use: the self-test names it, and discovery reads it
+  as for every stage, as a catalog says of a module when it says nothing, in a note
+  (custom-domain, read as staging and up from "anything below staging uses the address
+  the platform generates", where its README also says any stage may have a name).

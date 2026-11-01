@@ -257,6 +257,15 @@ export function stageMapFindings(doc) {
         if (unmet.length) found.push({ ...about, words: `${i.module} takes ${m.id}'s place from ${i.from}, but does not meet ${and(unmet)}` });
       }
     }
+    // A module not for dev reaches an app only in another's place or added by a stage:
+    // otherwise no plan names it, and no stage builds it (Greg's runs of Step 2, Nov 1,
+    // 2026: custom-domain read as staging and up, from "anything below staging uses the
+    // address the platform generates").
+    const reached = list(doc?.modules).some(o => o?.instead?.module === m.id) || stagePath(doc).with.some(w => w.module === m.id);
+    if (!stagesFor(m, doc).includes(FIRST_STAGE) && !reached) {
+      found.push({ kind: "unreached", module: m.id, words: `${m.id} is not for ${FIRST_STAGE}, and nothing takes it in another's place or adds it at a stage, so no app can use it: say it is for ${FIRST_STAGE} too, or which module it takes the place of` });
+      continue;
+    }
     // From the first stage a module is for, every later one has a module for it.
     const first = Math.min(...stagesFor(m, doc).map(s => stageOrder(doc, s)).filter(n => n >= 0));
     if (!Number.isFinite(first)) continue;

@@ -366,3 +366,14 @@ test("a module said to be for every stage there is is a module for every stage",
   assert.equal(byId(d, "backup").stages, undefined);
   assert.equal(d.discovery.unproven, undefined);
 });
+
+test("a module read as for later stages only, that nothing reaches, is for every stage, in a note", () => {
+  const doc = holding();
+  doc.modules.push({ id: "name", source: "modules/name", availability: "available", line: "A name of your own.", meets: ["custom_domain"] });
+  doc.need_kinds.push({ key: "custom_domain", line: "a name of its own" });
+  doc.modules[3].stages = ["staging", "prod"];
+  const d = provenStageMap(withStageMap(doc, reviewPath));
+  assert.equal(byId(d, "name").stages, undefined);
+  assert.match(d.discovery.stage_notes.join(" "), /name was read as for staging, prod only, but nothing takes it in another's place or adds it at a stage, so no app could use it; it is for every stage\./);
+  assert.equal(stagesCheck(d).passed, true);
+});

@@ -519,6 +519,14 @@ export function provenStageMap(doc) {
       unread(f.module);
     } else if (f.kind === "with" && (d.stages.with || []).some(w => w.module === f.module)) dropWith(f.module, f.words);
   }
+  // A module read as for later stages only, that no app could reach that way, is for
+  // every stage, as a catalog says of a module when it says nothing: said in a note.
+  for (const f of stageMapFindings(d).filter(f => f.kind === "unreached")) {
+    const m = d.modules.find(x => x.id === f.module);
+    if (!m?.stages) continue;
+    notes.push(`${m.id} was read as for ${m.stages.join(", ")} only, but nothing takes it in another's place or adds it at a stage, so no app could use it; it is for every stage.`);
+    d.modules = d.modules.map(x => (x.id === f.module ? (({ stages: _s, ...r }) => r)(x) : x));
+  }
   for (const f of stageMapFindings(d)) if (f.kind === "coverage") unproven.push({ kind: "coverage", module: f.module, stages: f.stages, words: f.words });
   if (!(d.stages.with || []).length) {
     const { with: _w, ...s } = d.stages;
