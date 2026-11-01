@@ -56,6 +56,12 @@ export function planConnecting(part, app, version) {
   };
 }
 
+/** What discovery could not prove of the stage map, in words, one problem each. */
+function unprovenWords(document) {
+  const list = Array.isArray(document.discovery?.unproven) ? document.discovery.unproven : [];
+  return list.filter(u => u && u.kind !== "path").map(u => `Not settled yet: ${u.words}${/[.]$/.test(u.words) ? "" : "."} Discovery asked about it; until it is answered and holds, this catalog is not approved.`);
+}
+
 const check = (id, problems, more = {}) => ({ id, title: SELF_TEST_CHECKS[id], passed: problems.length === 0, problems, ...more });
 
 /**
@@ -150,9 +156,12 @@ export function selfTest({ document, version, questionText = () => null }) {
     check("accepted", acceptedProblems),
     check("words", words, wordFixes(document, byPlace)),
     // The path to production holds together (DESIGN.md, "A module per stage, in the
-    // catalog"): passes at once for a catalog with dev alone.
-    check("stages", stageMapGaps(document))
+    // catalog"): passes at once for a catalog with dev alone. What discovery read of the
+    // map but could not prove is held back until it is settled, whatever the draft says
+    // meanwhile, so a guess never goes live (PHASE5-PLAN Step 2, and its review).
+    check("stages", [...stageMapGaps(document), ...unprovenWords(document)])
   ];
+  for (const note of Array.isArray(document.discovery?.stage_notes) ? document.discovery.stage_notes : []) notes.push(note);
   // Each module's release, by id, where its library releases it (core/module-versions.js).
   const versions = Object.fromEntries(modules.filter(m => typeof m.version === "string" && m.version).map(m => [m.id, m.version]));
   return { version, passed: checks.every(c => c.passed), checks, refused, built, versions, notes };

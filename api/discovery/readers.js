@@ -109,9 +109,36 @@ export const submitLibraryTool = {
     $defs: defs,
     required: ["stages", "rules", "questions"],
     properties: {
-      stages: { type: "array", items: { type: "string" }, description: "The path to production, in order." },
-      aside: { type: "array", items: { type: "string" }, description: "Stages built aside from that path, each with how." },
-      gates: { type: "array", items: { type: "string" }, description: "What each gate asks for, one per line, naming the stage." },
+      stages: {
+        type: "array",
+        description: "The path to production, in order, each stage as the library names it.",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["name", "built_by", "gate"],
+          properties: {
+            name: { type: "string", description: "The stage, as the library names it." },
+            built_by: { type: "string", enum: ["pipeline", "not_said"], description: "pipeline when the library's own pipeline builds or promotes to this stage; not_said when the library does not say." },
+            pipeline: { type: "string", description: "The pipeline file that does it, as a path in the library, when built_by is pipeline." },
+            gate: { type: "array", items: { type: "string" }, description: "What the stage waits on before it is built, each in a few words (a platform team approval, an approved change ticket). Empty when nothing." }
+          }
+        }
+      },
+      aside: {
+        type: "array",
+        description: "Stages built aside from that path and never promoted to (a load test's, say).",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["name", "from", "built_by"],
+          properties: {
+            name: { type: "string" },
+            from: { type: "string", description: "The stage on the path it is built from." },
+            built_by: { type: "string", enum: ["pipeline", "not_said"] },
+            pipeline: { type: "string" }
+          }
+        }
+      },
       rules: {
         type: "array",
         items: {
@@ -161,6 +188,21 @@ export const writeCatalogTool = {
             guidance: { type: "string" },
             input_lines: { type: "object", additionalProperties: { type: "string" } },
             meets: { type: "array", items: { type: "string", enum: NEED_KEYS }, description: "The needs an app may have, by key from the list given, that this module meets for an app that uses it. Empty when it meets none of them." },
+            stages: { type: "array", items: { type: "string" }, description: "The stages it is for, by the names of the path the library reader found, when the library says it is not for all of them. Leave out when it is for every stage." },
+            instead: {
+              type: "object",
+              additionalProperties: false,
+              required: ["from", "source"],
+              description: "Only when the library says another module takes this one's place from a later stage: that module's folder, and the first stage it takes over. On the module that comes first only.",
+              properties: { from: { type: "string" }, source: { type: "string" } }
+            },
+            added: {
+              type: "object",
+              additionalProperties: false,
+              required: ["from", "beside"],
+              description: "Only when the library says a stage adds this module beside apps of a kind, never as something an app asks for (a backup plan beside every database from staging up): the first such stage, and the need it stands beside, by key.",
+              properties: { from: { type: "string" }, beside: { type: "string", enum: NEED_KEYS } }
+            },
             open: { type: "array", items: { type: "string" }, description: "Ids of unanswered questions this entry rests on." }
           }
         }

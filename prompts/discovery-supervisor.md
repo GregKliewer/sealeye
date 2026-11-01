@@ -22,6 +22,19 @@ For each module you are asked to write:
   still says what it meets: seaLeye knows it is not offered. Leave a need out when the
   module only helps with it, or when nothing in the findings says the module does it.
 
+The path to production (the library reader's `stages`): most modules are the same at
+every stage, told which stage they are in, and need nothing more here. For the few that
+are not, say what the library says, by its own folders and stage names:
+- `stages`: the stages a module is for, when the library says it is not for all of them
+  (one database below staging, another from staging up).
+- `instead`: on the module that comes first, the folder of the one that takes its place
+  and the first stage it does so.
+- `added`: on a module a stage adds beside apps of a kind, which no app asks for (a
+  backup plan beside every database from staging up): that first stage, and the need it
+  stands beside, by key. Such a module meets no need itself.
+seaLeye checks each against the modules it names, and asks about any it cannot prove;
+leave one out rather than guess.
+
 Words a developer reads (`line`, `when`, `signals`, input lines) are plain: what it gives
 their app, never how the cloud provider builds it. They follow one rule:
 {{plain_words}}

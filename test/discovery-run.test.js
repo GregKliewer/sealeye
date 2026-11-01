@@ -342,11 +342,22 @@ test("Juniper Mutual: given good words, the draft passes the answer key's checks
           const k = words.get(source);
           return { content: [{ type: "tool_use", id: "f", name: "submit_finding", input: { line: k.line, when: k.when || "", signals: k.signals || [], role: k.role || "optional", availability: k.availability === "available" ? "available" : "deprecated", stages: "all", rules: [], questions: [] } }], usage };
         }
-        if (tools.includes("submit_library")) return { content: [{ type: "tool_use", id: "l", name: "submit_library", input: { stages: ["dev", "sit", "uat", "staging", "prod"], rules: [], questions: [] } }], usage };
+        // The path as the key's catalog says it, as a library reader writes one (Phase 5 Step 2).
+        if (tools.includes("submit_library")) {
+          const reader = s => ({ name: s.name, built_by: s.applies === "pipeline" ? "pipeline" : "not_said", ...(s.pipeline ? { pipeline: s.pipeline } : {}), gate: s.gate || [], ...(s.from ? { from: s.from } : {}) });
+          return { content: [{ type: "tool_use", id: "l", name: "submit_library", input: { stages: key.catalog.stages.path.map(reader), aside: (key.catalog.stages.aside || []).map(reader), rules: [], questions: [] } }], usage };
+        }
         const sources = opening.match(/Write the entries for these modules: (.+)\./)[1].split(", ");
+        const sourceOf = id => key.catalog.modules.find(m => m.id === id)?.source;
         const entries = sources.map(source => {
           const k = words.get(source);
-          return { source, line: k.line, when: k.when || "", signals: k.signals || [], role: k.role || "optional", availability: k.availability === "available" ? "available" : "deprecated", guidance: k.guidance || "", open: [] };
+          const added = (key.catalog.stages.with || []).find(w => sourceOf(w.module) === source);
+          return {
+            source, line: k.line, when: k.when || "", signals: k.signals || [], role: k.role || "optional", availability: k.availability === "available" ? "available" : "deprecated", guidance: k.guidance || "", meets: k.meets || [], open: [],
+            ...(k.stages ? { stages: k.stages } : {}),
+            ...(k.instead ? { instead: { from: k.instead.from, source: sourceOf(k.instead.module) } } : {}),
+            ...(added ? { added: { from: added.from, beside: added.beside } } : {})
+          };
         });
         return { content: [{ type: "tool_use", id: "w", name: "write_catalog", input: { entries, questions: [] } }], usage };
       }

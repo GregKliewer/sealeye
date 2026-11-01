@@ -22,7 +22,7 @@ test("the answer key is a catalog by seaLeye's own rules, and passes its own gra
   assert.equal(key.catalog.modules.length, 15);
   const graded = gradeCatalog(key.catalog, key);
   assert.equal(graded.correct, true, gradeLines(graded).join("\n"));
-  assert.deepEqual(graded.pending.map(p => p.case), ["overlap", "addition", "unclear module asked", "stages"], "what waits is listed, never counted as passed");
+  assert.deepEqual(graded.pending.map(p => p.case), ["unclear module asked"], "what waits is listed, never counted as passed");
   assert.equal(graded.needs.ok, true, "the key's meets leave exactly its gaps unmet");
   assert.deepEqual(graded.needs.gaps.unmet, ["event_stream", "scheduled_task", "user_sign_in"]);
   assert.ok(key.catalog.modules.every(m => !isBuildable(m.id, key.catalog)), "nothing builds Terraform until Step 9");
@@ -169,8 +169,20 @@ test("graded twice: no answers, then the key's answers at fixed points; each pas
     // The unclear cache is offered as the answer says, once it has one.
     const valkey = asked.find(q => (q.touches || []).includes("modules/cache-valkey"));
     const availability = k.availability === "available" ? "available" : "deprecated";
-    return { source, line: k.line, when: k.when || "", signals: k.signals || [], role: k.role || "optional", availability: source === "modules/cache-valkey" && valkey?.answer?.startsWith("No") ? "deprecated" : availability, guidance: k.guidance || "", open: [] };
+    // The stage map as the key says (Phase 5 Step 2): which stages, what takes over, and
+    // what a stage adds, by folder.
+    const sourceOf = id => key.catalog.modules.find(m => m.id === id)?.source;
+    const added = (key.catalog.stages?.with || []).find(w => sourceOf(w.module) === source);
+    const stageFields = {
+      ...(k.stages ? { stages: k.stages } : {}),
+      ...(k.instead ? { instead: { from: k.instead.from, source: sourceOf(k.instead.module) } } : {}),
+      ...(added ? { added: { from: added.from, beside: added.beside } } : {})
+    };
+    return { source, line: k.line, when: k.when || "", signals: k.signals || [], role: k.role || "optional", availability: source === "modules/cache-valkey" && valkey?.answer?.startsWith("No") ? "deprecated" : availability, guidance: k.guidance || "", meets: k.meets || [], open: [], ...stageFields };
   };
+  // The path as the library reader would write it: each stage, who builds it, its gate.
+  const libraryStages = key.catalog.stages.path.map(s => ({ name: s.name, built_by: s.applies === "pipeline" ? "pipeline" : "not_said", ...(s.pipeline ? { pipeline: s.pipeline } : {}), gate: s.gate || [] }));
+  const libraryAside = (key.catalog.stages.aside || []).map(s => ({ name: s.name, from: s.from, built_by: s.applies === "pipeline" ? "pipeline" : "not_said", ...(s.pipeline ? { pipeline: s.pipeline } : {}) }));
   // A model with the key's words that asks what a careful engineer asks: the unclear
   // cache (the supervisor, naming both), and one question of a reader's own.
   const client = {
@@ -193,7 +205,7 @@ test("graded twice: no answers, then the key's answers at fixed points; each pas
           return { content: [{ type: "tool_use", id: "f", name: "submit_finding", input: { line: k.line, when: k.when || "", signals: k.signals || [], role: k.role || "optional", availability: k.availability === "available" ? "available" : "deprecated", stages: "all", rules: [], questions } }], usage };
         }
         // And a question about the whole catalog, which holds approval until it is answered.
-        if (tools.includes("submit_library")) return { content: [{ type: "tool_use", id: "l", name: "submit_library", input: { stages: ["dev", "sit", "uat", "staging", "prod"], rules: [], questions: [{ kind: "other", question: "How is the perf stage built?", options: ["From the staging package", "Its own pipeline"], guess: "From the staging package", evidence: [{ file: "README.md", shows: "perf has no job" }] }] } }], usage };
+        if (tools.includes("submit_library")) return { content: [{ type: "tool_use", id: "l", name: "submit_library", input: { stages: libraryStages, aside: libraryAside, rules: [], questions: [{ kind: "other", question: "How is the perf stage built?", options: ["From the staging package", "Its own pipeline"], guess: "From the staging package", evidence: [{ file: "README.md", shows: "perf has no job" }] }] } }], usage };
         const sources = opening.match(/Write the entries for these modules: (.+)\./)[1].split(", ");
         const asked = JSON.parse(opening.slice(opening.indexOf("Questions so far, with any answers:") + 35));
         const first = sources.length > 2;
