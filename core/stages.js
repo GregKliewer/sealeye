@@ -229,8 +229,18 @@ const offered = entry => [...(entry?.offers?.access ? ["access"] : []), ...list(
  * asks for, beside a need some module meets. Empty for a catalog with dev alone.
  */
 export function stageMapGaps(doc) {
+  return stageMapFindings(doc).map(f => f.words);
+}
+
+/**
+ * The same, each with what it is about, so discovery can take out just the part that is
+ * not proven and ask about it (PHASE5-PLAN Step 2): { kind, module, other?, from?, words }.
+ * `kind` is "instead" (a module taking another's place, not proven), "coverage" (a
+ * module with nothing at a later stage), or "with" (what a stage adds, not proven).
+ */
+export function stageMapFindings(doc) {
   if (!hasStagesPastDev(doc)) return [];
-  const gaps = [];
+  const found = [];
   const names = stageNames(doc);
   for (const m of list(doc?.modules)) {
     if (!m || !isText(m.id) || m.availability !== "available") continue;
@@ -238,26 +248,39 @@ export function stageMapGaps(doc) {
     if (i && isText(i.module)) {
       const later = entryOf(doc, i.module);
       if (later) {
+        const about = { kind: "instead", module: m.id, other: i.module, from: i.from };
         const [a, b] = [requiredInputs(m), requiredInputs(later)];
-        if (a.join() !== b.join()) gaps.push(`${i.module} takes ${m.id}'s place from ${i.from}, but needs ${and(b) || "nothing"} where ${m.id} needs ${and(a) || "nothing"}`);
+        if (a.join() !== b.join()) found.push({ ...about, words: `${i.module} takes ${m.id}'s place from ${i.from}, but needs ${and(b) || "nothing"} where ${m.id} needs ${and(a) || "nothing"}` });
         const lost = offered(m).filter(o => !offered(later).includes(o));
-        if (lost.length) gaps.push(`${i.module} takes ${m.id}'s place from ${i.from}, but does not offer ${and(lost)}, which a plan may connect`);
+        if (lost.length) found.push({ ...about, words: `${i.module} takes ${m.id}'s place from ${i.from}, but does not offer ${and(lost)}, which a plan may connect` });
         const unmet = list(m.meets).filter(k => !list(later.meets).includes(k));
-        if (unmet.length) gaps.push(`${i.module} takes ${m.id}'s place from ${i.from}, but does not meet ${and(unmet)}`);
+        if (unmet.length) found.push({ ...about, words: `${i.module} takes ${m.id}'s place from ${i.from}, but does not meet ${and(unmet)}` });
       }
     }
     // From the first stage a module is for, every later one has a module for it.
     const first = Math.min(...stagesFor(m, doc).map(s => stageOrder(doc, s)).filter(n => n >= 0));
     if (!Number.isFinite(first)) continue;
     const missing = names.filter(s => stageOrder(doc, s) >= first && moduleAtStage(doc, m.id, s).why);
-    if (missing.length) gaps.push(`${m.id} has no module at ${and(missing)}: say what takes its place (instead), or that it is for ${missing.length === 1 ? "that stage" : "those stages"} too`);
+    if (missing.length) found.push({ kind: "coverage", module: m.id, stages: missing, words: `${m.id} has no module at ${and(missing)}: say what takes its place (instead), or that it is for ${missing.length === 1 ? "that stage" : "those stages"} too` });
   }
   for (const w of stagePath(doc).with) {
     const added = entryOf(doc, w.module);
-    if (added && list(added.meets).length) gaps.push(`${w.from} adds ${w.module}, which meets what an app asks for (${and(added.meets)}); a module a stage adds is one no app asks for`);
-    if (!list(doc?.modules).some(m => m?.availability === "available" && list(m.meets).includes(w.beside))) gaps.push(`${w.from} adds ${w.module} beside ${w.beside}, which no module the catalog offers meets`);
+    const about = { kind: "with", module: w.module, from: w.from, beside: w.beside };
+    if (added && list(added.meets).length) found.push({ ...about, words: `${w.from} adds ${w.module}, which meets what an app asks for (${and(added.meets)}); a module a stage adds is one no app asks for` });
+    if (!list(doc?.modules).some(m => m?.availability === "available" && list(m.meets).includes(w.beside))) found.push({ ...about, words: `${w.from} adds ${w.module} beside ${w.beside}, which no module the catalog offers meets` });
   }
-  return gaps;
+  return found;
+}
+
+/**
+ * A catalog as the interview plans from it: only the modules that are for dev, since a
+ * developer plans what dev builds and the platform resolves each later stage from the
+ * catalog (PHASE5-PLAN Step 2). A catalog with dev alone is returned as it is, so the
+ * starter's prompt and tool are byte for byte what they were.
+ */
+export function forDev(catalog) {
+  if (!hasStagesPastDev(catalog)) return catalog;
+  return { ...catalog, modules: list(catalog.modules).filter(m => stagesFor(m, catalog).includes(FIRST_STAGE)) };
 }
 
 /**

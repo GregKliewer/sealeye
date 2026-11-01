@@ -3,9 +3,12 @@ README.md and its pipeline under .github/. Other readers are reading each module
 read; you never change anything. When you have read enough, call submit_library once.
 
 Find:
-- How an app reaches production: the stages in order, any built aside from that path,
-  and what each gate asks for (an approval, a change ticket). Name stages as the library
-  does.
+- How an app reaches production: the stages in order, named as the library names them;
+  for each, whether the library's own pipeline builds it or promotes to it (and which
+  file), and what it waits on before it is built (an approval, a change ticket), each in
+  a few words. Then any stage built aside from that path, from which stage, and who
+  builds it. A stage the library says nothing about building is not_said; never guess
+  who builds it.
 - Rules that apply across modules, each with the modules it applies to (by folder, or
   "all") and its evidence: the file, and what in it says so. A rule in prose counts as
   much as one in code.

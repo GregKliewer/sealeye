@@ -259,7 +259,7 @@ export function buildableView(catalog = loadCatalog()) {
     // them (delivers.logs).
     // A module's stages, and what takes its place later, said by that module's line and
     // never its id (core/stages.js): it may be one the platform does not build yet.
-    modules: modules.map(({ builds_with, guidance, edited, outputs, delivers, runs, offers, accepts, tag, commit, unreleased, meets, stages, instead, ...m }) => ({ ...m, ...moduleStageView({ stages, instead }, catalog), buildable: true, operations: operationsOf({ builds_with, delivers }) })),
+    modules: modules.map(({ builds_with, guidance, edited, outputs, delivers, runs, offers, accepts, tag, commit, unreleased, meets, stages, instead, added, ...m }) => ({ ...m, ...moduleStageView({ stages, instead }, catalog), buildable: true, operations: operationsOf({ builds_with, delivers }) })),
     need_kinds: catalog.need_kinds || [],
     profiles: catalog.profiles || [],
     patterns,
