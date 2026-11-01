@@ -1093,6 +1093,24 @@ test("a live catalog is titled as live, never as a draft, and an answer used lat
   await expect(answers.filter({ hasText: "private network" })).toContainText("written into catalog 4, after this one");
 });
 
+test("who builds a stage of a draft is changed here, as `sealeye catalog edit --stage` does, and marked whose choice it is", async ({ page }) => {
+  await signInAs(page, JUNIPER_WIDE, "Pat Juniper");
+  await page.goto("/discovery?catalog=5");
+  const stages = page.getByTestId("who-builds-stage");
+  await expect(stages).toHaveCount(2);
+  const sit = stages.filter({ hasText: "sit" });
+  await expect(sit.getByTestId("who-builds-now")).toHaveText("the pipeline .github/workflows/app-promote.yml");
+  await sit.getByTestId("who-builds-change").click();
+  await expect(sit.getByTestId("who-builds-panel")).toContainText("sealeye catalog edit 5 --stage sit");
+  await sit.getByRole("radio", { name: "seaLeye" }).check();
+  await sit.getByRole("button", { name: "Save" }).click();
+  await expect(sit.getByTestId("who-builds-now")).toHaveText("seaLeye");
+  await expect(sit.getByTestId("who-builds-edited")).toHaveText("chosen by pat@juniper.example");
+  await expect(page.getByTestId("who-builds")).toContainText("sit: built by seaLeye, as pat@juniper.example chose");
+  // A live catalog's stages are as they were approved.
+  await page.goto("/discovery?catalog=3");
+  await expect(page.getByTestId("who-builds")).toHaveCount(0);
+});
 
 // Paging and status chips (Greg, Oct 23, 2026): the API's answer is widened here, in the
 // browser, so the shared records every other test counts are left as they are.

@@ -45,7 +45,7 @@ import { startTracing } from "../core/tracing.js";
 import { authMode, callerFor, callerForSession, endSession, SESSION_COOKIE, SESSION_HOURS, startSession } from "./tokens.js";
 import { buildableView, needKinds, orgName } from "../core/catalog.js";
 import { approveCatalog, catalogAt, catalogOfRecord, catalogsOf, changeDraft, liveCatalog, makeLive, openCatalogs } from "./catalogs.js";
-import { applyEdit } from "../core/catalog-edits.js";
+import { applyEdit, applyStageEdit } from "../core/catalog-edits.js";
 import { selfTest } from "./self-test.js";
 import { environmentsDropped } from "./catalog-use.js";
 import { selfTestSummary } from "../core/discovery-words.js";
@@ -1561,7 +1561,8 @@ function catalogChangeRefused(res, err) {
   throw err;
 }
 
-// POST /catalogs/{version}/edits: { module, field, text }. A platform engineer changes the
+// POST /catalogs/{version}/edits: { module, field, text }, or { stage, field: "applies",
+// text: "sealeye" | "pipeline", pipeline? } for who builds a stage. A platform engineer changes the
 // words of one entry of a draft, before approving it: what a developer reads, or the
 // planner's guidance, never ids, inputs or availability (core/catalog-edits.js). Kept on
 // the entry with who and when, so an answer's rewrite never writes over it. Answered with
@@ -1571,12 +1572,17 @@ app.post("/catalogs/:version/edits", async (req, res) => {
   const org = callerOrg(req);
   const version = catalogVersionOf(req.params.version);
   if (!version) return catalogNotFound(res);
-  const { module, field, text } = req.body || {};
-  if (typeof module !== "string" || typeof field !== "string" || typeof text !== "string") {
-    return res.status(400).json({ error: { code: "BAD_EDIT", message: "An edit names the module, the field and its new words." } });
+  const { module, stage, field, text, pipeline } = req.body || {};
+  // Or who builds one stage: { stage, field: "applies", text: "sealeye" | "pipeline", pipeline? }
+  // (PHASE5-PLAN Step 2b), kept with who and when as an edited word is.
+  const byStage = typeof stage === "string";
+  if (byStage ? field !== "applies" || typeof text !== "string" || (pipeline != null && typeof pipeline !== "string") : typeof module !== "string" || typeof field !== "string" || typeof text !== "string") {
+    return res.status(400).json({ error: { code: "BAD_EDIT", message: byStage ? "An edit of a stage names the stage, the field applies, and sealeye or pipeline, with the pipeline's name." : "An edit names the module, the field and its new words." } });
   }
+  const by = req.caller?.email || "someone, with sign-in off";
+  const at = new Date().toISOString();
   try {
-    await changeDraft({ org, version, change: doc => applyEdit(doc, { module, field, text, by: req.caller?.email || "someone, with sign-in off", at: new Date().toISOString() }) });
+    await changeDraft({ org, version, change: doc => (byStage ? applyStageEdit(doc, { stage, applies: text, pipeline, by, at }) : applyEdit(doc, { module, field, text, by, at })) });
   } catch (err) {
     if (err.code === "BAD_EDIT") return res.status(400).json({ error: { code: "BAD_EDIT", message: `${err.message}.` } });
     return catalogChangeRefused(res, err);

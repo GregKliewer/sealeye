@@ -58,7 +58,9 @@ export interface DraftModule {
   inputs?: Record<string, { required: boolean; line?: string }>; open?: string[]; not_read?: string;
   short_line?: string; skip_line?: string; edited?: Record<string, { by: string | null; at: string | null }>;
 }
-export interface DraftCatalog { modules: DraftModule[]; discovery?: { open?: string[] } }
+export interface DraftCatalog { modules: DraftModule[]; discovery?: { open?: string[] }; stages?: { path?: DraftStage[]; aside?: DraftStage[] } }
+/** A stage of a draft's path as the platform team sees it: who builds it, and any change a person made. */
+export interface DraftStage { name: string; applies?: "sealeye" | "pipeline"; pipeline?: string; from?: string; edited?: { by: string | null; at: string | null; read: { applies: string; pipeline?: string } } }
 
 // An organization's catalogs, the self-test, approving and making live (PHASE4-PLAN Step 7).
 export interface CatalogSummary {
@@ -337,6 +339,9 @@ export const api = {
   catalogVersion: (version: number) => request<{ catalog: CatalogSummary; document: DraftCatalog }>(`/catalogs/${version}`),
   editCatalog: (version: number, module: string, field: string, text: string) =>
     request<{ catalog: CatalogSummary; selfTest: SelfTest }>(`/catalogs/${version}/edits`, { method: "POST", body: { module, field, text } }),
+  // Who builds a stage (PHASE5-PLAN Step 2b): sealeye, or a pipeline by its name.
+  editCatalogStage: (version: number, stage: string, applies: "sealeye" | "pipeline", pipeline?: string) =>
+    request<{ catalog: CatalogSummary; selfTest: SelfTest }>(`/catalogs/${version}/edits`, { method: "POST", body: { stage, field: "applies", text: applies, ...(applies === "pipeline" ? { pipeline } : {}) } }),
   makeCatalogLive: (version: number) => request<{ selfTest: SelfTest }>(`/catalogs/${version}/live`, { method: "POST", body: {} }),
   answerDiscovery: (id: string, question: string, answer: string) =>
     request<{ question: DiscoveryQuestion }>(`/discoveries/${encodeURIComponent(id)}/answers`, { method: "POST", body: { question, answer } }).then(r => r.question),

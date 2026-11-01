@@ -275,8 +275,9 @@ while it runs or after); discovery is an organization-wide token's only, one run
 fix` and the portal walk with the edits below), POST /catalogs/{v}/approve (a draft; 422 SELF_TEST_FAILED with
 the result) and POST /catalogs/{v}/live (an approved or retired one; 422
 SELF_TEST_FAILED, 409 CATALOG_IN_USE), GET /catalogs/{v} (one, with its document) and
-POST /catalogs/{v}/edits ({ module, field, text }: a draft's words only, answered with
-the self-test), an organization-wide token's only too. Every endpoint but GET /health
+POST /catalogs/{v}/edits ({ module, field, text }: a draft's words only, or { stage,
+field: "applies", text: sealeye|pipeline, pipeline? }: who builds a stage past dev, kept on
+rediscovery while the library says the same; answered with the self-test), an organization-wide token's only too. Every endpoint but GET /health
 and the two /sessions needs `Authorization: Bearer <token>` (`api/tokens.js`) or the
 portal's session cookie; a change made with the cookie must also carry
 `x-sealeye-portal: 1`. A record says which surface made it. A laptop API may run with

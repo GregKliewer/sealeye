@@ -25,13 +25,25 @@ const draft = () => ({
   ],
   need_kinds: starterCatalog().need_kinds, profiles: starterCatalog().profiles
 });
+// A draft with a path past dev, Juniper's pipeline building every stage (Step 2b).
+const staged = version => {
+  const r = row(version, "draft");
+  r.document.stages = { path: [
+    { name: "dev", applies: "sealeye", gate: [] },
+    { name: "sit", applies: "pipeline", pipeline: ".github/workflows/app-promote.yml", gate: [] },
+    { name: "prod", applies: "pipeline", pipeline: ".github/workflows/app-promote.yml", gate: ["an approved change ticket"] }
+  ] };
+  // The words fixed already, so only the stage's change is in question.
+  r.document.modules[0] = { ...r.document.modules[0], line: "Named places for the secrets your app reads.", inputs: { secret_names: { required: true, line: "The names of the secrets your app reads." } } };
+  return r;
+};
 const row = (version, status) => ({ org: "default", version, status, document: draft(), createdBy: "discovery", createdAt: at, approvedBy: status === "draft" ? null : "x@example.com", approvedAt: status === "draft" ? null : at });
 
 before(async () => {
   api = await startApi({
     tokens: [{ token: ANA, id: "ana", team: "default" }, { token: LEE, id: "lee", team: "platform", scope: "org" }],
     records: [], aws: "",
-    files: { "catalogs.json": [row(1, "draft"), row(2, "approved"), row(3, "draft")] }
+    files: { "catalogs.json": [row(1, "draft"), row(2, "approved"), row(3, "draft"), staged(4)] }
   });
 });
 after(() => api?.stop());
@@ -136,4 +148,35 @@ test("sealeye catalog edit changes the words and prints the self-test", async ()
   assert.match(cleared.stdout, /postgres: When an app uses it is cleared/);
   const bad = await run(["catalog", "edit", "3", "secrets", "availability", "x"]);
   assert.match(bad.stdout + bad.stderr, /is not something whose words can be changed/);
+});
+
+test("who builds a stage is changed on a draft, on both surfaces, and said on the self-test", async () => {
+  const done = await edit(4, { stage: "sit", field: "applies", text: "sealeye" });
+  assert.equal(done.status, 200, JSON.stringify(done.body));
+  assert.ok(done.body.selfTest.notes.some(n => /^sit: built by seaLeye, as lee@example\.com chose on .* UTC; the library says the pipeline \.github\/workflows\/app-promote\.yml builds it\.$/.test(n)), JSON.stringify(done.body.selfTest.notes));
+  const four = (await api.call("/catalogs/4", { token: LEE })).body.document;
+  assert.equal(four.stages.path[1].applies, "sealeye");
+  assert.equal(four.stages.path[1].edited.by, "lee@example.com");
+  // dev, a stage it does not have, a team's token, an approved catalog.
+  assert.match((await edit(4, { stage: "dev", field: "applies", text: "pipeline", pipeline: "x.yml" })).body.error.message, /dev is always built by seaLeye/);
+  assert.equal((await edit(4, { stage: "qa", field: "applies", text: "sealeye" })).status, 400);
+  assert.equal((await edit(4, { stage: "sit", field: "line", text: "sealeye" })).status, 400);
+  assert.equal((await edit(4, { stage: "sit", field: "applies", text: "sealeye" }, ANA)).status, 403);
+  assert.equal((await edit(2, { stage: "sit", field: "applies", text: "sealeye" })).status, 409);
+
+  const run = args => promisify(execFile)(process.execPath, [path.join(root, "cli/bin/sealeye"), ...args, "--api", api.api], {
+    env: { ...process.env, NO_COLOR: "1", SEALEYE_TOKEN: LEE, SEALEYE_HOME: api.home }
+  }).catch(err => err);
+  const shown = await run(["catalog", "edit", "4", "--stage", "sit"]);
+  assert.match(shown.stdout, /sit\s+seaLeye\s+\(chosen by lee@example\.com; the library says the pipeline \.github\/workflows\/app-promote\.yml\)/);
+  assert.match(shown.stdout, /prod\s+the pipeline \.github\/workflows\/app-promote\.yml\n/);
+  const back = await run(["catalog", "edit", "4", "--stage", "prod", "sealeye"]);
+  assert.match(back.stdout, /prod: built by seaLeye/);
+  const pipe = await run(["catalog", "edit", "4", "--stage", "sit", "pipeline", ".github/workflows/app-promote.yml"]);
+  assert.match(pipe.stdout, /sit: built by the pipeline \.github\/workflows\/app-promote\.yml/);
+  const after = (await api.call("/catalogs/4", { token: LEE })).body.document.stages.path;
+  assert.equal(after[1].edited, undefined, "back to what the library said: no edit left");
+  assert.equal(after[2].applies, "sealeye");
+  const wrong = await run(["catalog", "edit", "4", "--stage", "sit", "someone"]);
+  assert.match(wrong.stdout + wrong.stderr, /sealeye or pipeline <name>, not someone/);
 });

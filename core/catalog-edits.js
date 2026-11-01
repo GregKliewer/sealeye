@@ -7,6 +7,8 @@
 //
 // Runs in a browser: the portal imports it. No node: modules, no packages.
 
+import { APPLIERS, FIRST_STAGE } from "./stages.js";
+
 /** The fields of an entry whose words can be edited, as the command names them. */
 export const EDITABLE_FIELDS = Object.freeze([
   { field: "line", key: "line", label: "What it gives an app" },
@@ -110,4 +112,89 @@ export function fieldForPlace(place) {
   const p = String(place || "");
   if (p.startsWith("input ")) return `input:${p.slice(6)}`;
   return fieldOf(p.replace(/ /g, "-"))?.field || null;
+}
+
+// Who applies a stage, changed by hand (PHASE5-PLAN Step 2b; Greg, Nov 1, 2026): a
+// platform team chooses where seaLeye builds, whatever its library's pipeline could. The
+// stage keeps the edit with who and when, and what the library said of it then (`read`),
+// so a later reading of the library keeps the edit while the library says the same, and
+// takes what the library says once it changes, saying whose change it replaced.
+
+/** The longest pipeline name an edit keeps. */
+const PIPELINE_LIMIT = 200;
+
+const stagesOf = document => [...(document?.stages?.path || []), ...(document?.stages?.aside || [])];
+const whoOf = s => (s?.applies === "pipeline" ? { applies: "pipeline", pipeline: s.pipeline } : { applies: s?.applies || "sealeye" });
+const sameWho = (a, b) => a.applies === b.applies && (a.applies !== "pipeline" || String(a.pipeline || "") === String(b.pipeline || ""));
+
+/** Who applies a stage, as a line a platform engineer reads: "seaLeye", "the pipeline .github/workflows/app-promote.yml". */
+export function whoAppliesWords(s) {
+  return s?.applies === "pipeline" ? `the pipeline ${s.pipeline || "the library names"}` : "seaLeye";
+}
+
+/**
+ * The catalog with who applies one stage changed, and the edit kept on the stage
+ * (`edited`: who, when, and what the library said of it). Changing it back to what the
+ * library said takes the edit away. Throws BAD_EDIT, in words, for anything else.
+ */
+export function applyStageEdit(document, { stage, applies, pipeline, by, at }) {
+  const all = stagesOf(document);
+  if (!all.length) throw fail("This catalog has no path past dev, so no stage to change");
+  const named = all.find(s => s?.name === stage);
+  if (!named) throw fail(`The catalog has no stage ${stage}: ${all.map(s => s.name).join(", ")}`);
+  if (stage === FIRST_STAGE) throw fail(`${FIRST_STAGE} is always built by seaLeye, when a developer asks`);
+  if (!APPLIERS.includes(applies)) throw fail(`Who builds a stage is sealeye or pipeline, not ${applies}`);
+  const name = String(pipeline ?? "").trim();
+  if (applies === "pipeline" && !name) throw fail("Name the pipeline that builds it, as the library names it");
+  if (name.length > PIPELINE_LIMIT) throw fail(`A pipeline's name is at most ${PIPELINE_LIMIT} characters`);
+  const wanted = applies === "pipeline" ? { applies, pipeline: name } : { applies };
+  // What the library said is kept from the first edit, however many follow.
+  const read = named.edited?.read || whoOf(named);
+  const { pipeline: _p, edited: _e, ...rest } = named;
+  const next = { ...rest, ...wanted, ...(sameWho(wanted, read) ? {} : { edited: { by: by || null, at: at || null, read } }) };
+  const swap = list => (list || []).map(s => (s?.name === stage ? next : s));
+  return { ...document, stages: { ...document.stages, path: swap(document.stages.path), ...(document.stages.aside ? { aside: swap(document.stages.aside) } : {}) } };
+}
+
+/**
+ * Carry the stage edits of `previous` (the draft as it was, or the live catalog) onto
+ * `rewritten`, whose path was read from the library again. An edit stays while the
+ * library says of the stage what it said when the edit was made; once the library says
+ * otherwise, its reading stands, and a note says whose change it replaced (Greg, Nov 1,
+ * 2026). Returns { document, notes }.
+ */
+export function keepStageEdits(previous, rewritten) {
+  const before = new Map(stagesOf(previous).filter(s => s?.edited).map(s => [s.name, s]));
+  if (!before.size || !rewritten?.stages) return { document: rewritten, notes: [] };
+  const notes = [];
+  const carry = s => {
+    const old = s && before.get(s.name);
+    if (!old || s.name === FIRST_STAGE) return s;
+    if (s.edited) return s;
+    const now = whoOf(s);
+    if (sameWho(now, old.edited.read)) {
+      const { pipeline: _p, ...rest } = s;
+      return { ...rest, ...whoOf(old), edited: old.edited };
+    }
+    notes.push(`The library now says ${whoAppliesWords(now)} builds ${s.name}, so it does; this replaces the change ${old.edited.by || "someone"} made${old.edited.at ? ` on ${when(old.edited.at)}` : ""}, which had ${whoAppliesWords(old)} build it.`);
+    return s;
+  };
+  const st = rewritten.stages;
+  return { document: { ...rewritten, stages: { ...st, path: (st.path || []).map(carry), ...(st.aside ? { aside: st.aside.map(carry) } : {}) } }, notes };
+}
+
+/** The self-test's notes for each stage a person changed: whose choice, and what the library says. */
+export function stageEditNotes(document) {
+  return stagesOf(document).filter(s => s?.edited).map(s =>
+    `${s.name}: built by ${whoAppliesWords(s)}, as ${s.edited.by || "someone"} chose${s.edited.at ? ` on ${when(s.edited.at)}` : ""}; the library says ${whoAppliesWords(s.edited.read)} builds it.`);
+}
+
+/** A moment as a person reads it, in UTC: "Nov 1, 2026 at 21:40 UTC". */
+function when(at) {
+  const d = new Date(at);
+  if (Number.isNaN(d.getTime())) return String(at);
+  const month = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getUTCMonth()];
+  const hh = String(d.getUTCHours()).padStart(2, "0");
+  const mm = String(d.getUTCMinutes()).padStart(2, "0");
+  return `${month} ${d.getUTCDate()}, ${d.getUTCFullYear()} at ${hh}:${mm} UTC`;
 }

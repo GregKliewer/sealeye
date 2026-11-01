@@ -9,6 +9,7 @@
 //                                 the questions its run asked and how each was answered
 //   sealeye catalog test [v]      the self-test, run now (the newest draft without v)
 //   sealeye catalog edit <v> <module> [<field> [words]]
+//   sealeye catalog edit <v> --stage <stage> [sealeye | pipeline <name>]
 //                                 a draft entry's words: shown, or changed (asked for
 //                                 in a terminal when no words are given)
 //   sealeye catalog fix [v]       each field that blocks approval, one at a time, then
@@ -19,8 +20,8 @@
 //   sealeye catalog live <v>      make an approved or retired catalog live
 import { ask, c, step } from "./brand.js";
 import { moduleStageView, moduleStageWords, stageMapView, stageMapWords } from "../core/stages.js";
-import { approveCatalogVersion, catalogSelfTest, editCatalog, getCatalogVersion, getDiscovery, listCatalogs, makeCatalogLive } from "./client.js";
-import { editableFieldsOf, fieldOf } from "../core/catalog-edits.js";
+import { approveCatalogVersion, catalogSelfTest, editCatalog, editCatalogStage, getCatalogVersion, getDiscovery, listCatalogs, makeCatalogLive } from "./client.js";
+import { editableFieldsOf, fieldOf, whoAppliesWords } from "../core/catalog-edits.js";
 import { forbiddenWords, shownWord } from "../core/developer-words.js";
 import { commandLine } from "../core/operations.js";
 import {
@@ -176,7 +177,7 @@ async function yes(question) {
  * The catalog subcommands.
  * @param {{ apiBaseUrl: string, sub: string, args: string[], say: (line: string) => void, json: boolean }} p
  */
-export async function catalogs({ apiBaseUrl, sub, args, say, json = false }) {
+export async function catalogs({ apiBaseUrl, sub, args, say, json = false, stage }) {
   const [asked] = args;
 
   if (sub === "versions") {
@@ -328,6 +329,8 @@ export async function catalogs({ apiBaseUrl, sub, args, say, json = false }) {
     return;
   }
 
+  if (sub === "edit" && stage !== undefined) return editStage({ apiBaseUrl, asked, stage, args: args.slice(1), say, json });
+
   if (sub === "edit") {
     const [, module, field, ...rest] = args;
     if (asked === undefined || !module) throw userError(`Name the catalog and the module: ${commandLine("catalog-edit", null, ["<number>", "<module>", "[<field>", "[words]]"])}.`);
@@ -437,4 +440,40 @@ function printCatalog({ catalog, document, run, say }) {
     console.log("");
     say(`${commandLine("discover", null, ["answers", catalog.discovery])} answers them here; an answer goes into ${catalog.status === "draft" ? "this draft" : "a new draft"}.`);
   }
+}
+
+/**
+ * `sealeye catalog edit <v> --stage <stage> [sealeye | pipeline <name>]`: who builds one
+ * stage of a draft (PHASE5-PLAN Step 2b). With no builder named, each stage and who builds
+ * it, marked where a person chose. Kept when discovery reads the library again, while the
+ * library says of the stage what it said when the change was made.
+ */
+async function editStage({ apiBaseUrl, asked, stage, args, say, json }) {
+  const usage = commandLine("catalog-edit", null, ["<number>", "--stage", "<stage>", "[sealeye | pipeline <name>]"]);
+  if (asked === undefined || !stage) throw userError(`Name the catalog and the stage: ${usage}.`);
+  const version = await versionFor({ apiBaseUrl, asked, verb: "edit" });
+  const [applies, ...name] = args;
+  if (!applies) {
+    const { document } = await getCatalogVersion({ apiBaseUrl, version });
+    const all = [...(document?.stages?.path || []), ...(document?.stages?.aside || [])];
+    if (json) return console.log(JSON.stringify(all.map(s => ({ name: s.name, applies: s.applies, ...(s.pipeline ? { pipeline: s.pipeline } : {}), ...(s.edited ? { edited: s.edited } : {}) })), null, 2));
+    console.log("");
+    if (!all.length) return say(`Catalog ${version} has no path past dev: seaLeye builds dev, and there is no other stage.`);
+    say(`Who builds each stage of catalog ${version}. Change one with ${commandLine("catalog-edit", null, [String(version), "--stage", "<stage>", "sealeye | pipeline <name>"])}.`);
+    console.log("");
+    const width = Math.max(...all.map(s => s.name.length));
+    for (const s of all) {
+      const mark = s.edited ? c.dim(`  (chosen by ${s.edited.by || "someone"}; the library says ${whoAppliesWords(s.edited.read)})`) : "";
+      console.log(`  ${c.accent(s.name.padEnd(width))}  ${s.name === "dev" ? "seaLeye, when a developer asks" : whoAppliesWords(s)}${mark}`);
+    }
+    return;
+  }
+  if (applies !== "sealeye" && applies !== "pipeline") throw userError(`Who builds a stage is sealeye or pipeline <name>, not ${applies}: ${usage}.`);
+  const pipeline = name.join(" ").trim();
+  const done = await editCatalogStage({ apiBaseUrl, version, stage, applies, ...(applies === "pipeline" ? { pipeline } : {}) });
+  if (json) return console.log(JSON.stringify(done, null, 2));
+  console.log("");
+  console.log(c.ok(`${stage}: built by ${whoAppliesWords({ applies, pipeline })}`));
+  printSelfTest(done.selfTest, say);
+  if (done.selfTest.passed) say(`${nextLine("draft", version)} approves it.`);
 }

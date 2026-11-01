@@ -32,7 +32,7 @@ import { ANSWER_LIMIT } from "../../core/discovery-words.js";
 import { createBudget, readLibraryLevel, readModule, SpendingLimit, superviseEntries } from "./readers.js";
 import * as store from "./store.js";
 import { connectsOf, deliversOf, idFor, libraryHash, listModules, moduleHash, moduleInputs, moduleOutputs, moduleRuns } from "./terraform.js";
-import { keepEdits } from "../../core/catalog-edits.js";
+import { keepEdits, keepStageEdits } from "../../core/catalog-edits.js";
 import fs from "node:fs";
 
 /**
@@ -615,7 +615,7 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
     await applyMerges(run, written.merges);
     const entries = await inPlainWords(run, written.entries || [], sources, list => build(list, asked(run.id)));
     const questions = asked(run.id);
-    const document = withoutUnplainInputLines(build(entries, questions));
+    const document = withStageEditsOf(liveCatalog(run.org), withoutUnplainInputLines(build(entries, questions)));
     await askAboutStages(run, document);
     const kept = await addCatalog({ org: run.org, document, by: run.startedBy });
     run.catalogVersion = kept.version;
@@ -624,6 +624,18 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
     await markUsed(before.filter(q => q.answer != null && !q.usedAt && (q.touches || []).every(t => sources.includes(t))), kept.version);
     await save(run.id);
     emit(run.id, { type: "draft", catalog: { version: kept.version }, open: questions.filter(q => q.answer == null).length });
+  }
+
+  /**
+   * Who applies each stage, as the platform team chose on the live catalog, kept on the
+   * new draft while the library says of the stage what it said then (keepStageEdits;
+   * PHASE5-PLAN Step 2b). Whatever the run read, every module or only what changed.
+   */
+  function withStageEditsOf(live, document) {
+    if (live?.source !== "organization") return document;
+    const { document: out, notes } = keepStageEdits(live.document, document);
+    if (!notes.length) return out;
+    return { ...out, discovery: { ...(out.discovery || {}), stage_notes: [...new Set([...(out.discovery?.stage_notes || []), ...notes])] } };
   }
 
   /**
