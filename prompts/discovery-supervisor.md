@@ -32,12 +32,15 @@ are not, say what the library says, by its own folders and stage names:
   it (uses a generated address, say); so does a module a stage adds (`added` places it).
   When a reader asked which stages a module is for and nobody has answered, write
   `stages` by the question's guess, as for any question.
-- `instead`: on the module that comes first, `module`: the folder of the one that takes
-  its place, and `stage`: the first stage it does so. Write it whenever two modules serve
-  the same need at different stages, with `stages` on both.
-- `added`: on a module a stage adds beside apps of a kind, which no app asks for (a
-  backup plan beside every database from staging up): `stage`, that first stage, and
-  `beside`, the need it stands beside, by key. Such a module meets no need itself.
+- `replacements`, beside the entries: where two modules serve the same need at
+  different stages, one line: the module used first, the one that takes its place, and
+  the first stage it does; with `stages` on both entries. Never for a deprecated module
+  and its successor: that is availability, not a stage.
+- `additions`, beside the entries: a module a stage adds beside apps of a kind, which no
+  app asks for (a backup plan beside every database from staging up): the module, that
+  first stage, and the need it stands beside, by key. Such a module meets no need itself.
+Leave both lists empty when the library says nothing of the kind; most libraries have
+one of each at most.
 seaLeye checks each against the modules it names, and asks about any it cannot prove;
 leave one out rather than guess.
 

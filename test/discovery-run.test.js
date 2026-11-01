@@ -351,15 +351,15 @@ test("Juniper Mutual: given good words, the draft passes the answer key's checks
         const sourceOf = id => key.catalog.modules.find(m => m.id === id)?.source;
         const entries = sources.map(source => {
           const k = words.get(source);
-          const added = (key.catalog.stages.with || []).find(w => sourceOf(w.module) === source);
           return {
             source, line: k.line, when: k.when || "", signals: k.signals || [], role: k.role || "optional", availability: k.availability === "available" ? "available" : "deprecated", guidance: k.guidance || "", meets: k.meets || [], open: [],
-            ...(k.stages ? { stages: k.stages } : {}),
-            ...(k.instead ? { instead: { stage: k.instead.from, module: sourceOf(k.instead.module) } } : {}),
-            ...(added ? { added: { stage: added.from, beside: added.beside } } : {})
+            ...(k.stages ? { stages: k.stages } : {})
           };
         });
-        return { content: [{ type: "tool_use", id: "w", name: "write_catalog", input: { entries, questions: [] } }], usage };
+        // The replacement and the addition as the supervisor writes them: lists beside the entries.
+        const replacements = sources.flatMap(s => (words.get(s).instead ? [{ module: s, replaced_by: sourceOf(words.get(s).instead.module), from_stage: words.get(s).instead.from }] : []));
+        const additions = (key.catalog.stages.with || []).filter(w => sources.includes(sourceOf(w.module))).map(w => ({ module: sourceOf(w.module), from_stage: w.from, beside: w.beside }));
+        return { content: [{ type: "tool_use", id: "w", name: "write_catalog", input: { entries, questions: [], replacements, additions } }], usage };
       }
     }
   };

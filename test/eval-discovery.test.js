@@ -172,12 +172,8 @@ test("graded twice: no answers, then the key's answers at fixed points; each pas
     // The stage map as the key says (Phase 5 Step 2): which stages, what takes over, and
     // what a stage adds, by folder.
     const sourceOf = id => key.catalog.modules.find(m => m.id === id)?.source;
-    const added = (key.catalog.stages?.with || []).find(w => sourceOf(w.module) === source);
-    const stageFields = {
-      ...(k.stages ? { stages: k.stages } : {}),
-      ...(k.instead ? { instead: { stage: k.instead.from, module: sourceOf(k.instead.module) } } : {}),
-      ...(added ? { added: { stage: added.from, beside: added.beside } } : {})
-    };
+    // Stages on the entry; the replacement and the addition go in the lists beside it (below).
+    const stageFields = k.stages ? { stages: k.stages } : {};
     return { source, line: k.line, when: k.when || "", signals: k.signals || [], role: k.role || "optional", availability: source === "modules/cache-valkey" && valkey?.answer?.startsWith("No") ? "deprecated" : availability, guidance: k.guidance || "", meets: k.meets || [], open: [], ...stageFields };
   };
   // The path as the library reader would write it: each stage, who builds it, its gate.
@@ -219,7 +215,10 @@ test("graded twice: no answers, then the key's answers at fixed points; each pas
           ...entryFor(s, asked),
           ...(plain ? { input_lines: Object.fromEntries(Object.entries(words.get(s).inputs || {}).filter(([, v]) => v?.line).map(([n, v]) => [n, v.line])) } : {})
         }));
-        return { content: [{ type: "tool_use", id: "w", name: "write_catalog", input: { entries, questions: plain ? [] : questions } }], usage };
+        const sourceOfId = id => key.catalog.modules.find(m => m.id === id)?.source;
+        const replacements = sources.flatMap(s => (words.get(s).instead ? [{ module: s, replaced_by: sourceOfId(words.get(s).instead.module), from_stage: words.get(s).instead.from }] : []));
+        const additions = (key.catalog.stages.with || []).filter(w => sources.includes(sourceOfId(w.module))).map(w => ({ module: sourceOfId(w.module), from_stage: w.from, beside: w.beside }));
+        return { content: [{ type: "tool_use", id: "w", name: "write_catalog", input: { entries, questions: plain ? [] : questions, replacements, additions } }], usage };
       }
     }
   };

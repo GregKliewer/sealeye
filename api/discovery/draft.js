@@ -330,6 +330,9 @@ export function withStageMap(doc, library) {
   const ids = new Map((doc.modules || []).map(m => [m.source, m.id]));
   const modules = (doc.modules || []).map(m => {
     if (!m?.instead?.source) return m;
+    // A module named in its own place says nothing (Greg's runs of Step 2, Nov 1, 2026).
+    const own = m.instead.source === m.source || m.instead.source === m.id || m.instead.source === m.source.split("/").pop();
+    if (own) return (({ instead: _i, ...r }) => r)(m);
     const byName = [...ids].filter(([src]) => src.split("/").pop() === m.instead.source);
     // A folder named by its last part counts only when one folder has that name.
     const id = ids.get(m.instead.source) || ids.get(`modules/${m.instead.source}`) || (byName.length === 1 ? byName[0][1] : undefined);
@@ -348,8 +351,34 @@ export function withStageMap(doc, library) {
   }
   const { stages: _was, ...rest } = doc;
   if (!base || base.path.length < 2) return { ...rest, discovery, modules: modules.map(withoutStageFields) };
-  const adds = modules.filter(m => m.added).map(m => ({ from: m.added.from, module: m.id, beside: m.added.beside }));
-  return { ...rest, discovery, modules, stages: { ...base, ...(adds.length ? { with: adds } : {}) } };
+  // A replacement from a stage that is not one past dev on the path is not a reading of
+  // the map at all (a deprecated cache "replaced from dev"): left out, with a note.
+  const later = new Set([...base.path.slice(1), ...(base.aside || [])].map(s => s.name));
+  const notes = [...(discovery.stage_notes || [])];
+  const placed = modules.map(m => {
+    if (!m.instead || later.has(m.instead.from)) return m;
+    notes.push(`${m.id} was said to give way to ${m.instead.module} from ${m.instead.from || "no stage"}, which is not a stage past ${FIRST_STAGE}; it is left out.`);
+    return (({ instead: _i, ...r }) => r)(m);
+  });
+  // Written the wrong way round: the module said to give way is the one for the later
+  // stages, and the one it names is for the earlier; the replacement is put on the
+  // earlier one.
+  const order = name => [...base.path, ...(base.aside || [])].findIndex(s => s.name === name);
+  const firstAt = m => (Array.isArray(m?.stages) && m.stages.length ? Math.min(...m.stages.map(order).filter(n => n >= 0)) : null);
+  const fixed = placed.map(m => ({ ...m }));
+  for (const m of fixed) {
+    const other = m.instead && fixed.find(o => o.id === m.instead.module);
+    if (!other || other.instead) continue;
+    const mine = firstAt(m);
+    const theirs = firstAt(other);
+    if (mine !== null && theirs !== null && mine >= order(m.instead.from) && theirs < order(m.instead.from)) {
+      other.instead = { from: m.instead.from, module: m.id };
+      delete m.instead;
+    }
+  }
+  if (notes.length) discovery.stage_notes = [...new Set(notes)];
+  const adds = fixed.filter(m => m.added).map(m => ({ from: m.added.from, module: m.id, beside: m.added.beside }));
+  return { ...rest, discovery, modules: fixed, stages: { ...base, ...(adds.length ? { with: adds } : {}) } };
 }
 
 function withoutStageFields(m) {

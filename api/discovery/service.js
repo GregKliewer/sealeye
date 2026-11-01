@@ -460,7 +460,17 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
       });
       const fresh = new Map((written.entries || []).filter(e => again.includes(e.source)).map(e => [e.source, e]));
       traceEvent("plain words", { entries: fresh.size, words: problems.length });
-      return entries.map(e => fresh.get(e.source) || e).concat([...fresh.values()].filter(e => !entries.some(x => x.source === e.source)));
+      // The pass is about words: each entry keeps its stage fields as first written (Greg's
+      // runs of Step 2, Nov 1, 2026: a second writing lost or scrambled them).
+      const keepStages = (was, now) => {
+        const out = { ...now };
+        for (const f of ["stages", "instead", "added"]) {
+          if (was && f in was) out[f] = was[f];
+          else delete out[f];
+        }
+        return out;
+      };
+      return entries.map(e => (fresh.has(e.source) ? keepStages(e, fresh.get(e.source)) : e)).concat([...fresh.values()].filter(e => !entries.some(x => x.source === e.source)));
     } catch (err) {
       emit(run.id, { type: "plain_words_not_done", sources: again, why: err instanceof SpendingLimit ? "the run reached its spending limit" : "seaLeye could not write them again" });
       return entries;

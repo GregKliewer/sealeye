@@ -250,3 +250,40 @@ test("a stage the path does not have is left out with a note, the rest of the mo
   assert.match(d.discovery.stage_notes.join(" "), /db_cluster names perf, which the path to production as read does not have, so it is left out\./);
   assert.equal(stagesCheck(d).passed, true);
 });
+
+test("the supervisor's lists are each entry's own: a replacement and an addition, beside the entries", async () => {
+  const { withStageLists } = await import("../api/discovery/readers.js");
+  const out = withStageLists({
+    entries: [{ source: "modules/db" }, { source: "modules/backup" }, { source: "modules/cache" }],
+    replacements: [{ module: "modules/db", replaced_by: "modules/db-cluster", from_stage: "staging" }],
+    additions: [{ module: "backup", from_stage: "staging", beside: "relational_database" }],
+    questions: []
+  });
+  assert.deepEqual(out.entries[0].instead, { module: "modules/db-cluster", stage: "staging" });
+  assert.deepEqual(out.entries[1].added, { stage: "staging", beside: "relational_database" });
+  assert.equal(out.entries[2].instead, undefined);
+  assert.equal(out.replacements, undefined);
+});
+
+test("a module named in its own place, or given way to from no later stage, says nothing; neither holds the catalog back", () => {
+  const doc = juniperish();
+  doc.modules[2].instead = { from: "na", source: "modules/backup" };
+  doc.modules[0].instead = { from: "dev", source: "modules/db-cluster" };
+  const d = provenStageMap(withStageMap(doc, reviewPath));
+  assert.equal(byId(d, "backup").instead, undefined);
+  assert.equal(byId(d, "db").instead, undefined);
+  assert.equal(d.discovery.unproven, undefined);
+  assert.match(d.discovery.stage_notes.join(" "), /db was said to give way to db_cluster from dev, which is not a stage past dev; it is left out\./);
+});
+
+test("a replacement written the wrong way round is put on the module used first", () => {
+  const doc = juniperish();
+  doc.modules[0].stages = ["dev"];
+  doc.modules[1].stages = ["staging", "prod"];
+  doc.modules[1].inputs = { name: { required: true } };
+  doc.modules[1].instead = { from: "staging", source: "modules/db" };
+  const d = provenStageMap(withStageMap(doc, reviewPath));
+  assert.deepEqual(byId(d, "db").instead, { from: "staging", module: "db_cluster" });
+  assert.equal(byId(d, "db_cluster").instead, undefined);
+  assert.equal(stagesCheck(d).passed, true);
+});
