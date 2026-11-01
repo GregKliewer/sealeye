@@ -168,7 +168,8 @@ in `core/` or behind an endpoint.
 
 - The product is seaLeye. The command is `sealeye`. Commands that act on an environment
   take the app's name (your team's environment of that name) or a deployment id; with
-  neither, the app the current folder's sealeye.yaml plans. Its subcommand that interviews and
+  neither, the app the current folder's sealeye.yaml plans. `--stage` names a stage of the
+  app, dev when left out; `sealeye list` keeps one row per app, its other stages beside it. Its subcommand that interviews and
   deploys is `run`; `init` is a hidden alias that does the same thing and never prints a
   deprecation notice. Tearing down is `teardown`, the portal's "Tear down"; `destroy` is
   a hidden alias, as `init` is.

@@ -85,3 +85,9 @@ test("an environment built from the organization's own module reads in its own w
   assert.equal(check.alarm, true);
   assert.match(check.text, /^its record not checked: init failed; answered 200/);
 });
+
+test("a stage past dev is named in the title, and dev's title is as it always was (PHASE5-PLAN D5)", () => {
+  const titleAt = stage => evidenceSummary({ ...live, subject: { ...live.subject, ...(stage ? { stage } : {}) } }, { name: "seaLeye", command: "sealeye" }).title;
+  assert.equal(titleAt("dev"), titleAt(undefined));
+  assert.equal(titleAt("sit"), "Change record for payments-api (stack sealeye-payments-api, stage sit, profile dev)");
+});

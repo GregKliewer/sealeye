@@ -11,6 +11,8 @@ import { region } from "./cfn.js";
 import { sourceInWords } from "./settings.js";
 import { commandLine } from "../../core/operations.js";
 import { logsHowWords } from "../../core/plan-report-words.js";
+import { environmentStage } from "../../core/environments.js";
+import { FIRST_STAGE } from "../../core/stages.js";
 
 const TEMPLATE_PATH = path.join(repoRoot, "prompts", "report.md");
 
@@ -257,6 +259,8 @@ function assumptions(record, plan) {
 export function renderReport(record, plan) {
   const header = fillHeader(fs.readFileSync(TEMPLATE_PATH, "utf8"), {
     app: record.app,
+    // Past dev, the stage it is for; dev's header is as it was (PHASE5-PLAN D5).
+    stagePart: environmentStage(record) === FIRST_STAGE ? "" : ` · stage: ${environmentStage(record)}`,
     profile: normalizeProfile(plan?.profile) || "",
     region: region(),
     date: (record.finishedAt || new Date().toISOString()).slice(0, 10)

@@ -5096,3 +5096,29 @@ stage, and a role per stage").
   resolved for the stage (`resolveForStage`: its `instead`s and the stage's `with`s), and
   platform values for a stage a catalog names outside `STAGES` (`api/platform.js` keeps
   dev, sit, uat, staging, perf and prod only).
+
+## The command names each stage of an app
+
+Built Sun Nov 1, 2026 (PHASE5-PLAN Step 3, the command's part; D5).
+
+- **`--stage` on every command that acts on an environment** (status, watch, teardown,
+  evidence, plan, logs, config, perf, pause, resume, online, deploy --again): an app's
+  name means its environment at that stage, dev when `--stage` is left out, so every
+  command typed today means what it meant. A deployment id or an environment's own name
+  still means exactly that one, whatever the stage. A stage is read as its name in
+  lowercase; anything that is not a name is refused in a line.
+- **An app with nothing at the stage asked says which stages it has**, and how to name
+  one ("lone has an environment in uat. Name one with --stage uat."), rather than
+  saying only that nothing is there.
+- **`sealeye list` keeps one row per app.** Its first stage standing (dev, usually) is
+  the row, as before; the app's other stages and how each one is go in a STAGES column,
+  which shows only when some app has a stage past dev, so a list with none is unchanged.
+  An app whose row is not dev says which stage it is ("lone (uat)"). `--json` stays one
+  entry per environment, each with its `stage`, for scripts. `appKey` and
+  `compareStages` (`core/environments.js`) are the grouping and the order, for the
+  portal too.
+- **The evidence and the report name a stage past dev** in their headers
+  (" · stage: sit"), and the evidence summary in its title ("stage sit"); dev's are as
+  they were.
+- **Left for Step 8:** the commands a later stage's report and card print do not carry
+  `--stage` yet, since nothing builds past dev to write one.

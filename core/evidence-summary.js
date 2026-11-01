@@ -53,9 +53,11 @@ export function evidenceSummary(ev, product = { name: "seaLeye", command: "seale
   // An environment built from the organization's own module has no stack (PHASE4-PLAN
   // Step 9): its evidence says so with `terraform`, and is read in its own shape.
   const fromModule = b?.terraform === true || n?.terraform === true;
+  // Past dev, the stage it is for; dev's title is as it always was (PHASE5-PLAN D5).
+  const stage = s.stage && s.stage !== "dev" ? `, stage ${s.stage}` : "";
   const env = s.stackName
-    ? `${fromModule ? "environment" : "stack"} ${s.stackName}, profile ${s.profile}`
-    : `no ${fromModule ? "environment" : "stack"}, profile ${s.profile}`;
+    ? `${fromModule ? "environment" : "stack"} ${s.stackName}${stage}, profile ${s.profile}`
+    : `no ${fromModule ? "environment" : "stack"}${stage}, profile ${s.profile}`;
   const title = `Change record for ${s.app?.name || s.deploymentId} (${env})`;
 
   // Requested
