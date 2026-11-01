@@ -19,6 +19,8 @@ import { listDeployments } from "../store.js";
 import { sourceInWords } from "./settings.js";
 import { checkTerraformNow } from "./terraform/index.js";
 import { withPlatform } from "../platform.js";
+import { environmentStage } from "../../core/environments.js";
+import { FIRST_STAGE } from "../../core/stages.js";
 
 const TEMPLATE_PATH = path.join(repoRoot, "prompts", "evidence.md");
 const pkg = JSON.parse(fs.readFileSync(new URL("../../package.json", import.meta.url), "utf8"));
@@ -28,6 +30,9 @@ const WINDOW_MS = 5 * 60 * 1000;   // five minutes either side of a deployment
 const PROBE_MS = 10_000;
 
 const get = (obj, dotted) => dotted.split(".").reduce((o, k) => (o == null ? o : o[k]), obj);
+
+/** " · stage: sit" in a header past dev, and nothing at dev, whose header is as it was. */
+const stagePart = stage => (stage && stage !== FIRST_STAGE ? ` · stage: ${stage}` : "");
 
 function fillHeader(template, context) {
   return template.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, key) => {
@@ -67,6 +72,8 @@ function subjectOf(record, generatedAt) {
     app: record.app || null,
     kind: record.kind || (record.status === "drafted" ? "none built" : NOT_RECORDED),
     stackName: record.stackName || null,
+    // The stage it is for: dev for every record made before stages (PHASE5-PLAN D5).
+    stage: environmentStage(record),
     profile: normalizeProfile(record.plan?.profile) || NOT_RECORDED,
     region: region(),
     status: record.status,
@@ -645,6 +652,7 @@ export function renderEvidence(ev) {
   const header = fillHeader(fs.readFileSync(TEMPLATE_PATH, "utf8"), {
     app: ev.subject.app || {},
     stackName: ev.subject.stackName || "none built",
+    stagePart: stagePart(ev.subject.stage),
     profile: ev.subject.profile,
     region: ev.subject.region,
     generatedAt: ev.subject.generatedAt

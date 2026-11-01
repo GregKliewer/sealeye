@@ -36,3 +36,24 @@ export function environmentKey(dep) {
 export function environmentPath(dep) {
   return `/environments/${encodeURIComponent(environmentKey(dep))}`;
 }
+
+// The order stages are usually walked in, for showing an app's stages side by side when
+// no catalog is at hand. A stage a catalog names that is not here comes after, by name.
+const USUAL_ORDER = ["dev", "sit", "uat", "staging", "perf", "prod"];
+
+/** Sorts stage names dev first, then as a path to production usually runs. */
+export function compareStages(a, b) {
+  const ia = USUAL_ORDER.indexOf(a);
+  const ib = USUAL_ORDER.indexOf(b);
+  if (ia !== -1 || ib !== -1) return (ia === -1 ? USUAL_ORDER.length : ia) - (ib === -1 ? USUAL_ORDER.length : ib);
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/**
+ * The app a record is for, across its stages: its team and its name. `sealeye list` and
+ * Environments show one row per app, with its stages (PHASE5-PLAN D5).
+ * @param {{ teamId?: string|null, app?: { name?: string }|null, deploymentId: string }} dep
+ */
+export function appKey(dep) {
+  return dep.app?.name ? `${dep.teamId || "default"}:${dep.app.name}` : dep.deploymentId;
+}

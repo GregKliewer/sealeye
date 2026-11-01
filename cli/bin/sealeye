@@ -38,7 +38,7 @@ import { looksLikeToken, seesInWords, organizationInWords } from "../../core/tok
 import { banner, step, ask, answer, typing, typed, c, product, spinner, stopSpinner, animations } from "../brand.js";
 import { safeName, CONFIG_FILE, LEGACY_CONFIG_FILE } from "../../core/names.js";
 import { USER_CONFIG_HINT, setting, loadUserConfig, DEFAULT_API, saveUserSetting, sealeyeHome, portalFor } from "../../core/config.js";
-import { environmentKey, environmentPath } from "../../core/environments.js";
+import { appKey, compareStages, environmentKey, environmentPath, environmentStage } from "../../core/environments.js";
 import { settingsFromTheStore } from "../store-offer.js";
 import { startTracing, flushTracing, tracingActive, tracingConfigured, tracingSwitchedOff, scoreTrace, scoreDeploymentOutcome, flushScores } from "../../core/tracing.js";
 import { unsupportedNeeds, refusalClosing, orgName } from "../../core/catalog.js";
@@ -56,7 +56,7 @@ import { discover } from "../discover.js";
 import { catalogs } from "../catalogs.js";
 import { platform } from "../platform.js";
 import { usedByWords, withVersion } from "../../core/discovery-words.js";
-import { moduleStageWords, stageMapWords } from "../../core/stages.js";
+import { FIRST_STAGE, moduleStageWords, stageMapWords } from "../../core/stages.js";
 
 // Statuses that are history rather than something you can still open: one was torn
 // down, the other was never built because the platform said so.
@@ -190,6 +190,10 @@ Options:
                   of carrying on in the background and notifying you
       --no-trace  with run: record nothing about this run in LangFuse, even when its
                   keys are set. SEALEYE_TRACING=off does the same for every run
+      --stage     with a command that acts on an environment (status, watch, teardown,
+                  evidence, plan, logs, config, perf, pause, resume, online, deploy
+                  --again): which stage of the app, dev when left out. Each stage is
+                  an environment of its own
       --all       with list: include environments you have torn down
       --deployments
                   with list: every deploy, instead of one row per environment
@@ -1375,13 +1379,15 @@ async function main() {
     }
 
     const environments = groupEnvironments(everything);
-    const shown = all ? environments : environments.filter(env => !PAST.has(env.rawStatus));
-    const hidden = environments.length - shown.length;
+    const live = all ? environments : environments.filter(env => !PAST.has(env.rawStatus));
+    const hidden = environments.length - live.length;
 
+    // --json stays one entry per environment, each saying its stage, for scripts.
     if (jsonOut) {
-      console.log(JSON.stringify(shown.map(publicEnvironment), null, 2));
+      console.log(JSON.stringify(live.map(publicEnvironment), null, 2));
       return;
     }
+    const shown = groupApps(environments, { all });
 
     if (!shown.length) {
       say(hidden ? `No live environments (${hidden} torn down, see --all)` : "No environments yet");
@@ -1395,6 +1401,9 @@ async function main() {
     // so point at the answer only when the developer actually has one.
     if (shown.some(env => env.deploys > 1)) {
       say(`One row per environment. ${product.command} list --deployments shows every deploy.`);
+    }
+    if (shown.some(env => env.others.length)) {
+      say(`An app's other stages are under STAGES. Name one with --stage, as in ${product.command} status <app> --stage ${environmentStage(shown.find(env => env.others.length).others[0].latest)}.`);
     }
 
     return;
@@ -1713,15 +1722,19 @@ async function resolveTarget({ apiBaseUrl, target }) {
   const byId = everything.find(dep => dep.deploymentId === target);
   if (byId) return { deploymentId: target, label: target };
 
+  const stage = stageAsked();
+  if (!stage) return null;
   const environments = groupEnvironments(everything);
   const live = environments.filter(env => !PAST.has(env.rawStatus));
-  const named = env => env.stackName === target || env.stackName === `sealeye-${target}` || env.app === target;
+  // A stack's own name means that environment; an app's name means its stage's.
+  const named = env => env.stackName === target || env.stackName === `sealeye-${target}` || (env.app === target && environmentStage(env.latest) === stage);
 
   const matches = live.filter(named);
 
   if (matches.length === 1) {
     const [env] = matches;
-    return { deploymentId: env.standing.deploymentId, label: `${env.app} (${env.standing.deploymentId})` };
+    const envStage = environmentStage(env.latest);
+    return { deploymentId: env.standing.deploymentId, label: `${env.app} (${envStage === FIRST_STAGE ? "" : `${envStage}, `}${env.standing.deploymentId})` };
   }
 
   // Two environments answering to one name is not something to guess at.
@@ -1747,8 +1760,8 @@ async function resolveTarget({ apiBaseUrl, target }) {
     return null;
   }
 
-  console.error(c.fail(`There is nothing called ${target} to tear down.`));
-  say(`${product.command} list shows what is there.`);
+  console.error(c.fail(`There is nothing called ${target} to tear down${inStage(stage)}.`));
+  say(otherStagesLine(everything, target, stage) || `${product.command} list shows what is there.`);
   process.exitCode = 1;
   return null;
 }
@@ -1857,10 +1870,12 @@ async function runDeployAgain({ apiBaseUrl, target: typed, file }) {
   // An exact id, or the newest record of that app, in your own team (an
   // organization-wide token lists every team's), whose code was packaged.
   const mine = d => me.auth === "off" || (d.teamId || "default") === me.team;
+  const stage = stageAsked();
+  if (!stage) return;
   const source = everything.find(d => d.deploymentId === target) ||
-    everything.find(d => safeName(d.app?.name) === safeName(target) && d.packaged && mine(d));
+    everything.find(d => safeName(d.app?.name) === safeName(target) && d.packaged && mine(d) && atStage(stage)(d));
   if (!source) {
-    console.error(c.fail(`There is no packaged code for ${target} on record. Run ${product.command} run in its folder.`));
+    console.error(c.fail(`There is no packaged code for ${target}${inStage(stage)} on record. Run ${product.command} run in its folder.`));
     process.exitCode = 1;
     return;
   }
@@ -1913,7 +1928,41 @@ function readCurrentPlanName() {
  * neither, it says how to name one and returns null.
  */
 // Flags that take a value, so the word after them is never read as an app's name.
-const VALUE_FLAGS = new Set(["--api", "--since", "--retention", "--out", "--file", "-f", "--again", "--app", "--team", "--request", "--answers", "--backend", "-b"]);
+const VALUE_FLAGS = new Set(["--stage", "--api", "--since", "--retention", "--out", "--file", "-f", "--again", "--app", "--team", "--request", "--answers", "--backend", "-b"]);
+
+/**
+ * The stage of an app a command acts on (PHASE5-PLAN D5): `--stage`, dev when it is
+ * left out. Each stage of an app is an environment of its own. Null, having said why,
+ * when what follows --stage is not a stage's name.
+ */
+function stageAsked() {
+  const at = process.argv.indexOf("--stage");
+  if (at === -1) return FIRST_STAGE;
+  const raw = process.argv[at + 1];
+  if (!raw || !/^[a-z][a-z0-9-]*$/i.test(raw)) {
+    console.error(c.fail("--stage names a stage of your organization's path to production, such as dev, sit or staging."));
+    process.exitCode = 1;
+    return null;
+  }
+  return raw.toLowerCase();
+}
+
+const atStage = stage => d => environmentStage(d) === stage;
+/** " in sit", or nothing for dev: how a message names the stage it looked in. */
+const inStage = stage => (stage === FIRST_STAGE ? "" : ` in ${stage}`);
+
+/**
+ * When an app has no environment at the stage asked, the stages it has standing, as a
+ * line saying how to name one; null when it has none.
+ */
+function otherStagesLine(records, target, stage, mine = () => true) {
+  const others = [...new Set(records
+    .filter(d => mine(d) && safeName(d.app?.name) === safeName(target) && d.stackName && !PAST.has(d.status))
+    .map(environmentStage))].filter(s => s !== stage).sort(compareStages);
+  if (!others.length) return null;
+  const which = others.length === 1 ? others[0] : `${others.slice(0, -1).join(", ")} and ${others.at(-1)}`;
+  return `${target} has ${others.length === 1 ? "an environment" : "environments"} in ${which}. Name one with --stage ${others[0]}.`;
+}
 
 /** The first word after the command that is not a flag or a flag's value. */
 function firstName() {
@@ -1967,16 +2016,20 @@ async function environmentTarget({ apiBaseUrl, target, watching = false }) {
   const byId = everything.find(d => d.deploymentId === target);
   if (byId) return { deploymentId: byId.deploymentId, label: byId.app?.name || target, record: byId };
   const mine = d => me.auth === "off" || (d.teamId || "default") === me.team;
+  const stage = stageAsked();
+  if (!stage) return null;
   // To watch, the newest change of any kind, even one queued before its stack is named
   // or one tearing the environment down; anything else needs an environment standing.
-  const found = everything.find(d => mine(d) && (d.stackName || (watching && d.environment)) && safeName(d.app?.name) === safeName(target));
+  // An app's name means its environment at the stage asked, dev unless --stage says.
+  const found = everything.find(d => mine(d) && atStage(stage)(d) && (d.stackName || (watching && d.environment)) && safeName(d.app?.name) === safeName(target));
   if (found && !watching && (found.status === "destroyed" || found.status === "destroying")) {
     console.error(c.fail(`${found.app?.name || target} has been torn down. ${product.command} run in its folder builds it again.`));
     process.exitCode = 1;
     return null;
   }
   if (found) return { deploymentId: found.deploymentId, label: found.app?.name || target, record: found };
-  console.error(c.fail(`There is no environment called ${target} that your team has. ${product.command} list shows what there is.`));
+  const elsewhere = otherStagesLine(everything, target, stage, mine);
+  console.error(c.fail(`There is no environment called ${target}${inStage(stage)} that your team has. ${elsewhere || `${product.command} list shows what there is.`}`));
   process.exitCode = 1;
   return null;
 }
@@ -1991,11 +2044,14 @@ async function portalPageFor({ apiBaseUrl, target }) {
   const byId = everything.find(d => d.deploymentId === target);
   if (byId) return environmentPath(byId);
   const mine = d => me.auth === "off" || (d.teamId || "default") === me.team;
-  const named = d => mine(d) && (d.stackName === target || safeName(d.app?.name) === safeName(target));
+  const stage = stageAsked();
+  if (!stage) return null;
+  const named = d => mine(d) && (d.stackName === target || (safeName(d.app?.name) === safeName(target) && atStage(stage)(d)));
   const environments = groupEnvironments(everything.filter(named));
   const env = environments.find(e => !PAST.has(e.rawStatus)) || environments[0];
   if (env) return environmentPath(env.latest);
-  console.error(c.fail(`There is no environment called ${target} that your team has. ${product.command} list --all shows what there is.`));
+  const elsewhere = otherStagesLine(everything, target, stage, mine);
+  console.error(c.fail(`There is no environment called ${target}${inStage(stage)} that your team has. ${elsewhere || `${product.command} list --all shows what there is.`}`));
   process.exitCode = 1;
   return null;
 }
@@ -2476,11 +2532,13 @@ async function resolveEvidenceTarget({ apiBaseUrl, target }) {
   const byId = everything.find(dep => dep.deploymentId === target);
   if (byId) return { deploymentId: target, label: byId.app?.name || target, stackName: byId.stackName || null };
 
+  const stage = stageAsked();
+  if (!stage) return null;
   const named = dep =>
-    dep.stackName === `sealeye-${target}` || dep.stackName === target || dep.app?.name === target;
+    dep.stackName === `sealeye-${target}` || dep.stackName === target || (dep.app?.name === target && atStage(stage)(dep));
 
   const environments = groupEnvironments(everything).filter(env => !PAST.has(env.rawStatus));
-  const live = environments.filter(env => env.stackName === `sealeye-${target}` || env.stackName === target || env.app === target);
+  const live = environments.filter(env => env.stackName === `sealeye-${target}` || env.stackName === target || (env.app === target && atStage(stage)(env.latest)));
 
   if (live.length > 1) {
     console.error(c.fail(`More than one environment answers to ${target}:`));
@@ -2497,7 +2555,9 @@ async function resolveEvidenceTarget({ apiBaseUrl, target }) {
     return { deploymentId: newest.deploymentId, label: newest.app?.name || target, stackName: newest.stackName || null };
   }
 
-  console.error(c.fail(`There is nothing called ${target} on record.`));
+  console.error(c.fail(`There is nothing called ${target}${inStage(stage)} on record.`));
+  const elsewhere = otherStagesLine(everything, target, stage);
+  if (elsewhere) say(elsewhere);
   process.exitCode = 1;
   return null;
 }
@@ -2675,9 +2735,29 @@ function groupEnvironments(deployments) {
   }));
 }
 
+/**
+ * One row per app, with its stages (PHASE5-PLAN D5): each app's first stage standing
+ * (dev, usually) is its row, and its other stages ride along on it as `others`. Without
+ * `all`, a stage torn down or drafted is left out, and an app with none left goes.
+ */
+function groupApps(environments, { all = false } = {}) {
+  const apps = new Map();
+  for (const env of environments) {
+    if (!all && PAST.has(env.rawStatus)) continue;
+    const key = appKey(env.latest);
+    if (!apps.has(key)) apps.set(key, []);
+    apps.get(key).push(env);
+  }
+  return [...apps.values()].map(envs => {
+    const [row, ...others] = envs.sort((a, b) => compareStages(environmentStage(a.latest), environmentStage(b.latest)));
+    return { ...row, others };
+  });
+}
+
 /** The environment as --json reports it: no view strings, no record internals. */
 const publicEnvironment = env => ({
   app: env.app,
+  stage: environmentStage(env.latest),
   stackName: env.stackName,
   team: env.latest.teamId || "default",
   status: env.rawStatus,
@@ -2719,9 +2799,14 @@ function appLabeller(records) {
 
 function printEnvironmentTable(environments) {
   const label = appLabeller(environments.map(env => env.latest));
+  const stageOf = env => environmentStage(env.latest);
+  // The STAGES column shows only when some app has a stage past dev: an app's other
+  // stages and how each one is, beside its row.
+  const staged = environments.some(env => env.others?.length || stageOf(env) !== FIRST_STAGE);
   const rows = environments.map(env => ({
     env,
-    app: label(env.app, env.latest),
+    app: label(env.app, env.latest) + (stageOf(env) === FIRST_STAGE ? "" : ` (${stageOf(env)})`),
+    stages: (env.others || []).map(o => `${stageOf(o)} ${o.status}`).join(", ") || "-",
     status: env.status,
     url: env.url,
     deploys: String(env.deploys),
@@ -2733,11 +2818,12 @@ function printEnvironmentTable(environments) {
     app: Math.max("APP".length, widthOf("app")),
     status: Math.max("STATUS".length, widthOf("status")),
     url: Math.max("URL".length, widthOf("url")),
-    deploys: Math.max("DEPLOYS".length, widthOf("deploys"))
+    deploys: Math.max("DEPLOYS".length, widthOf("deploys")),
+    stages: Math.max("STAGES".length, widthOf("stages"))
   };
 
   console.log(
-    c.dim(`${pad("APP", w.app)}  ${pad("STATUS", w.status)}  ${pad("URL", w.url)}  ${pad("DEPLOYS", w.deploys)}  LAST`)
+    c.dim(`${pad("APP", w.app)}  ${pad("STATUS", w.status)}  ${pad("URL", w.url)}  ${pad("DEPLOYS", w.deploys)}  ${staged ? `${pad("STAGES", w.stages)}  ` : ""}LAST`)
   );
 
   for (const r of rows) {
@@ -2746,7 +2832,8 @@ function printEnvironmentTable(environments) {
       : statusColour(r.env.rawStatus, pad(r.status, w.status));
     const url = r.url === "-" ? c.dim(pad(r.url, w.url)) : c.accent(pad(r.url, w.url));
 
-    console.log(`${pad(r.app, w.app)}  ${status}  ${url}  ${c.dim(pad(r.deploys, w.deploys))}  ${c.dim(r.last)}`);
+    const stages = staged ? `${r.stages === "-" ? c.dim(pad(r.stages, w.stages)) : pad(r.stages, w.stages)}  ` : "";
+    console.log(`${pad(r.app, w.app)}  ${status}  ${url}  ${c.dim(pad(r.deploys, w.deploys))}  ${stages}${c.dim(r.last)}`);
   }
 }
 
