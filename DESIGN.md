@@ -5054,3 +5054,45 @@ whose findings were all fixed before the pull request.
   uat.", "For every stage." when nothing is written, and for a module a stage adds, "No
   app asks for it: from staging, the platform adds it beside every app that needs ...".
   Silence had meant every stage, which no one could tell from a line left out.
+
+## Each stage of an app has a name, a state and a busy rule of its own
+
+Built Sun Nov 1, 2026 (PHASE5-PLAN Step 3, the API's part; D5, "An environment per
+stage, and a role per stage").
+
+- **Names.** dev keeps every name it had. A later stage's environment is
+  `sealeye-<team>-<app>-<stage>-<hash>` (`environmentName` in `core/names.js`), still at
+  most 49 characters: the stage is written as `safeName` makes it, at most 12 characters
+  (`stageForName`), the readable team and app give way to it so it is never cut off, and
+  the hash is over the organization, team, app and stage, so two stages are apart even
+  where their readable parts meet. The module's name (`moduleName`) stays at most 31
+  characters with no stage in its readable part, since a module names its parts after
+  it and the stage; its hash is the stage's environment's, so a module told no stage
+  still names its parts apart from another stage's.
+- **Records.** A record may carry `stage`; one that does not is dev
+  (`environmentStage` in `core/environments.js`, which runs in a browser too), so every
+  record made before is dev, as built. GET /deployments and GET /deployments/{id} say
+  each record's stage. An environment's key is its name, already one per app and stage;
+  a draft past dev, which has no name in the cloud, is keyed `<team>:<app>:<stage>`.
+- **Naming from records.** `namingFor` takes the stage and keeps a stage's name from that
+  stage's own records only: another stage's record is another environment.
+- **State.** dev's stays at `tofu-state/<org>/<environment>.tfstate`; a later stage's is
+  `tofu-state/<org>/<stage>/<environment>.tfstate` (`stateKeyFor`), so a stage's role can
+  later be given only its own stage's (D6, Step 4). A record keeps the key it was built
+  with, so a tear-down uses the same one.
+- **The executor builds the stage a record says, never dev by rule.** The module's
+  `stage` input, the platform values it is given (`valuesAt(org, stage)`) and the log
+  groups read as the environment's own (`ownOtherLogGroup`, `<name>-<stage>`) are the
+  record's stage's.
+- **One change at a time is per stage** with no change to `api/busy.js`: it already
+  compares environments by name, and each stage has its own.
+- **Nothing builds past dev yet** (principle 9). A new deploy is dev. Deploying a record
+  past dev again is refused with 409 STAGE_WAITS_ON_ITS_GATE until its gate is asked
+  (Step 8). A tear-down is not refused: whether a tear-down past dev waits on the gate is
+  D4, decided with Step 8. A test builds and tears down a made-up sit environment with the
+  stand-in `tofu` (`test/stage-build.test.js`), its record made as the executor gets one.
+- **Left for Step 8, when something first builds past dev:** the catalog a stage is
+  judged buildable against (`withPlatform` names dev's platform values), the plan
+  resolved for the stage (`resolveForStage`: its `instead`s and the stage's `with`s), and
+  platform values for a stage a catalog names outside `STAGES` (`api/platform.js` keeps
+  dev, sit, uat, staging, perf and prod only).

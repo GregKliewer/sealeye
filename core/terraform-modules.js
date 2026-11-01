@@ -315,13 +315,13 @@ export const OTHER_LOG_PREFIXES = Object.freeze(["/aws/vendedlogs/apigateway/", 
 
 /**
  * Whether a group a module output is one of the environment's own, beside the app's:
- * under one of those, named `<name>-dev` and then `-` or `/`, so another app whose name
+ * under one of those, named `<name>-<stage>` (dev unless said) and then `-` or `/`, so another app whose name
  * begins with this one's is not taken for it.
  */
-export function ownOtherLogGroup(group, name) {
+export function ownOtherLogGroup(group, name, stage = DEVELOPER_STAGE) {
   if (typeof group !== "string" || !name) return false;
   return OTHER_LOG_PREFIXES.some(p => {
-    const own = `${p}${name}-${DEVELOPER_STAGE}`;
+    const own = `${p}${name}-${stage}`;
     return group.startsWith(own) && (group[own.length] === "-" || group[own.length] === "/");
   });
 }
