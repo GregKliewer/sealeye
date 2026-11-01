@@ -196,13 +196,6 @@ while anything is unproven. Owed, found in the review: a platform engineer canno
 change who applies a stage or a module's stages by hand, and a stage's applier is read
 from the library again on every run (Step 2b, below).
 
-### Step 2b. Who applies a stage, changed by hand (added Nov 1, 2026)
-
-An edit, on both surfaces, of who applies a stage on a draft (`sealeye catalog edit`
-and Edit words), kept when the library is read again, as an edited word is kept
-(`keepEdits`). It is what lets Juniper's platform team set sit and uat to seaLeye (Greg,
-Nov 1). About a day and a half.
-
 - The supervisor writes each entry's `stages` and `instead`, and the library reader's
   path gains each stage's `with` (Juniper's `backup-plan`, from its README and the
   library's) and `applies`, read from the pipelines (Juniper's `app-promote.yml`
@@ -218,6 +211,13 @@ Nov 1). About a day and a half.
   every module.
 
 About two and a half to three and a half days, with the review.
+
+### Step 2b. Who applies a stage, changed by hand (added Nov 1, 2026)
+
+An edit, on both surfaces, of who applies a stage on a draft (`sealeye catalog edit`
+and Edit words), kept when the library is read again, as an edited word is kept
+(`keepEdits`). It is what lets Juniper's platform team set sit and uat to seaLeye (Greg,
+Nov 1). About a day and a half.
 
 ## Part B: an environment at a stage
 
