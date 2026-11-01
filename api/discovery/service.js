@@ -32,7 +32,7 @@ import { ANSWER_LIMIT } from "../../core/discovery-words.js";
 import { createBudget, readLibraryLevel, readModule, SpendingLimit, superviseEntries } from "./readers.js";
 import * as store from "./store.js";
 import { connectsOf, deliversOf, idFor, libraryHash, listModules, moduleHash, moduleInputs, moduleOutputs, moduleRuns } from "./terraform.js";
-import { keepEdits } from "../../core/catalog-edits.js";
+import { keepEdits, keepStageEdits, withOverrideNotes } from "../../core/catalog-edits.js";
 import fs from "node:fs";
 
 /**
@@ -615,7 +615,7 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
     await applyMerges(run, written.merges);
     const entries = await inPlainWords(run, written.entries || [], sources, list => build(list, asked(run.id)));
     const questions = asked(run.id);
-    const document = withoutUnplainInputLines(build(entries, questions));
+    const document = withStageEditsOf(run.org, withoutUnplainInputLines(build(entries, questions)));
     await askAboutStages(run, document);
     const kept = await addCatalog({ org: run.org, document, by: run.startedBy });
     run.catalogVersion = kept.version;
@@ -624,6 +624,22 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
     await markUsed(before.filter(q => q.answer != null && !q.usedAt && (q.touches || []).every(t => sources.includes(t))), kept.version);
     await save(run.id);
     emit(run.id, { type: "draft", catalog: { version: kept.version }, open: questions.filter(q => q.answer == null).length });
+  }
+
+  /**
+   * Who applies each stage, as the platform team chose, kept on the new draft while the
+   * library says of the stage what it said then (keepStageEdits; PHASE5-PLAN Step 2b).
+   * Whatever the run read, every module or only what changed. Read from the organization's
+   * newest catalog that is not retired, so a change made on a draft that never went live
+   * is not lost to the next run either (the review of Step 2b), as an answer is not.
+   */
+  function withStageEditsOf(org, document) {
+    const live = liveCatalog(org);
+    const floor = live.source === "organization" ? live.version : 0;
+    const newest = catalogsOf(org).filter(c => c.status !== "retired" && c.version >= floor).sort((a, b) => b.version - a.version)[0];
+    if (!newest) return document;
+    const { document: out, notes } = keepStageEdits(catalogAt(org, newest.version), document);
+    return withOverrideNotes(out, notes);
   }
 
   /**

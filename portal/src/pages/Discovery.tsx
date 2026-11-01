@@ -8,13 +8,13 @@
 // catalog fix` does (DESIGN.md, "What blocks approval is fixed in one walk").
 import { Fragment, useEffect, useState } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router";
-import { api, ApiError, type CatalogSummary, type DiscoveryQuestion, type DiscoveryRun, type DraftCatalog, type DraftModule, type SelfTest, type WordFix } from "../api";
+import { api, ApiError, type CatalogSummary, type DiscoveryQuestion, type DiscoveryRun, type DraftCatalog, type DraftModule, type DraftStage, type SelfTest, type WordFix } from "../api";
 import { orgWide, useLoad, useSession } from "../session";
 import { ago, when } from "../model";
 import { PageTitle, Problem } from "../Layout";
 import { CommandHint } from "../Command";
 import { commandLine, label } from "../../../core/operations.js";
-import { editableFieldsOf, EDIT_LIMIT } from "../../../core/catalog-edits.js";
+import { editableFieldsOf, EDIT_LIMIT, whoAppliesWords } from "../../../core/catalog-edits.js";
 import { forbiddenWords } from "../../../core/developer-words.js";
 import { comparedWords, READ_ALL, choicesFor, discoveryEventLine, discoveryStateWords, isOpen, activityWords, answerStateWords, catalogAboutWords, catalogTitleWords, elapsedWords, modulesDone, nextProgress, progressSummary, SOMETHING_ELSE, ANSWER_LIMIT, approvedWords, catalogStatusWords, catalogSummaryWords, madeLiveWords, nextCatalogStep, RESTS_ON_QUESTION, selfTestSummary, avoidWords, stillSaysWords, FIX_OFFER, fixableByEditing, fixedWords, fixPlaceWords, notFixedByEditing, wordFixesOf, builtWords, withVersion } from "../../../core/discovery-words.js";
 import { Badge } from "../components/ui/badge";
@@ -380,6 +380,7 @@ function DraftTable({ draft, version, questions, tick, onChanged }: { draft: Dra
             <ul className="space-y-1 text-sm text-dim">
               {stageMapWords(stageMapView(draft)).map(line => <li key={line}>{line}</li>)}
             </ul>
+            {editable && version !== undefined ? <WhoBuilds version={version} draft={draft} onChanged={onChanged} /> : null}
           </div>
         ) : null}
       </CardContent>
@@ -745,6 +746,75 @@ function FixWalk({ version, first, onChanged, onClose }: { version: number; firs
       ) : null}
       {approved ? <SelfTestResult version={version} result={approved} done={approvedWords(version)} /> : null}
       <CommandHint op="catalog-fix" flags={[String(version)]} className="mt-3" />
+    </div>
+  );
+}
+
+/**
+ * Who builds each stage of a draft past dev, each one to change, as `sealeye catalog edit
+ * <v> --stage <stage>` changes it (PHASE5-PLAN Step 2b). Kept when discovery reads the
+ * library again, while the library says of the stage what it said when it was changed.
+ */
+function WhoBuilds({ version, draft, onChanged }: { version: number; draft: DraftCatalog; onChanged: () => void }) {
+  const stages: DraftStage[] = [...(draft.stages?.path || []), ...(draft.stages?.aside || [])].filter(s => s.name !== "dev");
+  const [open, setOpen] = useState<string | null>(null);
+  const [applies, setApplies] = useState<"sealeye" | "pipeline">("sealeye");
+  const [pipeline, setPipeline] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const [result, setResult] = useState<SelfTest | null>(null);
+  function start(s: DraftStage) {
+    setOpen(open === s.name ? null : s.name);
+    setApplies(s.applies === "pipeline" ? "pipeline" : "sealeye");
+    setPipeline(s.pipeline || s.edited?.read.pipeline || "");
+    setProblem(null);
+  }
+  async function save(stage: string) {
+    setBusy(true);
+    setProblem(null);
+    try {
+      const done = await api.editCatalogStage(version, stage, applies, pipeline);
+      setResult(done.selfTest);
+      setOpen(null);
+      onChanged();
+    } catch (err) {
+      setProblem(err instanceof ApiError ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="mt-4" data-testid="who-builds">
+      <h4 className="mb-2 text-xs font-semibold">Who builds each stage</h4>
+      <ul className="space-y-2 text-sm">
+        {stages.map(s => (
+          <li key={s.name} data-testid="who-builds-stage">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-mono">{s.name}</span>
+              <span className="text-dim" data-testid="who-builds-now">{whoAppliesWords(s)}</span>
+              {s.edited ? <Badge tone="neutral" data-testid="who-builds-edited" title={`The library says ${whoAppliesWords(s.edited.read)} builds it.`}>chosen by {s.edited.by || "someone"}</Badge> : null}
+              <Button size="sm" variant="ghost" className="ml-auto" onClick={() => start(s)} data-testid="who-builds-change">{open === s.name ? "Close" : "Change"}</Button>
+            </div>
+            {open === s.name ? (
+              <div className="mt-2 space-y-2 rounded-md border border-rule p-3" data-testid="who-builds-panel">
+                <fieldset className="flex flex-wrap gap-4 text-sm">
+                  <legend className="sr-only">Who builds {s.name}</legend>
+                  <label className="flex items-center gap-2"><input type="radio" name={`who-${s.name}`} checked={applies === "sealeye"} onChange={() => setApplies("sealeye")} /> seaLeye</label>
+                  <label className="flex items-center gap-2"><input type="radio" name={`who-${s.name}`} checked={applies === "pipeline"} onChange={() => setApplies("pipeline")} /> A pipeline</label>
+                </fieldset>
+                {applies === "pipeline" ? <Input value={pipeline} onChange={e => setPipeline(e.target.value)} placeholder="The pipeline, as the library names it" aria-label="The pipeline's name" maxLength={200} /> : null}
+                <p className="text-xs text-dim">Kept when discovery reads the library again, until the library says something else of {s.name}.{s.edited ? ` The library says ${whoAppliesWords(s.edited.read)} builds it.` : ""}</p>
+                <div className="flex items-center gap-3">
+                  <Button size="sm" onClick={() => save(s.name)} disabled={busy || (applies === "pipeline" && !pipeline.trim())}>Save</Button>
+                  <CommandHint op="catalog-edit" flags={[String(version), "--stage", s.name, applies === "pipeline" ? `pipeline ${pipeline || "<name>"}` : "sealeye"]} />
+                </div>
+                {problem ? <Problem message={problem} /> : null}
+              </div>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+      {result ? <div className="mt-3"><SelfTestResult version={version} result={result} /></div> : null}
     </div>
   );
 }

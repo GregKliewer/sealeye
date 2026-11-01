@@ -208,7 +208,17 @@ const juniperCatalog = {
 fs.writeFileSync(path.join(home, "platform-values.json"), JSON.stringify([
   { org: "juniper", stage: "dev", name: "subnet_ids", value: ["subnet-0a1b2c3d", "subnet-4e5f6a7b"], setBy: "pat@juniper.example", setAt: ago(2 * 3600_000) }
 ]));
-fs.writeFileSync(path.join(home, "catalogs.json"), JSON.stringify([juniperCatalog, {
+// A later draft of Juniper's, its path read from the library, for who builds each stage
+// (PHASE5-PLAN Step 2b).
+const juniperDraft = {
+  ...juniperCatalog, version: 5, status: "draft", approvedBy: null, approvedAt: null, madeLiveBy: null, madeLiveAt: null, createdAt: ago(3600_000),
+  document: { ...juniperCatalog.document, stages: { path: [
+    { name: "dev" },
+    { name: "sit", applies: "pipeline", pipeline: ".github/workflows/app-promote.yml", gate: [] },
+    { name: "prod", applies: "pipeline", pipeline: ".github/workflows/app-promote.yml", gate: ["a platform team approval"] }
+  ] } }
+};
+fs.writeFileSync(path.join(home, "catalogs.json"), JSON.stringify([juniperCatalog, juniperDraft, {
   org: "default", version: 1, status: "draft", createdBy: "lead@example.com", createdAt: ago(3600_000), approvedBy: null, approvedAt: null,
   document: {
     catalogVersion: "discovery-dsc_0000000000000001",

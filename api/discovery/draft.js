@@ -10,7 +10,7 @@
 // else of the starter's, since its modules and rules are seaLeye's own four.
 import { starterCatalog } from "../../core/catalog.js";
 import { forbiddenWord } from "../../core/developer-words.js";
-import { keepEdits } from "../../core/catalog-edits.js";
+import { keepEdits, keepStageEdits, withOverrideNotes } from "../../core/catalog-edits.js";
 import { FIRST_STAGE, stageMapFindings, stageMapProblems } from "../../core/stages.js";
 
 const unanswered = q => q.answer === undefined || q.answer === null;
@@ -429,12 +429,16 @@ export function withStageMap(doc, library) {
       notes.push(`${m.id} is added from ${m.added.from} beside every app that needs ${m.added.beside}, so it is not one an app asks for itself.`);
     }
   }
-  if (notes.length) discovery.stage_notes = [...new Set(notes)];
   const adds = fixed.filter(m => m.added).map(m => ({ from: m.added.from, module: m.id, beside: m.added.beside }));
   // Read again with no library (a rewrite, or the eval's --reread), what the map already
   // says a stage adds stays, for a module whose entry does not say it itself.
   if (!fromLibrary) for (const w of doc.stages?.with || []) if (w && !adds.some(a => a.module === w.module)) adds.push(w);
-  return { ...rest, discovery, modules: fixed, stages: { ...base, ...(adds.length ? { with: adds } : {}) } };
+  // Read again from the library, the path keeps who applies each stage as a person
+  // chose, while the library says what it said then (PHASE5-PLAN Step 2b). Read with no
+  // library, the path is the draft's own, edits and all.
+  const { document: kept, notes: editNotes } = fromLibrary ? keepStageEdits(doc, { stages: base }) : { document: { stages: base }, notes: [] };
+  if (notes.length) discovery.stage_notes = [...new Set(notes)];
+  return withOverrideNotes({ ...rest, discovery, modules: fixed, stages: { ...kept.stages, ...(adds.length ? { with: adds } : {}) } }, editNotes);
 }
 
 function withoutStageFields(m) {

@@ -4934,6 +4934,32 @@ library right, say `pipeline` for each. Once discovery writes the map (PHASE5-PL
 any platform team chooses where seaLeye builds; the library is not changed to suit the
 proof.
 
+Built Sun Nov 1, 2026 (PHASE5-PLAN Step 2b, 2.53.0; Greg's decisions of that day). Who
+builds a stage past dev is changed on a draft, on both surfaces: `sealeye catalog edit
+<v> --stage <stage> sealeye | pipeline <name>`, and "Who builds each stage" under the
+draft's path on the Discovery page, through POST /catalogs/{v}/edits with `{ stage,
+field: "applies", text, pipeline? }`. The stage keeps the change as `edited`: who, when,
+and what the library said of it then (`read`); a change back to what the library said
+takes the mark away. dev is not changed. The self-test's notes say each such stage and
+whose choice it is, beside what the library says.
+
+- **Kept while the library says the same.** A new draft keeps the changes of the
+  organization's newest catalog that is not retired (the live one, or a draft after it
+  that never went live), whether the run read every module or only what changed, and a
+  rewrite of a draft (a late answer) keeps the draft's own (`keepStageEdits` in
+  `core/catalog-edits.js`). A stage the library no longer has takes its change with it,
+  in a note.
+- **The library wins when it changes** (Greg: "Do what the library says and note that it
+  overrides a previous manual change, on X date and time, by Y person"). Once the library
+  says something else of the stage, its reading stands, and a note on the self-test says
+  so: "The library now says ... builds sit, so it does; this replaces the change ... made
+  on Nov 1, 2026 at 21:40 UTC, which had seaLeye build it." The note is kept in
+  `discovery.stage_overrides`, which later rewrites of the draft never clear.
+- **A draft only.** As with words, a live catalog is as it was approved. A run that finds
+  nothing changed in the library makes no draft, so changing a live catalog's stage takes
+  a run that reads everything (`sealeye discover --all`), then the change, approve and
+  make live.
+
 ## An environment per stage, and a role per stage
 
 Decided Sat Oct 24, 2026 (PHASE5-PLAN D5 and D6; Greg: as recommended). Built in

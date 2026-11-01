@@ -298,7 +298,8 @@ DESIGN.md, "seaLeye builds every stage, the way the organization chose for each"
 *Planned in [PHASE5-PLAN.md](PHASE5-PLAN.md) (Oct 22, 2026; rewritten Oct 24 for every
 stage). Decided so far: D1 to D3, D5, D6 and D12 (Oct 24). Progress: Step 1, the stage map
 in the catalog, built Oct 24, 2026 (2.51.0). Step 2, discovery writes the map and the
-interview plans for dev, built Nov 1, 2026 (2.52.0). Nothing is built past dev yet.*
+interview plans for dev, built Nov 1, 2026 (2.52.0). Step 2b, who builds a stage changed
+by hand, built Nov 1, 2026 (2.53.0). Nothing is built past dev yet.*
 
 - A module per stage, each stage's gate, and who applies it, in the catalog (Q20).
 - An app has an environment per stage, each with its own role, settings and state.

@@ -12,7 +12,8 @@ const home = fs.mkdtempSync(path.join(os.tmpdir(), "sealeye-discovery-stages-"))
 process.env.SEALEYE_HOME = home;
 delete process.env.DATABASE_URL;
 
-const { openCatalogs, catalogAt } = await import("../api/catalogs.js");
+const { openCatalogs, catalogAt, catalogsOf, changeDraft, approveCatalog, makeLive } = await import("../api/catalogs.js");
+const { applyStageEdit } = await import("../core/catalog-edits.js");
 const { createDiscoveryService } = await import("../api/discovery/service.js");
 const { readLibraryFolder } = await import("../api/discovery/library.js");
 const { withStageMap, provenStageMap, openFor } = await import("../api/discovery/draft.js");
@@ -70,10 +71,10 @@ function model(stageFields) {
   return { messages: { create } };
 }
 
-async function run(stageFields) {
+async function run(stageFields, options = {}) {
   const dir = library();
   const service = createDiscoveryService({ client: model(stageFields), readLibrary: async () => readLibraryFolder(dir, { repo: "acme/platform" }) });
-  const { discoveryId } = await service.start({ caller, repos: [{ owner: "acme", repo: "platform" }] });
+  const { discoveryId } = await service.start({ caller, repos: [{ owner: "acme", repo: "platform" }], ...options });
   await service.settled(discoveryId);
   const record = service.record(discoveryId);
   return { draft: catalogAt("acme", record.catalogVersion), questions: service.questions(discoveryId) };
@@ -376,4 +377,40 @@ test("a module read as for later stages only, that nothing reaches, is for every
   assert.equal(byId(d, "name").stages, undefined);
   assert.match(d.discovery.stage_notes.join(" "), /name was read as for staging, prod only, but nothing takes it in another's place or adds it at a stage, so no app could use it; it is for every stage\./);
   assert.equal(stagesCheck(d).passed, true);
+});
+
+test("a run keeps who builds a stage as the platform team chose on the live catalog, while the library says the same (Step 2b)", async () => {
+  const stageFields = {
+    "modules/db": { stages: ["dev"], instead: { from: "staging", source: "modules/db-cluster" } },
+    "modules/db-cluster": { stages: ["staging", "prod"] },
+    "modules/backup": { added: { from: "staging", beside: "relational_database" } }
+  };
+  await run(stageFields);
+  const latest = catalogsOf("acme").filter(c => c.status === "draft").at(-1).version;
+  await changeDraft({ org: "acme", version: latest, change: d => applyStageEdit(d, { stage: "staging", applies: "sealeye", by: "pat@acme.example", at: "2026-11-01T21:40:00.000Z" }) });
+  await approveCatalog({ org: "acme", version: latest, by: "pat@acme.example" });
+  await makeLive({ org: "acme", version: latest, by: "pat@acme.example" });
+
+  // Read in full: a run that finds nothing changed makes no draft.
+  const again = await run(stageFields, { full: true });
+  const staging = again.draft.stages.path.find(s => s.name === "staging");
+  assert.equal(staging.applies, "sealeye");
+  assert.equal(staging.edited.by, "pat@acme.example");
+  assert.equal(again.draft.stages.path.find(s => s.name === "prod").applies, "pipeline", "only the stage changed");
+  assert.ok(selfTest({ document: again.draft, version: 9 }).notes.some(n => n.startsWith("staging: built by seaLeye, as pat@acme.example chose")));
+});
+
+test("a change made on a draft that never went live is kept by the next run too (the review of Step 2b)", async () => {
+  const stageFields = {
+    "modules/db": { stages: ["dev"], instead: { from: "staging", source: "modules/db-cluster" } },
+    "modules/db-cluster": { stages: ["staging", "prod"] },
+    "modules/backup": { added: { from: "staging", beside: "relational_database" } }
+  };
+  await run(stageFields, { full: true });
+  const draftVersion = catalogsOf("acme").filter(c => c.status === "draft").at(-1).version;
+  await changeDraft({ org: "acme", version: draftVersion, change: d => applyStageEdit(d, { stage: "prod", applies: "sealeye", by: "pat@acme.example", at: "2026-11-01T22:00:00.000Z" }) });
+  const again = await run(stageFields, { full: true });
+  const prod = again.draft.stages.path.find(s => s.name === "prod");
+  assert.equal(prod.applies, "sealeye");
+  assert.equal(prod.edited.at, "2026-11-01T22:00:00.000Z");
 });

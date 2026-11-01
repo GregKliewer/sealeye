@@ -214,6 +214,10 @@ About two and a half to three and a half days, with the review.
 
 ### Step 2b. Who applies a stage, changed by hand (added Nov 1, 2026)
 
+Built Sun Nov 1, 2026 (2.53.0; DESIGN.md, "Who applies each stage is in the catalog"). One
+thing found while building it: a run that finds nothing changed makes no draft, so
+changing a live catalog's stage takes `sealeye discover --all` first.
+
 An edit, on both surfaces, of who applies a stage on a draft (`sealeye catalog edit`
 and Edit words), kept when the library is read again, as an edited word is kept
 (`keepEdits`). It is what lets Juniper's platform team set sit and uat to seaLeye (Greg,

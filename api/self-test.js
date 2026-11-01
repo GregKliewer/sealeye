@@ -11,7 +11,7 @@
 import { CONNECTED_PLAN_VERSION, PLAN_VERSION } from "../core/schema.js";
 import { catalogProblems, isBuildable } from "../core/catalog.js";
 import { developerWordProblems, shownWord } from "../core/developer-words.js";
-import { editableFieldsOf, fieldForPlace } from "../core/catalog-edits.js";
+import { editableFieldsOf, fieldForPlace, stageEditNotes } from "../core/catalog-edits.js";
 import { SELF_TEST_CHECKS } from "../core/discovery-words.js";
 import { checkAgainst } from "./validate.js";
 import { acceptsOf, isPart, terraformBuilds } from "../core/terraform-modules.js";
@@ -162,6 +162,9 @@ export function selfTest({ document, version, questionText = () => null }) {
     check("stages", [...stageMapGaps(document), ...unprovenWords(document)])
   ];
   for (const note of Array.isArray(document.discovery?.stage_notes) ? document.discovery.stage_notes : []) notes.push(note);
+  // Each stage a person changed who builds, for whoever approves (PHASE5-PLAN Step 2b).
+  notes.push(...stageEditNotes(document));
+  for (const note of Array.isArray(document.discovery?.stage_overrides) ? document.discovery.stage_overrides : []) notes.push(note);
   // Each module's release, by id, where its library releases it (core/module-versions.js).
   const versions = Object.fromEntries(modules.filter(m => typeof m.version === "string" && m.version).map(m => [m.id, m.version]));
   return { version, passed: checks.every(c => c.passed), checks, refused, built, versions, notes };
