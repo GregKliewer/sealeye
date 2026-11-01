@@ -6,8 +6,8 @@ Find:
 - How an app reaches production: the stages in order, named as the library names them;
   for each, whether the library's own pipeline builds it or promotes to it (and which
   file), and what it waits on before it is built (an approval, a change ticket), each in
-  a few words. Then any stage built aside from that path, from which stage, and who
-  builds it. A stage the library says nothing about building is not_said; never guess
+  a few words. Then every stage the library names that is not on that path (one built
+  for a load test from staging, say), as `aside`: from which stage, and who builds it. A stage the library says nothing about building is not_said; never guess
   who builds it.
 - Rules that apply across modules, each with the modules it applies to (by folder, or
   "all") and its evidence: the file, and what in it says so. A rule in prose counts as

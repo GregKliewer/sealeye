@@ -486,7 +486,11 @@ export function scriptedAnswer(q, key, when) {
 
 /** A question about which stages its modules are for, answered from the key; or null. */
 export function answerAboutStages(q, key) {
-  if (!/\bstages?\b|\bstaging\b/i.test(String(q.question || "")) || !/\b(which|only|meant|allowed|offered|used|for)\b/i.test(String(q.question || ""))) return null;
+  // Only a question about which stages a module is for: "which stages", or "only",
+  // "allowed", "offered" or "meant for" beside a stage's name.
+  const text = String(q.question || "");
+  const stage = "(dev|sit|uat|staging|perf|prod|stages?)";
+  if (!new RegExp(`\\bwhich stages\\b|\\b(only|allowed|offered|meant for)\\b[^?]*\\b${stage}\\b|\\b${stage}\\b[^?]*\\bonly\\b`, "i").test(text)) return null;
   const touched = (q.touches || []).map(s => (key.catalog.modules || []).find(m => m.source === s)).filter(Boolean);
   if (!touched.length || touched.length !== (q.touches || []).length) return null;
   const name = m => m.source.split("/").pop();

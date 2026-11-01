@@ -369,6 +369,7 @@ function withoutStageFields(m) {
 export function provenStageMap(doc) {
   if (!doc.stages) return doc;
   const unproven = [...(doc.discovery?.unproven || [])];
+  const notes = [...(doc.discovery?.stage_notes || [])];
   let d = structuredClone(doc);
   // The path itself: refused, there is no map at all.
   const bare = { ...d, modules: d.modules.map(withoutStageFields), stages: { ...d.stages, with: [] } };
@@ -389,9 +390,19 @@ export function provenStageMap(doc) {
     const words = own.map(p => p.replace(`module ${m.id}: `, ""));
     if (own.some(p => / stages /.test(p) || p.includes(": stages "))) {
       const kept = (m.stages || []).filter(s => known.has(s));
-      if (kept.length) out.stages = kept;
-      else delete out.stages;
-      unproven.push({ kind: "stages", module: m.id, words: words.filter(w => w.startsWith("stages")).join("; ") || words.join("; ") });
+      const unknown = (m.stages || []).filter(s => !known.has(s));
+      // A stage the path does not have is the library reader's to find, not a guess to
+      // settle here: it is left out, said in the notes, and the rest kept (Greg's run of
+      // Step 2, Nov 1, 2026: a reader left perf out of the path, and the cluster's perf was
+      // asked about with a guess no answer could make true).
+      if (kept.length && unknown.length && Array.isArray(m.stages)) {
+        out.stages = kept;
+        notes.push(`${m.id} names ${unknown.join(" and ")}, which the path to production as read does not have, so it is left out.`);
+      } else {
+        if (kept.length) out.stages = kept;
+        else delete out.stages;
+        unproven.push({ kind: "stages", module: m.id, words: words.filter(w => w.startsWith("stages")).join("; ") || words.join("; ") });
+      }
     }
     if (own.some(p => p.includes(": instead "))) {
       delete out.instead;
@@ -421,7 +432,7 @@ export function provenStageMap(doc) {
     const { with: _w, ...s } = d.stages;
     d.stages = s;
   }
-  d.discovery = { ...d.discovery, ...(unproven.length ? { unproven } : {}) };
+  d.discovery = { ...d.discovery, ...(unproven.length ? { unproven } : {}), ...(notes.length ? { stage_notes: [...new Set(notes)] } : {}) };
   if (!unproven.length) delete d.discovery.unproven;
   return d;
 }

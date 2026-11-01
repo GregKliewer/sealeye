@@ -237,3 +237,16 @@ test("the supervisor's own names, module and stage, are read", async () => {
   assert.deepEqual(byId(draft, "db").instead, { from: "staging", module: "db_cluster" });
   assert.deepEqual(draft.stages.with, [{ from: "staging", module: "backup", beside: "relational_database" }]);
 });
+
+test("a stage the path does not have is left out with a note, the rest of the module's stages kept, and nothing is held back", () => {
+  const doc = juniperish();
+  doc.modules[0].stages = ["dev"];
+  doc.modules[0].instead = { from: "staging", source: "modules/db-cluster" };
+  doc.modules[1].inputs = { name: { required: true } };
+  doc.modules[1].stages = ["staging", "perf", "prod"];
+  const d = provenStageMap(withStageMap(doc, reviewPath));
+  assert.deepEqual(byId(d, "db_cluster").stages, ["staging", "prod"]);
+  assert.equal(d.discovery.unproven, undefined);
+  assert.match(d.discovery.stage_notes.join(" "), /db_cluster names perf, which the path to production as read does not have, so it is left out\./);
+  assert.equal(stagesCheck(d).passed, true);
+});

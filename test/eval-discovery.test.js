@@ -288,4 +288,5 @@ test("a question about which stages a module is for is answered from the key, ne
   assert.equal(ask("Is this module allowed on staging, or only on dev, sit and uat?", ["modules/postgres", "modules/postgres-cluster"]),
     "postgres is for dev, sit, uat only; postgres-cluster is for staging, perf, prod only.");
   assert.equal(ask("Are failed messages kept in every queue?", ["modules/work-queue"], "Yes"), "Yes", "anything else is still answered by its guess");
+  assert.equal(ask("Are there extra rules for staging and up beyond the stage-naming rule?", ["modules/custom-domain"], "No"), "No", "a question about a stage's rules is not about which stages");
 });

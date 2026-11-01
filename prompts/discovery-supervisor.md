@@ -28,7 +28,8 @@ are not, say what the library says, by its own folders and stage names:
 - `stages`: the stages a module is for, only when the library says it must not be used
   at some stage (one database below staging, another from staging up). A module the
   library allows at every stage ("any stage may", "allowed, but not needed") has none,
-  even when it is only needed at some; so does a module a stage adds (`added` places it).
+  even when it is only needed at some, and even when a lower stage usually does without
+  it (uses a generated address, say); so does a module a stage adds (`added` places it).
   When a reader asked which stages a module is for and nobody has answered, write
   `stages` by the question's guess, as for any question.
 - `instead`: on the module that comes first, `module`: the folder of the one that takes

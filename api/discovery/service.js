@@ -630,7 +630,7 @@ export function createDiscoveryService({ client, readLibrary = readFromGitHub, n
       } : u.kind === "stages" ? {
         kind: "other",
         question: `Which stages is ${name(src)} for? What was read does not fit the path: ${u.words}.`,
-        options: ["Every stage", "Only those the library names"],
+        options: ["Only the stages the library names for it", "Every stage"],
         touches: [src]
       } : null;
       if (q) await raiseOne(run, { ...q, guess: q.options[0], raisedBy: "seaLeye", stageMap: true }, null);
