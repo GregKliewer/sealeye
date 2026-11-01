@@ -126,7 +126,11 @@ test("no line, however long or strange, makes the scan slow", () => {
     const started = Date.now();
     scanText("crafted.js", line);
     const took = Date.now() - started;
-    assert.ok(took < 1500, `${line.slice(0, 12)}... took ${took} ms`);
+    // A backtracking pattern takes minutes on lines this long; a linear one, under a
+    // second here and a few in a slower build container (Greg's release, Nov 1, 2026:
+    // 1759 ms for "token=" repeated, inside the release's image build). The bound is
+    // for the first, never the second.
+    assert.ok(took < 10_000, `${line.slice(0, 12)}... took ${took} ms`);
   }
 });
 
