@@ -25,13 +25,18 @@ For each module you are asked to write:
 The path to production (the library reader's `stages`): most modules are the same at
 every stage, told which stage they are in, and need nothing more here. For the few that
 are not, say what the library says, by its own folders and stage names:
-- `stages`: the stages a module is for, when the library says it is not for all of them
-  (one database below staging, another from staging up).
-- `instead`: on the module that comes first, the folder of the one that takes its place
-  and the first stage it does so.
+- `stages`: the stages a module is for, only when the library says it must not be used
+  at some stage (one database below staging, another from staging up). A module the
+  library allows at every stage ("any stage may", "allowed, but not needed") has none,
+  even when it is only needed at some; so does a module a stage adds (`added` places it).
+  When a reader asked which stages a module is for and nobody has answered, write
+  `stages` by the question's guess, as for any question.
+- `instead`: on the module that comes first, `module`: the folder of the one that takes
+  its place, and `stage`: the first stage it does so. Write it whenever two modules serve
+  the same need at different stages, with `stages` on both.
 - `added`: on a module a stage adds beside apps of a kind, which no app asks for (a
-  backup plan beside every database from staging up): that first stage, and the need it
-  stands beside, by key. Such a module meets no need itself.
+  backup plan beside every database from staging up): `stage`, that first stage, and
+  `beside`, the need it stands beside, by key. Such a module meets no need itself.
 seaLeye checks each against the modules it names, and asks about any it cannot prove;
 leave one out rather than guess.
 

@@ -355,8 +355,8 @@ test("Juniper Mutual: given good words, the draft passes the answer key's checks
           return {
             source, line: k.line, when: k.when || "", signals: k.signals || [], role: k.role || "optional", availability: k.availability === "available" ? "available" : "deprecated", guidance: k.guidance || "", meets: k.meets || [], open: [],
             ...(k.stages ? { stages: k.stages } : {}),
-            ...(k.instead ? { instead: { from: k.instead.from, source: sourceOf(k.instead.module) } } : {}),
-            ...(added ? { added: { from: added.from, beside: added.beside } } : {})
+            ...(k.instead ? { instead: { stage: k.instead.from, module: sourceOf(k.instead.module) } } : {}),
+            ...(added ? { added: { stage: added.from, beside: added.beside } } : {})
           };
         });
         return { content: [{ type: "tool_use", id: "w", name: "write_catalog", input: { entries, questions: [] } }], usage };

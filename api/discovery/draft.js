@@ -268,9 +268,22 @@ function stageWordsOf(written) {
     if (names.length) out.stages = names;
   }
   const i = written?.instead;
-  if (i && typeof i === "object" && (i.source || i.module) && i.from) out.instead = { from: stageName(i.from), ...(i.module ? { module: i.module } : { source: String(i.source).trim().replace(/^\.\/+/, "").replace(/\/+$/, "") }) };
+  if (i && typeof i === "object") {
+    // As the supervisor writes it ({ module: folder, stage }), or as the tool had it
+    // first ({ source, from }). A folder
+    // and a stage written the wrong way round are put right (Greg's run, Nov 1, 2026:
+    // { from: "postgres-cluster", source: "staging" }).
+    let place = i.module ?? i.source;
+    let at = i.stage ?? i.from;
+    const looksLikeFolder = t => /\//.test(String(t || ""));
+    if (looksLikeFolder(at) && !looksLikeFolder(place)) [place, at] = [at, place];
+    const folder = String(place || "").trim().replace(/^\.\/+/, "").replace(/\/+$/, "");
+    // By folder here; withStageMap makes it the module's id.
+    if (folder && at) out.instead = { from: stageName(at), source: folder };
+  }
   const a = written?.added;
-  if (a && typeof a === "object" && a.from && a.beside) out.added = { from: stageName(a.from), beside: String(a.beside) };
+  const addedAt = a?.stage ?? a?.from;
+  if (a && typeof a === "object" && addedAt && a.beside) out.added = { from: stageName(addedAt), beside: String(a.beside) };
   return out;
 }
 

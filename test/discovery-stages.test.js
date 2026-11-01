@@ -218,3 +218,22 @@ test("the interview never hears of a module it cannot plan in dev, even in anoth
   assert.equal(byId(dev, "backup").availability, "not_for_dev");
   assert.equal(namesUnbuilt(dev)("From staging, `db_cluster` takes its place."), "db_cluster");
 });
+
+test("a folder and a stage written the wrong way round are put right", async () => {
+  const { draft } = await run({
+    "modules/db": { stages: ["dev"], instead: { from: "modules/db-cluster", source: "staging" } },
+    "modules/db-cluster": { stages: ["staging", "prod"] }
+  });
+  assert.deepEqual(byId(draft, "db").instead, { from: "staging", module: "db_cluster" });
+  assert.equal(draft.discovery.unproven, undefined);
+});
+
+test("the supervisor's own names, module and stage, are read", async () => {
+  const { draft } = await run({
+    "modules/db": { stages: ["dev"], instead: { module: "modules/db-cluster", stage: "staging" } },
+    "modules/db-cluster": { stages: ["staging", "prod"] },
+    "modules/backup": { added: { stage: "staging", beside: "relational_database" } }
+  });
+  assert.deepEqual(byId(draft, "db").instead, { from: "staging", module: "db_cluster" });
+  assert.deepEqual(draft.stages.with, [{ from: "staging", module: "backup", beside: "relational_database" }]);
+});

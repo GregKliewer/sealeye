@@ -175,8 +175,8 @@ test("graded twice: no answers, then the key's answers at fixed points; each pas
     const added = (key.catalog.stages?.with || []).find(w => sourceOf(w.module) === source);
     const stageFields = {
       ...(k.stages ? { stages: k.stages } : {}),
-      ...(k.instead ? { instead: { from: k.instead.from, source: sourceOf(k.instead.module) } } : {}),
-      ...(added ? { added: { from: added.from, beside: added.beside } } : {})
+      ...(k.instead ? { instead: { stage: k.instead.from, module: sourceOf(k.instead.module) } } : {}),
+      ...(added ? { added: { stage: added.from, beside: added.beside } } : {})
     };
     return { source, line: k.line, when: k.when || "", signals: k.signals || [], role: k.role || "optional", availability: source === "modules/cache-valkey" && valkey?.answer?.startsWith("No") ? "deprecated" : availability, guidance: k.guidance || "", meets: k.meets || [], open: [], ...stageFields };
   };

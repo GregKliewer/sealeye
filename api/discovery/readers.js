@@ -192,16 +192,22 @@ export const writeCatalogTool = {
             instead: {
               type: "object",
               additionalProperties: false,
-              required: ["from", "source"],
-              description: "Only when the library says another module takes this one's place from a later stage: that module's folder, and the first stage it takes over. On the module that comes first only.",
-              properties: { from: { type: "string" }, source: { type: "string" } }
+              required: ["module", "stage"],
+              description: "Only when the library says another module takes this one's place from a later stage. On the module that comes first only.",
+              properties: {
+                module: { type: "string", description: "The folder of the module that takes this one's place, as given (modules/...)." },
+                stage: { type: "string", description: "The first stage it takes this one's place, by the path's name (staging, say)." }
+              }
             },
             added: {
               type: "object",
               additionalProperties: false,
-              required: ["from", "beside"],
-              description: "Only when the library says a stage adds this module beside apps of a kind, never as something an app asks for (a backup plan beside every database from staging up): the first such stage, and the need it stands beside, by key.",
-              properties: { from: { type: "string" }, beside: { type: "string", enum: NEED_KEYS } }
+              required: ["stage", "beside"],
+              description: "Only when the library says a stage adds this module beside apps of a kind, never as something an app asks for (a backup plan beside every database from staging up).",
+              properties: {
+                stage: { type: "string", description: "The first stage that adds it, by the path's name." },
+                beside: { type: "string", enum: NEED_KEYS, description: "The need it stands beside, by key." }
+              }
             },
             open: { type: "array", items: { type: "string" }, description: "Ids of unanswered questions this entry rests on." }
           }
