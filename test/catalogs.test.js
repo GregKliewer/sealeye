@@ -271,6 +271,8 @@ test("GET /catalog says the path to production when it goes past dev, naming no 
   assert.deepEqual(acme.body.stages.with, [{ from: "staging", beside: ownLine, line: "Acme's own queue." }]);
   assert.ok(!JSON.stringify(acme.body.stages).includes("acme_queue"));
   assert.deepEqual(acme.body.document.stages, acme.body.stages);
+  // Each module says its stages, a module with none written for every stage (Greg, Nov 1, 2026).
+  assert.ok(acme.body.modules.length && acme.body.modules.every(m => m.every === true || Array.isArray(m.stages)));
 
   // sealeye catalog prints it, in the words the Catalog page uses.
   const out = execFileSync(process.execPath, ["cli/bin/sealeye", "catalog"], {
@@ -280,6 +282,7 @@ test("GET /catalog says the path to production when it goes past dev, naming no 
   assert.match(out, /The path to production\n\s+dev: you build it yourself, whenever you like\.\n\s+staging: built by your platform team's pipeline, after a platform team approval\./);
   assert.match(out, /From staging, beside a store for the files your app keeps, in acme's words, the platform adds: acme's own queue\./);
   assert.ok(!out.includes("acme_queue"));
+  assert.match(out, /For every stage\./);
 });
 
 test("POST /plans/validate reads each need in the words of the catalog the plan names", async () => {

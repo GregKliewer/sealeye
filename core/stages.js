@@ -326,7 +326,17 @@ export function stageMapView(catalog) {
 export function moduleStageView(entry, catalog) {
   if (!hasStagesPastDev(catalog)) return {};
   const out = {};
-  if (Array.isArray(entry?.stages)) out.stages = entry.stages;
+  // A module a stage adds is one no app asks for: said as that, not as stages.
+  const w = isText(entry?.id) ? stagePath(catalog).with.find(x => x.module === entry.id) : null;
+  if (w) {
+    const need = list(catalog?.need_kinds).find(n => n?.key === w.beside);
+    return { added: { from: w.from, beside: need?.line ? sentence(need.line) : w.beside } };
+  }
+  // Said every time, so a module with nothing written is read as every stage, never
+  // guessed at (Greg, Nov 1, 2026: "I don't know how to determine which stages modules
+  // are available for").
+  if (Array.isArray(entry?.stages) && entry.stages.length) out.stages = entry.stages;
+  else out.every = true;
   const i = entry?.instead;
   const other = i && isText(i.module) ? entryOf(catalog, i.module) : null;
   if (other?.line) out.instead = { from: i.from, line: other.line };
@@ -345,7 +355,9 @@ const sentence = text => {
  */
 export function moduleStageWords(m) {
   const parts = [];
+  if (m?.added) return `No app asks for it: from ${m.added.from}, the platform adds it beside every app that needs ${m.added.beside}.`;
   if (Array.isArray(m?.stages) && m.stages.length) parts.push(`For ${and(m.stages)}.`);
+  else if (m?.every) parts.push("For every stage.");
   if (m?.instead?.line) parts.push(`From ${m.instead.from}, the platform uses another in its place: ${sentence(m.instead.line)}.`);
   return parts.join(" ");
 }
